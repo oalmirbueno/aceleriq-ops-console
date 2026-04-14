@@ -48,7 +48,7 @@ export default function AppSidebar() {
       <div className="border-t border-border px-3 py-3">
         <div className="flex items-center justify-between">
           <div className="min-w-0">
-            <p className="truncate text-xs font-medium text-foreground">{user?.name}</p>
+            <p className="truncate text-xs font-medium text-foreground">{user?.user_metadata?.full_name ?? user?.email?.split("@")[0]}</p>
             <p className="truncate text-[10px] text-muted-foreground">{user?.email}</p>
           </div>
           <button
