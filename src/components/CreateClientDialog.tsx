@@ -72,11 +72,14 @@ export default function CreateClientDialog({ open, onOpenChange, onCreated }: Pr
         if (wErr) throw wErr;
 
         if (ws) {
+          const now = new Date().toISOString();
           await supabase.from("timeline_events").insert({
             workspace_id: ws.id,
+            client_id: client.id,
             event_type: "workspace_created",
             title: "Workspace criado",
             description: `Workspace criado automaticamente para ${client.name}`,
+            happened_at: now,
           });
         }
       }
