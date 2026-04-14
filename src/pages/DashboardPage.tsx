@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Users, FolderKanban, Activity, Clock } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingState from "@/components/LoadingState";
+import { supabase } from "@/integrations/supabase/client";
 
 interface StatCard {
   label: string;
@@ -9,21 +10,38 @@ interface StatCard {
   icon: React.ElementType;
 }
 
-const mockStats: StatCard[] = [
-  { label: "Total de Clientes", value: "0", icon: Users },
-  { label: "Workspaces", value: "0", icon: FolderKanban },
-  { label: "Clientes Ativos", value: "0", icon: Activity },
-  { label: "Itens Recentes", value: "0", icon: Clock },
-];
-
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
-  const [stats] = useState(mockStats);
+  const [stats, setStats] = useState<StatCard[]>([
+    { label: "Total de Clientes", value: "0", icon: Users },
+    { label: "Workspaces", value: "0", icon: FolderKanban },
+    { label: "Clientes Ativos", value: "0", icon: Activity },
+    { label: "Itens Recentes", value: "0", icon: Clock },
+  ]);
 
   useEffect(() => {
-    // Simulates data fetch — will be replaced by Supabase queries
-    const t = setTimeout(() => setLoading(false), 600);
-    return () => clearTimeout(t);
+    async function fetchStats() {
+      try {
+        const [clientsRes, workspacesRes, activeRes] = await Promise.all([
+          supabase.from("clients").select("*", { count: "exact", head: true }),
+          supabase.from("workspaces").select("*", { count: "exact", head: true }),
+          supabase.from("clients").select("*", { count: "exact", head: true }).eq("status", "active"),
+        ]);
+
+        setStats([
+          { label: "Total de Clientes", value: String(clientsRes.count ?? 0), icon: Users },
+          { label: "Workspaces", value: String(workspacesRes.count ?? 0), icon: FolderKanban },
+          { label: "Clientes Ativos", value: String(activeRes.count ?? 0), icon: Activity },
+          { label: "Itens Recentes", value: "0", icon: Clock },
+        ]);
+      } catch (err) {
+        console.error("Failed to fetch dashboard stats:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchStats();
   }, []);
 
   if (loading) return (
@@ -57,7 +75,7 @@ export default function DashboardPage() {
         <div className="mt-8 rounded-lg border border-border bg-card p-6">
           <p className="label-sm mb-2">ATIVIDADE RECENTE</p>
           <p className="text-sm text-muted-foreground">
-            Nenhuma atividade registrada ainda. Conecte o Lovable Cloud para ver dados reais.
+            Nenhuma atividade registrada ainda.
           </p>
         </div>
       </div>
