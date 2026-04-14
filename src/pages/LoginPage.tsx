@@ -18,9 +18,9 @@ export default function LoginPage() {
     try {
       const ok = await login(email, password);
       if (ok) navigate("/ops", { replace: true });
-      else setError("Credenciais inválidas");
+      else setError("Credenciais inválidas. Verifique e-mail e senha.");
     } catch {
-      setError("Erro ao fazer login");
+      setError("Erro ao fazer login. Tente novamente.");
     } finally {
       setLoading(false);
     }
