@@ -15,7 +15,8 @@ interface Workspace {
   name: string;
   status: string;
   current_stage: string;
-  assigned_to: string | null;
+  primary_owner_id: string | null;
+  client_id: string;
   clients: { id: string; name: string } | null;
   profiles: { full_name: string | null; email: string } | null;
 }
@@ -25,10 +26,20 @@ interface TimelineEvent {
   event_type: string;
   title: string;
   description: string | null;
+  happened_at: string;
   created_at: string;
 }
 
-const STAGES = ["entrada", "diagnostico", "estrategia", "execucao", "entrega"];
+const STAGES = [
+  "entrada",
+  "diagnostico",
+  "estrutura_base",
+  "planejamento",
+  "producao",
+  "ativacao",
+  "otimizacao",
+  "expansao",
+];
 
 const stageIdx = (s: string) => STAGES.indexOf(s);
 
@@ -43,7 +54,7 @@ export default function WorkspaceDetailPage() {
     if (!workspaceId) return;
     const { data, error } = await supabase
       .from("workspaces")
-      .select("id, name, status, current_stage, assigned_to, clients(id, name), profiles:assigned_to(full_name, email)")
+      .select("id, name, status, current_stage, primary_owner_id, client_id, clients(id, name), profiles:primary_owner_id(full_name, email)")
       .eq("id", workspaceId)
       .single();
 
@@ -51,9 +62,9 @@ export default function WorkspaceDetailPage() {
 
     const { data: events } = await supabase
       .from("timeline_events")
-      .select("id, event_type, title, description, created_at")
+      .select("id, event_type, title, description, happened_at, created_at")
       .eq("workspace_id", workspaceId)
-      .order("created_at", { ascending: false })
+      .order("happened_at", { ascending: false })
       .limit(20);
 
     if (events) setTimeline(events);
@@ -78,11 +89,14 @@ export default function WorkspaceDetailPage() {
       return;
     }
 
+    const now = new Date().toISOString();
     await supabase.from("timeline_events").insert({
       workspace_id: ws.id,
+      client_id: ws.client_id,
       event_type: "stage_changed",
       title: "Etapa alterada",
       description: `De "${oldStage}" para "${newStage}"`,
+      happened_at: now,
     });
 
     toast({ title: "Etapa atualizada", description: `Movido para "${newStage}"` });
@@ -123,10 +137,10 @@ export default function WorkspaceDetailPage() {
           <div className="flex items-center gap-2 text-sm">
             <span className="label-sm">Etapa</span>
             <Select value={ws.current_stage} onValueChange={handleStageChange} disabled={changingStage}>
-              <SelectTrigger className="h-8 w-[150px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 w-[170px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {STAGES.map((s) => (
-                  <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+                  <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -145,7 +159,7 @@ export default function WorkspaceDetailPage() {
         </div>
 
         {/* Stage progress */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           {STAGES.map((s, i) => {
             const current = stageIdx(ws.current_stage);
             const done = i < current;
@@ -162,7 +176,7 @@ export default function WorkspaceDetailPage() {
                         : "text-muted-foreground"
                   }`}
                 >
-                  {s}
+                  {s.replace("_", " ")}
                 </span>
               </div>
             );
@@ -183,7 +197,7 @@ export default function WorkspaceDetailPage() {
                     <p className="font-medium text-foreground">{ev.title}</p>
                     {ev.description && <p className="text-xs text-muted-foreground">{ev.description}</p>}
                     <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {new Date(ev.created_at).toLocaleString("pt-BR")}
+                      {new Date(ev.happened_at).toLocaleString("pt-BR")}
                     </p>
                   </div>
                 </div>

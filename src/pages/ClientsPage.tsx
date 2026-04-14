@@ -24,26 +24,33 @@ interface Client {
 
 const STATUS_OPTIONS = [
   { value: "__all__", label: "Todos os status" },
-  { value: "active", label: "Ativo" },
-  { value: "inactive", label: "Inativo" },
+  { value: "lead_imported", label: "Lead importado" },
   { value: "onboarding", label: "Onboarding" },
-  { value: "churned", label: "Churned" },
+  { value: "active", label: "Ativo" },
+  { value: "paused", label: "Pausado" },
+  { value: "completed", label: "Concluído" },
+  { value: "archived", label: "Arquivado" },
 ];
 
 const STAGE_OPTIONS = [
   { value: "__all__", label: "Todas as etapas" },
   { value: "entrada", label: "Entrada" },
   { value: "diagnostico", label: "Diagnóstico" },
-  { value: "estrategia", label: "Estratégia" },
-  { value: "execucao", label: "Execução" },
-  { value: "entrega", label: "Entrega" },
+  { value: "estrutura_base", label: "Estrutura base" },
+  { value: "planejamento", label: "Planejamento" },
+  { value: "producao", label: "Produção" },
+  { value: "ativacao", label: "Ativação" },
+  { value: "otimizacao", label: "Otimização" },
+  { value: "expansao", label: "Expansão" },
 ];
 
 const statusColor: Record<string, string> = {
+  lead_imported: "bg-muted text-muted-foreground border-border",
+  onboarding: "bg-accent/15 text-accent-foreground border-accent/30",
   active: "bg-primary/15 text-primary border-primary/30",
-  inactive: "bg-muted text-muted-foreground border-border",
-  onboarding: "bg-info/15 text-info border-info/30",
-  churned: "bg-destructive/15 text-destructive border-destructive/30",
+  paused: "bg-muted text-muted-foreground border-border",
+  completed: "bg-primary/10 text-primary/80 border-primary/20",
+  archived: "bg-muted text-muted-foreground border-border",
 };
 
 export default function ClientsPage() {
