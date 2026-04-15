@@ -1,111 +1,195 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { ArrowRight, Building2, Check, ChevronLeft, ChevronRight, Clock, Download, Loader2, Send, Shield } from "lucide-react";
+import { Building2, Check, ChevronLeft, ChevronRight, Loader2, Download, Send, Clock, Shield, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
-import { Toaster } from "@/components/ui/toaster";
+import { Progress } from "@/components/ui/progress";
+import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
+import { Toaster } from "@/components/ui/toaster";
+import { ENTERPRISE_BLOCKS, ENTERPRISE_SIGNAL_TO_DOSSIER, ENTERPRISE_TASK_SIGNALS, ENTERPRISE_DOC_SIGNALS } from "@/components/workspace/enterpriseStructuringBlocks";
+import { decodeBriefingToken, saveBriefingProgress, loadBriefingProgress, clearBriefingProgress } from "@/lib/briefingToken";
+import { loadRemoteDraft, saveRemoteDraft, submitRemoteBriefing } from "@/lib/briefingPersistence";
 import { supabase } from "@/integrations/supabase/client";
-import logoUrl from "@/assets/logo-aceleriq.png";
-import { ENTERPRISE_BLOCKS, ENTERPRISE_DOC_SIGNALS, ENTERPRISE_SIGNAL_TO_DOSSIER, ENTERPRISE_TASK_SIGNALS } from "@/components/workspace/enterpriseStructuringBlocks";
-import { clearBriefingProgress, decodeBriefingToken, loadBriefingProgress, saveBriefingProgress } from "@/lib/briefingToken";
 
+/** Flatten all blocks into individual questions */
 interface FlatQuestion {
   blockKey: string;
   blockLabel: string;
   blockIndex: number;
+  questionIndex: number;
   question: string;
   answerKey: string;
 }
 
 function buildFlatQuestions(): FlatQuestion[] {
-  return ENTERPRISE_BLOCKS.flatMap((block, blockIndex) =>
-    block.questions.map((question, questionIndex) => ({
-      blockKey: block.key,
-      blockLabel: block.label,
-      blockIndex,
-      question,
-      answerKey: `${block.key}__${questionIndex}`,
-    }))
-  );
+  const flat: FlatQuestion[] = [];
+  ENTERPRISE_BLOCKS.forEach((block, bIdx) => {
+    block.questions.forEach((q, qIdx) => {
+      flat.push({
+        blockKey: block.key,
+        blockLabel: block.label,
+        blockIndex: bIdx,
+        questionIndex: qIdx,
+        question: q,
+        answerKey: `${block.key}__${qIdx}`,
+      });
+    });
+  });
+  return flat;
 }
 
 const FLAT_QUESTIONS = buildFlatQuestions();
 const TOTAL_QUESTIONS = FLAT_QUESTIONS.length;
+
 type Step = "welcome" | "fill" | "review" | "submitted";
 
 export default function ClientBriefingPage() {
   const { token } = useParams<{ token: string }>();
-  const decoded = useMemo(() => (token ? decodeBriefingToken(token) : null), [token]);
-  const [clientName, setClientName] = useState("Cliente");
+  const [decoded, setDecoded] = useState<{ workspaceId: string; clientId: string } | null>(null);
+  const [invalid, setInvalid] = useState(false);
   const [currentQ, setCurrentQ] = useState(0);
+  const [answers, setAnswers] = useState<Record<string, string>>(() =>
+    Object.fromEntries(FLAT_QUESTIONS.map((q) => [q.answerKey, ""]))
+  );
   const [step, setStep] = useState<Step>("welcome");
   const [saving, setSaving] = useState(false);
-  const [invalid, setInvalid] = useState(false);
-  const [answers, setAnswers] = useState<Record<string, string>>(() => Object.fromEntries(FLAT_QUESTIONS.map((q) => [q.answerKey, ""])));
-  const saveTimerRef = useRef<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [clientName, setClientName] = useState<string | null>(null);
+  const [remoteId, setRemoteId] = useState<string | null>(null);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sourceTokenRef = useRef<string>("");
 
+  const answeredCount = FLAT_QUESTIONS.filter((q) => answers[q.answerKey]?.trim().length > 5).length;
+  const progressPct = step === "welcome" ? 0 : step === "review" || step === "submitted" ? 100 : ((currentQ + 1) / TOTAL_QUESTIONS) * 100;
+  const currentQuestion = FLAT_QUESTIONS[currentQ];
+
+  // Decode token & load saved progress (Supabase first, localStorage fallback)
   useEffect(() => {
-    if (!token || !decoded) {
-      setInvalid(true);
-      return;
-    }
+    if (!token) { setInvalid(true); setLoading(false); return; }
+    const payload = decodeBriefingToken(token);
+    if (!payload) { setInvalid(true); setLoading(false); return; }
+    setDecoded(payload);
+    sourceTokenRef.current = token;
 
-    const saved = loadBriefingProgress(token);
-    if (saved) {
-      setAnswers((prev) => ({ ...prev, ...saved }));
-      if (Object.values(saved).some((value) => value.trim().length > 0)) {
-        setStep("fill");
+    const init = async () => {
+      // 1. Try Supabase first
+      const remote = await loadRemoteDraft(token);
+
+      if (remote) {
+        if (remote.status === "submitted") {
+          setIsSubmitted(true);
+          setStep("submitted");
+          setRemoteId(remote.id);
+          setLoading(false);
+          return;
+        }
+        // Restore draft from Supabase
+        setAnswers((prev) => ({ ...prev, ...remote.answers }));
+        setCurrentQ(remote.currentQuestion);
+        setRemoteId(remote.id);
+        const hasSavedAnswers = Object.values(remote.answers).some((v) => v?.trim().length > 0);
+        if (hasSavedAnswers) setStep("fill");
+        setLoading(false);
+        return;
       }
-    }
 
+      // 2. Fallback to localStorage
+      const local = loadBriefingProgress(token);
+      if (local) {
+        setAnswers((prev) => ({ ...prev, ...local }));
+        const hasSavedAnswers = Object.values(local).some((v) => v.trim().length > 0);
+        if (hasSavedAnswers) setStep("fill");
+      }
+      setLoading(false);
+    };
+
+    init();
+
+    // Load client name
     supabase
       .from("clients")
       .select("name")
-      .eq("id", decoded.clientId)
-      .maybeSingle()
+      .eq("id", payload.clientId)
+      .single()
       .then(({ data }) => {
-        if (data?.name) setClientName(data.name);
+        if (data) setClientName(data.name);
       });
-  }, [decoded, token]);
-
-  const debouncedSave = useCallback((nextAnswers: Record<string, string>) => {
-    if (!token) return;
-    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = window.setTimeout(() => saveBriefingProgress(token, nextAnswers), 350);
   }, [token]);
 
+  // Auto-save with debounce — Supabase primary, localStorage as cache
+  const debouncedSave = useCallback((newAnswers: Record<string, string>, questionIndex: number) => {
+    if (!token || !decoded || isSubmitted) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      // Always save to localStorage as local cache
+      saveBriefingProgress(token, newAnswers);
+
+      // Check if we have at least 1 meaningful answer before creating remote draft
+      const meaningful = FLAT_QUESTIONS.filter((q) => newAnswers[q.answerKey]?.trim().length > 5).length;
+      if (meaningful < 1) return;
+
+      // Save to Supabase
+      const id = await saveRemoteDraft(
+        token,
+        decoded.workspaceId,
+        decoded.clientId,
+        {
+          answers: newAnswers,
+          currentQuestion: questionIndex,
+          answeredCount: meaningful,
+          totalQuestions: TOTAL_QUESTIONS,
+        },
+        remoteId ?? undefined,
+      );
+      if (id && !remoteId) setRemoteId(id);
+    }, 1500);
+  }, [token, decoded, remoteId, isSubmitted]);
+
   const updateAnswer = (key: string, value: string) => {
-    const nextAnswers = { ...answers, [key]: value };
-    setAnswers(nextAnswers);
-    debouncedSave(nextAnswers);
+    const newAnswers = { ...answers, [key]: value };
+    setAnswers(newAnswers);
+    debouncedSave(newAnswers, currentQ);
   };
 
-  const answeredCount = FLAT_QUESTIONS.filter((q) => answers[q.answerKey]?.trim().length > 5).length;
-  const currentQuestion = FLAT_QUESTIONS[currentQ];
-  const currentAnswer = currentQuestion ? answers[currentQuestion.answerKey] ?? "" : "";
-  const isNewBlock = currentQ === 0 || FLAT_QUESTIONS[currentQ - 1]?.blockKey !== currentQuestion?.blockKey;
-  const progressPct = step === "welcome" ? 0 : step === "review" || step === "submitted" ? 100 : ((currentQ + 1) / TOTAL_QUESTIONS) * 100;
+  const handleNext = () => {
+    if (currentQ < TOTAL_QUESTIONS - 1) setCurrentQ(currentQ + 1);
+    else setStep("review");
+  };
 
-  const buildDocument = () => ENTERPRISE_BLOCKS.map((block) => {
-    const blockAnswers = block.questions.map((question, questionIndex) => {
-      const key = `${block.key}__${questionIndex}`;
-      const answer = answers[key]?.trim();
-      return answer ? `**${question}**\n${answer}` : `**${question}**\n_(não respondido)_`;
-    });
-    return `## ${block.label}\n\n${blockAnswers.join("\n\n")}`;
-  }).join("\n\n---\n\n");
+  const handlePrev = () => {
+    if (step === "review") { setStep("fill"); setCurrentQ(TOTAL_QUESTIONS - 1); return; }
+    if (currentQ > 0) setCurrentQ(currentQ - 1);
+  };
+
+  const handleSkip = () => {
+    if (currentQ < TOTAL_QUESTIONS - 1) setCurrentQ(currentQ + 1);
+    else setStep("review");
+  };
+
+  const goToQuestion = (idx: number) => { setStep("fill"); setCurrentQ(idx); };
+
+  /** Consolidate flat answers back into block-level content */
+  const buildDocument = () => {
+    return ENTERPRISE_BLOCKS.map((block) => {
+      const blockAnswers = block.questions.map((q, qIdx) => {
+        const key = `${block.key}__${qIdx}`;
+        const answer = answers[key]?.trim();
+        return answer ? `**${q}**\n${answer}` : `**${q}**\n_(não respondido)_`;
+      });
+      return `## ${block.label}\n\n${blockAnswers.join("\n\n")}`;
+    }).join("\n\n---\n\n");
+  };
 
   const buildSignals = () => {
     const structured_signals: Record<string, { summary: string; dossier_block: string }> = {};
     for (const block of ENTERPRISE_BLOCKS) {
-      const blockText = block.questions
-        .map((_, questionIndex) => answers[`${block.key}__${questionIndex}`]?.trim() || "")
-        .filter(Boolean)
-        .join(" | ");
+      const blockText = block.questions.map((_, qIdx) => {
+        const key = `${block.key}__${qIdx}`;
+        return answers[key]?.trim() || "";
+      }).filter(Boolean).join(" | ");
 
       if (blockText.length > 10) {
         structured_signals[block.signalKey] = {
@@ -114,118 +198,85 @@ export default function ClientBriefingPage() {
         };
       }
     }
-
     const signalKeys = Object.keys(structured_signals);
     return {
       structured_signals,
-      dossier_signals: [...new Set(signalKeys.map((key) => ENTERPRISE_SIGNAL_TO_DOSSIER[key]))],
-      task_signals: signalKeys.filter((key) => ENTERPRISE_TASK_SIGNALS.includes(key)),
-      documentation_signals: signalKeys.filter((key) => ENTERPRISE_DOC_SIGNALS.includes(key)),
+      dossier_signals: [...new Set(signalKeys.map((k) => ENTERPRISE_SIGNAL_TO_DOSSIER[k]))],
+      task_signals: signalKeys.filter((k) => ENTERPRISE_TASK_SIGNALS.includes(k)),
+      documentation_signals: signalKeys.filter((k) => ENTERPRISE_DOC_SIGNALS.includes(k)),
     };
   };
 
-  const handleDownloadPDF = async () => {
-    const content = buildDocument();
-    let logoBase64 = "";
-    try {
-      const response = await fetch(logoUrl);
-      const blob = await response.blob();
-      logoBase64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(blob);
-      });
-    } catch {
-      // ignore
-    }
-
-    const popup = window.open("", "_blank");
-    if (!popup) return;
-
-    const date = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
-    popup.document.write(`<!DOCTYPE html><html><head><title>Briefing de Estruturação Empresarial</title><style>
-      @page { margin: 30mm 20mm; }
-      body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 0; max-width: 700px; margin: 0 auto; color: #1a1a1a; font-size: 13px; line-height: 1.7; }
-      .header { display:flex; align-items:center; justify-content:space-between; border-bottom:2px solid #1a1a1a; padding-bottom:16px; margin-bottom:32px; }
-      .header img { height: 34px; }
-      .header-text { text-align:right; }
-      .header-text h1 { font-size:18px; margin:0; }
-      .header-text p { margin:4px 0 0; font-size:11px; color:#666; }
-      .section-title { font-size:14px; font-weight:600; margin:32px 0 12px; padding-bottom:6px; border-bottom:1px solid #e5e7eb; text-transform:uppercase; letter-spacing:.5px; }
-      .question { font-weight:600; color:#222; margin:16px 0 4px; font-size:12px; }
-      .answer { margin:0 0 12px; color:#444; white-space:pre-wrap; }
-      .empty { color:#999; font-style:italic; }
-      .divider { border:none; border-top:1px solid #eee; margin:24px 0; }
-      .footer { margin-top:40px; padding-top:16px; border-top:1px solid #e5e7eb; font-size:10px; color:#888; text-align:center; }
-    </style></head><body>
-      <div class="header">
-        ${logoBase64 ? `<img src="${logoBase64}" alt="Aceleriq" />` : "<div></div>"}
-        <div class="header-text">
-          <h1>Briefing de Estruturação Empresarial</h1>
-          <p>${clientName} &middot; ${date}</p>
-        </div>
-      </div>
-      ${content
-        .replace(/## (.+)/g, '<p class="section-title">$1</p>')
-        .replace(/\*\*(.+?)\*\*/g, '<p class="question">$1</p>')
-        .replace(/_\(não respondido\)_/g, '<p class="answer empty">Não respondida</p>')
-        .replace(/---/g, '<hr class="divider">')
-        .replace(/(?<=>)\n([^<])/g, '<p class="answer">$1')
-        .replace(/\n/g, '<br>')}
-      <div class="footer">Documento confidencial &middot; ${answeredCount} de ${TOTAL_QUESTIONS} perguntas respondidas &middot; ${date}</div>
-    </body></html>`);
-    popup.document.close();
-    window.setTimeout(() => popup.print(), 250);
-  };
-
   const handleSubmit = async () => {
-    if (!decoded || !token) return;
+    if (!decoded) return;
     setSaving(true);
     try {
       const content = buildDocument();
-      const signals = buildSignals();
-      const metadata: Record<string, unknown> = {
-        briefing_kind: "enterprise_structuring",
-        import_source: "client_form",
-        parser_mode: "local_rules",
-        import_review_status: "pending_review",
-        source_token: token,
-        submitted_by_client: true,
-        submitted_at: new Date().toISOString(),
-        answers_count: answeredCount,
-        total_questions: TOTAL_QUESTIONS,
-        ...signals,
-      };
+      const signalsData = buildSignals();
 
-      const { error } = await supabase.from("context_entries").insert({
-        workspace_id: decoded.workspaceId,
-        client_id: decoded.clientId,
-        context_type: "briefing",
-        title: "Briefing de Estruturação Empresarial",
-        content,
-        source_label: "Preenchido via link do cliente",
-        is_key_decision: false,
-        tags: ["briefing", "enterprise_structuring", "client_submitted"],
-        metadata,
-      });
+      let success = false;
 
-      if (error) {
-        toast({ title: "Erro ao enviar", description: error.message, variant: "destructive" });
+      if (remoteId) {
+        // Update existing draft → submitted
+        success = await submitRemoteBriefing(
+          remoteId,
+          content,
+          signalsData,
+          answeredCount,
+          TOTAL_QUESTIONS,
+        );
+      } else {
+        // No existing draft — create and submit in one step
+        const metadata: Record<string, unknown> = {
+          briefing_kind: "enterprise_structuring",
+          import_source: "client_form",
+          parser_mode: "local_rules",
+          source_token: token,
+          public_briefing_status: "submitted",
+          import_review_status: "pending_review",
+          submitted_by_client: true,
+          submitted_at: new Date().toISOString(),
+          answers_count: answeredCount,
+          total_questions: TOTAL_QUESTIONS,
+          ...signalsData,
+        };
+
+        const { error } = await supabase.from("context_entries").insert({
+          workspace_id: decoded.workspaceId,
+          client_id: decoded.clientId,
+          context_type: "briefing",
+          title: "Briefing de Estruturação Empresarial",
+          content,
+          source_label: "Preenchido pelo cliente",
+          is_key_decision: false,
+          tags: ["briefing", "enterprise_structuring", "client_submitted"],
+          metadata,
+        });
+
+        success = !error;
+        if (error) console.error("Submit error:", error);
+      }
+
+      if (!success) {
+        toast({ title: "Erro ao enviar", description: "Tente novamente.", variant: "destructive" });
+        setSaving(false);
         return;
       }
 
+      // Timeline event
       await supabase.from("timeline_events").insert({
         workspace_id: decoded.workspaceId,
         client_id: decoded.clientId,
         event_type: "context_added",
         title: "Cliente preencheu o Briefing de Estruturação",
-        description: `${answeredCount} de ${TOTAL_QUESTIONS} perguntas respondidas. Pendente de revisão.`,
+        description: `${answeredCount} de ${TOTAL_QUESTIONS} perguntas respondidas · Pendente de revisão`,
         happened_at: new Date().toISOString(),
       });
 
-      clearBriefingProgress(token);
+      if (token) clearBriefingProgress(token);
+      setIsSubmitted(true);
       setStep("submitted");
-      toast({ title: "Briefing enviado com sucesso" });
+      toast({ title: "Briefing enviado com sucesso!" });
     } catch {
       toast({ title: "Erro inesperado", variant: "destructive" });
     } finally {
@@ -233,59 +284,312 @@ export default function ClientBriefingPage() {
     }
   };
 
-  if (invalid || !decoded) {
-    return <div className="min-h-screen bg-background flex items-center justify-center p-6"><Toaster /><Card className="max-w-md w-full"><CardContent className="p-8 text-center space-y-3"><Building2 className="h-8 w-8 text-muted-foreground mx-auto" /><h1 className="text-lg font-semibold text-foreground">Link inválido</h1><p className="text-sm text-muted-foreground">Este link do briefing é inválido ou expirou.</p></CardContent></Card></div>;
+  const handleDownloadPDF = () => {
+    const content = buildDocument();
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><title>Briefing de Estruturação Empresarial</title>
+      <style>
+        body{font-family:'Segoe UI',system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;color:#1a1a1a}
+        h1{font-size:22px;border-bottom:2px solid #22c55e;padding-bottom:12px;margin-bottom:24px}
+        h2{font-size:16px;color:#16a34a;margin-top:28px;margin-bottom:8px}
+        p,strong{font-size:13px;line-height:1.6}
+        strong{display:block;margin-top:12px;color:#333}
+        hr{border:none;border-top:1px solid #e5e7eb;margin:20px 0}
+        .meta{font-size:11px;color:#888;margin-bottom:20px}
+        em{color:#999}
+      </style></head><body>
+      <h1>Briefing de Estruturação Empresarial</h1>
+      <p class="meta">${clientName ? `${clientName} · ` : ""}${new Date().toLocaleDateString("pt-BR")} · ${answeredCount}/${TOTAL_QUESTIONS} perguntas</p>
+      ${content
+        .replace(/## (.+)/g, "<h2>$1</h2>")
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/_\((.+?)\)_/g, "<em>($1)</em>")
+        .replace(/---/g, "<hr>")
+        .replace(/\n/g, "<br>")}
+    </body></html>`);
+    w.document.close();
+    w.print();
+  };
+
+  // ── Loading ──
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Toaster />
+        <div className="flex items-center gap-3 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span className="text-sm">Carregando briefing...</span>
+        </div>
+      </div>
+    );
   }
 
+  // ── Invalid token ──
+  if (invalid) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Toaster />
+        <Card className="max-w-md w-full">
+          <CardContent className="p-8 text-center space-y-3">
+            <Building2 className="h-10 w-10 text-muted-foreground mx-auto" />
+            <h1 className="text-lg font-semibold text-foreground">Link inválido</h1>
+            <p className="text-sm text-muted-foreground">
+              Este link é inválido ou expirou. Solicite um novo link ao seu consultor.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ── Submitted ──
   if (step === "submitted") {
-    return <div className="min-h-screen bg-background flex items-center justify-center p-6"><Toaster /><Card className="max-w-md w-full"><CardContent className="p-8 text-center space-y-4"><div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center mx-auto"><Check className="h-6 w-6 text-primary" /></div><h1 className="text-lg font-semibold text-foreground">Briefing enviado</h1><p className="text-sm text-muted-foreground">Obrigado. Suas respostas já foram recebidas pela equipe.</p><Button variant="outline" onClick={handleDownloadPDF}><Download className="h-4 w-4 mr-1" /> Baixar PDF</Button></CardContent></Card></div>;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Toaster />
+        <Card className="max-w-md w-full">
+          <CardContent className="p-8 text-center space-y-4">
+            <div className="h-14 w-14 rounded-full bg-primary/20 flex items-center justify-center mx-auto">
+              <Check className="h-7 w-7 text-primary" />
+            </div>
+            <h1 className="text-lg font-semibold text-foreground">Briefing enviado!</h1>
+            <p className="text-sm text-muted-foreground">
+              Obrigado por dedicar seu tempo. Suas respostas já foram recebidas e sua equipe será notificada.
+            </p>
+            <Button variant="outline" size="sm" onClick={handleDownloadPDF}>
+              <Download className="h-4 w-4 mr-1" /> Baixar cópia em PDF
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
+  // ── Welcome screen ──
   if (step === "welcome") {
-    return <div className="min-h-screen bg-background flex items-center justify-center p-6"><Toaster /><div className="max-w-lg w-full space-y-6"><div className="text-center space-y-3"><div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto"><Building2 className="h-7 w-7 text-primary" /></div><h1 className="text-xl font-semibold text-foreground">Briefing de Estruturação Empresarial</h1><p className="text-sm text-muted-foreground">{clientName}</p></div><Card><CardContent className="p-6 space-y-4"><p className="text-sm text-foreground leading-relaxed">Este briefing nos ajuda a entender a operação real da sua empresa para montar um plano mais preciso, sem perder contexto importante.</p><div className="space-y-3"><div className="flex items-start gap-3"><Clock className="h-4 w-4 text-primary mt-0.5 shrink-0" /><div><p className="text-sm font-medium text-foreground">Tempo estimado: 20–35 minutos</p><p className="text-xs text-muted-foreground">{TOTAL_QUESTIONS} perguntas organizadas por tema.</p></div></div><div className="flex items-start gap-3"><Shield className="h-4 w-4 text-primary mt-0.5 shrink-0" /><div><p className="text-sm font-medium text-foreground">Progresso salvo automaticamente</p><p className="text-xs text-muted-foreground">Se você sair e voltar depois, não perde nada.</p></div></div><div className="flex items-start gap-3"><Check className="h-4 w-4 text-primary mt-0.5 shrink-0" /><div><p className="text-sm font-medium text-foreground">Responda com o máximo de clareza</p><p className="text-xs text-muted-foreground">Quanto mais contexto, melhor o diagnóstico.</p></div></div></div></CardContent></Card><Button className="w-full" size="lg" onClick={() => setStep("fill")}>Começar <ArrowRight className="h-4 w-4 ml-2" /></Button></div></div>;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Toaster />
+        <div className="max-w-lg w-full space-y-6">
+          <div className="text-center space-y-3">
+            <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+              <Building2 className="h-7 w-7 text-primary" />
+            </div>
+            <h1 className="text-xl font-semibold text-foreground">
+              Briefing de Estruturação Empresarial
+            </h1>
+            {clientName && (
+              <p className="text-sm text-muted-foreground">{clientName}</p>
+            )}
+          </div>
+
+          <Card>
+            <CardContent className="p-6 space-y-4">
+              <p className="text-sm text-foreground leading-relaxed">
+                Este questionário nos ajuda a entender profundamente como sua empresa funciona hoje — 
+                sua operação, processos, ferramentas, equipe e objetivos. Com essas informações, 
+                conseguimos criar um plano de ação preciso e personalizado.
+              </p>
+
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <Clock className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Tempo estimado: 20–35 minutos</p>
+                    <p className="text-xs text-muted-foreground">São {TOTAL_QUESTIONS} perguntas organizadas em {ENTERPRISE_BLOCKS.length} temas.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <Shield className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Seu progresso é salvo automaticamente</p>
+                    <p className="text-xs text-muted-foreground">Se precisar sair, pode voltar a qualquer momento — mesmo de outro dispositivo.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Responda com honestidade</p>
+                    <p className="text-xs text-muted-foreground">Não existe resposta errada. Quanto mais detalhes, melhor o resultado do trabalho.</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Button className="w-full" size="lg" onClick={() => setStep("fill")}>
+            Começar <ArrowRight className="h-4 w-4 ml-2" />
+          </Button>
+
+          <p className="text-[10px] text-muted-foreground text-center">
+            Você pode pular perguntas que não se aplicam ao seu negócio.
+          </p>
+        </div>
+      </div>
+    );
   }
+
+  // ── Current block label (for section header) ──
+  const currentBlockLabel = currentQuestion?.blockLabel;
+  const isNewBlock = currentQ === 0 || FLAT_QUESTIONS[currentQ - 1]?.blockKey !== currentQuestion?.blockKey;
+  const currentAnswer = answers[currentQuestion?.answerKey] ?? "";
+  const hasAnswer = currentAnswer.trim().length > 5;
 
   return (
     <div className="min-h-screen bg-background">
       <Toaster />
-      <div className="border-b border-border/50 bg-card/60 backdrop-blur-sm sticky top-0 z-10">
+
+      {/* Sticky header */}
+      <div className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-muted-foreground">Pergunta {currentQ + 1} de {TOTAL_QUESTIONS}</span>
-            <Badge variant="outline" className="text-[10px]">{answeredCount} respondidas</Badge>
+            <span className="text-xs text-muted-foreground">
+              Pergunta {currentQ + 1} de {TOTAL_QUESTIONS}
+            </span>
+            <Badge variant="outline" className="text-[10px]">
+              {answeredCount} respondidas
+            </Badge>
           </div>
           <Progress value={progressPct} className="h-1" />
         </div>
       </div>
+
+      {/* Main content */}
       <div className="max-w-xl mx-auto px-4 py-8">
         {step === "fill" && currentQuestion && (
-          <div className="space-y-5">
-            {isNewBlock ? (
-              <div className="flex items-center gap-2"><div className="h-1.5 w-1.5 rounded-full bg-primary" /><span className="text-xs font-medium text-primary uppercase tracking-wider">{currentQuestion.blockLabel}</span></div>
-            ) : (
-              <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">{currentQuestion.blockLabel}</p>
+          <div className="space-y-6">
+            {/* Block section indicator */}
+            {isNewBlock && (
+              <div className="flex items-center gap-2 pb-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                <span className="text-xs font-medium text-primary uppercase tracking-wider">
+                  {currentBlockLabel}
+                </span>
+              </div>
             )}
-            <h2 className="text-base font-medium text-foreground leading-snug">{currentQuestion.question}</h2>
-            <Textarea value={currentAnswer} onChange={(e) => updateAnswer(currentQuestion.answerKey, e.target.value)} placeholder="Digite sua resposta aqui..." className="min-h-[140px] text-sm resize-none" autoFocus />
-            <div className="flex items-center justify-between">
-              <Button variant="ghost" size="sm" onClick={() => currentQ > 0 && setCurrentQ((value) => value - 1)} disabled={currentQ === 0}><ChevronLeft className="h-4 w-4 mr-1" /> Anterior</Button>
+            {!isNewBlock && (
+              <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
+                {currentBlockLabel}
+              </p>
+            )}
+
+            {/* Question */}
+            <h2 className="text-base font-medium text-foreground leading-snug">
+              {currentQuestion.question}
+            </h2>
+
+            {/* Answer */}
+            <Textarea
+              value={currentAnswer}
+              onChange={(e) => updateAnswer(currentQuestion.answerKey, e.target.value)}
+              placeholder="Digite sua resposta aqui..."
+              className="min-h-[140px] text-sm resize-none"
+              autoFocus
+            />
+
+            {/* Navigation */}
+            <div className="flex items-center justify-between pt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handlePrev}
+                disabled={currentQ === 0}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" /> Anterior
+              </Button>
+
               <div className="flex items-center gap-2">
-                {!currentAnswer.trim() && <Button variant="ghost" size="sm" onClick={() => currentQ < TOTAL_QUESTIONS - 1 ? setCurrentQ((value) => value + 1) : setStep("review")}>Pular</Button>}
-                <Button onClick={() => currentQ < TOTAL_QUESTIONS - 1 ? setCurrentQ((value) => value + 1) : setStep("review")}>{currentQ < TOTAL_QUESTIONS - 1 ? <>Próxima <ChevronRight className="h-4 w-4 ml-1" /></> : "Revisar respostas"}</Button>
+                {!hasAnswer && (
+                  <Button variant="ghost" size="sm" onClick={handleSkip} className="text-muted-foreground">
+                    Pular
+                  </Button>
+                )}
+                <Button onClick={handleNext}>
+                  {currentQ < TOTAL_QUESTIONS - 1 ? (
+                    <>Próxima <ChevronRight className="h-4 w-4 ml-1" /></>
+                  ) : (
+                    "Revisar respostas"
+                  )}
+                </Button>
               </div>
             </div>
           </div>
         )}
+
         {step === "review" && (
-          <div className="space-y-4">
-            <div><h3 className="text-base font-semibold text-foreground">Revisão final</h3><p className="text-xs text-muted-foreground mt-1">Revise as respostas antes de enviar.</p></div>
-            {ENTERPRISE_BLOCKS.map((block, blockIndex) => {
-              const blockQuestions = FLAT_QUESTIONS.filter((q) => q.blockIndex === blockIndex);
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Revisão final</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Revise suas respostas antes de enviar. Clique em qualquer pergunta para editar.
+              </p>
+            </div>
+
+            {ENTERPRISE_BLOCKS.map((block, bIdx) => {
+              const blockQuestions = FLAT_QUESTIONS.filter((q) => q.blockIndex === bIdx);
               const blockAnswered = blockQuestions.filter((q) => answers[q.answerKey]?.trim().length > 5).length;
-              return <div key={block.key} className="space-y-1.5"><div className="flex items-center justify-between"><span className="text-xs font-medium text-foreground">{block.label}</span><span className="text-[10px] text-muted-foreground">{blockAnswered}/{blockQuestions.length}</span></div>{blockQuestions.map((q) => { const index = FLAT_QUESTIONS.indexOf(q); const answer = answers[q.answerKey]?.trim() || ""; const filled = answer.length > 5; return <Card key={q.answerKey} className={`cursor-pointer transition-colors ${filled ? "border-primary/20 hover:border-primary/40" : "border-border/20 hover:border-border/40"}`} onClick={() => { setCurrentQ(index); setStep("fill"); }}><CardContent className="p-3 flex items-start gap-2"><div className={`h-3.5 w-3.5 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${filled ? "bg-primary/20" : "bg-muted"}`}>{filled && <Check className="h-2 w-2 text-primary" />}</div><div className="flex-1 min-w-0"><p className="text-xs text-foreground">{q.question}</p>{filled ? <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">{answer}</p> : <p className="text-[11px] text-muted-foreground/40 mt-0.5">Não respondida</p>}</div></CardContent></Card>; })}</div>;
+
+              return (
+                <div key={block.key} className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-foreground">{block.label}</span>
+                    <span className="text-[10px] text-muted-foreground">{blockAnswered}/{blockQuestions.length}</span>
+                  </div>
+                  {blockQuestions.map((q) => {
+                    const answer = answers[q.answerKey]?.trim();
+                    const filled = answer.length > 5;
+                    const globalIdx = FLAT_QUESTIONS.indexOf(q);
+
+                    return (
+                      <Card
+                        key={q.answerKey}
+                        className={`cursor-pointer transition-colors ${filled ? "border-primary/20 hover:border-primary/40" : "border-border/20 hover:border-border/40"}`}
+                        onClick={() => goToQuestion(globalIdx)}
+                      >
+                        <CardContent className="p-3 flex items-start gap-2">
+                          <div className={`h-3.5 w-3.5 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${filled ? "bg-primary/20" : "bg-muted"}`}>
+                            {filled && <Check className="h-2 w-2 text-primary" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-foreground">{q.question}</p>
+                            {filled ? (
+                              <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">{answer}</p>
+                            ) : (
+                              <p className="text-[11px] text-muted-foreground/40 mt-0.5">Não respondida</p>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              );
             })}
-            <div className="border rounded-md p-3 bg-muted/20 text-xs text-muted-foreground">{answeredCount} de {TOTAL_QUESTIONS} perguntas respondidas</div>
-            <div className="flex items-center justify-between gap-2"><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => setStep("fill")}><ChevronLeft className="h-4 w-4 mr-1" /> Voltar</Button><Button variant="outline" size="sm" onClick={handleDownloadPDF}><Download className="h-4 w-4 mr-1" /> PDF</Button></div><Button onClick={handleSubmit} disabled={saving || answeredCount < 5}>{saving ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Enviando...</> : <><Send className="h-4 w-4 mr-1" /> Enviar briefing</>}</Button></div>
+
+            <div className="border rounded-md p-3 bg-muted/20 text-xs text-muted-foreground">
+              {answeredCount} de {TOTAL_QUESTIONS} perguntas respondidas
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-2">
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={handlePrev}>
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleDownloadPDF}>
+                  <Download className="h-4 w-4 mr-1" /> PDF
+                </Button>
+              </div>
+              <Button onClick={handleSubmit} disabled={saving || answeredCount < 5}>
+                {saving ? (
+                  <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Enviando...</>
+                ) : (
+                  <><Send className="h-4 w-4 mr-1" /> Enviar Briefing</>
+                )}
+              </Button>
+            </div>
           </div>
         )}
       </div>

@@ -25,7 +25,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/b/:token" element={<ClientBriefingPage />} />
+            <Route path="/briefing/:token" element={<ClientBriefingPage />} />
             <Route path="/" element={<Navigate to="/ops" replace />} />
             <Route
               path="/ops"

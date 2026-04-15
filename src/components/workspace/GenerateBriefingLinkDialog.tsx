@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
-import { Copy, ExternalLink, Link2 } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useState } from "react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Copy, Check, ExternalLink } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { encodeBriefingToken, generateBriefingUrl } from "@/lib/briefingToken";
 
@@ -17,54 +19,51 @@ interface Props {
 export default function GenerateBriefingLinkDialog({ open, onOpenChange, workspaceId, clientId, clientName }: Props) {
   const [copied, setCopied] = useState(false);
 
-  const url = useMemo(() => {
-    const token = encodeBriefingToken(workspaceId, clientId);
-    return generateBriefingUrl(token);
-  }, [workspaceId, clientId, open]);
+  const token = encodeBriefingToken(workspaceId, clientId);
+  const url = generateBriefingUrl(token);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(url);
     setCopied(true);
-    toast({ title: "Link copiado" });
-    window.setTimeout(() => setCopied(false), 1600);
-  };
-
-  const handlePreview = () => {
-    window.open(url, "_blank", "noopener,noreferrer");
+    toast({ title: "Link copiado!" });
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Link2 className="h-4 w-4 text-primary" />
-            Link oficial do briefing
-          </DialogTitle>
+          <DialogTitle>Link do Briefing para o Cliente</DialogTitle>
           <DialogDescription>
-            Envie este link para {clientName}. Ele abre direto no briefing, sem login e no mesmo domínio publicado do sistema.
+            Envie este link para <strong>{clientName}</strong> preencher o Briefing de Estruturação Empresarial.
+            O progresso do cliente é salvo automaticamente — se ele sair e voltar, não perde nada.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
           <div className="flex gap-2">
-            <Input readOnly value={url} className="text-xs" />
-            <Button type="button" variant="outline" onClick={handleCopy}>
-              <Copy className="h-4 w-4" /> {copied ? "Copiado" : "Copiar"}
+            <Input value={url} readOnly className="text-xs font-mono" />
+            <Button size="icon" variant="outline" onClick={handleCopy}>
+              {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
             </Button>
           </div>
-          <div className="rounded-md border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground space-y-1">
-            <p>• Link curto no domínio publicado do app</p>
-            <p>• Cliente responde sem entrar no sistema</p>
-            <p>• Progresso fica salvo automaticamente se ele sair e voltar</p>
-            <p>• Ao confirmar, o briefing entra no Contexto como documento mestre único</p>
+
+          <div className="text-[11px] text-muted-foreground space-y-1">
+            <p>✓ O cliente pode preencher sem criar conta</p>
+            <p>✓ Progresso salvo automaticamente no navegador</p>
+            <p>✓ O cliente pode baixar o briefing em PDF</p>
+            <p>✓ Ao enviar, o briefing aparece automaticamente na aba Contexto</p>
+            <p>✓ Um evento é registrado na Timeline quando o cliente enviar</p>
           </div>
         </div>
 
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={handlePreview}>
-            <ExternalLink className="h-4 w-4" /> Abrir link
-          </Button>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
+          <a href={url} target="_blank" rel="noopener noreferrer">
+            <Button variant="outline" size="sm">
+              <ExternalLink className="h-4 w-4 mr-1" /> Pré-visualizar
+            </Button>
+          </a>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Star, ExternalLink, Upload, FileText, FolderOpen, ChevronRight, ChevronDown, Eye, Link2 } from "lucide-react";
+import { Plus, Star, ExternalLink, Upload, FileText, FolderOpen, ChevronRight, ChevronDown, Eye, Building2, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -418,6 +418,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
         onCreated={fetchEntries}
       />
 
+      {/* Briefing link dialog */}
       <GenerateBriefingLinkDialog
         open={linkDialogOpen}
         onOpenChange={setLinkDialogOpen}
