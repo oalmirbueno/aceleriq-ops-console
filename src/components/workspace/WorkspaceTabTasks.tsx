@@ -42,6 +42,7 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const [createOpen, setCreateOpen] = useState(false);
+  const [generateOpen, setGenerateOpen] = useState(false);
   const [editTask, setEditTask] = useState<Task | null>(null);
 
   const fetchTasks = useCallback(async () => {
