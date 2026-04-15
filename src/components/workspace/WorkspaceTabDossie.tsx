@@ -189,6 +189,9 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
                             <span className="text-foreground/80 truncate">{ctx.title}</span>
                             {ctx.is_key_decision && <Badge className="text-[9px] px-1 py-0 bg-amber-500/15 text-amber-400 border-amber-500/25">Decisão-chave</Badge>}
                             {scope && <ScopeBadge scope={scope} className="text-[9px] px-1 py-0" />}
+                            {ctx.metadata?.import_review_status === "pending_review" && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 bg-amber-500/10 text-amber-400 border-amber-500/20">Pendente revisão</Badge>
+                            )}
                           </div>
                           <p className="text-muted-foreground line-clamp-1 mt-0.5">{ctx.content}</p>
                         </div>
