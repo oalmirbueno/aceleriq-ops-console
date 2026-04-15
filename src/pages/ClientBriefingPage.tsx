@@ -60,6 +60,7 @@ export default function ClientBriefingPage() {
   const [remoteId, setRemoteId] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const posTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sourceTokenRef = useRef<string>("");
 
   const answeredCount = FLAT_QUESTIONS.filter((q) => answers[q.answerKey]?.trim().length > 5).length;
@@ -87,11 +88,18 @@ export default function ClientBriefingPage() {
           return;
         }
         // Restore draft from Supabase
-        setAnswers((prev) => ({ ...prev, ...remote.answers }));
-        setCurrentQ(remote.currentQuestion);
+        const restoredAnswers = { ...Object.fromEntries(FLAT_QUESTIONS.map((q) => [q.answerKey, ""])), ...remote.answers };
+        setAnswers(restoredAnswers);
         setRemoteId(remote.id);
+
         const hasSavedAnswers = Object.values(remote.answers).some((v) => v?.trim().length > 0);
-        if (hasSavedAnswers) setStep("fill");
+        if (hasSavedAnswers) {
+          // Restore exact position: find question index from currentQuestion
+          const restoreIdx = typeof remote.currentQuestion === "number" && remote.currentQuestion >= 0 && remote.currentQuestion < TOTAL_QUESTIONS
+            ? remote.currentQuestion : 0;
+          setCurrentQ(restoreIdx);
+          setStep("fill");
+        }
         setLoading(false);
         return;
       }
@@ -148,6 +156,30 @@ export default function ClientBriefingPage() {
     }, 1500);
   }, [token, decoded, remoteId, isSubmitted]);
 
+  /** Flush navigation position to Supabase with short debounce (300ms) */
+  const flushPosition = useCallback((questionIndex: number) => {
+    if (!token || !decoded || isSubmitted) return;
+    if (posTimerRef.current) clearTimeout(posTimerRef.current);
+    posTimerRef.current = setTimeout(async () => {
+      const meaningful = FLAT_QUESTIONS.filter((q) => answers[q.answerKey]?.trim().length > 5).length;
+      if (meaningful < 1) return; // no remote draft yet
+      saveBriefingProgress(token, answers);
+      const id = await saveRemoteDraft(
+        token,
+        decoded.workspaceId,
+        decoded.clientId,
+        {
+          answers,
+          currentQuestion: questionIndex,
+          answeredCount: meaningful,
+          totalQuestions: TOTAL_QUESTIONS,
+        },
+        remoteId ?? undefined,
+      );
+      if (id && !remoteId) setRemoteId(id);
+    }, 300);
+  }, [token, decoded, remoteId, isSubmitted, answers]);
+
   const updateAnswer = (key: string, value: string) => {
     const newAnswers = { ...answers, [key]: value };
     setAnswers(newAnswers);
@@ -155,21 +187,47 @@ export default function ClientBriefingPage() {
   };
 
   const handleNext = () => {
-    if (currentQ < TOTAL_QUESTIONS - 1) setCurrentQ(currentQ + 1);
-    else setStep("review");
+    if (currentQ < TOTAL_QUESTIONS - 1) {
+      const next = currentQ + 1;
+      setCurrentQ(next);
+      flushPosition(next);
+    } else {
+      setStep("review");
+      flushPosition(currentQ); // persist last position before review
+    }
   };
 
   const handlePrev = () => {
-    if (step === "review") { setStep("fill"); setCurrentQ(TOTAL_QUESTIONS - 1); return; }
-    if (currentQ > 0) setCurrentQ(currentQ - 1);
+    if (step === "review") {
+      const last = TOTAL_QUESTIONS - 1;
+      setStep("fill");
+      setCurrentQ(last);
+      flushPosition(last);
+      return;
+    }
+    if (currentQ > 0) {
+      const prev = currentQ - 1;
+      setCurrentQ(prev);
+      flushPosition(prev);
+    }
   };
 
   const handleSkip = () => {
-    if (currentQ < TOTAL_QUESTIONS - 1) setCurrentQ(currentQ + 1);
-    else setStep("review");
+    if (currentQ < TOTAL_QUESTIONS - 1) {
+      const next = currentQ + 1;
+      setCurrentQ(next);
+      flushPosition(next);
+    } else {
+      setStep("review");
+      flushPosition(currentQ);
+    }
   };
 
-  const goToQuestion = (idx: number) => { setStep("fill"); setCurrentQ(idx); };
+  const goToQuestion = (idx: number) => {
+    setStep("fill");
+    setCurrentQ(idx);
+    flushPosition(idx);
+  };
 
   /** Consolidate flat answers back into block-level content */
   const buildDocument = () => {
