@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, ListFilter, CheckCircle2, Sparkles } from "lucide-react";
+import { Plus, ListFilter, CheckCircle2, Sparkles, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import TaskFormDialog, { type TaskFormData } from "./TaskFormDialog";
 import GenerateTasksDialog from "./GenerateTasksDialog";
+import TaskPlanningWizard from "./TaskPlanningWizard";
 import {
   TASK_STATUS_OPTIONS,
   getStatusLabel,
@@ -43,6 +44,7 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
   const [filter, setFilter] = useState<string>("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [editTask, setEditTask] = useState<Task | null>(null);
 
   const fetchTasks = useCallback(async () => {
@@ -198,6 +200,9 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
           </Select>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setWizardOpen(true)}>
+            <ClipboardList className="h-4 w-4 mr-1" /> Plano Operacional
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setGenerateOpen(true)}>
             <Sparkles className="h-4 w-4 mr-1" /> Gerar de Contexto
           </Button>
@@ -282,6 +287,13 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
       <GenerateTasksDialog
         open={generateOpen}
         onOpenChange={setGenerateOpen}
+        workspaceId={workspaceId}
+        clientId={clientId}
+        onGenerated={fetchTasks}
+      />
+      <TaskPlanningWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
         workspaceId={workspaceId}
         clientId={clientId}
         onGenerated={fetchTasks}
