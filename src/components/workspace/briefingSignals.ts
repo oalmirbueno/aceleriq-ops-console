@@ -7,6 +7,8 @@
  * Signal blocks stored in metadata.structured_signals on the briefing master document.
  */
 
+import { ENTERPRISE_SIGNAL_LABELS } from "./enterpriseStructuringBlocks";
+
 /* ─── Signal block keys (padronized) ─── */
 
 export const SIGNAL_BLOCK_KEYS = [
