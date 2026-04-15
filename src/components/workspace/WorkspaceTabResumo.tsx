@@ -37,7 +37,7 @@ export default function WorkspaceTabResumo({
           <Row label="Cliente" value={clientName} />
           <Row label="Workspace" value={workspaceName} />
           <Row label="Status" value={status} />
-          <Row label="Etapa" value={currentStage.replace("_", " ")} capitalize />
+          <Row label="Etapa" value={getStagePremiumLabel(currentStage)} />
           <Row label="Responsável" value={ownerName ?? "Não atribuído"} muted={!ownerName} />
         </CardContent>
       </Card>
