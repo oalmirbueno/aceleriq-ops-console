@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, ListFilter, CheckCircle2 } from "lucide-react";
+import { Plus, ListFilter, CheckCircle2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import TaskFormDialog, { type TaskFormData } from "./TaskFormDialog";
+import GenerateTasksDialog from "./GenerateTasksDialog";
 import {
   TASK_STATUS_OPTIONS,
   getStatusLabel,
