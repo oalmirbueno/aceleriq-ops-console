@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { getStagePremiumLabel } from "@/components/workspace/aceleraConstants";
 
 interface Client {
   id: string;
@@ -35,14 +36,14 @@ const STATUS_OPTIONS = [
 
 const STAGE_OPTIONS = [
   { value: "__all__", label: "Todas as etapas" },
-  { value: "entrada", label: "Entrada" },
-  { value: "diagnostico", label: "Diagnóstico" },
-  { value: "estrutura_base", label: "Estrutura base" },
-  { value: "planejamento", label: "Planejamento" },
-  { value: "producao", label: "Produção" },
-  { value: "ativacao", label: "Ativação" },
-  { value: "otimizacao", label: "Otimização" },
-  { value: "expansao", label: "Expansão" },
+  { value: "entrada", label: "Abertura Estratégica" },
+  { value: "diagnostico", label: "Diagnóstico Estrutural" },
+  { value: "estrutura_base", label: "Arquitetura Base da Operação" },
+  { value: "planejamento", label: "Plano Diretor de Implantação" },
+  { value: "producao", label: "Implantação e Construção" },
+  { value: "ativacao", label: "Ativação Assistida" },
+  { value: "otimizacao", label: "Otimização Guiada por Evidência" },
+  { value: "expansao", label: "Escala e Alavancagem" },
 ];
 
 const statusColor: Record<string, string> = {
@@ -205,7 +206,7 @@ export default function ClientsPage() {
                           {c.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-muted-foreground capitalize">{stage ?? "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">{stage ? getStagePremiumLabel(stage) : "—"}</TableCell>
                       <TableCell className="text-muted-foreground capitalize">{c.plan_name ?? "—"}</TableCell>
                       <TableCell>
                         {c.workspaces[0] ? (
