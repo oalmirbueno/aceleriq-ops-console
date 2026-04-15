@@ -172,20 +172,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
     });
   };
 
-  const markAsReviewed = async (entry: ContextEntry) => {
-    const currentMeta = (entry.metadata ?? {}) as Record<string, unknown>;
-    const updatedMeta = { ...currentMeta, import_review_status: "reviewed" };
-    const { error } = await supabase
-      .from("context_entries")
-      .update({ metadata: updatedMeta })
-      .eq("id", entry.id);
-    if (!error) {
-      setEntries((prev) =>
-        prev.map((e) => e.id === entry.id ? { ...e, metadata: updatedMeta } : e)
-      );
-      toast({ title: "Marcado como revisado" });
-    }
-  };
+  // markAsReviewed removed — status "reviewed" is now only set via BriefingSignalReview flow
 
   if (loading) {
     return (
@@ -298,15 +285,10 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
                                 )}
                               </div>
                               <div className="flex items-center gap-1.5 shrink-0">
-                                {isPending && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-6 text-[10px] px-2"
-                                    onClick={(e) => { e.stopPropagation(); markAsReviewed(entry); }}
-                                  >
-                                    Marcar revisado
-                                  </Button>
+                                {isPending && entry.context_type === "briefing" && entry.metadata?.structured_signals && (
+                                  <Badge variant="outline" className="text-[9px] bg-amber-500/10 text-amber-400 border-amber-500/20 shrink-0">
+                                    Revise os sinais abaixo ↓
+                                  </Badge>
                                 )}
                                 {entry.source_url && (
                                   <a
