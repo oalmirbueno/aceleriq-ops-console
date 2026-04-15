@@ -7,6 +7,8 @@
  * Signal blocks stored in metadata.structured_signals on the briefing master document.
  */
 
+import { ENTERPRISE_SIGNAL_LABELS } from "./enterpriseStructuringBlocks";
+
 /* ─── Signal block keys (padronized) ─── */
 
 export const SIGNAL_BLOCK_KEYS = [
@@ -309,8 +311,9 @@ export function getDossierSignalsByBlock(
   for (const [key, entry] of Object.entries(signals)) {
     const block = entry.dossier_block;
     const label = SIGNAL_LABELS[key as SignalBlockKey] ?? key;
+    const resolvedLabel = SIGNAL_LABELS[key as SignalBlockKey] ?? ENTERPRISE_SIGNAL_LABELS[key] ?? key;
     if (!result.has(block)) result.set(block, []);
-    result.get(block)!.push({ key, label, summary: entry.summary });
+    result.get(block)!.push({ key, label: resolvedLabel, summary: entry.summary });
   }
 
   return result;

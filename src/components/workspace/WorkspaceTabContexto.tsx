@@ -218,6 +218,9 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
           <Button size="sm" variant="outline" onClick={() => setLinkDialogOpen(true)}>
             <Link2 className="h-4 w-4 mr-1" /> Enviar briefing ao cliente
           </Button>
+          <Button size="sm" variant="outline" onClick={() => setEnterpriseOpen(true)}>
+            <Building2 className="h-4 w-4 mr-1" /> Briefing Estruturação
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4 mr-1" /> Importar
           </Button>
