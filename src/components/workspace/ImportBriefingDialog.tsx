@@ -8,6 +8,7 @@ import { Upload, Loader2, FileText, RotateCcw, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { BriefingType } from "./aceleraConstants";
+import { extractStructuredSignals } from "./briefingSignals";
 
 /* ─── PDF text extraction ─── */
 
@@ -112,6 +113,9 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
 
     setSaving(true);
     try {
+      // Extract structured signals deterministically
+      const signalsData = extractStructuredSignals(extractedText);
+
       const metadata: Record<string, unknown> = {
         briefing_kind: briefingType as BriefingType,
         import_source: `briefing_${briefingType}_pdf`,
@@ -119,6 +123,7 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
         parser_mode: "local_rules",
         import_review_status: "pending_review",
         source_file_name: fileName ?? undefined,
+        ...signalsData,
       };
 
       const row = {

@@ -7,6 +7,7 @@ import ContractBlock from "./ContractBlock";
 import ScopeBadge from "./ScopeBadge";
 import { getBriefingLabel, BRIEFING_DEFINITIONS, type BriefingType, type ScopeClassification } from "./aceleraConstants";
 import { getContextLabel } from "./contextTypes";
+import { getDossierSignalsByBlock, type SignalBlockKey, SIGNAL_LABELS } from "./briefingSignals";
 
 interface Props {
   workspaceId: string;
