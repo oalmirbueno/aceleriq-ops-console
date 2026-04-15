@@ -299,18 +299,18 @@ export function getTaskSignalSummaries(metadata: Record<string, unknown> | null 
 
 export function getDossierSignalsByBlock(
   metadata: Record<string, unknown> | null | undefined
-): Map<string, { key: SignalBlockKey; label: string; summary: string }[]> {
-  const result = new Map<string, { key: SignalBlockKey; label: string; summary: string }[]>();
+): Map<string, { key: string; label: string; summary: string }[]> {
+  const result = new Map<string, { key: string; label: string; summary: string }[]>();
   if (!metadata) return result;
   if (metadata.import_review_status !== "reviewed") return result;
-  const signals = metadata.structured_signals as StructuredSignals | undefined;
+  const signals = metadata.structured_signals as Record<string, { summary: string; dossier_block: string }> | undefined;
   if (!signals) return result;
 
   for (const [key, entry] of Object.entries(signals)) {
-    const k = key as SignalBlockKey;
     const block = entry.dossier_block;
+    const label = SIGNAL_LABELS[key as SignalBlockKey] ?? key;
     if (!result.has(block)) result.set(block, []);
-    result.get(block)!.push({ key: k, label: SIGNAL_LABELS[k], summary: entry.summary });
+    result.get(block)!.push({ key, label, summary: entry.summary });
   }
 
   return result;
