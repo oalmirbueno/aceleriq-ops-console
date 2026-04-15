@@ -8,6 +8,7 @@ import ScopeBadge from "./ScopeBadge";
 import { getBriefingLabel, BRIEFING_DEFINITIONS, type BriefingType, type ScopeClassification } from "./aceleraConstants";
 import { getContextLabel } from "./contextTypes";
 import { getDossierSignalsByBlock, type SignalBlockKey, SIGNAL_LABELS } from "./briefingSignals";
+import { ENTERPRISE_SIGNAL_LABELS } from "./enterpriseStructuringBlocks";
 
 interface Props {
   workspaceId: string;
