@@ -32,8 +32,6 @@ export interface SignalEntry {
 
 export type StructuredSignals = Partial<Record<SignalBlockKey, SignalEntry>>;
 
-import { ENTERPRISE_SIGNAL_LABELS } from "./enterpriseStructuringBlocks";
-
 /** Full metadata shape for signals on a briefing master */
 export interface BriefingSignalsMetadata {
   structured_signals: StructuredSignals;
