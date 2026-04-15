@@ -1,5 +1,6 @@
 import { FileText, Clock, ListChecks } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getStagePremiumLabel } from "./aceleraConstants";
 
 interface TimelineEvent {
   id: string;
