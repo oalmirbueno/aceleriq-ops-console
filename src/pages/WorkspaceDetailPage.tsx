@@ -14,6 +14,7 @@ import WorkspaceTabDossie from "@/components/workspace/WorkspaceTabDossie";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { getStagePremiumLabel } from "@/components/workspace/aceleraConstants";
 
 interface Workspace {
   id: string;
@@ -89,11 +90,11 @@ export default function WorkspaceDetailPage() {
       client_id: ws.client_id,
       event_type: "stage_changed",
       title: "Etapa alterada",
-      description: `De "${oldStage}" para "${newStage}"`,
+      description: `De "${getStagePremiumLabel(oldStage)}" para "${getStagePremiumLabel(newStage)}"`,
       happened_at: new Date().toISOString(),
     });
 
-    toast({ title: "Etapa atualizada", description: `Movido para "${newStage}"` });
+    toast({ title: "Etapa atualizada", description: `Movido para "${getStagePremiumLabel(newStage)}"` });
     setWs({ ...ws, current_stage: newStage });
     await fetchWorkspace();
     setChangingStage(false);

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import ContractBlock from "./ContractBlock";
 import ScopeBadge from "./ScopeBadge";
-import { getBriefingLabel, BRIEFING_DEFINITIONS, type BriefingType } from "./aceleraConstants";
+import { getBriefingLabel, BRIEFING_DEFINITIONS, type BriefingType, type ScopeClassification } from "./aceleraConstants";
 import { getContextLabel } from "./contextTypes";
 
 interface Props {
@@ -30,6 +30,32 @@ interface TaskSummary {
   total: number;
   done: number;
   in_progress: number;
+}
+
+/** Read briefing_kind from metadata, with legacy fallback to briefing_type */
+function readBriefingKind(meta: Record<string, unknown> | null): string | undefined {
+  if (!meta) return undefined;
+  return (meta.briefing_kind as string) ?? (meta.briefing_type as string) ?? undefined;
+}
+
+/** Read import_source from metadata, with legacy fallback to imported boolean */
+function readImportSource(meta: Record<string, unknown> | null): string | undefined {
+  if (!meta) return undefined;
+  if (meta.import_source) return meta.import_source as string;
+  if (meta.imported === true) return "legacy_import";
+  return undefined;
+}
+
+/** Read dossier_block from metadata */
+function readDossierBlock(meta: Record<string, unknown> | null): string | undefined {
+  return (meta?.dossier_block as string) ?? undefined;
+}
+
+/** Read scope_classification from metadata */
+function readScopeClassification(meta: Record<string, unknown> | null): ScopeClassification | undefined {
+  const val = meta?.scope_classification as string | undefined;
+  if (!val) return undefined;
+  return val as ScopeClassification;
 }
 
 const DOSSIE_BLOCKS = [
@@ -84,24 +110,27 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
     );
   }
 
-  // Find briefings by metadata.briefing_type
+  // Briefings — use official briefing_kind with legacy fallback
   const briefings = contexts.filter((c) => c.context_type === "briefing");
-  const importedBriefings = briefings.filter((c) => (c.metadata as any)?.imported === true);
-  const briefingTypes = briefings.map((c) => (c.metadata as any)?.briefing_type).filter(Boolean) as string[];
+  const briefingKinds = briefings.map((c) => readBriefingKind(c.metadata)).filter(Boolean) as string[];
 
-  const getBlockContexts = (contextTypes: readonly string[]) =>
-    contexts.filter((c) => contextTypes.includes(c.context_type));
+  /** Get contexts for a dossier block: prefer dossier_block metadata, fallback to context_type */
+  const getBlockContexts = (blockKey: string, contextTypes: readonly string[]) => {
+    const byDossierBlock = contexts.filter((c) => readDossierBlock(c.metadata) === blockKey);
+    if (byDossierBlock.length > 0) return byDossierBlock;
+    return contexts.filter((c) => contextTypes.includes(c.context_type));
+  };
 
   return (
     <div className="space-y-4 animate-fade-in">
-      {/* Contract block */}
+      {/* 1. Contrato Operacional */}
       <ContractBlock
         clientMetadata={clientMetadata}
         workspaceMetadata={workspaceMetadata}
         planName={planName}
       />
 
-      {/* Briefings section */}
+      {/* Briefings summary — compact secondary section */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -111,8 +140,9 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
         </CardHeader>
         <CardContent className="space-y-3">
           {(Object.values(BRIEFING_DEFINITIONS) as Array<{ key: BriefingType; label: string; description: string; importable: boolean }>).map((def) => {
-            const exists = briefingTypes.includes(def.key);
-            const isImported = importedBriefings.some((b) => (b.metadata as any)?.briefing_type === def.key);
+            const exists = briefingKinds.includes(def.key);
+            const matchingBriefing = briefings.find((b) => readBriefingKind(b.metadata) === def.key);
+            const importSource = matchingBriefing ? readImportSource(matchingBriefing.metadata) : undefined;
 
             return (
               <div key={def.key} className="flex items-center justify-between gap-3 py-1.5 border-b border-border/30 last:border-0">
@@ -120,7 +150,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-medium text-foreground">{def.label}</span>
                     {exists && <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Preenchido</Badge>}
-                    {isImported && <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/20">Importado</Badge>}
+                    {importSource && <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/20">Importado</Badge>}
                     {def.importable && !exists && <Badge variant="outline" className="text-[10px] text-muted-foreground">Importável</Badge>}
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-0.5">{def.description}</p>
@@ -131,9 +161,9 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
         </CardContent>
       </Card>
 
-      {/* Dossiê blocks */}
+      {/* 2–9. Dossiê blocks */}
       {DOSSIE_BLOCKS.map((block) => {
-        const blockContexts = getBlockContexts(block.contextTypes);
+        const blockContexts = getBlockContexts(block.key, block.contextTypes);
         const Icon = block.icon;
         return (
           <Card key={block.key}>
@@ -148,19 +178,23 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
                 <p className="text-xs text-muted-foreground">Nenhuma informação registrada neste bloco.</p>
               ) : (
                 <div className="space-y-2">
-                  {blockContexts.slice(0, 5).map((ctx) => (
-                    <div key={ctx.id} className="flex items-start gap-2 text-xs">
-                      <span className="text-primary/40 mt-0.5">•</span>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <Badge variant="outline" className="text-[9px] px-1.5 py-0">{getContextLabel(ctx.context_type)}</Badge>
-                          <span className="text-foreground/80 truncate">{ctx.title}</span>
-                          {ctx.is_key_decision && <Badge className="text-[9px] px-1 py-0 bg-amber-500/15 text-amber-400 border-amber-500/25">Decisão-chave</Badge>}
+                  {blockContexts.slice(0, 5).map((ctx) => {
+                    const scope = readScopeClassification(ctx.metadata);
+                    return (
+                      <div key={ctx.id} className="flex items-start gap-2 text-xs">
+                        <span className="text-primary/40 mt-0.5">•</span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0">{getContextLabel(ctx.context_type)}</Badge>
+                            <span className="text-foreground/80 truncate">{ctx.title}</span>
+                            {ctx.is_key_decision && <Badge className="text-[9px] px-1 py-0 bg-amber-500/15 text-amber-400 border-amber-500/25">Decisão-chave</Badge>}
+                            {scope && <ScopeBadge scope={scope} className="text-[9px] px-1 py-0" />}
+                          </div>
+                          <p className="text-muted-foreground line-clamp-1 mt-0.5">{ctx.content}</p>
                         </div>
-                        <p className="text-muted-foreground line-clamp-1 mt-0.5">{ctx.content}</p>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {blockContexts.length > 5 && (
                     <p className="text-[10px] text-muted-foreground">+{blockContexts.length - 5} itens adicionais</p>
                   )}
@@ -171,7 +205,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
         );
       })}
 
-      {/* Active operational plan */}
+      {/* 10. Plano Operacional Ativo */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -192,7 +226,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
         </CardContent>
       </Card>
 
-      {/* Future opportunities */}
+      {/* 11. Oportunidades Futuras */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
