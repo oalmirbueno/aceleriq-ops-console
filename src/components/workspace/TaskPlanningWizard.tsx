@@ -19,6 +19,7 @@ import {
   type DiagnosticAxis,
   type OperationalFront,
   type DerivedTask,
+  type SignalSource,
 } from "./operationalPlanEngine";
 
 /* ─── Types ─── */
@@ -127,11 +128,13 @@ export default function TaskPlanningWizard({ open, onOpenChange, workspaceId, cl
         source_type: "context",
         source_id: null,
         metadata: {
-          generation_mode: "operational_plan_wizard",
+          generation_mode: "operational_wizard",
+          plan_name: planName ?? null,
           front_key: t.frontKey,
           front_name: t.frontName,
           dossier_block: t.dossierBlock,
           signal_keys: t.signalKeys,
+          signal_sources: t.signalSources,
           scope_classification: t.scopeClassification,
           operational_reason: t.operationalReason,
         },
@@ -242,7 +245,7 @@ export default function TaskPlanningWizard({ open, onOpenChange, workspaceId, cl
           {step === 2 && plan && (
             <div className="space-y-4">
               <p className="text-xs text-muted-foreground">
-                Leitura diagnóstica estruturada em 5 eixos com base nos sinais revisados.
+                Leitura diagnóstica estruturada em 5 eixos, derivada do Dossiê consolidado do cliente.
               </p>
               {plan.diagnostic.map((axis) => (
                 <div key={axis.key}>
@@ -271,7 +274,7 @@ export default function TaskPlanningWizard({ open, onOpenChange, workspaceId, cl
           {step === 3 && plan && (
             <div className="space-y-4">
               <p className="text-xs text-muted-foreground">
-                Frentes operacionais derivadas do Dossiê, organizadas por prioridade e aderência ao plano.
+                Frentes operacionais derivadas do Dossiê consolidado, organizadas por prioridade e aderência ao plano contratado.
               </p>
 
               {plan.fronts.length > 0 && (
@@ -286,13 +289,25 @@ export default function TaskPlanningWizard({ open, onOpenChange, workspaceId, cl
                 </div>
               )}
 
-              {plan.retained.length > 0 && (
+              {plan.retained.filter((f) => f.scopeClassification === "conditional").length > 0 && (
+                <div className="space-y-2 pt-2 border-t border-border/30">
+                  <h4 className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
+                    <AlertCircle className="h-3 w-3" />
+                    Condicionais — Requerem Confirmação ({plan.retained.filter((f) => f.scopeClassification === "conditional").length})
+                  </h4>
+                  {plan.retained.filter((f) => f.scopeClassification === "conditional").map((front) => (
+                    <FrontCard key={front.key} front={front} muted />
+                  ))}
+                </div>
+              )}
+
+              {plan.retained.filter((f) => f.scopeClassification !== "conditional").length > 0 && (
                 <div className="space-y-2 pt-2 border-t border-border/30">
                   <h4 className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                     <Eye className="h-3 w-3" />
-                    Oportunidades Futuras / Fora do Plano ({plan.retained.length})
+                    Fora do Plano / Add-on ({plan.retained.filter((f) => f.scopeClassification !== "conditional").length})
                   </h4>
-                  {plan.retained.map((front) => (
+                  {plan.retained.filter((f) => f.scopeClassification !== "conditional").map((front) => (
                     <FrontCard key={front.key} front={front} muted />
                   ))}
                 </div>
@@ -368,15 +383,32 @@ export default function TaskPlanningWizard({ open, onOpenChange, workspaceId, cl
                 )}
               </div>
 
-              {/* Retained items */}
-              {plan.retained.length > 0 && (
+              {/* Conditional items */}
+              {plan.retained.filter((r) => r.scopeClassification === "conditional").length > 0 && (
+                <div className="pt-2 border-t border-amber-500/20">
+                  <h4 className="text-xs font-semibold text-amber-400 mb-1.5 flex items-center gap-1.5">
+                    <AlertCircle className="h-3 w-3" />
+                    Condicionais — não serão criados automaticamente
+                  </h4>
+                  <div className="flex flex-wrap gap-1.5">
+                    {plan.retained.filter((r) => r.scopeClassification === "conditional").map((r) => (
+                      <Badge key={r.key} variant="outline" className="text-[10px] text-amber-400 border-amber-500/30">
+                        {r.name} — Condicional
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Retained items (addon, extra_cost, standalone) */}
+              {plan.retained.filter((r) => r.scopeClassification !== "conditional").length > 0 && (
                 <div className="pt-2 border-t border-border/30">
                   <h4 className="text-xs font-semibold text-muted-foreground mb-1.5 flex items-center gap-1.5">
                     <Eye className="h-3 w-3" />
-                    Itens retidos (não serão criados como task)
+                    Retidos — fora do plano
                   </h4>
                   <div className="flex flex-wrap gap-1.5">
-                    {plan.retained.map((r) => (
+                    {plan.retained.filter((r) => r.scopeClassification !== "conditional").map((r) => (
                       <Badge key={r.key} variant="outline" className="text-[10px] text-muted-foreground">
                         {r.name} — {getScopeLabel(r.scopeClassification)}
                       </Badge>

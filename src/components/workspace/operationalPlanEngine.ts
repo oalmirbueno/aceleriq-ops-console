@@ -22,6 +22,7 @@ export interface ReviewedSignal {
   summary: string;
   dossierBlock: string;
   source: "essential" | "enterprise_structuring" | "ai_automation" | string;
+  contextEntryId?: string;
 }
 
 export interface DiagnosticAxis {
@@ -43,6 +44,12 @@ export interface OperationalFront {
   retainedReason?: string;
 }
 
+export interface SignalSource {
+  signal_key: string;
+  briefing_kind: string;
+  context_entry_id?: string;
+}
+
 export interface DerivedTask {
   title: string;
   description: string;
@@ -52,6 +59,7 @@ export interface DerivedTask {
   frontName: string;
   dossierBlock: string;
   signalKeys: string[];
+  signalSources: SignalSource[];
   scopeClassification: ScopeClassification;
   operationalReason: string;
 }
@@ -82,7 +90,7 @@ function resolveSignalDossierBlock(key: string, explicitBlock?: string): string 
 /* ─── Extract reviewed signals from briefing metadata ─── */
 
 export function extractReviewedSignals(
-  briefings: Array<{ metadata: Record<string, unknown> | null }>
+  briefings: Array<{ id?: string; metadata: Record<string, unknown> | null }>
 ): ReviewedSignal[] {
   const signals: ReviewedSignal[] = [];
 
@@ -103,6 +111,7 @@ export function extractReviewedSignals(
         summary: entry.summary,
         dossierBlock: resolveSignalDossierBlock(key, entry.dossier_block),
         source: kind,
+        contextEntryId: b.id,
       });
     }
   }
@@ -265,7 +274,7 @@ const FRONT_DEFINITIONS: FrontDef[] = [
   },
 ];
 
-const SCOPE_RETAINED: ScopeClassification[] = ["addon", "standalone", "extra_cost"];
+const SCOPE_RETAINED: ScopeClassification[] = ["conditional", "addon", "standalone", "extra_cost"];
 
 function resolveScopeForPlan(front: FrontDef, planName: string | null): ScopeClassification {
   const plan = planName ?? "starter";
@@ -309,7 +318,11 @@ export function buildOperationalFronts(
       scopeClassification: scope,
       stage: def.stage,
       retained: isRetained,
-      retainedReason: isRetained ? `Classificado como ${scope} — não incluído na execução automática.` : undefined,
+      retainedReason: isRetained
+        ? scope === "conditional"
+          ? "Condicional — requer confirmação do operador para virar task."
+          : `Classificado como ${scope} — não incluído na execução automática.`
+        : undefined,
     };
 
     if (isRetained) {
@@ -406,6 +419,13 @@ const TASK_TEMPLATES: TaskTemplate[] = [
     priority: "medium",
   },
 ];
+function buildSignalSources(sigs: ReviewedSignal[]): SignalSource[] {
+  return sigs.map((s) => ({
+    signal_key: s.key,
+    briefing_kind: s.source,
+    context_entry_id: s.contextEntryId,
+  }));
+}
 
 export function deriveTasksFromFronts(
   fronts: OperationalFront[],
@@ -419,6 +439,7 @@ export function deriveTasksFromFronts(
     const templates = TASK_TEMPLATES.filter((t) => t.frontKey === front.key);
     if (templates.length === 0) {
       // Generic task for fronts without specific template
+      const frontSigs = getFrontSignals(front, signals);
       tasks.push({
         title: `Executar: ${front.name}`,
         description: front.objective,
@@ -428,6 +449,7 @@ export function deriveTasksFromFronts(
         frontName: front.name,
         dossierBlock: front.dossierBlocks[0] ?? "",
         signalKeys: front.signals,
+        signalSources: buildSignalSources(frontSigs),
         scopeClassification: front.scopeClassification,
         operationalReason: `Frente "${front.name}" com ${front.signals.length} sinal(is) de suporte.`,
       });
@@ -437,6 +459,7 @@ export function deriveTasksFromFronts(
     for (const tmpl of templates) {
       if (tmpl.condition && !tmpl.condition(front, signals)) continue;
 
+      const frontSigs = getFrontSignals(front, signals);
       tasks.push({
         title: tmpl.title(front, signals),
         description: tmpl.description(front, signals),
@@ -446,6 +469,7 @@ export function deriveTasksFromFronts(
         frontName: front.name,
         dossierBlock: front.dossierBlocks[0] ?? "",
         signalKeys: front.signals,
+        signalSources: buildSignalSources(frontSigs),
         scopeClassification: front.scopeClassification,
         operationalReason: `Derivada da frente "${front.name}" — ${front.objective}`,
       });
@@ -462,7 +486,7 @@ export function deriveTasksFromFronts(
 /* ─── Full plan builder ─── */
 
 export function buildOperationalPlan(
-  briefings: Array<{ metadata: Record<string, unknown> | null }>,
+  briefings: Array<{ id?: string; metadata: Record<string, unknown> | null }>,
   planName: string | null
 ): OperationalPlan {
   const signals = extractReviewedSignals(briefings);
