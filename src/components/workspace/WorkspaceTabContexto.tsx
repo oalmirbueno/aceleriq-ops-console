@@ -68,6 +68,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
   const [editEntry, setEditEntry] = useState<ContextEntry | null>(null);
   const [briefingType, setBriefingType] = useState<"essential" | "sitebolt" | null>(null);
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [enterpriseOpen, setEnterpriseOpen] = useState(false);
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set(CONTEXT_TYPES));
   const [expandedContent, setExpandedContent] = useState<Set<string>>(new Set());
 
@@ -214,6 +215,9 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button size="sm" variant="outline" onClick={() => setEnterpriseOpen(true)}>
+            <Building2 className="h-4 w-4 mr-1" /> Estruturação Empresarial
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setLinkDialogOpen(true)}>
             <Link2 className="h-4 w-4 mr-1" /> Enviar briefing ao cliente
           </Button>
