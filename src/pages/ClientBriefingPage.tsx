@@ -156,9 +156,12 @@ export default function ClientBriefingPage() {
     }, 1500);
   }, [token, decoded, remoteId, isSubmitted]);
 
-  /** Flush navigation position to Supabase with short debounce (300ms) */
+  /** Flush navigation position to Supabase with short debounce (300ms).
+   *  Also cancels any pending debouncedSave to avoid stale position overwrite. */
   const flushPosition = useCallback((questionIndex: number) => {
     if (!token || !decoded || isSubmitted) return;
+    // Cancel pending answer-save so it doesn't overwrite with stale position
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
     if (posTimerRef.current) clearTimeout(posTimerRef.current);
     posTimerRef.current = setTimeout(async () => {
       const meaningful = FLAT_QUESTIONS.filter((q) => answers[q.answerKey]?.trim().length > 5).length;
