@@ -138,7 +138,7 @@ export default function WorkspaceDetailPage() {
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="timeline">Timeline</TabsTrigger>
             <TabsTrigger value="contexto">Contexto</TabsTrigger>
-            <TabsTrigger value="tasks" disabled className="opacity-40">Tasks</TabsTrigger>
+            <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="canvas" disabled className="opacity-40">Canvas</TabsTrigger>
           </TabsList>
 
