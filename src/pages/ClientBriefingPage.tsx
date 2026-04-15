@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { Building2, Check, ChevronLeft, ChevronRight, Loader2, Download, Send, Clock, Shield, ArrowRight } from "lucide-react";
+import { Building2, Bot, Check, ChevronLeft, ChevronRight, Loader2, Download, Send, Clock, Shield, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,9 +9,28 @@ import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { ENTERPRISE_BLOCKS, ENTERPRISE_SIGNAL_TO_DOSSIER, ENTERPRISE_TASK_SIGNALS, ENTERPRISE_DOC_SIGNALS } from "@/components/workspace/enterpriseStructuringBlocks";
-import { decodeBriefingToken, saveBriefingProgress, loadBriefingProgress, clearBriefingProgress } from "@/lib/briefingToken";
+import { AUTOMATION_BLOCKS, AUTOMATION_SIGNAL_TO_DOSSIER, AUTOMATION_TASK_SIGNALS, AUTOMATION_DOC_SIGNALS } from "@/components/workspace/automationBlocks";
+import { decodeBriefingToken, saveBriefingProgress, loadBriefingProgress, clearBriefingProgress, type BriefingKind, BRIEFING_KIND_LABELS } from "@/lib/briefingToken";
 import { loadRemoteDraft, saveRemoteDraft, submitRemoteBriefing } from "@/lib/briefingPersistence";
 import { supabase } from "@/integrations/supabase/client";
+
+/** Get block definitions based on briefing type */
+function getBlocksForType(briefingType: BriefingKind) {
+  if (briefingType === "ai_automation") {
+    return {
+      blocks: AUTOMATION_BLOCKS,
+      signalToDossier: AUTOMATION_SIGNAL_TO_DOSSIER,
+      taskSignals: AUTOMATION_TASK_SIGNALS,
+      docSignals: AUTOMATION_DOC_SIGNALS,
+    };
+  }
+  return {
+    blocks: ENTERPRISE_BLOCKS,
+    signalToDossier: ENTERPRISE_SIGNAL_TO_DOSSIER,
+    taskSignals: ENTERPRISE_TASK_SIGNALS,
+    docSignals: ENTERPRISE_DOC_SIGNALS,
+  };
+}
 
 /** Flatten all blocks into individual questions */
 interface FlatQuestion {
@@ -23,9 +42,9 @@ interface FlatQuestion {
   answerKey: string;
 }
 
-function buildFlatQuestions(): FlatQuestion[] {
+function buildFlatQuestions(blocks: typeof ENTERPRISE_BLOCKS): FlatQuestion[] {
   const flat: FlatQuestion[] = [];
-  ENTERPRISE_BLOCKS.forEach((block, bIdx) => {
+  blocks.forEach((block, bIdx) => {
     block.questions.forEach((q, qIdx) => {
       flat.push({
         blockKey: block.key,
@@ -40,27 +59,36 @@ function buildFlatQuestions(): FlatQuestion[] {
   return flat;
 }
 
-const FLAT_QUESTIONS = buildFlatQuestions();
-const TOTAL_QUESTIONS = FLAT_QUESTIONS.length;
-
 function isAnsweredValue(value?: string | null) {
   return (value?.trim().length ?? 0) > 0;
 }
 
-function countAnsweredQuestions(answerMap: Record<string, string>) {
-  return FLAT_QUESTIONS.filter((q) => isAnsweredValue(answerMap[q.answerKey])).length;
+function countAnsweredQuestions(answerMap: Record<string, string>, flatQuestions: FlatQuestion[]) {
+  return flatQuestions.filter((q) => isAnsweredValue(answerMap[q.answerKey])).length;
 }
 
 type Step = "welcome" | "fill" | "review" | "submitted";
 
+/** Briefing type metadata for display */
+const BRIEFING_META: Record<BriefingKind, { icon: typeof Building2; title: string; description: string }> = {
+  enterprise_structuring: {
+    icon: Building2,
+    title: "Briefing de Estruturação Empresarial",
+    description: "Este questionário nos ajuda a entender profundamente como sua empresa funciona hoje — sua operação, processos, ferramentas, equipe e objetivos. Com essas informações, conseguimos criar um plano de ação preciso e personalizado.",
+  },
+  ai_automation: {
+    icon: Bot,
+    title: "Briefing de Automação e IA",
+    description: "Este questionário nos ajuda a mapear sua operação atual, identificar oportunidades de automação e entender como inteligência artificial pode acelerar seus resultados. Com essas respostas, criamos um plano de automação personalizado.",
+  },
+};
+
 export default function ClientBriefingPage() {
   const { token } = useParams<{ token: string }>();
-  const [decoded, setDecoded] = useState<{ workspaceId: string; clientId: string } | null>(null);
+  const [decoded, setDecoded] = useState<{ workspaceId: string; clientId: string; briefingType: BriefingKind } | null>(null);
   const [invalid, setInvalid] = useState(false);
   const [currentQ, setCurrentQ] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>(() =>
-    Object.fromEntries(FLAT_QUESTIONS.map((q) => [q.answerKey, ""]))
-  );
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [step, setStep] = useState<Step>("welcome");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -72,9 +100,17 @@ export default function ClientBriefingPage() {
   const sourceTokenRef = useRef<string>("");
   const answersRef = useRef<Record<string, string>>({});
 
-  const answeredCount = countAnsweredQuestions(answers);
-  const progressPct = step === "welcome" ? 0 : step === "review" || step === "submitted" ? 100 : ((currentQ + 1) / TOTAL_QUESTIONS) * 100;
-  const currentQuestion = FLAT_QUESTIONS[currentQ];
+  // Derived from decoded briefing type
+  const briefingType = decoded?.briefingType ?? "enterprise_structuring";
+  const { blocks, signalToDossier, taskSignals, docSignals } = getBlocksForType(briefingType);
+  const flatQuestions = buildFlatQuestions(blocks);
+  const totalQuestions = flatQuestions.length;
+
+  const answeredCount = countAnsweredQuestions(answers, flatQuestions);
+  const progressPct = step === "welcome" ? 0 : step === "review" || step === "submitted" ? 100 : ((currentQ + 1) / totalQuestions) * 100;
+  const currentQuestion = flatQuestions[currentQ];
+  const meta = BRIEFING_META[briefingType];
+  const BriefingIcon = meta.icon;
 
   // Keep answersRef in sync so async callbacks always read the latest
   useEffect(() => { answersRef.current = answers; }, [answers]);
@@ -87,9 +123,13 @@ export default function ClientBriefingPage() {
     setDecoded(payload);
     sourceTokenRef.current = token;
 
+    // Build empty answers for the correct briefing type
+    const typeBlocks = getBlocksForType(payload.briefingType);
+    const typeFlat = buildFlatQuestions(typeBlocks.blocks);
+    const emptyAnswers = Object.fromEntries(typeFlat.map((q) => [q.answerKey, ""]));
+
     const init = async () => {
-      const emptyAnswers = Object.fromEntries(FLAT_QUESTIONS.map((q) => [q.answerKey, ""]));
-      let nextAnswers = emptyAnswers;
+      let nextAnswers = { ...emptyAnswers };
       let nextCurrentQ = 0;
       let nextStep: Step = "welcome";
       let nextRemoteId: string | null = null;
@@ -104,21 +144,18 @@ export default function ClientBriefingPage() {
           nextStep = "submitted";
           nextRemoteId = remote.id;
         } else {
-          // Restore draft from Supabase
           nextAnswers = { ...emptyAnswers, ...remote.answers };
           nextRemoteId = remote.id;
 
           const hasSavedAnswers = Object.values(remote.answers).some((value) => isAnsweredValue(value));
           if (hasSavedAnswers) {
-            // Restore exact position from saved currentQuestion index
             const savedIdx = remote.currentQuestion;
-            nextCurrentQ = (typeof savedIdx === "number" && savedIdx >= 0 && savedIdx < TOTAL_QUESTIONS)
+            nextCurrentQ = (typeof savedIdx === "number" && savedIdx >= 0 && savedIdx < typeFlat.length)
               ? savedIdx : 0;
             nextStep = "fill";
           }
         }
       } else {
-        // 2. Fallback to localStorage only when no remote draft exists
         const local = loadBriefingProgress(token);
         if (local) {
           nextAnswers = { ...emptyAnswers, ...local };
@@ -140,7 +177,6 @@ export default function ClientBriefingPage() {
 
     init();
 
-    // Load client name
     supabase
       .from("clients")
       .select("name")
@@ -151,20 +187,17 @@ export default function ClientBriefingPage() {
       });
   }, [token]);
 
-  // Auto-save with debounce — Supabase primary, localStorage as cache
+  // Auto-save with debounce
   const debouncedSave = useCallback((questionIndex: number) => {
     if (!token || !decoded || isSubmitted) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
       const latestAnswers = answersRef.current;
-      // Always save to localStorage as local cache
       saveBriefingProgress(token, latestAnswers);
 
-      // Check if we have at least 1 meaningful answer before creating remote draft
-      const meaningful = countAnsweredQuestions(latestAnswers);
+      const meaningful = countAnsweredQuestions(latestAnswers, flatQuestions);
       if (meaningful < 1) return;
 
-      // Save to Supabase
       const id = await saveRemoteDraft(
         token,
         decoded.workspaceId,
@@ -173,25 +206,22 @@ export default function ClientBriefingPage() {
           answers: latestAnswers,
           currentQuestion: questionIndex,
           answeredCount: meaningful,
-          totalQuestions: TOTAL_QUESTIONS,
+          totalQuestions,
         },
         remoteId ?? undefined,
       );
       if (id && !remoteId) setRemoteId(id);
     }, 1500);
-  }, [token, decoded, remoteId, isSubmitted]);
+  }, [token, decoded, remoteId, isSubmitted, flatQuestions, totalQuestions]);
 
-  /** Flush navigation position to Supabase with short debounce (300ms).
-   *  Also cancels any pending debouncedSave to avoid stale position overwrite. */
   const flushPosition = useCallback((questionIndex: number) => {
     if (!token || !decoded || isSubmitted) return;
-    // Cancel pending answer-save so it doesn't overwrite with stale position
     if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
     if (posTimerRef.current) clearTimeout(posTimerRef.current);
     posTimerRef.current = setTimeout(async () => {
       const latestAnswers = answersRef.current;
-      const meaningful = countAnsweredQuestions(latestAnswers);
-      if (meaningful < 1) return; // no remote draft yet
+      const meaningful = countAnsweredQuestions(latestAnswers, flatQuestions);
+      if (meaningful < 1) return;
       saveBriefingProgress(token, latestAnswers);
       const id = await saveRemoteDraft(
         token,
@@ -201,13 +231,13 @@ export default function ClientBriefingPage() {
           answers: latestAnswers,
           currentQuestion: questionIndex,
           answeredCount: meaningful,
-          totalQuestions: TOTAL_QUESTIONS,
+          totalQuestions,
         },
         remoteId ?? undefined,
       );
       if (id && !remoteId) setRemoteId(id);
     }, 300);
-  }, [token, decoded, remoteId, isSubmitted]);
+  }, [token, decoded, remoteId, isSubmitted, flatQuestions, totalQuestions]);
 
   const updateAnswer = (key: string, value: string) => {
     setAnswers(prev => {
@@ -219,19 +249,19 @@ export default function ClientBriefingPage() {
   };
 
   const handleNext = () => {
-    if (currentQ < TOTAL_QUESTIONS - 1) {
+    if (currentQ < totalQuestions - 1) {
       const next = currentQ + 1;
       setCurrentQ(next);
       flushPosition(next);
     } else {
       setStep("review");
-      flushPosition(currentQ); // persist last position before review
+      flushPosition(currentQ);
     }
   };
 
   const handlePrev = () => {
     if (step === "review") {
-      const last = TOTAL_QUESTIONS - 1;
+      const last = totalQuestions - 1;
       setStep("fill");
       setCurrentQ(last);
       flushPosition(last);
@@ -245,7 +275,7 @@ export default function ClientBriefingPage() {
   };
 
   const handleSkip = () => {
-    if (currentQ < TOTAL_QUESTIONS - 1) {
+    if (currentQ < totalQuestions - 1) {
       const next = currentQ + 1;
       setCurrentQ(next);
       flushPosition(next);
@@ -263,7 +293,7 @@ export default function ClientBriefingPage() {
 
   /** Consolidate flat answers back into block-level content */
   const buildDocument = () => {
-    return ENTERPRISE_BLOCKS.map((block) => {
+    return blocks.map((block) => {
       const blockAnswers = block.questions.map((q, qIdx) => {
         const key = `${block.key}__${qIdx}`;
         const answer = answers[key]?.trim();
@@ -275,7 +305,7 @@ export default function ClientBriefingPage() {
 
   const buildSignals = () => {
     const structured_signals: Record<string, { summary: string; dossier_block: string }> = {};
-    for (const block of ENTERPRISE_BLOCKS) {
+    for (const block of blocks) {
       const blockText = block.questions.map((_, qIdx) => {
         const key = `${block.key}__${qIdx}`;
         return answers[key]?.trim() || "";
@@ -284,16 +314,16 @@ export default function ClientBriefingPage() {
       if (blockText.length > 10) {
         structured_signals[block.signalKey] = {
           summary: blockText.slice(0, 500),
-          dossier_block: ENTERPRISE_SIGNAL_TO_DOSSIER[block.signalKey],
+          dossier_block: signalToDossier[block.signalKey],
         };
       }
     }
     const signalKeys = Object.keys(structured_signals);
     return {
       structured_signals,
-      dossier_signals: [...new Set(signalKeys.map((k) => ENTERPRISE_SIGNAL_TO_DOSSIER[k]))],
-      task_signals: signalKeys.filter((k) => ENTERPRISE_TASK_SIGNALS.includes(k)),
-      documentation_signals: signalKeys.filter((k) => ENTERPRISE_DOC_SIGNALS.includes(k)),
+      dossier_signals: [...new Set(signalKeys.map((k) => signalToDossier[k]))],
+      task_signals: signalKeys.filter((k) => taskSignals.includes(k)),
+      documentation_signals: signalKeys.filter((k) => docSignals.includes(k)),
     };
   };
 
@@ -304,14 +334,13 @@ export default function ClientBriefingPage() {
       const content = buildDocument();
       const signalsData = buildSignals();
 
-      // Submit via edge function (handles both create-and-submit and update-to-submitted)
       const success = await submitRemoteBriefing(
         remoteId ?? "",
         token,
         content,
         signalsData,
         answeredCount,
-        TOTAL_QUESTIONS,
+        totalQuestions,
       );
 
       if (!success) {
@@ -320,7 +349,6 @@ export default function ClientBriefingPage() {
         return;
       }
 
-      // Timeline is registered server-side by the edge function
       if (token) clearBriefingProgress(token);
       setIsSubmitted(true);
       setStep("submitted");
@@ -336,19 +364,20 @@ export default function ClientBriefingPage() {
     const content = buildDocument();
     const w = window.open("", "_blank");
     if (!w) return;
-    w.document.write(`<!DOCTYPE html><html><head><title>Briefing de Estruturação Empresarial</title>
+    const primaryColor = briefingType === "ai_automation" ? "#8b5cf6" : "#22c55e";
+    w.document.write(`<!DOCTYPE html><html><head><title>${meta.title}</title>
       <style>
         body{font-family:'Segoe UI',system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;color:#1a1a1a}
-        h1{font-size:22px;border-bottom:2px solid #22c55e;padding-bottom:12px;margin-bottom:24px}
-        h2{font-size:16px;color:#16a34a;margin-top:28px;margin-bottom:8px}
+        h1{font-size:22px;border-bottom:2px solid ${primaryColor};padding-bottom:12px;margin-bottom:24px}
+        h2{font-size:16px;color:${primaryColor};margin-top:28px;margin-bottom:8px}
         p,strong{font-size:13px;line-height:1.6}
         strong{display:block;margin-top:12px;color:#333}
         hr{border:none;border-top:1px solid #e5e7eb;margin:20px 0}
         .meta{font-size:11px;color:#888;margin-bottom:20px}
         em{color:#999}
       </style></head><body>
-      <h1>Briefing de Estruturação Empresarial</h1>
-      <p class="meta">${clientName ? `${clientName} · ` : ""}${new Date().toLocaleDateString("pt-BR")} · ${answeredCount}/${TOTAL_QUESTIONS} perguntas</p>
+      <h1>${meta.title}</h1>
+      <p class="meta">${clientName ? `${clientName} · ` : ""}${new Date().toLocaleDateString("pt-BR")} · ${answeredCount}/${totalQuestions} perguntas</p>
       ${content
         .replace(/## (.+)/g, "<h2>$1</h2>")
         .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
@@ -422,10 +451,10 @@ export default function ClientBriefingPage() {
         <div className="max-w-lg w-full space-y-6">
           <div className="text-center space-y-3">
             <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
-              <Building2 className="h-7 w-7 text-primary" />
+              <BriefingIcon className="h-7 w-7 text-primary" />
             </div>
             <h1 className="text-xl font-semibold text-foreground">
-              Briefing de Estruturação Empresarial
+              {meta.title}
             </h1>
             {clientName && (
               <p className="text-sm text-muted-foreground">{clientName}</p>
@@ -435,9 +464,7 @@ export default function ClientBriefingPage() {
           <Card>
             <CardContent className="p-6 space-y-4">
               <p className="text-sm text-foreground leading-relaxed">
-                Este questionário nos ajuda a entender profundamente como sua empresa funciona hoje — 
-                sua operação, processos, ferramentas, equipe e objetivos. Com essas informações, 
-                conseguimos criar um plano de ação preciso e personalizado.
+                {meta.description}
               </p>
 
               <div className="space-y-3">
@@ -445,7 +472,7 @@ export default function ClientBriefingPage() {
                   <Clock className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                   <div>
                     <p className="text-sm font-medium text-foreground">Tempo estimado: 20–35 minutos</p>
-                    <p className="text-xs text-muted-foreground">São {TOTAL_QUESTIONS} perguntas organizadas em {ENTERPRISE_BLOCKS.length} temas.</p>
+                    <p className="text-xs text-muted-foreground">São {totalQuestions} perguntas organizadas em {blocks.length} temas.</p>
                   </div>
                 </div>
 
@@ -482,7 +509,7 @@ export default function ClientBriefingPage() {
 
   // ── Current block label (for section header) ──
   const currentBlockLabel = currentQuestion?.blockLabel;
-  const isNewBlock = currentQ === 0 || FLAT_QUESTIONS[currentQ - 1]?.blockKey !== currentQuestion?.blockKey;
+  const isNewBlock = currentQ === 0 || flatQuestions[currentQ - 1]?.blockKey !== currentQuestion?.blockKey;
   const currentAnswer = answers[currentQuestion?.answerKey] ?? "";
   const hasAnswer = isAnsweredValue(currentAnswer);
 
@@ -495,7 +522,7 @@ export default function ClientBriefingPage() {
         <div className="max-w-xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-muted-foreground">
-              Pergunta {currentQ + 1} de {TOTAL_QUESTIONS}
+              Pergunta {currentQ + 1} de {totalQuestions}
             </span>
             <Badge variant="outline" className="text-[10px]">
               {answeredCount} respondidas
@@ -557,7 +584,7 @@ export default function ClientBriefingPage() {
                   </Button>
                 )}
                 <Button onClick={handleNext}>
-                  {currentQ < TOTAL_QUESTIONS - 1 ? (
+                  {currentQ < totalQuestions - 1 ? (
                     <>Próxima <ChevronRight className="h-4 w-4 ml-1" /></>
                   ) : (
                     "Revisar respostas"
@@ -577,8 +604,8 @@ export default function ClientBriefingPage() {
               </p>
             </div>
 
-            {ENTERPRISE_BLOCKS.map((block, bIdx) => {
-              const blockQuestions = FLAT_QUESTIONS.filter((q) => q.blockIndex === bIdx);
+            {blocks.map((block, bIdx) => {
+              const blockQuestions = flatQuestions.filter((q) => q.blockIndex === bIdx);
               const blockAnswered = blockQuestions.filter((q) => isAnsweredValue(answers[q.answerKey])).length;
 
               return (
@@ -590,7 +617,7 @@ export default function ClientBriefingPage() {
                   {blockQuestions.map((q) => {
                     const answer = answers[q.answerKey]?.trim() ?? "";
                     const filled = isAnsweredValue(answer);
-                    const globalIdx = FLAT_QUESTIONS.indexOf(q);
+                    const globalIdx = flatQuestions.indexOf(q);
 
                     return (
                       <Card
@@ -619,7 +646,7 @@ export default function ClientBriefingPage() {
             })}
 
             <div className="border rounded-md p-3 bg-muted/20 text-xs text-muted-foreground">
-              {answeredCount} de {TOTAL_QUESTIONS} perguntas respondidas
+              {answeredCount} de {totalQuestions} perguntas respondidas
             </div>
 
             <div className="flex items-center justify-between gap-2 pt-2">
