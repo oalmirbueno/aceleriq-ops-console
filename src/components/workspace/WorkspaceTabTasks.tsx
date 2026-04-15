@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, ListFilter, CheckCircle2, Sparkles, ClipboardList } from "lucide-react";
+import { Plus, ListFilter, CheckCircle2, Sparkles, ClipboardList, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -172,6 +172,17 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
     fetchTasks();
   };
 
+  const handleDelete = async (task: Task) => {
+    const { error } = await supabase.from("tasks").delete().eq("id", task.id);
+    if (error) {
+      toast({ title: "Erro ao excluir task", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Task excluída" });
+    if (editTask?.id === task.id) setEditTask(null);
+    fetchTasks();
+  };
+
   const getSourceLabel = (t: Task) => {
     if (!t.source_type) return "manual";
     return t.source_type;
@@ -245,7 +256,7 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
                   </div>
                 </div>
                 {/* quick status */}
-                <div onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                   <Select value={t.status} onValueChange={(v) => handleQuickStatus(t, v)}>
                     <SelectTrigger className="h-7 w-[120px] text-[10px]">
                       <SelectValue />
@@ -256,6 +267,13 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
                       ))}
                     </SelectContent>
                   </Select>
+                  <button
+                    onClick={() => { if (window.confirm("Excluir esta task?")) handleDelete(t); }}
+                    className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded"
+                    title="Excluir task"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </CardContent>
             </Card>
