@@ -291,6 +291,18 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
         clientId={clientId}
         onImported={fetchEntries}
       />
+
+      {/* Briefing import dialog */}
+      {briefingType && (
+        <ImportBriefingDialog
+          open={!!briefingType}
+          onOpenChange={(v) => { if (!v) setBriefingType(null); }}
+          workspaceId={workspaceId}
+          clientId={clientId}
+          briefingType={briefingType}
+          onImported={fetchEntries}
+        />
+      )}
     </div>
   );
 }
