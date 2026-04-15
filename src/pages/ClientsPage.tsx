@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Plus, Search, ExternalLink } from "lucide-react";
+import { Users, Plus, Search, ExternalLink, FolderPlus } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import EmptyState from "@/components/EmptyState";
 import LoadingState from "@/components/LoadingState";
@@ -93,6 +93,41 @@ export default function ClientsPage() {
   const openWorkspace = (client: Client) => {
     const ws = client.workspaces[0];
     if (ws) navigate(`/ops/workspaces/${ws.id}`);
+  };
+
+  const createWorkspaceForClient = async (client: Client) => {
+    try {
+      const { data: ws, error: wErr } = await supabase
+        .from("workspaces")
+        .insert({
+          client_id: client.id,
+          name: `${client.name} — Workspace`,
+          status: "setup",
+          current_stage: "entrada",
+        })
+        .select("id")
+        .single();
+
+      if (wErr) throw wErr;
+
+      if (ws) {
+        await supabase.from("timeline_events").insert({
+          workspace_id: ws.id,
+          client_id: client.id,
+          event_type: "workspace_created",
+          title: "Workspace criado",
+          description: `Workspace criado para ${client.name}`,
+          happened_at: new Date().toISOString(),
+        });
+
+        toast({ title: "Workspace criado", description: client.name });
+        await fetchClients();
+        navigate(`/ops/workspaces/${ws.id}`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast({ title: "Erro ao criar workspace", description: err.message, variant: "destructive" });
+    }
   };
 
   return (
