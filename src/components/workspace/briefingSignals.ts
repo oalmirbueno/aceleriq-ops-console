@@ -8,6 +8,7 @@
  */
 
 import { ENTERPRISE_SIGNAL_LABELS } from "./enterpriseStructuringBlocks";
+import { AUTOMATION_SIGNAL_LABELS } from "./automationBlocks";
 
 /* ─── Signal block keys (padronized) ─── */
 
@@ -308,10 +309,13 @@ export function getDossierSignalsByBlock(
   const signals = metadata.structured_signals as Record<string, { summary: string; dossier_block: string }> | undefined;
   if (!signals) return result;
 
+  // Lazy-import replaced by static imports at top of file
   for (const [key, entry] of Object.entries(signals)) {
     const block = entry.dossier_block;
-    const label = SIGNAL_LABELS[key as SignalBlockKey] ?? key;
-    const resolvedLabel = SIGNAL_LABELS[key as SignalBlockKey] ?? ENTERPRISE_SIGNAL_LABELS[key] ?? key;
+    const resolvedLabel = SIGNAL_LABELS[key as SignalBlockKey]
+      ?? ENTERPRISE_SIGNAL_LABELS[key]
+      ?? AUTOMATION_SIGNAL_LABELS[key]
+      ?? key;
     if (!result.has(block)) result.set(block, []);
     result.get(block)!.push({ key, label: resolvedLabel, summary: entry.summary });
   }
