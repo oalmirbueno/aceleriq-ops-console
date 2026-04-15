@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Star, ExternalLink, Upload, FileText, FolderOpen, ChevronRight, ChevronDown, Eye } from "lucide-react";
+import { Plus, Star, ExternalLink, Upload, FileText, FolderOpen, ChevronRight, ChevronDown, Eye, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import ImportBriefingDialog from "./ImportBriefingDialog";
 import { normalizeTags } from "@/lib/normalizeTags";
 import { CONTEXT_TYPES, getContextLabel } from "./contextTypes";
 import BriefingSignalReview from "./BriefingSignalReview";
+import EnterpriseStructuringDialog from "./EnterpriseStructuringDialog";
 
 interface ContextEntry {
   id: string;
@@ -64,6 +65,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
   const [importOpen, setImportOpen] = useState(false);
   const [editEntry, setEditEntry] = useState<ContextEntry | null>(null);
   const [briefingType, setBriefingType] = useState<"essential" | "sitebolt" | null>(null);
+  const [enterpriseOpen, setEnterpriseOpen] = useState(false);
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set(CONTEXT_TYPES));
   const [expandedContent, setExpandedContent] = useState<Set<string>>(new Set());
 
@@ -210,6 +212,9 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button size="sm" variant="outline" onClick={() => setEnterpriseOpen(true)}>
+            <Building2 className="h-4 w-4 mr-1" /> Estruturação Empresarial
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4 mr-1" /> Importar
           </Button>
