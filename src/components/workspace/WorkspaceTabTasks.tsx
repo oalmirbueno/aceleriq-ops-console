@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, ListFilter, CheckCircle2 } from "lucide-react";
+import { Plus, ListFilter, CheckCircle2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import TaskFormDialog, { type TaskFormData } from "./TaskFormDialog";
+import GenerateTasksDialog from "./GenerateTasksDialog";
 import {
   TASK_STATUS_OPTIONS,
   getStatusLabel,
@@ -41,6 +42,7 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const [createOpen, setCreateOpen] = useState(false);
+  const [generateOpen, setGenerateOpen] = useState(false);
   const [editTask, setEditTask] = useState<Task | null>(null);
 
   const fetchTasks = useCallback(async () => {
@@ -195,9 +197,14 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
             </SelectContent>
           </Select>
         </div>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Nova Task
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setGenerateOpen(true)}>
+            <Sparkles className="h-4 w-4 mr-1" /> Gerar de Contexto
+          </Button>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Nova Task
+          </Button>
+        </div>
       </div>
 
       {/* list */}
@@ -271,6 +278,13 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
           stage: editTask.stage ?? "",
           due_date: editTask.due_date ?? "",
         } : null}
+      />
+      <GenerateTasksDialog
+        open={generateOpen}
+        onOpenChange={setGenerateOpen}
+        workspaceId={workspaceId}
+        clientId={clientId}
+        onGenerated={fetchTasks}
       />
     </div>
   );
