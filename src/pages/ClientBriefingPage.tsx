@@ -60,6 +60,7 @@ export default function ClientBriefingPage() {
   const [remoteId, setRemoteId] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const posTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sourceTokenRef = useRef<string>("");
 
   const answeredCount = FLAT_QUESTIONS.filter((q) => answers[q.answerKey]?.trim().length > 5).length;
