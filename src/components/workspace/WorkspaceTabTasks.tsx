@@ -256,7 +256,7 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
                   </div>
                 </div>
                 {/* quick status */}
-                <div onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                   <Select value={t.status} onValueChange={(v) => handleQuickStatus(t, v)}>
                     <SelectTrigger className="h-7 w-[120px] text-[10px]">
                       <SelectValue />
@@ -267,6 +267,13 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
                       ))}
                     </SelectContent>
                   </Select>
+                  <button
+                    onClick={() => { if (window.confirm("Excluir esta task?")) handleDelete(t); }}
+                    className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded"
+                    title="Excluir task"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </CardContent>
             </Card>
