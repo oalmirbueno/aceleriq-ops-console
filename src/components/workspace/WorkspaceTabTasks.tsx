@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, ListFilter, CheckCircle2, Sparkles } from "lucide-react";
+import { Plus, ListFilter, CheckCircle2, Sparkles, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
