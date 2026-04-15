@@ -9,10 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import ContextEntryDialog, { type ContextFormData } from "./ContextEntryDialog";
 import ImportContextDialog from "./ImportContextDialog";
 
-const CONTEXT_TYPES = [
-  "briefing", "dor", "objetivo", "reuniao", "transcricao",
-  "decisao", "acesso", "anotacao", "diagnostico",
-] as const;
+import { CONTEXT_TYPES, getContextLabel } from "./contextTypes";
 
 interface ContextEntry {
   id: string;
@@ -165,7 +162,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
               {CONTEXT_TYPES.map((t) => (
-                <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                <SelectItem key={t} value={t}>{getContextLabel(t)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -198,7 +195,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant="outline" className="capitalize text-[10px]">{entry.context_type}</Badge>
+                    <Badge variant="outline" className="text-[10px]">{getContextLabel(entry.context_type)}</Badge>
                     {entry.is_key_decision && (
                       <Star
                         className="h-3.5 w-3.5 text-warning fill-warning cursor-pointer"

@@ -12,12 +12,7 @@ import { Upload, X, Loader2, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
-const CONTEXT_TYPES = [
-  "briefing", "dor", "objetivo", "reuniao", "transcricao",
-  "decisao", "acesso", "anotacao", "diagnostico",
-] as const;
-
-type ContextType = (typeof CONTEXT_TYPES)[number];
+import { CONTEXT_TYPES, type ContextType, getContextLabel } from "./contextTypes";
 
 interface ParsedEntry {
   context_type: ContextType;
@@ -365,7 +360,7 @@ export default function ImportContextDialog({ open, onOpenChange, workspaceId, c
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CONTEXT_TYPES.map((t) => (
-                    <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                    <SelectItem key={t} value={t}>{getContextLabel(t)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -403,7 +398,7 @@ export default function ImportContextDialog({ open, onOpenChange, workspaceId, c
               </p>
               {previewed.map((b, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <Badge variant="outline" className="capitalize text-[10px]">{b.context_type}</Badge>
+                  <Badge variant="outline" className="text-[10px]">{getContextLabel(b.context_type)}</Badge>
                   <span className="text-xs text-foreground truncate">{b.title}</span>
                 </div>
               ))}
