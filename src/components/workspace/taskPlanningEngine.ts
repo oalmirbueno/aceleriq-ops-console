@@ -58,13 +58,13 @@ export const DEFAULT_GAPS: GapAnswers = {
 };
 
 export const ACELERA_STAGES = [
-  { key: "A", label: "A — Análise", stage: "diagnostico" },
-  { key: "C", label: "C — Construção", stage: "estrutura_base" },
-  { key: "E1", label: "E — Estratégia", stage: "planejamento" },
-  { key: "L", label: "L — Lançamento", stage: "ativacao" },
-  { key: "E2", label: "E — Execução", stage: "producao" },
-  { key: "R", label: "R — Resultados", stage: "otimizacao" },
-  { key: "A2", label: "A — Aceleração", stage: "expansao" },
+  { key: "A", label: "A — Abertura Estratégica", stage: "entrada" },
+  { key: "C", label: "C — Diagnóstico Estrutural", stage: "diagnostico" },
+  { key: "E1", label: "E — Arquitetura Base da Operação", stage: "estrutura_base" },
+  { key: "L", label: "L — Plano Diretor de Implantação", stage: "planejamento" },
+  { key: "E2", label: "E — Implantação e Construção", stage: "producao" },
+  { key: "R", label: "R — Ativação Assistida", stage: "ativacao" },
+  { key: "A2", label: "A — Otimização e Escala", stage: "otimizacao" },
 ] as const;
 
 export type AceleraStageKey = (typeof ACELERA_STAGES)[number]["key"];

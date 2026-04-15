@@ -10,6 +10,7 @@ import WorkspaceTabResumo from "@/components/workspace/WorkspaceTabResumo";
 import WorkspaceTabTimeline from "@/components/workspace/WorkspaceTabTimeline";
 import WorkspaceTabContexto from "@/components/workspace/WorkspaceTabContexto";
 import WorkspaceTabTasks from "@/components/workspace/WorkspaceTabTasks";
+import WorkspaceTabDossie from "@/components/workspace/WorkspaceTabDossie";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -22,7 +23,8 @@ interface Workspace {
   primary_owner_id: string | null;
   client_id: string;
   summary: string | null;
-  clients: { id: string; name: string } | null;
+  metadata: Record<string, unknown> | null;
+  clients: { id: string; name: string; plan_name: string | null; metadata: Record<string, unknown> | null } | null;
   profiles: { full_name: string | null; email: string } | null;
 }
 
@@ -47,7 +49,7 @@ export default function WorkspaceDetailPage() {
     if (!workspaceId) return;
     const { data, error } = await supabase
       .from("workspaces")
-      .select("id, name, status, current_stage, primary_owner_id, client_id, summary, clients(id, name), profiles:primary_owner_id(full_name, email)")
+      .select("id, name, status, current_stage, primary_owner_id, client_id, summary, metadata, clients(id, name, plan_name, metadata), profiles:primary_owner_id(full_name, email)")
       .eq("id", workspaceId)
       .single();
 
@@ -118,6 +120,7 @@ export default function WorkspaceDetailPage() {
 
   const clientName = ws.clients?.name ?? "Cliente";
   const ownerName = ws.profiles?.full_name ?? ws.profiles?.email ?? null;
+  const planName = ws.clients?.plan_name ?? null;
 
   return (
     <>
@@ -131,11 +134,13 @@ export default function WorkspaceDetailPage() {
           currentStage={ws.current_stage}
           changingStage={changingStage}
           onStageChange={handleStageChange}
+          planName={planName}
         />
 
         <Tabs defaultValue="resumo" className="w-full">
           <TabsList>
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
+            <TabsTrigger value="dossie">Dossiê</TabsTrigger>
             <TabsTrigger value="timeline">Timeline</TabsTrigger>
             <TabsTrigger value="contexto">Contexto</TabsTrigger>
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
@@ -151,6 +156,16 @@ export default function WorkspaceDetailPage() {
               ownerName={ownerName}
               summary={ws.summary ?? null}
               recentEvents={timeline}
+            />
+          </TabsContent>
+
+          <TabsContent value="dossie">
+            <WorkspaceTabDossie
+              workspaceId={ws.id}
+              clientId={ws.client_id}
+              planName={planName}
+              clientMetadata={ws.clients?.metadata as Record<string, unknown> | null}
+              workspaceMetadata={ws.metadata}
             />
           </TabsContent>
 

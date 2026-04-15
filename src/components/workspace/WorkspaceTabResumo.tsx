@@ -1,5 +1,6 @@
 import { FileText, Clock, ListChecks } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getStagePremiumLabel } from "./aceleraConstants";
 
 interface TimelineEvent {
   id: string;
@@ -36,7 +37,7 @@ export default function WorkspaceTabResumo({
           <Row label="Cliente" value={clientName} />
           <Row label="Workspace" value={workspaceName} />
           <Row label="Status" value={status} />
-          <Row label="Etapa" value={currentStage.replace("_", " ")} capitalize />
+          <Row label="Etapa" value={getStagePremiumLabel(currentStage)} />
           <Row label="Responsável" value={ownerName ?? "Não atribuído"} muted={!ownerName} />
         </CardContent>
       </Card>

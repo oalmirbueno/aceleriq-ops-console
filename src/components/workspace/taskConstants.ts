@@ -1,3 +1,5 @@
+import { getStagePremiumLabel } from "./aceleraConstants";
+
 export const TASK_STATUS_OPTIONS = [
   { value: "backlog", label: "Backlog" },
   { value: "todo", label: "To Do" },
@@ -16,14 +18,14 @@ export const TASK_PRIORITY_OPTIONS = [
 ] as const;
 
 export const PIPELINE_STAGE_OPTIONS = [
-  { value: "entrada", label: "Entrada" },
-  { value: "diagnostico", label: "Diagnóstico" },
-  { value: "estrutura_base", label: "Estrutura Base" },
-  { value: "planejamento", label: "Planejamento" },
-  { value: "producao", label: "Produção" },
-  { value: "ativacao", label: "Ativação" },
-  { value: "otimizacao", label: "Otimização" },
-  { value: "expansao", label: "Expansão" },
+  { value: "entrada", label: "Abertura Estratégica" },
+  { value: "diagnostico", label: "Diagnóstico Estrutural" },
+  { value: "estrutura_base", label: "Arquitetura Base da Operação" },
+  { value: "planejamento", label: "Plano Diretor de Implantação" },
+  { value: "producao", label: "Implantação e Construção" },
+  { value: "ativacao", label: "Ativação Assistida" },
+  { value: "otimizacao", label: "Otimização Guiada por Evidência" },
+  { value: "expansao", label: "Escala e Alavancagem" },
 ] as const;
 
 export function getStatusLabel(status: string): string {
@@ -36,7 +38,7 @@ export function getPriorityLabel(priority: string): string {
 
 export function getStageLabel(stage: string | null): string | null {
   if (!stage) return null;
-  return PIPELINE_STAGE_OPTIONS.find((s) => s.value === stage)?.label ?? stage;
+  return getStagePremiumLabel(stage);
 }
 
 export function getStatusColor(status: string): string {
