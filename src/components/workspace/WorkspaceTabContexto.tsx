@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Star, ExternalLink, Filter, Upload } from "lucide-react";
+import { Plus, Star, ExternalLink, Filter, Upload, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import ContextEntryDialog, { type ContextFormData } from "./ContextEntryDialog";
 import ImportContextDialog from "./ImportContextDialog";
+import ImportBriefingDialog from "./ImportBriefingDialog";
 import { normalizeTags } from "@/lib/normalizeTags";
 
 import { CONTEXT_TYPES, getContextLabel } from "./contextTypes";
