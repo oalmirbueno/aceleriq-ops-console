@@ -420,6 +420,15 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
         clientId={clientId}
         clientName={clientName ?? "Cliente"}
       />
+
+      {/* Enterprise Structuring dialog */}
+      <EnterpriseStructuringDialog
+        open={enterpriseOpen}
+        onOpenChange={setEnterpriseOpen}
+        workspaceId={workspaceId}
+        clientId={clientId}
+        onCreated={fetchEntries}
+      />
     </div>
   );
 }
