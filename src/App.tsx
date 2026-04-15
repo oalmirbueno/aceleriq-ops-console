@@ -12,6 +12,7 @@ import ClientsPage from "@/pages/ClientsPage";
 import WorkspacesPage from "@/pages/WorkspacesPage";
 import WorkspaceDetailPage from "@/pages/WorkspaceDetailPage";
 import NotFound from "@/pages/NotFound";
+import ClientBriefingPage from "@/pages/ClientBriefingPage";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/briefing/:token" element={<ClientBriefingPage />} />
             <Route path="/" element={<Navigate to="/ops" replace />} />
             <Route
               path="/ops"

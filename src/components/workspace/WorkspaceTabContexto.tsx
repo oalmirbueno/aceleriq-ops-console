@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Star, ExternalLink, Upload, FileText, FolderOpen, ChevronRight, ChevronDown, Eye, Building2 } from "lucide-react";
+import { Plus, Star, ExternalLink, Upload, FileText, FolderOpen, ChevronRight, ChevronDown, Eye, Building2, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { normalizeTags } from "@/lib/normalizeTags";
 import { CONTEXT_TYPES, getContextLabel } from "./contextTypes";
 import BriefingSignalReview from "./BriefingSignalReview";
 import EnterpriseStructuringDialog from "./EnterpriseStructuringDialog";
+import GenerateBriefingLinkDialog from "./GenerateBriefingLinkDialog";
 
 interface ContextEntry {
   id: string;
@@ -32,6 +33,7 @@ interface ContextEntry {
 interface Props {
   workspaceId: string;
   clientId: string;
+  clientName?: string;
 }
 
 /** Group entries by context_type into folder-like structure */
@@ -58,7 +60,7 @@ function groupByType(entries: ContextEntry[]): { type: string; label: string; en
     }));
 }
 
-export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
+export default function WorkspaceTabContexto({ workspaceId, clientId, clientName }: Props) {
   const [entries, setEntries] = useState<ContextEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -66,6 +68,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
   const [editEntry, setEditEntry] = useState<ContextEntry | null>(null);
   const [briefingType, setBriefingType] = useState<"essential" | "sitebolt" | null>(null);
   const [enterpriseOpen, setEnterpriseOpen] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set(CONTEXT_TYPES));
   const [expandedContent, setExpandedContent] = useState<Set<string>>(new Set());
 
@@ -214,6 +217,9 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
           </DropdownMenu>
           <Button size="sm" variant="outline" onClick={() => setEnterpriseOpen(true)}>
             <Building2 className="h-4 w-4 mr-1" /> Estruturação Empresarial
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setLinkDialogOpen(true)}>
+            <Link2 className="h-4 w-4 mr-1" /> Gerar link
           </Button>
           <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4 mr-1" /> Importar
@@ -413,6 +419,15 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
         workspaceId={workspaceId}
         clientId={clientId}
         onCreated={fetchEntries}
+      />
+
+      {/* Briefing link dialog */}
+      <GenerateBriefingLinkDialog
+        open={linkDialogOpen}
+        onOpenChange={setLinkDialogOpen}
+        workspaceId={workspaceId}
+        clientId={clientId}
+        clientName={clientName ?? "Cliente"}
       />
     </div>
   );
