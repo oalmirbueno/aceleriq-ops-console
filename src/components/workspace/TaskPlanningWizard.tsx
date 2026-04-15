@@ -77,7 +77,7 @@ export default function TaskPlanningWizard({ open, onOpenChange, workspaceId, cl
     setLoading(true);
     const { data, error } = await supabase
       .from("context_entries")
-      .select("id, context_type, title, content, is_key_decision, happened_at, tags")
+      .select("id, context_type, title, content, is_key_decision, happened_at, tags, metadata")
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false });
 
