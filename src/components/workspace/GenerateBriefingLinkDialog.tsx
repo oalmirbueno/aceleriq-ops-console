@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -27,7 +27,11 @@ export default function GenerateBriefingLinkDialog({ open, onOpenChange, workspa
   const [copied, setCopied] = useState(false);
   const [selectedType, setSelectedType] = useState<BriefingKind>(defaultBriefingType ?? "enterprise_structuring");
 
-  const token = encodeBriefingToken(workspaceId, clientId, selectedType);
+  // Stable token — only changes when workspaceId, clientId or selectedType change
+  const token = useMemo(
+    () => encodeBriefingToken(workspaceId, clientId, selectedType),
+    [workspaceId, clientId, selectedType]
+  );
   const url = generateBriefingUrl(token);
 
   const handleCopy = async () => {
