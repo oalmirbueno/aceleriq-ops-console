@@ -366,7 +366,6 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
-                                )}
                                 {entry.source_url && (
                                   <a
                                     href={entry.source_url}
