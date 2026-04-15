@@ -156,6 +156,10 @@ export default function WorkspaceDetailPage() {
           <TabsContent value="timeline">
             <WorkspaceTabTimeline events={timeline} />
           </TabsContent>
+
+          <TabsContent value="contexto">
+            <WorkspaceTabContexto workspaceId={ws.id} clientId={ws.client_id} />
+          </TabsContent>
         </Tabs>
       </div>
     </>
