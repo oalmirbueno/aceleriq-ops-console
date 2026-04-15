@@ -88,11 +88,18 @@ export default function ClientBriefingPage() {
           return;
         }
         // Restore draft from Supabase
-        setAnswers((prev) => ({ ...prev, ...remote.answers }));
-        setCurrentQ(remote.currentQuestion);
+        const restoredAnswers = { ...Object.fromEntries(FLAT_QUESTIONS.map((q) => [q.answerKey, ""])), ...remote.answers };
+        setAnswers(restoredAnswers);
         setRemoteId(remote.id);
+
         const hasSavedAnswers = Object.values(remote.answers).some((v) => v?.trim().length > 0);
-        if (hasSavedAnswers) setStep("fill");
+        if (hasSavedAnswers) {
+          // Restore exact position: find question index from currentQuestion
+          const restoreIdx = typeof remote.currentQuestion === "number" && remote.currentQuestion >= 0 && remote.currentQuestion < TOTAL_QUESTIONS
+            ? remote.currentQuestion : 0;
+          setCurrentQ(restoreIdx);
+          setStep("fill");
+        }
         setLoading(false);
         return;
       }
