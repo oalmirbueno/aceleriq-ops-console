@@ -11,6 +11,7 @@ import WorkspaceTabTimeline from "@/components/workspace/WorkspaceTabTimeline";
 import WorkspaceTabContexto from "@/components/workspace/WorkspaceTabContexto";
 import WorkspaceTabTasks from "@/components/workspace/WorkspaceTabTasks";
 import WorkspaceTabDossie from "@/components/workspace/WorkspaceTabDossie";
+import WorkspaceTabBriefing from "@/components/workspace/WorkspaceTabBriefing";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -141,6 +142,7 @@ export default function WorkspaceDetailPage() {
         <Tabs defaultValue="resumo" className="w-full">
           <TabsList>
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
+            <TabsTrigger value="briefing">Briefing</TabsTrigger>
             <TabsTrigger value="dossie">Dossiê</TabsTrigger>
             <TabsTrigger value="timeline">Timeline</TabsTrigger>
             <TabsTrigger value="contexto">Contexto</TabsTrigger>
@@ -160,6 +162,14 @@ export default function WorkspaceDetailPage() {
             />
           </TabsContent>
 
+          <TabsContent value="briefing">
+            <WorkspaceTabBriefing
+              workspaceId={ws.id}
+              clientId={ws.client_id}
+              clientName={clientName}
+            />
+          </TabsContent>
+
           <TabsContent value="dossie">
             <WorkspaceTabDossie
               workspaceId={ws.id}
@@ -175,7 +185,7 @@ export default function WorkspaceDetailPage() {
           </TabsContent>
 
           <TabsContent value="contexto">
-            <WorkspaceTabContexto workspaceId={ws.id} clientId={ws.client_id} clientName={clientName} />
+            <WorkspaceTabContexto workspaceId={ws.id} clientId={ws.client_id} />
           </TabsContent>
 
           <TabsContent value="tasks">
