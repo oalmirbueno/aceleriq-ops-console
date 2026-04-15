@@ -308,10 +308,16 @@ export function getDossierSignalsByBlock(
   const signals = metadata.structured_signals as Record<string, { summary: string; dossier_block: string }> | undefined;
   if (!signals) return result;
 
+  // Lazy-import to avoid circular deps — labels are plain objects
+  const { ENTERPRISE_SIGNAL_LABELS } = require("./enterpriseStructuringBlocks");
+  const { AUTOMATION_SIGNAL_LABELS } = require("./automationBlocks");
+
   for (const [key, entry] of Object.entries(signals)) {
     const block = entry.dossier_block;
-    const label = SIGNAL_LABELS[key as SignalBlockKey] ?? key;
-    const resolvedLabel = SIGNAL_LABELS[key as SignalBlockKey] ?? ENTERPRISE_SIGNAL_LABELS[key] ?? key;
+    const resolvedLabel = SIGNAL_LABELS[key as SignalBlockKey]
+      ?? ENTERPRISE_SIGNAL_LABELS[key]
+      ?? AUTOMATION_SIGNAL_LABELS[key]
+      ?? key;
     if (!result.has(block)) result.set(block, []);
     result.get(block)!.push({ key, label: resolvedLabel, summary: entry.summary });
   }
