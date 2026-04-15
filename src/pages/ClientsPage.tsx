@@ -197,7 +197,7 @@ export default function ClientsPage() {
                 {filtered.map((c) => {
                   const stage = c.workspaces[0]?.current_stage;
                   return (
-                    <TableRow key={c.id} className="cursor-pointer" onClick={() => openWorkspace(c)}>
+                    <TableRow key={c.id} className="cursor-pointer" onClick={() => c.workspaces[0] ? openWorkspace(c) : undefined}>
                       <TableCell className="font-medium text-foreground">{c.name}</TableCell>
                       <TableCell className="text-muted-foreground">{c.company_name ?? "—"}</TableCell>
                       <TableCell>
@@ -208,13 +208,23 @@ export default function ClientsPage() {
                       <TableCell className="text-muted-foreground capitalize">{stage ?? "—"}</TableCell>
                       <TableCell className="text-muted-foreground capitalize">{c.plan_name ?? "—"}</TableCell>
                       <TableCell>
-                        {c.workspaces[0] && (
+                        {c.workspaces[0] ? (
                           <Button
                             size="icon"
                             variant="ghost"
                             onClick={(e) => { e.stopPropagation(); openWorkspace(c); }}
+                            title="Abrir workspace"
                           >
                             <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={(e) => { e.stopPropagation(); createWorkspaceForClient(c); }}
+                            title="Criar workspace"
+                          >
+                            <FolderPlus className="h-4 w-4 text-primary" />
                           </Button>
                         )}
                       </TableCell>
