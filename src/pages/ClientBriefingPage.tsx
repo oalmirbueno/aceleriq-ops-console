@@ -62,6 +62,44 @@ export default function ClientBriefingPage() {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const posTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sourceTokenRef = useRef<string>("");
+  const hasRestoredRemotePositionRef = useRef(false);
+
+  const getQuestionIndexFromSavedPosition = useCallback((draft: Record<string, unknown>) => {
+    const draftProgress = (draft.draftProgress as Record<string, unknown> | undefined) ?? {};
+
+    const lastQuestionKeyCandidates = [
+      draft.lastQuestionKey,
+      draft.last_question_key,
+      draftProgress.lastQuestionKey,
+      draftProgress.last_question_key,
+    ];
+
+    const savedQuestionKey = lastQuestionKeyCandidates.find(
+      (value): value is string => typeof value === "string" && value.length > 0,
+    );
+
+    if (savedQuestionKey) {
+      const idxFromKey = FLAT_QUESTIONS.findIndex((question) => question.answerKey === savedQuestionKey);
+      if (idxFromKey >= 0) return idxFromKey;
+    }
+
+    const lastQuestionIndexCandidates = [
+      draft.lastQuestionIndex,
+      draft.last_question_index,
+      draft.currentQuestion,
+      draft.current_question,
+      draftProgress.lastQuestionIndex,
+      draftProgress.last_question_index,
+      draftProgress.currentQuestion,
+      draftProgress.current_question,
+    ];
+
+    const savedIndex = lastQuestionIndexCandidates.find(
+      (value): value is number => typeof value === "number" && value >= 0 && value < TOTAL_QUESTIONS,
+    );
+
+    return savedIndex ?? 0;
+  }, []);
 
   const answeredCount = FLAT_QUESTIONS.filter((q) => answers[q.answerKey]?.trim().length > 5).length;
   const progressPct = step === "welcome" ? 0 : step === "review" || step === "submitted" ? 100 : ((currentQ + 1) / TOTAL_QUESTIONS) * 100;
@@ -74,43 +112,53 @@ export default function ClientBriefingPage() {
     if (!payload) { setInvalid(true); setLoading(false); return; }
     setDecoded(payload);
     sourceTokenRef.current = token;
+    hasRestoredRemotePositionRef.current = false;
 
     const init = async () => {
+      const emptyAnswers = Object.fromEntries(FLAT_QUESTIONS.map((q) => [q.answerKey, ""]));
+      let nextAnswers = emptyAnswers;
+      let nextCurrentQ = 0;
+      let nextStep: Step = "welcome";
+      let nextRemoteId: string | null = null;
+      let nextSubmitted = false;
+
       // 1. Try Supabase first
       const remote = await loadRemoteDraft(token);
 
       if (remote) {
         if (remote.status === "submitted") {
-          setIsSubmitted(true);
-          setStep("submitted");
-          setRemoteId(remote.id);
-          setLoading(false);
-          return;
-        }
-        // Restore draft from Supabase
-        const restoredAnswers = { ...Object.fromEntries(FLAT_QUESTIONS.map((q) => [q.answerKey, ""])), ...remote.answers };
-        setAnswers(restoredAnswers);
-        setRemoteId(remote.id);
+          nextSubmitted = true;
+          nextStep = "submitted";
+          nextRemoteId = remote.id;
+        } else {
+          // Restore draft from Supabase
+          nextAnswers = { ...emptyAnswers, ...remote.answers };
+          nextRemoteId = remote.id;
 
-        const hasSavedAnswers = Object.values(remote.answers).some((v) => v?.trim().length > 0);
-        if (hasSavedAnswers) {
-          // Restore exact position: find question index from currentQuestion
-          const restoreIdx = typeof remote.currentQuestion === "number" && remote.currentQuestion >= 0 && remote.currentQuestion < TOTAL_QUESTIONS
-            ? remote.currentQuestion : 0;
-          setCurrentQ(restoreIdx);
-          setStep("fill");
+          const hasSavedAnswers = Object.values(remote.answers).some((v) => v?.trim().length > 0);
+          if (hasSavedAnswers) {
+            nextCurrentQ = getQuestionIndexFromSavedPosition(remote as unknown as Record<string, unknown>);
+            nextStep = "fill";
+            hasRestoredRemotePositionRef.current = true;
+          }
         }
-        setLoading(false);
-        return;
+      } else {
+        // 2. Fallback to localStorage only when no remote draft exists
+        const local = loadBriefingProgress(token);
+        if (local) {
+          nextAnswers = { ...emptyAnswers, ...local };
+          const hasSavedAnswers = Object.values(local).some((v) => v.trim().length > 0);
+          if (hasSavedAnswers && !hasRestoredRemotePositionRef.current) {
+            nextStep = "fill";
+          }
+        }
       }
 
-      // 2. Fallback to localStorage
-      const local = loadBriefingProgress(token);
-      if (local) {
-        setAnswers((prev) => ({ ...prev, ...local }));
-        const hasSavedAnswers = Object.values(local).some((v) => v.trim().length > 0);
-        if (hasSavedAnswers) setStep("fill");
-      }
+      setAnswers(nextAnswers);
+      setCurrentQ(nextCurrentQ);
+      setStep(nextStep);
+      setRemoteId(nextRemoteId);
+      setIsSubmitted(nextSubmitted);
       setLoading(false);
     };
 
@@ -125,7 +173,7 @@ export default function ClientBriefingPage() {
       .then(({ data }) => {
         if (data) setClientName(data.name);
       });
-  }, [token]);
+  }, [token, getQuestionIndexFromSavedPosition]);
 
   // Auto-save with debounce — Supabase primary, localStorage as cache
   const debouncedSave = useCallback((newAnswers: Record<string, string>, questionIndex: number) => {
