@@ -117,7 +117,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
   const briefingKinds = briefings.map((c) => readBriefingKind(c.metadata)).filter(Boolean) as string[];
 
   // Collect dossier signals from reviewed briefings
-  const allDossierSignals = new Map<string, { key: SignalBlockKey; label: string; summary: string }[]>();
+  const allDossierSignals = new Map<string, { key: string; label: string; summary: string }[]>();
   for (const b of briefings) {
     const bSignals = getDossierSignalsByBlock(b.metadata);
     for (const [block, items] of bSignals) {
