@@ -38,6 +38,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
   const [filter, setFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [editEntry, setEditEntry] = useState<ContextEntry | null>(null);
   const [briefingType, setBriefingType] = useState<"essential" | "sitebolt" | null>(null);
 
   const fetchEntries = useCallback(async () => {
