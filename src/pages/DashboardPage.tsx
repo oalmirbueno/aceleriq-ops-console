@@ -30,7 +30,7 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const [clientsRes, workspacesRes, activeRes, eventsRes] = await Promise.all([
+        const [clientsRes, workspacesRes, activeRes, eventsRes, eventsCountRes] = await Promise.all([
           supabase.from("clients").select("*", { count: "exact", head: true }),
           supabase.from("workspaces").select("*", { count: "exact", head: true }),
           supabase.from("clients").select("*", { count: "exact", head: true }).eq("status", "active"),
@@ -39,6 +39,7 @@ export default function DashboardPage() {
             .select("id, title, event_type, happened_at")
             .order("happened_at", { ascending: false })
             .limit(5),
+          supabase.from("timeline_events").select("*", { count: "exact", head: true }),
         ]);
 
         const events = eventsRes.data ?? [];
@@ -48,7 +49,7 @@ export default function DashboardPage() {
           { label: "Total de Clientes", value: String(clientsRes.count ?? 0), icon: Users },
           { label: "Workspaces", value: String(workspacesRes.count ?? 0), icon: FolderKanban },
           { label: "Clientes Ativos", value: String(activeRes.count ?? 0), icon: Activity },
-          { label: "Itens Recentes", value: String(events.length), icon: Clock },
+          { label: "Itens Recentes", value: String(eventsCountRes.count ?? 0), icon: Clock },
         ]);
       } catch (err) {
         console.error("Failed to fetch dashboard stats:", err);
