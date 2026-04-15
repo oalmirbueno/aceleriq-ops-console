@@ -33,6 +33,7 @@ interface ContextEntry {
 interface Props {
   workspaceId: string;
   clientId: string;
+  clientName?: string;
 }
 
 /** Group entries by context_type into folder-like structure */
@@ -59,7 +60,7 @@ function groupByType(entries: ContextEntry[]): { type: string; label: string; en
     }));
 }
 
-export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
+export default function WorkspaceTabContexto({ workspaceId, clientId, clientName }: Props) {
   const [entries, setEntries] = useState<ContextEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -67,6 +68,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
   const [editEntry, setEditEntry] = useState<ContextEntry | null>(null);
   const [briefingType, setBriefingType] = useState<"essential" | "sitebolt" | null>(null);
   const [enterpriseOpen, setEnterpriseOpen] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set(CONTEXT_TYPES));
   const [expandedContent, setExpandedContent] = useState<Set<string>>(new Set());
 
