@@ -32,7 +32,6 @@ interface ContextEntry {
 interface Props {
   workspaceId: string;
   clientId: string;
-  clientName?: string;
 }
 
 /** Group entries by context_type into folder-like structure */
@@ -59,7 +58,7 @@ function groupByType(entries: ContextEntry[]): { type: string; label: string; en
     }));
 }
 
-export default function WorkspaceTabContexto({ workspaceId, clientId, clientName }: Props) {
+export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
   const [entries, setEntries] = useState<ContextEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
