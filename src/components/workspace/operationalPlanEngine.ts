@@ -43,6 +43,12 @@ export interface OperationalFront {
   retainedReason?: string;
 }
 
+export interface SignalSource {
+  signal_key: string;
+  briefing_kind: string;
+  context_entry_id?: string;
+}
+
 export interface DerivedTask {
   title: string;
   description: string;
@@ -52,6 +58,7 @@ export interface DerivedTask {
   frontName: string;
   dossierBlock: string;
   signalKeys: string[];
+  signalSources: SignalSource[];
   scopeClassification: ScopeClassification;
   operationalReason: string;
 }
@@ -265,7 +272,7 @@ const FRONT_DEFINITIONS: FrontDef[] = [
   },
 ];
 
-const SCOPE_RETAINED: ScopeClassification[] = ["addon", "standalone", "extra_cost"];
+const SCOPE_RETAINED: ScopeClassification[] = ["conditional", "addon", "standalone", "extra_cost"];
 
 function resolveScopeForPlan(front: FrontDef, planName: string | null): ScopeClassification {
   const plan = planName ?? "starter";
