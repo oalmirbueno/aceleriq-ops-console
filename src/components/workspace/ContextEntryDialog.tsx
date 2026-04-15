@@ -8,13 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CONTEXT_TYPES, type ContextType, getContextLabel } from "./contextTypes";
 
-const CONTEXT_TYPES = [
-  "briefing", "dor", "objetivo", "reuniao", "transcricao",
-  "decisao", "acesso", "anotacao", "diagnostico",
-] as const;
-
-export type ContextType = (typeof CONTEXT_TYPES)[number];
+export type { ContextType };
 
 export interface ContextFormData {
   context_type: ContextType;
@@ -92,7 +88,7 @@ export default function ContextEntryDialog({
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {CONTEXT_TYPES.map((t) => (
-                  <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                  <SelectItem key={t} value={t}>{getContextLabel(t)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

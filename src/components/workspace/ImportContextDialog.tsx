@@ -12,12 +12,7 @@ import { Upload, X, Loader2, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
-const CONTEXT_TYPES = [
-  "briefing", "dor", "objetivo", "reuniao", "transcricao",
-  "decisao", "acesso", "anotacao", "diagnostico",
-] as const;
-
-type ContextType = (typeof CONTEXT_TYPES)[number];
+import { CONTEXT_TYPES, type ContextType, getContextLabel } from "./contextTypes";
 
 interface ParsedEntry {
   context_type: ContextType;
