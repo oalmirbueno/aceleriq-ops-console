@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { getContextLabel } from "./contextTypes";
+import { getTaskSignalSummaries } from "./briefingSignals";
 import { getPriorityLabel, getPriorityColor, getStageLabel } from "./taskConstants";
 import {
   type PlanningContext,
@@ -130,10 +131,29 @@ export default function TaskPlanningWizard({ open, onOpenChange, workspaceId, cl
 
   const advance = () => {
     if (step === 1) {
-      setSynthesis(buildSynthesis(selectedContexts));
+      // For reviewed briefings, enrich with signal summaries for synthesis
+      const enriched = selectedContexts.map((ctx: any) => {
+        if (ctx.context_type === "briefing" && ctx.metadata) {
+          const signalSummaries = getTaskSignalSummaries(ctx.metadata);
+          if (signalSummaries.length > 0) {
+            return { ...ctx, content: signalSummaries.join("\n\n") };
+          }
+        }
+        return ctx;
+      });
+      setSynthesis(buildSynthesis(enriched));
     }
     if (step === 4) {
-      const result = generatePlannedTasks(selectedContexts, gaps, aceleraStage);
+      const enriched = selectedContexts.map((ctx: any) => {
+        if (ctx.context_type === "briefing" && ctx.metadata) {
+          const signalSummaries = getTaskSignalSummaries(ctx.metadata);
+          if (signalSummaries.length > 0) {
+            return { ...ctx, content: signalSummaries.join("\n\n") };
+          }
+        }
+        return ctx;
+      });
+      const result = generatePlannedTasks(enriched, gaps, aceleraStage);
       setSuggestions(result);
     }
     if (step < 6) setStep((step + 1) as Step);

@@ -12,6 +12,7 @@ import ImportContextDialog from "./ImportContextDialog";
 import ImportBriefingDialog from "./ImportBriefingDialog";
 import { normalizeTags } from "@/lib/normalizeTags";
 import { CONTEXT_TYPES, getContextLabel } from "./contextTypes";
+import BriefingSignalReview from "./BriefingSignalReview";
 
 interface ContextEntry {
   id: string;
@@ -338,6 +339,15 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
                                 </button>
                               )}
                             </div>
+
+                            {/* Briefing signal review */}
+                            {entry.context_type === "briefing" && entry.metadata?.structured_signals && (
+                              <BriefingSignalReview
+                                entryId={entry.id}
+                                metadata={entry.metadata as Record<string, unknown>}
+                                onUpdated={fetchEntries}
+                              />
+                            )}
 
                             <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
                               {entry.happened_at && (

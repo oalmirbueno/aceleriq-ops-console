@@ -7,6 +7,7 @@ import ContractBlock from "./ContractBlock";
 import ScopeBadge from "./ScopeBadge";
 import { getBriefingLabel, BRIEFING_DEFINITIONS, type BriefingType, type ScopeClassification } from "./aceleraConstants";
 import { getContextLabel } from "./contextTypes";
+import { getDossierSignalsByBlock, type SignalBlockKey, SIGNAL_LABELS } from "./briefingSignals";
 
 interface Props {
   workspaceId: string;
@@ -114,7 +115,17 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
   const briefings = contexts.filter((c) => c.context_type === "briefing");
   const briefingKinds = briefings.map((c) => readBriefingKind(c.metadata)).filter(Boolean) as string[];
 
-  /** Get contexts for a dossier block: prefer dossier_block metadata, fallback to context_type */
+  // Collect dossier signals from reviewed briefings
+  const allDossierSignals = new Map<string, { key: SignalBlockKey; label: string; summary: string }[]>();
+  for (const b of briefings) {
+    const bSignals = getDossierSignalsByBlock(b.metadata);
+    for (const [block, items] of bSignals) {
+      if (!allDossierSignals.has(block)) allDossierSignals.set(block, []);
+      allDossierSignals.get(block)!.push(...items);
+    }
+  }
+
+  /** Get contexts for a dossier block: prefer structured signals, then dossier_block metadata, fallback to context_type */
   const getBlockContexts = (blockKey: string, contextTypes: readonly string[]) => {
     const byDossierBlock = contexts.filter((c) => readDossierBlock(c.metadata) === blockKey);
     if (byDossierBlock.length > 0) return byDossierBlock;
@@ -163,7 +174,8 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
 
       {/* 2–9. Dossiê blocks */}
       {DOSSIE_BLOCKS.map((block) => {
-        const blockContexts = getBlockContexts(block.key, block.contextTypes);
+      const blockContexts = getBlockContexts(block.key, block.contextTypes);
+        const blockSignals = allDossierSignals.get(block.key) ?? [];
         const Icon = block.icon;
         return (
           <Card key={block.key}>
@@ -171,10 +183,30 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Icon className="h-4 w-4 text-muted-foreground" />
                 {block.label}
+                {blockSignals.length > 0 && (
+                  <Badge variant="outline" className="text-[9px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                    {blockSignals.length} sinal(is)
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {blockContexts.length === 0 ? (
+              {/* Structured signals from reviewed briefings */}
+              {blockSignals.length > 0 && (
+                <div className="space-y-1.5 mb-3 pb-3 border-b border-border/30">
+                  {blockSignals.map((sig, idx) => (
+                    <div key={idx} className="flex items-start gap-2 text-xs">
+                      <span className="text-emerald-400 mt-0.5 shrink-0">✦</span>
+                      <div className="min-w-0">
+                        <span className="font-medium text-foreground">{sig.label}</span>
+                        <p className="text-muted-foreground line-clamp-2 mt-0.5">{sig.summary}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {blockContexts.length === 0 && blockSignals.length === 0 ? (
                 <p className="text-xs text-muted-foreground">Nenhuma informação registrada neste bloco.</p>
               ) : (
                 <div className="space-y-2">
