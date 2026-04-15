@@ -19,6 +19,7 @@ import {
   type DiagnosticAxis,
   type OperationalFront,
   type DerivedTask,
+  type SignalSource,
 } from "./operationalPlanEngine";
 
 /* ─── Types ─── */
@@ -127,11 +128,13 @@ export default function TaskPlanningWizard({ open, onOpenChange, workspaceId, cl
         source_type: "context",
         source_id: null,
         metadata: {
-          generation_mode: "operational_plan_wizard",
+          generation_mode: "operational_wizard",
+          plan_name: planName ?? null,
           front_key: t.frontKey,
           front_name: t.frontName,
           dossier_block: t.dossierBlock,
           signal_keys: t.signalKeys,
+          signal_sources: t.signalSources,
           scope_classification: t.scopeClassification,
           operational_reason: t.operationalReason,
         },
