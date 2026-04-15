@@ -77,14 +77,23 @@ export default function TaskPlanningWizard({ open, onOpenChange, workspaceId, cl
     setLoading(true);
     const { data, error } = await supabase
       .from("context_entries")
-      .select("id, context_type, title, content, is_key_decision, happened_at, tags")
+      .select("id, context_type, title, content, is_key_decision, happened_at, tags, metadata")
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false });
 
     if (error) {
       toast({ title: "Erro ao carregar contextos", description: error.message, variant: "destructive" });
     }
-    setContexts((data as PlanningContext[]) ?? []);
+    // Filter out briefings with pending_review status
+    const allContexts = (data as PlanningContext[]) ?? [];
+    const filtered = allContexts.filter((c: any) => {
+      if (c.context_type === "briefing" && c.metadata) {
+        const reviewStatus = c.metadata.import_review_status as string | undefined;
+        if (reviewStatus === "pending_review") return false;
+      }
+      return true;
+    });
+    setContexts(filtered);
     setLoading(false);
   }, [workspaceId]);
 

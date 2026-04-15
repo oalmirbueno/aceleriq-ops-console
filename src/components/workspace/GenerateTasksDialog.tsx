@@ -25,6 +25,7 @@ interface ContextEntry {
   title: string;
   content: string;
   is_key_decision: boolean;
+  metadata?: Record<string, unknown> | null;
 }
 
 export default function GenerateTasksDialog({ open, onOpenChange, workspaceId, clientId, onGenerated }: Props) {
@@ -40,14 +41,23 @@ export default function GenerateTasksDialog({ open, onOpenChange, workspaceId, c
     setLoading(true);
     const { data, error } = await supabase
       .from("context_entries")
-      .select("id, context_type, title, content, is_key_decision")
+      .select("id, context_type, title, content, is_key_decision, metadata")
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false });
 
     if (error) {
       toast({ title: "Erro ao carregar contextos", description: error.message, variant: "destructive" });
     }
-    setContexts((data as ContextEntry[]) ?? []);
+    // Filter out briefings with pending_review status
+    const allContexts = (data as ContextEntry[]) ?? [];
+    const filtered = allContexts.filter((c) => {
+      if (c.context_type === "briefing" && c.metadata) {
+        const reviewStatus = c.metadata.import_review_status as string | undefined;
+        if (reviewStatus === "pending_review") return false;
+      }
+      return true;
+    });
+    setContexts(filtered);
     setLoading(false);
   }, [workspaceId]);
 

@@ -4,7 +4,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Loader2, Trash2, FileText, Brain, AlertTriangle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Upload, Loader2, Trash2, FileText, RotateCcw, CheckCircle2, Edit2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { BriefingType } from "./aceleraConstants";
@@ -32,20 +34,114 @@ async function readFileAsText(file: File): Promise<string> {
   return file.text();
 }
 
-/* ─── Dossier block labels for display ─── */
+/* ─── Dossier block config ─── */
 
-const BLOCK_LABELS: Record<string, string> = {
-  identity: "Identidade e Posicionamento",
-  offer: "Oferta, ICP e Persona",
-  commercial: "Estrutura Comercial",
-  operational: "Estrutura Operacional",
-  digital: "Estrutura Digital",
-  access: "Processos e Acessos",
-  diagnostic: "Diagnóstico Estrutural",
-  decisions: "Decisões, Lacunas e Prioridades",
-};
+const DOSSIER_BLOCKS = [
+  { key: "identity", label: "Identidade e Posicionamento" },
+  { key: "offer", label: "Oferta, ICP e Persona" },
+  { key: "commercial", label: "Estrutura Comercial" },
+  { key: "operational", label: "Estrutura Operacional" },
+  { key: "digital", label: "Estrutura Digital" },
+  { key: "access", label: "Processos e Acessos" },
+  { key: "diagnostic", label: "Diagnóstico Estrutural" },
+  { key: "decisions", label: "Decisões, Lacunas e Prioridades" },
+] as const;
 
-/* ─── Component ─── */
+const BLOCK_LABELS: Record<string, string> = Object.fromEntries(
+  DOSSIER_BLOCKS.map((b) => [b.key, b.label])
+);
+
+/* ─── Dossier hint keywords for local parser ─── */
+
+const DOSSIER_HINTS: { block: string; keywords: RegExp }[] = [
+  { block: "identity", keywords: /\b(empresa|nome|razão social|cnpj|segmento|história|marca|identidade|posicionamento|branding|logo|visual)\b/i },
+  { block: "offer", keywords: /\b(produto|serviço|oferta|icp|persona|público[- ]?alvo|proposta de valor|diferencial|nicho)\b/i },
+  { block: "commercial", keywords: /\b(preço|ticket|concorr|faturamento|vendas|comercial|orçamento|receita|margem|comissão)\b/i },
+  { block: "operational", keywords: /\b(equipe|processo|ferramenta|gestão|prazo|fluxo|operacion|time|colaborador|interno)\b/i },
+  { block: "digital", keywords: /\b(site|website|rede social|instagram|facebook|linkedin|tráfego|seo|google|integra|plataforma digital|landing|funil)\b/i },
+  { block: "access", keywords: /\b(acesso|login|credencial|senha|domínio|hospedagem|servidor|painel|admin)\b/i },
+  { block: "diagnostic", keywords: /\b(dor|problema|gargalo|desafio|diagnóstico|dificuldade|obstáculo|fraqueza|limitação)\b/i },
+  { block: "decisions", keywords: /\b(objetivo|meta|decisão|prioridade|expectativa|resultado|kpi|indicador|plano|estratégia)\b/i },
+];
+
+function inferDossierBlock(title: string, content: string): string | undefined {
+  const text = `${title} ${content}`.toLowerCase();
+  let bestMatch: { block: string; count: number } | null = null;
+
+  for (const hint of DOSSIER_HINTS) {
+    const matches = text.match(hint.keywords);
+    const count = matches ? matches.length : 0;
+    if (count > 0 && (!bestMatch || count > bestMatch.count)) {
+      bestMatch = { block: hint.block, count };
+    }
+  }
+
+  return bestMatch?.block;
+}
+
+/* ─── Local parser (primary path) ─── */
+
+function parseLocally(text: string): PreviewEntry[] {
+  // Try structured patterns: numbered sections, markdown headings, or key:value
+  const structuredPattern = /(?:^|\n)(?:#{1,3}\s+|(?:\d{1,2})[.)]\s*|(?:[A-Z][a-zÀ-ú]+(?:\s[a-zÀ-ú]+)*)\s*[:–—]\s*)/;
+  const hasStructure = structuredPattern.test(text);
+
+  let sections: { title: string; content: string }[] = [];
+
+  if (hasStructure) {
+    // Split by headings or numbered items
+    const splitPattern = /(?:^|\n)(#{1,3}\s+.+|(?:\d{1,2})[.)]\s*.+)/g;
+    const parts = text.split(splitPattern).filter((p) => p.trim());
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i].trim();
+      const isHeading = /^(?:#{1,3}\s+|(?:\d{1,2})[.)]\s*)/.test(part);
+
+      if (isHeading) {
+        const title = part.replace(/^#{1,3}\s+/, "").replace(/^\d{1,2}[.)]\s*/, "").trim();
+        const body = parts[i + 1]?.trim() || "";
+        if (title && (body || title.length > 20)) {
+          sections.push({ title: title.slice(0, 80), content: body || title });
+          i++; // skip body part
+        }
+      }
+    }
+
+    // Fallback: try key:value pattern
+    if (sections.length < 2) {
+      const kvPattern = /(?:^|\n)([A-ZÀ-Ú][a-zà-ú\s]+(?:[a-zà-ú]+))[\s]*[:–—]\s*(.+(?:\n(?![A-ZÀ-Ú][a-zà-ú\s]+[:–—]).+)*)/g;
+      let match;
+      const kvSections: { title: string; content: string }[] = [];
+      while ((match = kvPattern.exec(text)) !== null) {
+        kvSections.push({ title: match[1].trim().slice(0, 80), content: match[2].trim() });
+      }
+      if (kvSections.length >= 2) sections = kvSections;
+    }
+  }
+
+  // Final fallback: split by double newlines
+  if (sections.length < 2) {
+    const paragraphs = text.split(/\n{2,}/).filter((p) => p.trim().length > 15);
+    if (paragraphs.length < 2) {
+      sections = [{ title: "Briefing completo", content: text.trim() }];
+    } else {
+      sections = paragraphs.slice(0, 20).map((p) => {
+        const firstLine = p.split("\n")[0].trim().replace(/[:\-–—]+$/, "").trim();
+        return { title: firstLine.slice(0, 80) || "Seção", content: p.trim() };
+      });
+    }
+  }
+
+  return sections.map((s) => ({
+    title: s.title,
+    content: s.content,
+    dossierBlock: inferDossierBlock(s.title, s.content),
+    included: true,
+    parserMode: "local_rules" as const,
+  }));
+}
+
+/* ─── Types ─── */
 
 const BRIEFING_LABELS: Record<"essential" | "sitebolt", string> = {
   essential: "Briefing Essencial",
@@ -66,6 +162,8 @@ interface PreviewEntry {
   content: string;
   dossierBlock?: string;
   included: boolean;
+  parserMode: "local_rules" | "ai_assist";
+  editing?: boolean;
 }
 
 export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, clientId, briefingType, onImported }: Props) {
@@ -78,7 +176,6 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
   const [preview, setPreview] = useState<PreviewEntry[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [usedAI, setUsedAI] = useState(false);
 
   const reset = () => {
     setFileName(null);
@@ -87,63 +184,11 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
     setPreview(null);
     setSaving(false);
     setDragOver(false);
-    setUsedAI(false);
   };
 
   const handleOpenChange = (v: boolean) => {
     if (!v) reset();
     onOpenChange(v);
-  };
-
-  /** Call edge function for intelligent parsing */
-  const parseWithAI = async (text: string): Promise<PreviewEntry[] | null> => {
-    try {
-      const { data, error } = await supabase.functions.invoke("parse-briefing", {
-        body: { text, briefing_type: briefingType },
-      });
-
-      if (error) {
-        console.warn("AI parse failed:", error);
-        return null;
-      }
-
-      if (data?.error) {
-        console.warn("AI parse error:", data.error);
-        if (data.error.includes("429") || data.error.includes("Limite")) {
-          toast({ title: "IA temporariamente indisponível", description: "Usando parser local como alternativa.", variant: "default" });
-        }
-        return null;
-      }
-
-      const sections = data?.sections;
-      if (!Array.isArray(sections) || sections.length === 0) return null;
-
-      return sections.map((s: any) => ({
-        title: s.title || "Seção",
-        content: s.content || "",
-        dossierBlock: s.dossier_block || undefined,
-        included: true,
-      }));
-    } catch (err) {
-      console.warn("AI parse exception:", err);
-      return null;
-    }
-  };
-
-  /** Simple local fallback parser */
-  const parseLocally = (text: string): PreviewEntry[] => {
-    const paragraphs = text.split(/\n{2,}/).filter((p) => p.trim().length > 10);
-    if (paragraphs.length < 2) {
-      return [{ title: "Briefing completo", content: text.trim(), included: true }];
-    }
-    return paragraphs.slice(0, 15).map((p) => {
-      const firstLine = p.split("\n")[0].trim().replace(/[:\-–—]+$/, "").trim();
-      return {
-        title: firstLine.slice(0, 80) || "Seção",
-        content: p.trim(),
-        included: true,
-      };
-    });
   };
 
   const processFile = useCallback(async (file: File) => {
@@ -157,7 +202,6 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
     setFileName(file.name);
     setParsing(true);
     setPreview(null);
-    setUsedAI(false);
 
     try {
       setParsingStatus("Extraindo texto do arquivo...");
@@ -169,26 +213,17 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
         return;
       }
 
-      // Try AI parsing first
-      setParsingStatus("Analisando conteúdo com IA...");
-      const aiResult = await parseWithAI(text);
-
-      if (aiResult && aiResult.length > 0) {
-        setPreview(aiResult);
-        setUsedAI(true);
-      } else {
-        // Fallback to local
-        setParsingStatus("Organizando conteúdo...");
-        setPreview(parseLocally(text));
-        setUsedAI(false);
-      }
+      // Primary path: local deterministic parser
+      setParsingStatus("Organizando conteúdo...");
+      const result = parseLocally(text);
+      setPreview(result);
     } catch (err: any) {
       toast({ title: "Erro ao ler arquivo", description: err?.message || "Erro desconhecido", variant: "destructive" });
     } finally {
       setParsing(false);
       setParsingStatus("");
     }
-  }, [briefingType]);
+  }, []);
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -199,6 +234,18 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
 
   const toggleEntry = (i: number) => {
     setPreview((prev) => prev?.map((e, idx) => idx === i ? { ...e, included: !e.included } : e) ?? null);
+  };
+
+  const updateEntryTitle = (i: number, title: string) => {
+    setPreview((prev) => prev?.map((e, idx) => idx === i ? { ...e, title } : e) ?? null);
+  };
+
+  const updateEntryBlock = (i: number, block: string) => {
+    setPreview((prev) => prev?.map((e, idx) => idx === i ? { ...e, dossierBlock: block === "_none" ? undefined : block } : e) ?? null);
+  };
+
+  const toggleEditing = (i: number) => {
+    setPreview((prev) => prev?.map((e, idx) => idx === i ? { ...e, editing: !e.editing } : e) ?? null);
   };
 
   const handleImport = async () => {
@@ -215,6 +262,9 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
           briefing_kind: briefingType as BriefingType,
           import_source: `briefing_${briefingType}_pdf`,
           generated_from: "briefing_import",
+          parser_mode: e.parserMode,
+          import_review_status: "pending_review",
+          source_file_name: fileName ?? undefined,
         };
         if (e.dossierBlock) {
           metadata.dossier_block = e.dossierBlock;
@@ -244,11 +294,11 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
         client_id: clientId,
         event_type: "context_added",
         title: `${label} importado`,
-        description: `${toImport.length} item(ns) extraído(s) e organizado(s) do ${label} via PDF`,
+        description: `${toImport.length} seção(ões) importada(s) via parser local · Status: pendente de revisão`,
         happened_at: new Date().toISOString(),
       });
 
-      toast({ title: `${label} importado`, description: `${toImport.length} seção(ões) organizada(s) e salva(s)` });
+      toast({ title: `${label} importado`, description: `${toImport.length} seção(ões) salva(s) como pendente de revisão` });
       onImported();
       handleOpenChange(false);
     } catch {
@@ -260,7 +310,7 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
 
   const includedCount = preview?.filter((e) => e.included).length ?? 0;
 
-  // Group preview by dossier block for organized display
+  // Group preview by dossier block
   const groupedPreview = preview
     ? Object.entries(
         preview.reduce<Record<string, { entries: (PreviewEntry & { idx: number })[] }>>((acc, entry, idx) => {
@@ -282,7 +332,7 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
         <DialogHeader>
           <DialogTitle>Importar {label}</DialogTitle>
           <DialogDescription>
-            Envie o PDF preenchido. A IA analisa, organiza e mapeia cada informação para o bloco correto do Dossiê.
+            Envie o PDF preenchido. O sistema extrai e organiza as seções automaticamente. Revise antes de salvar.
           </DialogDescription>
         </DialogHeader>
 
@@ -313,7 +363,7 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
                 <Upload className="h-10 w-10 text-muted-foreground" />
                 <div className="text-center">
                   <p className="text-sm text-foreground font-medium">Arraste o PDF ou clique para enviar</p>
-                  <p className="text-xs text-muted-foreground mt-1">PDF, TXT ou MD · A IA interpreta e organiza automaticamente</p>
+                  <p className="text-xs text-muted-foreground mt-1">PDF, TXT ou MD · Extração e organização automática</p>
                 </div>
               </div>
             </>
@@ -322,13 +372,10 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
           {/* Parsing state */}
           {parsing && (
             <div className="flex flex-col items-center gap-3 py-10">
-              <div className="relative">
-                <Brain className="h-8 w-8 text-primary animate-pulse" />
-                <Loader2 className="h-4 w-4 text-primary animate-spin absolute -bottom-1 -right-1" />
-              </div>
+              <Loader2 className="h-8 w-8 text-primary animate-spin" />
               <div className="text-center">
                 <p className="text-sm text-foreground font-medium">{parsingStatus || "Processando..."}</p>
-                <p className="text-xs text-muted-foreground mt-1">Lendo, interpretando e organizando o briefing</p>
+                <p className="text-xs text-muted-foreground mt-1">Lendo e organizando o briefing</p>
               </div>
             </div>
           )}
@@ -340,16 +387,9 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
                 <div className="flex items-center gap-2 min-w-0">
                   <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
                   <span className="text-xs text-muted-foreground truncate">{fileName}</span>
-                  {usedAI && (
-                    <Badge variant="outline" className="text-[9px] bg-primary/10 text-primary border-primary/20 shrink-0">
-                      <Brain className="h-2.5 w-2.5 mr-0.5" /> Organizado por IA
-                    </Badge>
-                  )}
-                  {!usedAI && (
-                    <Badge variant="outline" className="text-[9px] bg-amber-500/10 text-amber-400 border-amber-500/20 shrink-0">
-                      <AlertTriangle className="h-2.5 w-2.5 mr-0.5" /> Parser local
-                    </Badge>
-                  )}
+                  <Badge variant="outline" className="text-[9px] shrink-0">
+                    Parser local
+                  </Badge>
                 </div>
                 <Button
                   variant="ghost"
@@ -357,13 +397,18 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
                   className="text-xs shrink-0"
                   onClick={() => { setPreview(null); setFileName(null); }}
                 >
-                  Trocar arquivo
+                  <RotateCcw className="h-3 w-3 mr-1" /> Trocar arquivo
                 </Button>
               </div>
 
-              <p className="text-xs text-muted-foreground font-medium">
-                {preview.length} seção(ões) detectada(s) · {includedCount} selecionada(s)
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground font-medium">
+                  {preview.length} seção(ões) · {includedCount} selecionada(s)
+                </p>
+                <Badge variant="outline" className="text-[9px] bg-amber-500/10 text-amber-400 border-amber-500/20">
+                  Pendente de revisão
+                </Badge>
+              </div>
 
               <div className="space-y-3 max-h-[45vh] overflow-y-auto pr-1">
                 {groupedPreview.map(([blockKey, { entries }]) => (
@@ -374,23 +419,68 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
                     {entries.map((entry) => (
                       <div
                         key={entry.idx}
-                        className={`flex items-start gap-2 rounded-md border p-3 transition-opacity ${
+                        className={`rounded-md border p-3 transition-opacity ${
                           entry.included ? "border-border" : "border-border/30 opacity-40"
                         }`}
                       >
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-medium text-foreground">{entry.title}</span>
+                        {/* Edit mode */}
+                        {entry.editing ? (
+                          <div className="space-y-2">
+                            <Input
+                              value={entry.title}
+                              onChange={(e) => updateEntryTitle(entry.idx, e.target.value)}
+                              className="h-7 text-xs"
+                              placeholder="Título da seção"
+                            />
+                            <Select
+                              value={entry.dossierBlock || "_none"}
+                              onValueChange={(v) => updateEntryBlock(entry.idx, v)}
+                            >
+                              <SelectTrigger className="h-7 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="_none">Sem bloco</SelectItem>
+                                {DOSSIER_BLOCKS.map((b) => (
+                                  <SelectItem key={b.key} value={b.key}>{b.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={() => toggleEditing(entry.idx)}>
+                              <CheckCircle2 className="h-3 w-3 mr-1" /> OK
+                            </Button>
                           </div>
-                          <p className="text-[11px] text-muted-foreground line-clamp-3">{entry.content}</p>
-                        </div>
-                        <button
-                          onClick={() => toggleEntry(entry.idx)}
-                          className="shrink-0 text-muted-foreground hover:text-destructive mt-0.5"
-                          title={entry.included ? "Remover" : "Incluir de volta"}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        ) : (
+                          <div className="flex items-start gap-2">
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-medium text-foreground">{entry.title}</span>
+                                {entry.dossierBlock && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0">
+                                    {BLOCK_LABELS[entry.dossierBlock]}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-muted-foreground line-clamp-3">{entry.content}</p>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => toggleEditing(entry.idx)}
+                                className="text-muted-foreground hover:text-primary mt-0.5 p-0.5"
+                                title="Editar título e bloco"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => toggleEntry(entry.idx)}
+                                className="text-muted-foreground hover:text-destructive mt-0.5 p-0.5"
+                                title={entry.included ? "Remover" : "Incluir de volta"}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

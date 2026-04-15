@@ -172,13 +172,13 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
     fetchTasks();
   };
 
-  const handleDelete = async (task: Task) => {
-    const { error } = await supabase.from("tasks").delete().eq("id", task.id);
+  const handleArchive = async (task: Task) => {
+    const { error } = await supabase.from("tasks").update({ status: "canceled" }).eq("id", task.id);
     if (error) {
-      toast({ title: "Erro ao excluir task", description: error.message, variant: "destructive" });
+      toast({ title: "Erro ao arquivar task", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Task excluída" });
+    toast({ title: "Task cancelada/arquivada" });
     if (editTask?.id === task.id) setEditTask(null);
     fetchTasks();
   };
@@ -267,13 +267,15 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
                       ))}
                     </SelectContent>
                   </Select>
-                  <button
-                    onClick={() => { if (window.confirm("Excluir esta task?")) handleDelete(t); }}
-                    className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded"
-                    title="Excluir task"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {t.status !== "canceled" && (
+                    <button
+                      onClick={() => { if (window.confirm("Cancelar/arquivar esta task?")) handleArchive(t); }}
+                      className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded"
+                      title="Cancelar task"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </CardContent>
             </Card>
