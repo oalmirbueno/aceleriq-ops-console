@@ -62,48 +62,14 @@ export default function ClientBriefingPage() {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const posTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sourceTokenRef = useRef<string>("");
-  const hasRestoredRemotePositionRef = useRef(false);
-
-  const getQuestionIndexFromSavedPosition = useCallback((draft: Record<string, unknown>) => {
-    const draftProgress = (draft.draftProgress as Record<string, unknown> | undefined) ?? {};
-
-    const lastQuestionKeyCandidates = [
-      draft.lastQuestionKey,
-      draft.last_question_key,
-      draftProgress.lastQuestionKey,
-      draftProgress.last_question_key,
-    ];
-
-    const savedQuestionKey = lastQuestionKeyCandidates.find(
-      (value): value is string => typeof value === "string" && value.length > 0,
-    );
-
-    if (savedQuestionKey) {
-      const idxFromKey = FLAT_QUESTIONS.findIndex((question) => question.answerKey === savedQuestionKey);
-      if (idxFromKey >= 0) return idxFromKey;
-    }
-
-    const lastQuestionIndexCandidates = [
-      draft.lastQuestionIndex,
-      draft.last_question_index,
-      draft.currentQuestion,
-      draft.current_question,
-      draftProgress.lastQuestionIndex,
-      draftProgress.last_question_index,
-      draftProgress.currentQuestion,
-      draftProgress.current_question,
-    ];
-
-    const savedIndex = lastQuestionIndexCandidates.find(
-      (value): value is number => typeof value === "number" && value >= 0 && value < TOTAL_QUESTIONS,
-    );
-
-    return savedIndex ?? 0;
-  }, []);
+  const answersRef = useRef<Record<string, string>>({});
 
   const answeredCount = FLAT_QUESTIONS.filter((q) => answers[q.answerKey]?.trim().length > 5).length;
   const progressPct = step === "welcome" ? 0 : step === "review" || step === "submitted" ? 100 : ((currentQ + 1) / TOTAL_QUESTIONS) * 100;
   const currentQuestion = FLAT_QUESTIONS[currentQ];
+
+  // Keep answersRef in sync so async callbacks always read the latest
+  useEffect(() => { answersRef.current = answers; }, [answers]);
 
   // Decode token & load saved progress (Supabase first, localStorage fallback)
   useEffect(() => {
@@ -112,7 +78,6 @@ export default function ClientBriefingPage() {
     if (!payload) { setInvalid(true); setLoading(false); return; }
     setDecoded(payload);
     sourceTokenRef.current = token;
-    hasRestoredRemotePositionRef.current = false;
 
     const init = async () => {
       const emptyAnswers = Object.fromEntries(FLAT_QUESTIONS.map((q) => [q.answerKey, ""]));
@@ -137,9 +102,11 @@ export default function ClientBriefingPage() {
 
           const hasSavedAnswers = Object.values(remote.answers).some((v) => v?.trim().length > 0);
           if (hasSavedAnswers) {
-            nextCurrentQ = getQuestionIndexFromSavedPosition(remote as unknown as Record<string, unknown>);
+            // Restore exact position from saved currentQuestion index
+            const savedIdx = remote.currentQuestion;
+            nextCurrentQ = (typeof savedIdx === "number" && savedIdx >= 0 && savedIdx < TOTAL_QUESTIONS)
+              ? savedIdx : 0;
             nextStep = "fill";
-            hasRestoredRemotePositionRef.current = true;
           }
         }
       } else {
@@ -148,13 +115,14 @@ export default function ClientBriefingPage() {
         if (local) {
           nextAnswers = { ...emptyAnswers, ...local };
           const hasSavedAnswers = Object.values(local).some((v) => v.trim().length > 0);
-          if (hasSavedAnswers && !hasRestoredRemotePositionRef.current) {
+          if (hasSavedAnswers) {
             nextStep = "fill";
           }
         }
       }
 
       setAnswers(nextAnswers);
+      answersRef.current = nextAnswers;
       setCurrentQ(nextCurrentQ);
       setStep(nextStep);
       setRemoteId(nextRemoteId);
@@ -173,18 +141,19 @@ export default function ClientBriefingPage() {
       .then(({ data }) => {
         if (data) setClientName(data.name);
       });
-  }, [token, getQuestionIndexFromSavedPosition]);
+  }, [token]);
 
   // Auto-save with debounce — Supabase primary, localStorage as cache
-  const debouncedSave = useCallback((newAnswers: Record<string, string>, questionIndex: number) => {
+  const debouncedSave = useCallback((questionIndex: number) => {
     if (!token || !decoded || isSubmitted) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
+      const latestAnswers = answersRef.current;
       // Always save to localStorage as local cache
-      saveBriefingProgress(token, newAnswers);
+      saveBriefingProgress(token, latestAnswers);
 
       // Check if we have at least 1 meaningful answer before creating remote draft
-      const meaningful = FLAT_QUESTIONS.filter((q) => newAnswers[q.answerKey]?.trim().length > 5).length;
+      const meaningful = FLAT_QUESTIONS.filter((q) => latestAnswers[q.answerKey]?.trim().length > 5).length;
       if (meaningful < 1) return;
 
       // Save to Supabase
@@ -193,7 +162,7 @@ export default function ClientBriefingPage() {
         decoded.workspaceId,
         decoded.clientId,
         {
-          answers: newAnswers,
+          answers: latestAnswers,
           currentQuestion: questionIndex,
           answeredCount: meaningful,
           totalQuestions: TOTAL_QUESTIONS,
@@ -212,15 +181,16 @@ export default function ClientBriefingPage() {
     if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
     if (posTimerRef.current) clearTimeout(posTimerRef.current);
     posTimerRef.current = setTimeout(async () => {
-      const meaningful = FLAT_QUESTIONS.filter((q) => answers[q.answerKey]?.trim().length > 5).length;
+      const latestAnswers = answersRef.current;
+      const meaningful = FLAT_QUESTIONS.filter((q) => latestAnswers[q.answerKey]?.trim().length > 5).length;
       if (meaningful < 1) return; // no remote draft yet
-      saveBriefingProgress(token, answers);
+      saveBriefingProgress(token, latestAnswers);
       const id = await saveRemoteDraft(
         token,
         decoded.workspaceId,
         decoded.clientId,
         {
-          answers,
+          answers: latestAnswers,
           currentQuestion: questionIndex,
           answeredCount: meaningful,
           totalQuestions: TOTAL_QUESTIONS,
@@ -229,12 +199,15 @@ export default function ClientBriefingPage() {
       );
       if (id && !remoteId) setRemoteId(id);
     }, 300);
-  }, [token, decoded, remoteId, isSubmitted, answers]);
+  }, [token, decoded, remoteId, isSubmitted]);
 
   const updateAnswer = (key: string, value: string) => {
-    const newAnswers = { ...answers, [key]: value };
-    setAnswers(newAnswers);
-    debouncedSave(newAnswers, currentQ);
+    setAnswers(prev => {
+      const next = { ...prev, [key]: value };
+      answersRef.current = next;
+      return next;
+    });
+    debouncedSave(currentQ);
   };
 
   const handleNext = () => {
@@ -550,6 +523,7 @@ export default function ClientBriefingPage() {
 
             {/* Answer */}
             <Textarea
+              key={currentQuestion.answerKey}
               value={currentAnswer}
               onChange={(e) => updateAnswer(currentQuestion.answerKey, e.target.value)}
               placeholder="Digite sua resposta aqui..."
