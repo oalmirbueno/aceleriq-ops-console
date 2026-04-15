@@ -60,10 +60,6 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
 
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
 
-  const parseTags = (raw: string): string[] | null => {
-    const arr = raw.split(",").map((t) => t.trim()).filter(Boolean);
-    return arr.length > 0 ? arr : null;
-  };
 
   const handleCreate = async (form: ContextFormData) => {
     const row = {
@@ -75,7 +71,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
       happened_at: form.happened_at || null,
       source_label: form.source_label.trim() || null,
       source_url: form.source_url.trim() || null,
-      tags: parseTags(form.tags),
+      tags: normalizeTags(form.tags),
       is_key_decision: form.is_key_decision,
     };
 
@@ -112,7 +108,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
         happened_at: form.happened_at || null,
         source_label: form.source_label.trim() || null,
         source_url: form.source_url.trim() || null,
-        tags: parseTags(form.tags),
+        tags: normalizeTags(form.tags),
         is_key_decision: form.is_key_decision,
       })
       .eq("id", editEntry.id);
