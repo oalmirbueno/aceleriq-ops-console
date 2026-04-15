@@ -279,6 +279,13 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
           due_date: editTask.due_date ?? "",
         } : null}
       />
+      <GenerateTasksDialog
+        open={generateOpen}
+        onOpenChange={setGenerateOpen}
+        workspaceId={workspaceId}
+        clientId={clientId}
+        onGenerated={fetchTasks}
+      />
     </div>
   );
 }
