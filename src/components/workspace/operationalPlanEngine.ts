@@ -423,7 +423,7 @@ function buildSignalSources(sigs: ReviewedSignal[]): SignalSource[] {
   }));
 }
 
-
+export function deriveTasksFromFronts(
   fronts: OperationalFront[],
   signals: ReviewedSignal[]
 ): DerivedTask[] {
