@@ -215,9 +215,6 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button size="sm" variant="outline" onClick={() => setEnterpriseOpen(true)}>
-            <Building2 className="h-4 w-4 mr-1" /> Estruturação Empresarial
-          </Button>
           <Button size="sm" variant="outline" onClick={() => setLinkDialogOpen(true)}>
             <Link2 className="h-4 w-4 mr-1" /> Enviar briefing ao cliente
           </Button>
@@ -421,13 +418,14 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
         clientName={clientName ?? "Cliente"}
       />
 
-      {/* Enterprise Structuring dialog */}
-      <EnterpriseStructuringDialog
-        open={enterpriseOpen}
-        onOpenChange={setEnterpriseOpen}
+      {/* Briefing link dialog */}
+      <GenerateBriefingLinkDialog
+        open={linkDialogOpen}
+        onOpenChange={setLinkDialogOpen}
         workspaceId={workspaceId}
         clientId={clientId}
-        onCreated={fetchEntries}
+        clientName={clientName ?? "Cliente"}
+        defaultBriefingType={linkBriefingType}
       />
     </div>
   );
