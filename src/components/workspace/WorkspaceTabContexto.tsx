@@ -168,6 +168,21 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
           </Select>
         </div>
         <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline">
+                <FileText className="h-4 w-4 mr-1" /> Importar Briefing
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setBriefingType("essential")}>
+                Briefing Essencial
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setBriefingType("sitebolt")}>
+                Briefing SiteBolt
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4 mr-1" /> Importar
           </Button>
