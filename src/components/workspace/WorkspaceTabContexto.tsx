@@ -356,6 +356,17 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
                                     <Download className="h-3.5 w-3.5" />
                                   </button>
                                 )}
+                                <button
+                                  title="Apagar"
+                                  className="text-muted-foreground/40 hover:text-destructive p-1 rounded"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteEntry(entry);
+                                  }}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                                )}
                                 {entry.source_url && (
                                   <a
                                     href={entry.source_url}
