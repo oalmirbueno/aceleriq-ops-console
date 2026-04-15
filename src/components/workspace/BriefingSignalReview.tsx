@@ -129,6 +129,28 @@ export default function BriefingSignalReview({ entryId, metadata, onUpdated }: P
     const { error } = await supabase.from("context_entries").update({ metadata: updatedMeta }).eq("id", entryId);
     if (!error) {
       toast({ title: "Briefing marcado como revisado", description: "Sinais agora alimentam Dossiê, Wizard e Tasks." });
+
+      // Register timeline event for review completion
+      const workspaceId = metadata.workspace_id as string | undefined;
+      const clientId = metadata.client_id as string | undefined;
+      if (workspaceId || clientId) {
+        // Try to get workspace_id/client_id from the context_entry itself
+        const { data: entry } = await supabase
+          .from("context_entries")
+          .select("workspace_id, client_id")
+          .eq("id", entryId)
+          .single();
+        if (entry) {
+          await supabase.from("timeline_events").insert({
+            workspace_id: entry.workspace_id,
+            client_id: entry.client_id,
+            event_type: "briefing_reviewed",
+            title: "Briefing revisado e aprovado",
+            description: `Sinais estruturados revisados — briefing liberado para uso em Dossiê, Wizard e Tasks.`,
+            happened_at: new Date().toISOString(),
+          });
+        }
+      }
       onUpdated();
     }
     setSaving(false);

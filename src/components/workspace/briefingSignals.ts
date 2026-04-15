@@ -32,6 +32,8 @@ export interface SignalEntry {
 
 export type StructuredSignals = Partial<Record<SignalBlockKey, SignalEntry>>;
 
+import { ENTERPRISE_SIGNAL_LABELS } from "./enterpriseStructuringBlocks";
+
 /** Full metadata shape for signals on a briefing master */
 export interface BriefingSignalsMetadata {
   structured_signals: StructuredSignals;
@@ -309,8 +311,9 @@ export function getDossierSignalsByBlock(
   for (const [key, entry] of Object.entries(signals)) {
     const block = entry.dossier_block;
     const label = SIGNAL_LABELS[key as SignalBlockKey] ?? key;
+    const resolvedLabel = SIGNAL_LABELS[key as SignalBlockKey] ?? ENTERPRISE_SIGNAL_LABELS[key] ?? key;
     if (!result.has(block)) result.set(block, []);
-    result.get(block)!.push({ key, label, summary: entry.summary });
+    result.get(block)!.push({ key, label: resolvedLabel, summary: entry.summary });
   }
 
   return result;
