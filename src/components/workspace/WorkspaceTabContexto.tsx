@@ -405,6 +405,15 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
           onImported={fetchEntries}
         />
       )}
+
+      {/* Enterprise structuring dialog */}
+      <EnterpriseStructuringDialog
+        open={enterpriseOpen}
+        onOpenChange={setEnterpriseOpen}
+        workspaceId={workspaceId}
+        clientId={clientId}
+        onCreated={fetchEntries}
+      />
     </div>
   );
 }
