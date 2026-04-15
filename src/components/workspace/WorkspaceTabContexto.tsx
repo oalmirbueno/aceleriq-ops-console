@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Star, ExternalLink, Upload, FileText, FolderOpen, ChevronRight, ChevronDown, Eye, Link2 } from "lucide-react";
+import { Plus, Star, ExternalLink, Upload, FileText, FolderOpen, ChevronRight, ChevronDown, Eye, Link2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -179,6 +179,41 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
 
   // markAsReviewed removed — status "reviewed" is now only set via BriefingSignalReview flow
 
+  const handleDownloadBriefingPDF = (entry: ContextEntry) => {
+    const briefingKind = (entry.metadata?.briefing_kind as string) ?? "briefing";
+    const kindLabels: Record<string, string> = {
+      essential: "Briefing Essencial",
+      sitebolt: "Briefing SiteBolt",
+      enterprise_structuring: "Briefing de Estruturação Empresarial",
+      ai_automation: "Briefing de Automação e IA",
+    };
+    const title = kindLabels[briefingKind] ?? entry.title;
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
+      <style>
+        body{font-family:'Segoe UI',system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;color:#1a1a1a}
+        h1{font-size:22px;border-bottom:2px solid #22c55e;padding-bottom:12px;margin-bottom:24px}
+        h2{font-size:16px;color:#16a34a;margin-top:28px;margin-bottom:8px}
+        p,strong{font-size:13px;line-height:1.6}
+        strong{display:block;margin-top:12px;color:#333}
+        hr{border:none;border-top:1px solid #e5e7eb;margin:20px 0}
+        .meta{font-size:11px;color:#888;margin-bottom:20px}
+        em{color:#999}
+      </style></head><body>
+      <h1>${title}</h1>
+      <p class="meta">${clientName ? `${clientName} · ` : ""}${new Date(entry.created_at).toLocaleDateString("pt-BR")}</p>
+      ${entry.content
+        .replace(/## (.+)/g, "<h2>$1</h2>")
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/_\((.+?)\)_/g, "<em>($1)</em>")
+        .replace(/---/g, "<hr>")
+        .replace(/\n/g, "<br>")}
+    </body></html>`);
+    w.document.close();
+    w.print();
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -297,6 +332,18 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
                                   <Badge variant="outline" className="text-[9px] bg-amber-500/10 text-amber-400 border-amber-500/20 shrink-0">
                                     Revise os sinais abaixo ↓
                                   </Badge>
+                                )}
+                                {entry.context_type === "briefing" && entry.content.length > 50 && (
+                                  <button
+                                    title="Baixar PDF"
+                                    className="text-muted-foreground hover:text-primary p-1 rounded"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDownloadBriefingPDF(entry);
+                                    }}
+                                  >
+                                    <Download className="h-3.5 w-3.5" />
+                                  </button>
                                 )}
                                 {entry.source_url && (
                                   <a
