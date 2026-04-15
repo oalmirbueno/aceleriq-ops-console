@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getStagePremiumLabel, PIPELINE_STAGES_ORDERED } from "./aceleraConstants";
 import { getPlanDefinition } from "./aceleraConstants";
 
-const STAGES = [...PIPELINE_STAGES_ORDERED];
+const STAGES: string[] = [...PIPELINE_STAGES_ORDERED];
 
 interface WorkspaceHeaderProps {
   clientName: string;
