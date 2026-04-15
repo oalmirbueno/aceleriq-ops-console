@@ -9,6 +9,7 @@ import WorkspaceHeader from "@/components/workspace/WorkspaceHeader";
 import WorkspaceTabResumo from "@/components/workspace/WorkspaceTabResumo";
 import WorkspaceTabTimeline from "@/components/workspace/WorkspaceTabTimeline";
 import WorkspaceTabContexto from "@/components/workspace/WorkspaceTabContexto";
+import WorkspaceTabTasks from "@/components/workspace/WorkspaceTabTasks";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -137,7 +138,7 @@ export default function WorkspaceDetailPage() {
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="timeline">Timeline</TabsTrigger>
             <TabsTrigger value="contexto">Contexto</TabsTrigger>
-            <TabsTrigger value="tasks" disabled className="opacity-40">Tasks</TabsTrigger>
+            <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="canvas" disabled className="opacity-40">Canvas</TabsTrigger>
           </TabsList>
 
@@ -159,6 +160,10 @@ export default function WorkspaceDetailPage() {
 
           <TabsContent value="contexto">
             <WorkspaceTabContexto workspaceId={ws.id} clientId={ws.client_id} />
+          </TabsContent>
+
+          <TabsContent value="tasks">
+            <WorkspaceTabTasks workspaceId={ws.id} clientId={ws.client_id} />
           </TabsContent>
         </Tabs>
       </div>
