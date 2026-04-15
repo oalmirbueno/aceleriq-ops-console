@@ -179,6 +179,41 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
 
   // markAsReviewed removed — status "reviewed" is now only set via BriefingSignalReview flow
 
+  const handleDownloadBriefingPDF = (entry: ContextEntry) => {
+    const briefingKind = (entry.metadata?.briefing_kind as string) ?? "briefing";
+    const kindLabels: Record<string, string> = {
+      essential: "Briefing Essencial",
+      sitebolt: "Briefing SiteBolt",
+      enterprise_structuring: "Briefing de Estruturação Empresarial",
+      ai_automation: "Briefing de Automação e IA",
+    };
+    const title = kindLabels[briefingKind] ?? entry.title;
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
+      <style>
+        body{font-family:'Segoe UI',system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;color:#1a1a1a}
+        h1{font-size:22px;border-bottom:2px solid #22c55e;padding-bottom:12px;margin-bottom:24px}
+        h2{font-size:16px;color:#16a34a;margin-top:28px;margin-bottom:8px}
+        p,strong{font-size:13px;line-height:1.6}
+        strong{display:block;margin-top:12px;color:#333}
+        hr{border:none;border-top:1px solid #e5e7eb;margin:20px 0}
+        .meta{font-size:11px;color:#888;margin-bottom:20px}
+        em{color:#999}
+      </style></head><body>
+      <h1>${title}</h1>
+      <p class="meta">${clientName ? `${clientName} · ` : ""}${new Date(entry.created_at).toLocaleDateString("pt-BR")}</p>
+      ${entry.content
+        .replace(/## (.+)/g, "<h2>$1</h2>")
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/_\((.+?)\)_/g, "<em>($1)</em>")
+        .replace(/---/g, "<hr>")
+        .replace(/\n/g, "<br>")}
+    </body></html>`);
+    w.document.close();
+    w.print();
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
