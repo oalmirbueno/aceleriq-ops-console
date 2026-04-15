@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import TaskFormDialog, { type TaskFormData } from "./TaskFormDialog";
 import GenerateTasksDialog from "./GenerateTasksDialog";
+import TaskPlanningWizard from "./TaskPlanningWizard";
 import {
   TASK_STATUS_OPTIONS,
   getStatusLabel,
