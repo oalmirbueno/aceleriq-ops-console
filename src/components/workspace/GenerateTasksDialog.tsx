@@ -10,6 +10,7 @@ import { toast } from "@/hooks/use-toast";
 import { generateTaskSuggestions, type GeneratedTaskSuggestion } from "./taskGenerationRules";
 import { getPriorityLabel, getPriorityColor, getStageLabel } from "./taskConstants";
 import { getContextLabel } from "./contextTypes";
+import { getTaskSignalSummaries } from "./briefingSignals";
 
 interface Props {
   open: boolean;
@@ -83,7 +84,19 @@ export default function GenerateTasksDialog({ open, onOpenChange, workspaceId, c
   const handleGenerate = () => {
     const selected = contexts.filter((c) => selectedIds.has(c.id));
     if (selected.length === 0) return;
-    const result = generateTaskSuggestions(selected, includeGeneric);
+
+    // For reviewed briefings, enrich with structured signal summaries
+    const enriched = selected.map((ctx) => {
+      if (ctx.context_type === "briefing" && ctx.metadata) {
+        const signalSummaries = getTaskSignalSummaries(ctx.metadata);
+        if (signalSummaries.length > 0) {
+          return { ...ctx, content: signalSummaries.join("\n\n") };
+        }
+      }
+      return ctx;
+    });
+
+    const result = generateTaskSuggestions(enriched, includeGeneric);
     setSuggestions(result);
     setStep("preview");
   };
