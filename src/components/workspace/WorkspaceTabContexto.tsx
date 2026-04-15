@@ -340,6 +340,15 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
                               )}
                             </div>
 
+                            {/* Briefing signal review */}
+                            {entry.context_type === "briefing" && entry.metadata?.structured_signals && (
+                              <BriefingSignalReview
+                                entryId={entry.id}
+                                metadata={entry.metadata as Record<string, unknown>}
+                                onUpdated={fetchEntries}
+                              />
+                            )}
+
                             <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
                               {entry.happened_at && (
                                 <span>{new Date(entry.happened_at).toLocaleString("pt-BR")}</span>
