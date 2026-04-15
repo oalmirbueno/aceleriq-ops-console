@@ -1,7 +1,8 @@
 /**
- * Supabase persistence for public briefing drafts.
- * Uses context_entries with metadata.source_token for upsert logic.
- * localStorage is kept only as a local cache fallback.
+ * Public briefing persistence via Edge Function.
+ * All writes go through the server-side `public-briefing` function
+ * which validates the token and uses service_role to write.
+ * No direct anon writes to context_entries or timeline_events.
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -20,158 +21,95 @@ interface RemoteDraft {
   status: "draft" | "submitted";
 }
 
+async function callPublicBriefing(payload: Record<string, unknown>): Promise<{ data: Record<string, unknown> | null; error: string | null }> {
+  const { data, error } = await supabase.functions.invoke("public-briefing", {
+    body: payload,
+  });
+
+  if (error) {
+    console.error("Edge function error:", error);
+    return { data: null, error: error.message ?? "Edge function error" };
+  }
+
+  // The edge function returns JSON; supabase.functions.invoke auto-parses it
+  if (data?.error) {
+    return { data: null, error: data.error as string };
+  }
+
+  return { data: data as Record<string, unknown>, error: null };
+}
+
 /**
- * Load existing draft/submission from Supabase by source_token.
+ * Load existing draft/submission from Supabase by source_token via edge function.
  */
 export async function loadRemoteDraft(sourceToken: string): Promise<RemoteDraft | null> {
-  const { data, error } = await supabase
-    .from("context_entries")
-    .select("id, metadata")
-    .eq("context_type", "briefing")
-    .eq("metadata->>source_token", sourceToken)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data, error } = await callPublicBriefing({
+    source_token: sourceToken,
+    action: "load_draft",
+  });
 
-  if (error || !data) return null;
+  if (error || !data?.draft) return null;
 
-  const meta = data.metadata as Record<string, unknown> | null;
-  if (!meta) return null;
-
+  const draft = data.draft as Record<string, unknown>;
   return {
-    id: data.id,
-    answers: (meta.draft_answers as Record<string, string>) ?? {},
-    currentQuestion: (meta.last_question_index as number) ?? 0,
-    status: (meta.public_briefing_status as "draft" | "submitted") ?? "draft",
+    id: draft.id as string,
+    answers: (draft.answers as Record<string, string>) ?? {},
+    currentQuestion: (draft.currentQuestion as number) ?? 0,
+    status: (draft.status as "draft" | "submitted") ?? "draft",
   };
 }
 
 /**
- * Save or create a draft in Supabase.
- * Uses upsert logic: if a row with this source_token exists, update it.
- * Otherwise create a new one.
+ * Save or create a draft via edge function.
  */
 export async function saveRemoteDraft(
   sourceToken: string,
-  workspaceId: string,
-  clientId: string,
+  _workspaceId: string,
+  _clientId: string,
   draft: DraftData,
-  existingId?: string,
+  _existingId?: string,
 ): Promise<string | null> {
-  const now = new Date().toISOString();
-
-  const metadata: Record<string, unknown> = {
-    briefing_kind: "enterprise_structuring",
-    import_source: "client_form",
-    parser_mode: "local_rules",
+  const { data, error } = await callPublicBriefing({
     source_token: sourceToken,
-    public_briefing_status: "draft",
+    action: "save_draft",
     draft_answers: draft.answers,
-    draft_progress: {
-      answered_count: draft.answeredCount,
-      total_questions: draft.totalQuestions,
-      last_question_index: draft.currentQuestion,
-    },
-    last_question_index: draft.currentQuestion,
+    current_question: draft.currentQuestion,
     answered_count: draft.answeredCount,
     total_questions: draft.totalQuestions,
-    last_saved_at: now,
-  };
+  });
 
-  if (existingId) {
-    // Update existing draft
-    const { error } = await supabase
-      .from("context_entries")
-      .update({
-        metadata,
-      })
-      .eq("id", existingId);
-
-    if (error) {
-      console.error("Failed to update remote draft:", error);
-      return null;
-    }
-    return existingId;
-  }
-
-  // Create new draft
-  const { data, error } = await supabase
-    .from("context_entries")
-    .insert({
-      workspace_id: workspaceId,
-      client_id: clientId,
-      context_type: "briefing",
-      title: "Briefing de Estruturação Empresarial (rascunho)",
-      content: "",
-      source_label: "Preenchido pelo cliente",
-      is_key_decision: false,
-      tags: ["briefing", "enterprise_structuring", "client_draft"],
-      metadata,
-    })
-    .select("id")
-    .single();
-
-  if (error || !data) {
-    console.error("Failed to create remote draft:", error);
+  if (error) {
+    console.error("Failed to save remote draft:", error);
     return null;
   }
-  return data.id;
+
+  return (data?.id as string) ?? null;
 }
 
 /**
- * Finalize the draft: update content, signals, mark as submitted.
+ * Finalize the draft: submit via edge function.
  */
 export async function submitRemoteBriefing(
-  existingId: string,
+  _existingId: string,
+  sourceToken: string,
   content: string,
   signalsData: Record<string, unknown>,
   answeredCount: number,
   totalQuestions: number,
 ): Promise<boolean> {
-  const now = new Date().toISOString();
-
-  const metadata: Record<string, unknown> = {
-    briefing_kind: "enterprise_structuring",
-    import_source: "client_form",
-    parser_mode: "local_rules",
-    // Keep source_token from existing record — we merge via spread below
-    public_briefing_status: "submitted",
-    import_review_status: "pending_review",
-    submitted_by_client: true,
-    submitted_at: now,
-    answers_count: answeredCount,
+  const { error } = await callPublicBriefing({
+    source_token: sourceToken,
+    action: "submit_briefing",
+    content,
+    signals_data: signalsData,
+    answered_count: answeredCount,
     total_questions: totalQuestions,
-    last_saved_at: now,
-    ...signalsData,
-  };
-
-  // We need to preserve source_token — read it first
-  const { data: existing } = await supabase
-    .from("context_entries")
-    .select("metadata")
-    .eq("id", existingId)
-    .single();
-
-  const existingMeta = (existing?.metadata as Record<string, unknown>) ?? {};
-  const mergedMetadata = { ...existingMeta, ...metadata };
-  // Remove draft-only fields
-  delete mergedMetadata.draft_answers;
-  delete mergedMetadata.draft_progress;
-  delete mergedMetadata.last_question_index;
-
-  const { error } = await supabase
-    .from("context_entries")
-    .update({
-      title: "Briefing de Estruturação Empresarial",
-      content,
-      tags: ["briefing", "enterprise_structuring", "client_submitted"],
-      metadata: mergedMetadata,
-    })
-    .eq("id", existingId);
+  });
 
   if (error) {
     console.error("Failed to submit briefing:", error);
     return false;
   }
+
   return true;
 }
