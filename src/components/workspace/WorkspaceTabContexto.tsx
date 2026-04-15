@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Star, ExternalLink, Filter, Upload } from "lucide-react";
+import { Plus, Star, ExternalLink, Filter, Upload, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import ContextEntryDialog, { type ContextFormData } from "./ContextEntryDialog";
 import ImportContextDialog from "./ImportContextDialog";
+import ImportBriefingDialog from "./ImportBriefingDialog";
 import { normalizeTags } from "@/lib/normalizeTags";
 
 import { CONTEXT_TYPES, getContextLabel } from "./contextTypes";
@@ -37,6 +39,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editEntry, setEditEntry] = useState<ContextEntry | null>(null);
+  const [briefingType, setBriefingType] = useState<"essential" | "sitebolt" | null>(null);
 
   const fetchEntries = useCallback(async () => {
     setLoading(true);
@@ -165,6 +168,21 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
           </Select>
         </div>
         <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline">
+                <FileText className="h-4 w-4 mr-1" /> Importar Briefing
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setBriefingType("essential")}>
+                Briefing Essencial
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setBriefingType("sitebolt")}>
+                Briefing SiteBolt
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4 mr-1" /> Importar
           </Button>
@@ -273,6 +291,18 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
         clientId={clientId}
         onImported={fetchEntries}
       />
+
+      {/* Briefing import dialog */}
+      {briefingType && (
+        <ImportBriefingDialog
+          open={!!briefingType}
+          onOpenChange={(v) => { if (!v) setBriefingType(null); }}
+          workspaceId={workspaceId}
+          clientId={clientId}
+          briefingType={briefingType}
+          onImported={fetchEntries}
+        />
+      )}
     </div>
   );
 }
