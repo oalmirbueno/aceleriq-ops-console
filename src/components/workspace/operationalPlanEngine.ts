@@ -318,7 +318,11 @@ export function buildOperationalFronts(
       scopeClassification: scope,
       stage: def.stage,
       retained: isRetained,
-      retainedReason: isRetained ? `Classificado como ${scope} — não incluído na execução automática.` : undefined,
+      retainedReason: isRetained
+        ? scope === "conditional"
+          ? "Condicional — requer confirmação do operador para virar task."
+          : `Classificado como ${scope} — não incluído na execução automática.`
+        : undefined,
     };
 
     if (isRetained) {
@@ -482,7 +486,7 @@ export function deriveTasksFromFronts(
 /* ─── Full plan builder ─── */
 
 export function buildOperationalPlan(
-  briefings: Array<{ metadata: Record<string, unknown> | null }>,
+  briefings: Array<{ id?: string; metadata: Record<string, unknown> | null }>,
   planName: string | null
 ): OperationalPlan {
   const signals = extractReviewedSignals(briefings);
