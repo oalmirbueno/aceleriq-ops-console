@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   ClipboardList, ChevronRight, ChevronLeft, X, Loader2, AlertCircle,
-  Check, Sparkles, Layers, Target, Eye, ShieldCheck,
+  Check, Sparkles, Layers, Target, Eye, Search,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
