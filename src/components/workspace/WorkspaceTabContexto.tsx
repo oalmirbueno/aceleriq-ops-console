@@ -1,17 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Star, ExternalLink, Filter, Upload, FileText } from "lucide-react";
+import { Plus, Star, ExternalLink, Upload, FileText, FolderOpen, ChevronRight, ChevronDown, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import ContextEntryDialog, { type ContextFormData } from "./ContextEntryDialog";
 import ImportContextDialog from "./ImportContextDialog";
 import ImportBriefingDialog from "./ImportBriefingDialog";
 import { normalizeTags } from "@/lib/normalizeTags";
-
 import { CONTEXT_TYPES, getContextLabel } from "./contextTypes";
 
 interface ContextEntry {
@@ -24,6 +23,7 @@ interface ContextEntry {
   happened_at: string | null;
   is_key_decision: boolean;
   tags: string[] | null;
+  metadata: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -32,38 +32,56 @@ interface Props {
   clientId: string;
 }
 
+/** Group entries by context_type into folder-like structure */
+function groupByType(entries: ContextEntry[]): { type: string; label: string; entries: ContextEntry[] }[] {
+  const map = new Map<string, ContextEntry[]>();
+
+  // Preserve order from CONTEXT_TYPES
+  for (const t of CONTEXT_TYPES) {
+    map.set(t, []);
+  }
+
+  for (const entry of entries) {
+    const key = entry.context_type;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(entry);
+  }
+
+  return Array.from(map.entries())
+    .filter(([, items]) => items.length > 0)
+    .map(([type, items]) => ({
+      type,
+      label: getContextLabel(type),
+      entries: items,
+    }));
+}
+
 export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
   const [entries, setEntries] = useState<ContextEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editEntry, setEditEntry] = useState<ContextEntry | null>(null);
   const [briefingType, setBriefingType] = useState<"essential" | "sitebolt" | null>(null);
+  const [openFolders, setOpenFolders] = useState<Set<string>>(new Set(CONTEXT_TYPES));
+  const [expandedContent, setExpandedContent] = useState<Set<string>>(new Set());
 
   const fetchEntries = useCallback(async () => {
     setLoading(true);
-    let q = supabase
+    const { data, error } = await supabase
       .from("context_entries")
-      .select("id, context_type, title, content, source_label, source_url, happened_at, is_key_decision, tags, created_at")
+      .select("id, context_type, title, content, source_label, source_url, happened_at, is_key_decision, tags, metadata, created_at")
       .eq("workspace_id", workspaceId)
-      .order("happened_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false });
 
-    if (filter !== "all") {
-      q = q.eq("context_type", filter);
-    }
-
-    const { data, error } = await q;
     if (error) {
       toast({ title: "Erro ao carregar contextos", description: error.message, variant: "destructive" });
     }
     setEntries((data as ContextEntry[]) ?? []);
     setLoading(false);
-  }, [workspaceId, filter]);
+  }, [workspaceId]);
 
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
-
 
   const handleCreate = async (form: ContextFormData) => {
     const row = {
@@ -85,7 +103,6 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
       throw error;
     }
 
-    // Register timeline for key decisions or decisao type
     if (form.is_key_decision || form.context_type === "decisao") {
       await supabase.from("timeline_events").insert({
         workspace_id: workspaceId,
@@ -138,11 +155,37 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
     }
   };
 
-  const openEdit = (entry: ContextEntry) => {
-    setEditEntry(entry);
+  const toggleFolder = (type: string) => {
+    setOpenFolders((prev) => {
+      const next = new Set(prev);
+      next.has(type) ? next.delete(type) : next.add(type);
+      return next;
+    });
   };
 
-  // Empty states
+  const toggleContentExpand = (id: string) => {
+    setExpandedContent((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const markAsReviewed = async (entry: ContextEntry) => {
+    const currentMeta = (entry.metadata ?? {}) as Record<string, unknown>;
+    const updatedMeta = { ...currentMeta, import_review_status: "reviewed" };
+    const { error } = await supabase
+      .from("context_entries")
+      .update({ metadata: updatedMeta })
+      .eq("id", entry.id);
+    if (!error) {
+      setEntries((prev) =>
+        prev.map((e) => e.id === entry.id ? { ...e, metadata: updatedMeta } : e)
+      );
+      toast({ title: "Marcado como revisado" });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -151,21 +194,17 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
     );
   }
 
+  const groups = groupByType(entries);
+
   return (
     <div className="space-y-4 animate-fade-in">
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="h-8 w-[160px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              {CONTEXT_TYPES.map((t) => (
-                <SelectItem key={t} value={t}>{getContextLabel(t)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <FolderOpen className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground font-medium">
+            {entries.length} contexto(s) em {groups.length} pasta(s)
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <DropdownMenu>
@@ -192,66 +231,132 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
         </div>
       </div>
 
-      {/* List */}
-      {entries.length === 0 ? (
+      {/* Folder view */}
+      {groups.length === 0 ? (
         <p className="text-sm text-muted-foreground py-12 text-center">
-          {filter !== "all"
-            ? `Nenhum contexto do tipo "${filter}" encontrado.`
-            : "Nenhum contexto registrado neste workspace."}
+          Nenhum contexto registrado neste workspace.
         </p>
       ) : (
         <div className="space-y-2">
-          {entries.map((entry) => (
-            <Card
-              key={entry.id}
-              className="cursor-pointer card-hover"
-              onClick={() => openEdit(entry)}
-            >
-              <CardContent className="p-4 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant="outline" className="text-[10px]">{getContextLabel(entry.context_type)}</Badge>
-                    {entry.is_key_decision && (
-                      <Star
-                        className="h-3.5 w-3.5 text-warning fill-warning cursor-pointer"
-                        onClick={(e) => { e.stopPropagation(); toggleKeyDecision(entry); }}
-                      />
+          {groups.map(({ type, label, entries: folderEntries }) => {
+            const isOpen = openFolders.has(type);
+            return (
+              <Collapsible key={type} open={isOpen} onOpenChange={() => toggleFolder(type)}>
+                <CollapsibleTrigger asChild>
+                  <button className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors text-left">
+                    {isOpen ? (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                     )}
-                    {!entry.is_key_decision && (
-                      <Star
-                        className="h-3.5 w-3.5 text-muted-foreground/30 cursor-pointer hover:text-warning/60"
-                        onClick={(e) => { e.stopPropagation(); toggleKeyDecision(entry); }}
-                      />
-                    )}
+                    <FolderOpen className="h-4 w-4 text-primary shrink-0" />
+                    <span className="text-sm font-medium text-foreground flex-1">{label}</span>
+                    <Badge variant="outline" className="text-[10px] shrink-0">
+                      {folderEntries.length}
+                    </Badge>
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="space-y-1.5 pl-4 pt-1.5 border-l-2 border-primary/10 ml-4">
+                    {folderEntries.map((entry) => {
+                      const reviewStatus = (entry.metadata?.import_review_status as string) ?? null;
+                      const isPending = reviewStatus === "pending_review";
+                      const isExpanded = expandedContent.has(entry.id);
+                      const isLong = entry.content.length > 300;
+
+                      return (
+                        <Card
+                          key={entry.id}
+                          className="cursor-pointer card-hover"
+                          onClick={() => setEditEntry(entry)}
+                        >
+                          <CardContent className="p-3 space-y-1.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                {isPending && (
+                                  <Badge variant="outline" className="text-[9px] bg-amber-500/10 text-amber-400 border-amber-500/20 shrink-0">
+                                    Pendente revisão
+                                  </Badge>
+                                )}
+                                {reviewStatus === "reviewed" && (
+                                  <Badge variant="outline" className="text-[9px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shrink-0">
+                                    Revisado
+                                  </Badge>
+                                )}
+                                {entry.is_key_decision && (
+                                  <Star
+                                    className="h-3.5 w-3.5 text-warning fill-warning cursor-pointer shrink-0"
+                                    onClick={(e) => { e.stopPropagation(); toggleKeyDecision(entry); }}
+                                  />
+                                )}
+                                {!entry.is_key_decision && (
+                                  <Star
+                                    className="h-3.5 w-3.5 text-muted-foreground/30 cursor-pointer hover:text-warning/60 shrink-0"
+                                    onClick={(e) => { e.stopPropagation(); toggleKeyDecision(entry); }}
+                                  />
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {isPending && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-6 text-[10px] px-2"
+                                    onClick={(e) => { e.stopPropagation(); markAsReviewed(entry); }}
+                                  >
+                                    Marcar revisado
+                                  </Button>
+                                )}
+                                {entry.source_url && (
+                                  <a
+                                    href={entry.source_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-muted-foreground hover:text-primary"
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+
+                            <p className="text-sm font-medium text-foreground">{entry.title}</p>
+
+                            {/* Content: show full or truncated */}
+                            <div>
+                              <p className={`text-xs text-muted-foreground whitespace-pre-wrap ${!isExpanded && isLong ? "line-clamp-3" : ""}`}>
+                                {entry.content}
+                              </p>
+                              {isLong && (
+                                <button
+                                  className="text-[10px] text-primary hover:underline mt-1 flex items-center gap-1"
+                                  onClick={(e) => { e.stopPropagation(); toggleContentExpand(entry.id); }}
+                                >
+                                  <Eye className="h-3 w-3" />
+                                  {isExpanded ? "Recolher" : "Ver conteúdo completo"}
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
+                              {entry.happened_at && (
+                                <span>{new Date(entry.happened_at).toLocaleString("pt-BR")}</span>
+                              )}
+                              {entry.source_label && <span>· {entry.source_label}</span>}
+                              {entry.tags && entry.tags.length > 0 && (
+                                <span>· {entry.tags.join(", ")}</span>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
-                  {entry.source_url && (
-                    <a
-                      href={entry.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-muted-foreground hover:text-primary"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  )}
-                </div>
-
-                <p className="text-sm font-medium text-foreground">{entry.title}</p>
-                <p className="text-xs text-muted-foreground line-clamp-2">{entry.content}</p>
-
-                <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
-                  {entry.happened_at && (
-                    <span>{new Date(entry.happened_at).toLocaleString("pt-BR")}</span>
-                  )}
-                  {entry.source_label && <span>· {entry.source_label}</span>}
-                  {entry.tags && entry.tags.length > 0 && (
-                    <span>· {entry.tags.join(", ")}</span>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CollapsibleContent>
+              </Collapsible>
+            );
+          })}
         </div>
       )}
 
