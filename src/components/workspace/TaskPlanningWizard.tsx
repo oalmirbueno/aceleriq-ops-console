@@ -479,6 +479,3 @@ function FrontCard({ front, muted = false }: { front: OperationalFront; muted?: 
     </Card>
   );
 }
-
-/* ─── Missing import for diagnostic step ─── */
-import { Search } from "lucide-react";
