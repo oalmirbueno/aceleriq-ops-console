@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Star, ExternalLink, Filter } from "lucide-react";
+import { Plus, Star, ExternalLink, Filter, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import ContextEntryDialog, { type ContextFormData } from "./ContextEntryDialog";
+import ImportContextDialog from "./ImportContextDialog";
 
 const CONTEXT_TYPES = [
   "briefing", "dor", "objetivo", "reuniao", "transcricao",
@@ -36,6 +37,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editEntry, setEditEntry] = useState<ContextEntry | null>(null);
 
   const fetchEntries = useCallback(async () => {
@@ -168,9 +170,14 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
             </SelectContent>
           </Select>
         </div>
-        <Button size="sm" onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Novo contexto
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4 mr-1" /> Importar
+          </Button>
+          <Button size="sm" onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Novo contexto
+          </Button>
+        </div>
       </div>
 
       {/* List */}
