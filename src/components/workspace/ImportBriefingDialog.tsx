@@ -4,12 +4,12 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Loader2, Trash2, FileText } from "lucide-react";
+import { Upload, Loader2, Trash2, FileText, Brain, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { BriefingType } from "./aceleraConstants";
 
-/* ─── PDF text extraction (reuses same approach as ImportContextDialog) ─── */
+/* ─── PDF text extraction ─── */
 
 async function extractTextFromPdf(file: File): Promise<string> {
   const pdfjsLib = await import("pdfjs-dist");
@@ -32,122 +32,18 @@ async function readFileAsText(file: File): Promise<string> {
   return file.text();
 }
 
-/* ─── Smart parser: splits briefing content into labeled sections ─── */
+/* ─── Dossier block labels for display ─── */
 
-interface ParsedSection {
-  title: string;
-  content: string;
-  dossierBlock?: string;
-}
-
-/** Maps common briefing field labels to dossier blocks — only explicit, safe mappings */
-const DOSSIER_HINTS: Record<string, string> = {
-  // Essential
-  "empresa": "identity", "visão geral": "identity", "sobre a empresa": "identity",
-  "segmento": "identity", "nome da empresa": "identity", "ramo": "identity",
-  "produto": "offer", "serviço": "offer", "serviços": "offer", "o que vende": "offer",
-  "público": "offer", "icp": "offer", "persona": "offer", "cliente ideal": "offer",
-  "objetivo": "decisions", "meta": "decisions", "metas": "decisions",
-  "dor": "diagnostic", "problema": "diagnostic", "desafio": "diagnostic", "dores": "diagnostic",
-  "digital": "digital", "presença digital": "digital", "redes sociais": "digital", "site": "digital",
-  "concorrente": "commercial", "concorrentes": "commercial",
-  "orçamento": "commercial", "investimento": "commercial",
-  "acesso": "access", "acessos": "access", "login": "access", "credenciais": "access",
-  // SiteBolt
-  "tipo de site": "digital", "páginas": "digital", "referência": "digital",
-  "identidade visual": "identity", "marca": "identity", "logo": "identity", "cores": "identity",
-  "conteúdo": "digital", "domínio": "access", "hospedagem": "access",
-  "integração": "digital", "integrações": "digital",
-  "seo": "digital", "prazo": "operational",
+const BLOCK_LABELS: Record<string, string> = {
+  identity: "Identidade e Posicionamento",
+  offer: "Oferta, ICP e Persona",
+  commercial: "Estrutura Comercial",
+  operational: "Estrutura Operacional",
+  digital: "Estrutura Digital",
+  access: "Processos e Acessos",
+  diagnostic: "Diagnóstico Estrutural",
+  decisions: "Decisões, Lacunas e Prioridades",
 };
-
-function normalize(s: string): string {
-  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-}
-
-function guessDossierBlock(title: string): string | undefined {
-  const n = normalize(title);
-  for (const [key, block] of Object.entries(DOSSIER_HINTS)) {
-    if (n.includes(normalize(key))) return block;
-  }
-  return undefined;
-}
-
-/**
- * Parse extracted text into sections.
- * Tries multiple strategies:
- * 1. Numbered sections (1. Label / 1) Label)
- * 2. Markdown headings (## Label)
- * 3. Label: value pairs
- * 4. Double-newline separated paragraphs
- */
-function parseBriefingText(raw: string): ParsedSection[] {
-  const trimmed = raw.trim();
-  if (!trimmed) return [];
-
-  // Strategy 1: numbered sections "1. Label" or "1) Label"
-  const numberedRegex = /(?:^|\n)\s*\d+[\.\)]\s*(.+)/g;
-  const numberedMatches = [...trimmed.matchAll(numberedRegex)];
-  if (numberedMatches.length >= 3) {
-    return splitBySeparators(trimmed, numberedRegex);
-  }
-
-  // Strategy 2: markdown headings
-  const headingRegex = /(?:^|\n)#{1,3}\s+(.+)/g;
-  const headingMatches = [...trimmed.matchAll(headingRegex)];
-  if (headingMatches.length >= 2) {
-    return splitBySeparators(trimmed, headingRegex);
-  }
-
-  // Strategy 3: "Label:" pattern on its own line or with content
-  const labelRegex = /(?:^|\n)([A-ZÀ-ÖØ-öø-ÿ][\wÀ-ÖØ-öø-ÿ\s/,]{2,60})\s*:\s*/g;
-  const labelMatches = [...trimmed.matchAll(labelRegex)];
-  if (labelMatches.length >= 3) {
-    return splitBySeparators(trimmed, labelRegex);
-  }
-
-  // Strategy 4: paragraph blocks (double newline)
-  const paragraphs = trimmed.split(/\n{2,}/).filter((p) => p.trim());
-  if (paragraphs.length >= 2) {
-    return paragraphs.map((p) => {
-      const firstLine = p.split("\n")[0].trim();
-      const title = firstLine.slice(0, 80).replace(/[:\-–—]+$/, "").trim() || "Seção";
-      return {
-        title,
-        content: p.trim(),
-        dossierBlock: guessDossierBlock(title),
-      };
-    });
-  }
-
-  // Fallback: single block
-  return [{
-    title: trimmed.split("\n")[0].slice(0, 80) || "Briefing completo",
-    content: trimmed,
-  }];
-}
-
-function splitBySeparators(text: string, regex: RegExp): ParsedSection[] {
-  const sections: ParsedSection[] = [];
-  const matches = [...text.matchAll(new RegExp(regex.source, "gm"))];
-
-  for (let i = 0; i < matches.length; i++) {
-    const match = matches[i];
-    const label = (match[1] || "").trim();
-    const start = (match.index ?? 0) + match[0].length;
-    const end = i + 1 < matches.length ? (matches[i + 1].index ?? text.length) : text.length;
-    const content = text.slice(start, end).trim();
-
-    if (content) {
-      sections.push({
-        title: label.slice(0, 80) || "Seção",
-        content,
-        dossierBlock: guessDossierBlock(label),
-      });
-    }
-  }
-  return sections;
-}
 
 /* ─── Component ─── */
 
@@ -165,7 +61,10 @@ interface Props {
   onImported: () => void;
 }
 
-interface PreviewEntry extends ParsedSection {
+interface PreviewEntry {
+  title: string;
+  content: string;
+  dossierBlock?: string;
   included: boolean;
 }
 
@@ -174,24 +73,77 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [fileName, setFileName] = useState<string | null>(null);
-  const [rawText, setRawText] = useState("");
   const [parsing, setParsing] = useState(false);
+  const [parsingStatus, setParsingStatus] = useState("");
   const [preview, setPreview] = useState<PreviewEntry[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [usedAI, setUsedAI] = useState(false);
 
   const reset = () => {
     setFileName(null);
-    setRawText("");
     setParsing(false);
+    setParsingStatus("");
     setPreview(null);
     setSaving(false);
     setDragOver(false);
+    setUsedAI(false);
   };
 
   const handleOpenChange = (v: boolean) => {
     if (!v) reset();
     onOpenChange(v);
+  };
+
+  /** Call edge function for intelligent parsing */
+  const parseWithAI = async (text: string): Promise<PreviewEntry[] | null> => {
+    try {
+      const { data, error } = await supabase.functions.invoke("parse-briefing", {
+        body: { text, briefing_type: briefingType },
+      });
+
+      if (error) {
+        console.warn("AI parse failed:", error);
+        return null;
+      }
+
+      if (data?.error) {
+        console.warn("AI parse error:", data.error);
+        if (data.error.includes("429") || data.error.includes("Limite")) {
+          toast({ title: "IA temporariamente indisponível", description: "Usando parser local como alternativa.", variant: "default" });
+        }
+        return null;
+      }
+
+      const sections = data?.sections;
+      if (!Array.isArray(sections) || sections.length === 0) return null;
+
+      return sections.map((s: any) => ({
+        title: s.title || "Seção",
+        content: s.content || "",
+        dossierBlock: s.dossier_block || undefined,
+        included: true,
+      }));
+    } catch (err) {
+      console.warn("AI parse exception:", err);
+      return null;
+    }
+  };
+
+  /** Simple local fallback parser */
+  const parseLocally = (text: string): PreviewEntry[] => {
+    const paragraphs = text.split(/\n{2,}/).filter((p) => p.trim().length > 10);
+    if (paragraphs.length < 2) {
+      return [{ title: "Briefing completo", content: text.trim(), included: true }];
+    }
+    return paragraphs.slice(0, 15).map((p) => {
+      const firstLine = p.split("\n")[0].trim().replace(/[:\-–—]+$/, "").trim();
+      return {
+        title: firstLine.slice(0, 80) || "Seção",
+        content: p.trim(),
+        included: true,
+      };
+    });
   };
 
   const processFile = useCallback(async (file: File) => {
@@ -205,24 +157,38 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
     setFileName(file.name);
     setParsing(true);
     setPreview(null);
+    setUsedAI(false);
 
     try {
+      setParsingStatus("Extraindo texto do arquivo...");
       const text = await readFileAsText(file);
       if (!text.trim()) {
         toast({ title: "Arquivo sem conteúdo legível", description: "Verifique se o PDF contém texto (não apenas imagens).", variant: "destructive" });
         setParsing(false);
+        setParsingStatus("");
         return;
       }
 
-      setRawText(text);
-      const sections = parseBriefingText(text);
-      setPreview(sections.map((s) => ({ ...s, included: true })));
+      // Try AI parsing first
+      setParsingStatus("Analisando conteúdo com IA...");
+      const aiResult = await parseWithAI(text);
+
+      if (aiResult && aiResult.length > 0) {
+        setPreview(aiResult);
+        setUsedAI(true);
+      } else {
+        // Fallback to local
+        setParsingStatus("Organizando conteúdo...");
+        setPreview(parseLocally(text));
+        setUsedAI(false);
+      }
     } catch (err: any) {
       toast({ title: "Erro ao ler arquivo", description: err?.message || "Erro desconhecido", variant: "destructive" });
     } finally {
       setParsing(false);
+      setParsingStatus("");
     }
-  }, []);
+  }, [briefingType]);
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -278,11 +244,11 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
         client_id: clientId,
         event_type: "context_added",
         title: `${label} importado`,
-        description: `${toImport.length} item(ns) importado(s) do ${label} via PDF`,
+        description: `${toImport.length} item(ns) extraído(s) e organizado(s) do ${label} via PDF`,
         happened_at: new Date().toISOString(),
       });
 
-      toast({ title: `${label} importado`, description: `${toImport.length} item(ns) criado(s)` });
+      toast({ title: `${label} importado`, description: `${toImport.length} seção(ões) organizada(s) e salva(s)` });
       onImported();
       handleOpenChange(false);
     } catch {
@@ -294,19 +260,35 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
 
   const includedCount = preview?.filter((e) => e.included).length ?? 0;
 
+  // Group preview by dossier block for organized display
+  const groupedPreview = preview
+    ? Object.entries(
+        preview.reduce<Record<string, { entries: (PreviewEntry & { idx: number })[] }>>((acc, entry, idx) => {
+          const key = entry.dossierBlock || "_unclassified";
+          if (!acc[key]) acc[key] = { entries: [] };
+          acc[key].entries.push({ ...entry, idx });
+          return acc;
+        }, {})
+      ).sort(([a], [b]) => {
+        if (a === "_unclassified") return 1;
+        if (b === "_unclassified") return -1;
+        return 0;
+      })
+    : [];
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Importar {label}</DialogTitle>
           <DialogDescription>
-            Envie o PDF já preenchido do briefing. O sistema extrai e organiza automaticamente.
+            Envie o PDF preenchido. A IA analisa, organiza e mapeia cada informação para o bloco correto do Dossiê.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           {/* Upload zone */}
-          {!preview && (
+          {!preview && !parsing && (
             <>
               <input
                 ref={fileRef}
@@ -324,24 +306,31 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={(e) => { e.preventDefault(); setDragOver(false); }}
                 onClick={() => fileRef.current?.click()}
-                className={`flex flex-col items-center gap-2 rounded-lg border-2 border-dashed p-8 cursor-pointer transition-colors ${
+                className={`flex flex-col items-center gap-3 rounded-lg border-2 border-dashed p-10 cursor-pointer transition-colors ${
                   dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30"
                 }`}
               >
-                {parsing ? (
-                  <>
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Lendo {fileName}...</p>
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-8 w-8 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground font-medium">Arraste o PDF ou clique para enviar</p>
-                    <p className="text-xs text-muted-foreground">PDF, TXT ou MD</p>
-                  </>
-                )}
+                <Upload className="h-10 w-10 text-muted-foreground" />
+                <div className="text-center">
+                  <p className="text-sm text-foreground font-medium">Arraste o PDF ou clique para enviar</p>
+                  <p className="text-xs text-muted-foreground mt-1">PDF, TXT ou MD · A IA interpreta e organiza automaticamente</p>
+                </div>
               </div>
             </>
+          )}
+
+          {/* Parsing state */}
+          {parsing && (
+            <div className="flex flex-col items-center gap-3 py-10">
+              <div className="relative">
+                <Brain className="h-8 w-8 text-primary animate-pulse" />
+                <Loader2 className="h-4 w-4 text-primary animate-spin absolute -bottom-1 -right-1" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-foreground font-medium">{parsingStatus || "Processando..."}</p>
+                <p className="text-xs text-muted-foreground mt-1">Lendo, interpretando e organizando o briefing</p>
+              </div>
+            </div>
           )}
 
           {/* Preview */}
@@ -351,12 +340,22 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
                 <div className="flex items-center gap-2 min-w-0">
                   <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
                   <span className="text-xs text-muted-foreground truncate">{fileName}</span>
+                  {usedAI && (
+                    <Badge variant="outline" className="text-[9px] bg-primary/10 text-primary border-primary/20 shrink-0">
+                      <Brain className="h-2.5 w-2.5 mr-0.5" /> Organizado por IA
+                    </Badge>
+                  )}
+                  {!usedAI && (
+                    <Badge variant="outline" className="text-[9px] bg-amber-500/10 text-amber-400 border-amber-500/20 shrink-0">
+                      <AlertTriangle className="h-2.5 w-2.5 mr-0.5" /> Parser local
+                    </Badge>
+                  )}
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-xs"
-                  onClick={() => { setPreview(null); setFileName(null); setRawText(""); }}
+                  className="text-xs shrink-0"
+                  onClick={() => { setPreview(null); setFileName(null); }}
                 >
                   Trocar arquivo
                 </Button>
@@ -366,30 +365,34 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
                 {preview.length} seção(ões) detectada(s) · {includedCount} selecionada(s)
               </p>
 
-              <div className="space-y-2 max-h-[40vh] overflow-y-auto">
-                {preview.map((entry, i) => (
-                  <div
-                    key={i}
-                    className={`flex items-start gap-2 rounded-md border p-3 transition-opacity ${
-                      entry.included ? "border-border" : "border-border/30 opacity-40"
-                    }`}
-                  >
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-medium text-foreground">{entry.title}</span>
-                        {entry.dossierBlock && (
-                          <Badge variant="outline" className="text-[9px]">→ {entry.dossierBlock}</Badge>
-                        )}
+              <div className="space-y-3 max-h-[45vh] overflow-y-auto pr-1">
+                {groupedPreview.map(([blockKey, { entries }]) => (
+                  <div key={blockKey} className="space-y-1.5">
+                    <p className="text-[10px] font-semibold text-primary/70 uppercase tracking-wider px-1">
+                      {BLOCK_LABELS[blockKey] || "Sem classificação"}
+                    </p>
+                    {entries.map((entry) => (
+                      <div
+                        key={entry.idx}
+                        className={`flex items-start gap-2 rounded-md border p-3 transition-opacity ${
+                          entry.included ? "border-border" : "border-border/30 opacity-40"
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-medium text-foreground">{entry.title}</span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground line-clamp-3">{entry.content}</p>
+                        </div>
+                        <button
+                          onClick={() => toggleEntry(entry.idx)}
+                          className="shrink-0 text-muted-foreground hover:text-destructive mt-0.5"
+                          title={entry.included ? "Remover" : "Incluir de volta"}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
-                      <p className="text-[11px] text-muted-foreground line-clamp-3">{entry.content}</p>
-                    </div>
-                    <button
-                      onClick={() => toggleEntry(i)}
-                      className="shrink-0 text-muted-foreground hover:text-destructive mt-0.5"
-                      title={entry.included ? "Remover" : "Incluir de volta"}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    ))}
                   </div>
                 ))}
               </div>
@@ -398,12 +401,12 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={saving}>
+          <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={saving || parsing}>
             Cancelar
           </Button>
           {preview && (
             <Button onClick={handleImport} disabled={saving || includedCount === 0}>
-              {saving ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Importando...</> : `Importar ${includedCount} item(ns)`}
+              {saving ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Importando...</> : `Importar ${includedCount} seção(ões)`}
             </Button>
           )}
         </DialogFooter>
