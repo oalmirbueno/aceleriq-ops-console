@@ -43,6 +43,14 @@ function buildFlatQuestions(): FlatQuestion[] {
 const FLAT_QUESTIONS = buildFlatQuestions();
 const TOTAL_QUESTIONS = FLAT_QUESTIONS.length;
 
+function isAnsweredValue(value?: string | null) {
+  return (value?.trim().length ?? 0) > 0;
+}
+
+function countAnsweredQuestions(answerMap: Record<string, string>) {
+  return FLAT_QUESTIONS.filter((q) => isAnsweredValue(answerMap[q.answerKey])).length;
+}
+
 type Step = "welcome" | "fill" | "review" | "submitted";
 
 export default function ClientBriefingPage() {
@@ -64,7 +72,7 @@ export default function ClientBriefingPage() {
   const sourceTokenRef = useRef<string>("");
   const answersRef = useRef<Record<string, string>>({});
 
-  const answeredCount = FLAT_QUESTIONS.filter((q) => answers[q.answerKey]?.trim().length > 5).length;
+  const answeredCount = countAnsweredQuestions(answers);
   const progressPct = step === "welcome" ? 0 : step === "review" || step === "submitted" ? 100 : ((currentQ + 1) / TOTAL_QUESTIONS) * 100;
   const currentQuestion = FLAT_QUESTIONS[currentQ];
 
@@ -100,7 +108,7 @@ export default function ClientBriefingPage() {
           nextAnswers = { ...emptyAnswers, ...remote.answers };
           nextRemoteId = remote.id;
 
-          const hasSavedAnswers = Object.values(remote.answers).some((v) => v?.trim().length > 0);
+          const hasSavedAnswers = Object.values(remote.answers).some((value) => isAnsweredValue(value));
           if (hasSavedAnswers) {
             // Restore exact position from saved currentQuestion index
             const savedIdx = remote.currentQuestion;
@@ -114,7 +122,7 @@ export default function ClientBriefingPage() {
         const local = loadBriefingProgress(token);
         if (local) {
           nextAnswers = { ...emptyAnswers, ...local };
-          const hasSavedAnswers = Object.values(local).some((v) => v.trim().length > 0);
+          const hasSavedAnswers = Object.values(local).some((value) => isAnsweredValue(value));
           if (hasSavedAnswers) {
             nextStep = "fill";
           }
@@ -153,7 +161,7 @@ export default function ClientBriefingPage() {
       saveBriefingProgress(token, latestAnswers);
 
       // Check if we have at least 1 meaningful answer before creating remote draft
-      const meaningful = FLAT_QUESTIONS.filter((q) => latestAnswers[q.answerKey]?.trim().length > 5).length;
+      const meaningful = countAnsweredQuestions(latestAnswers);
       if (meaningful < 1) return;
 
       // Save to Supabase
@@ -182,7 +190,7 @@ export default function ClientBriefingPage() {
     if (posTimerRef.current) clearTimeout(posTimerRef.current);
     posTimerRef.current = setTimeout(async () => {
       const latestAnswers = answersRef.current;
-      const meaningful = FLAT_QUESTIONS.filter((q) => latestAnswers[q.answerKey]?.trim().length > 5).length;
+      const meaningful = countAnsweredQuestions(latestAnswers);
       if (meaningful < 1) return; // no remote draft yet
       saveBriefingProgress(token, latestAnswers);
       const id = await saveRemoteDraft(
@@ -476,7 +484,7 @@ export default function ClientBriefingPage() {
   const currentBlockLabel = currentQuestion?.blockLabel;
   const isNewBlock = currentQ === 0 || FLAT_QUESTIONS[currentQ - 1]?.blockKey !== currentQuestion?.blockKey;
   const currentAnswer = answers[currentQuestion?.answerKey] ?? "";
-  const hasAnswer = currentAnswer.trim().length > 5;
+  const hasAnswer = isAnsweredValue(currentAnswer);
 
   return (
     <div className="min-h-screen bg-background">
@@ -571,7 +579,7 @@ export default function ClientBriefingPage() {
 
             {ENTERPRISE_BLOCKS.map((block, bIdx) => {
               const blockQuestions = FLAT_QUESTIONS.filter((q) => q.blockIndex === bIdx);
-              const blockAnswered = blockQuestions.filter((q) => answers[q.answerKey]?.trim().length > 5).length;
+              const blockAnswered = blockQuestions.filter((q) => isAnsweredValue(answers[q.answerKey])).length;
 
               return (
                 <div key={block.key} className="space-y-1.5">
@@ -580,8 +588,8 @@ export default function ClientBriefingPage() {
                     <span className="text-[10px] text-muted-foreground">{blockAnswered}/{blockQuestions.length}</span>
                   </div>
                   {blockQuestions.map((q) => {
-                    const answer = answers[q.answerKey]?.trim();
-                    const filled = answer.length > 5;
+                    const answer = answers[q.answerKey]?.trim() ?? "";
+                    const filled = isAnsweredValue(answer);
                     const globalIdx = FLAT_QUESTIONS.indexOf(q);
 
                     return (
