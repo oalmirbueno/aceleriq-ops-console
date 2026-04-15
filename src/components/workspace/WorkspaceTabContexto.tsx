@@ -1,5 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Star, ExternalLink, Upload, FileText, FolderOpen, ChevronRight, ChevronDown, Eye, Link2, Download, Trash2 } from "lucide-react";
+import {
+  Plus,
+  Star,
+  ExternalLink,
+  Upload,
+  FileText,
+  FolderOpen,
+  ChevronRight,
+  ChevronDown,
+  Eye,
+  Link2,
+  Download,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,7 +24,7 @@ import ContextEntryDialog, { type ContextFormData } from "./ContextEntryDialog";
 import ImportContextDialog from "./ImportContextDialog";
 import ImportBriefingDialog from "./ImportBriefingDialog";
 import { normalizeTags } from "@/lib/normalizeTags";
-import { CONTEXT_TYPES, getContextLabel } from "./contextTypes";
+import { CONTEXT_TYPES, getContextLabel, type ContextType } from "./contextTypes";
 import BriefingSignalReview from "./BriefingSignalReview";
 import GenerateBriefingLinkDialog from "./GenerateBriefingLinkDialog";
 import type { BriefingKind } from "@/lib/briefingToken";
@@ -36,28 +49,118 @@ interface Props {
   clientName?: string;
 }
 
-/** Group entries by context_type into folder-like structure */
-function groupByType(entries: ContextEntry[]): { type: string; label: string; entries: ContextEntry[] }[] {
-  const map = new Map<string, ContextEntry[]>();
+type ContextSectionKey = "briefings" | "contextos" | "alinhamentos" | "rotas_conexoes";
 
-  // Preserve order from CONTEXT_TYPES
-  for (const t of CONTEXT_TYPES) {
-    map.set(t, []);
+interface ContextFolder {
+  type: string;
+  label: string;
+  entries: ContextEntry[];
+}
+
+interface ContextSection {
+  key: ContextSectionKey;
+  label: string;
+  description: string;
+  folders: ContextFolder[];
+}
+
+const CONTEXT_SECTIONS: Array<{
+  key: ContextSectionKey;
+  label: string;
+  description: string;
+  types: ContextType[];
+}> = [
+  {
+    key: "briefings",
+    label: "Briefings",
+    description: "Briefings importados, internos e recebidos por link do cliente.",
+    types: ["briefing"],
+  },
+  {
+    key: "contextos",
+    label: "Contextos",
+    description: "Base viva do trabalho: dores, objetivos, diagnósticos e anotações.",
+    types: ["dor", "objetivo", "diagnostico", "anotacao"],
+  },
+  {
+    key: "alinhamentos",
+    label: "Alinhamentos",
+    description: "Reuniões, transcrições e decisões registradas no workspace.",
+    types: ["reuniao", "transcricao", "decisao"],
+  },
+  {
+    key: "rotas_conexoes",
+    label: "Rotas & Conexões",
+    description: "Acessos, logins, dependências e conexões operacionais.",
+    types: ["acesso"],
+  },
+];
+
+const BRIEFING_KIND_LABELS: Record<string, string> = {
+  essential: "Briefing Essencial",
+  sitebolt: "Briefing SiteBolt",
+  enterprise_structuring: "Estruturação Empresarial",
+  ai_automation: "Automação e IA",
+};
+
+function groupEntriesBySection(entries: ContextEntry[]): ContextSection[] {
+  return CONTEXT_SECTIONS.map((section) => ({
+    key: section.key,
+    label: section.label,
+    description: section.description,
+    folders: section.types
+      .map((type) => ({
+        type,
+        label: getContextLabel(type),
+        entries: entries.filter((entry) => entry.context_type === type),
+      }))
+      .filter((folder) => folder.entries.length > 0),
+  })).filter((section) => section.folders.length > 0);
+}
+
+function readBriefingKind(meta: Record<string, unknown> | null): string | undefined {
+  if (!meta) return undefined;
+  return (meta.briefing_kind as string) ?? (meta.briefing_type as string) ?? undefined;
+}
+
+function getBriefingLabel(meta: Record<string, unknown> | null, fallbackTitle: string): string {
+  const kind = readBriefingKind(meta);
+  return kind ? (BRIEFING_KIND_LABELS[kind] ?? fallbackTitle) : fallbackTitle;
+}
+
+function getBriefingOrigin(meta: Record<string, unknown> | null): string | null {
+  const importSource = (meta?.import_source as string | undefined) ?? null;
+  if (!importSource) return null;
+  if (importSource === "client_form") return "Recebido por link";
+  if (importSource === "native_form") return "Interno";
+  return "Importado";
+}
+
+function stripBriefingMarkdown(content: string): string {
+  return content
+    .replace(/^##\s+/gm, "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/_\((.+?)\)_/g, "($1)")
+    .replace(/---/g, " ")
+    .replace(/\n+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getBriefingPreview(entry: ContextEntry): string {
+  const structuredSignals = entry.metadata?.structured_signals as Record<string, { summary?: string }> | undefined;
+  if (structuredSignals) {
+    const summaries = Object.values(structuredSignals)
+      .map((signal) => signal?.summary?.trim())
+      .filter(Boolean)
+      .slice(0, 2) as string[];
+
+    if (summaries.length > 0) {
+      return summaries.join(" · ");
+    }
   }
 
-  for (const entry of entries) {
-    const key = entry.context_type;
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(entry);
-  }
-
-  return Array.from(map.entries())
-    .filter(([, items]) => items.length > 0)
-    .map(([type, items]) => ({
-      type,
-      label: getContextLabel(type),
-      entries: items,
-    }));
+  return stripBriefingMarkdown(entry.content).slice(0, 240);
 }
 
 export default function WorkspaceTabContexto({ workspaceId, clientId, clientName }: Props) {
@@ -69,6 +172,9 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
   const [briefingType, setBriefingType] = useState<"essential" | "sitebolt" | null>(null);
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [linkBriefingType, setLinkBriefingType] = useState<BriefingKind | undefined>(undefined);
+  const [openSections, setOpenSections] = useState<Set<ContextSectionKey>>(
+    new Set(CONTEXT_SECTIONS.map((section) => section.key))
+  );
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set(CONTEXT_TYPES));
   const [expandedContent, setExpandedContent] = useState<Set<string>>(new Set());
 
@@ -83,11 +189,14 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
     if (error) {
       toast({ title: "Erro ao carregar contextos", description: error.message, variant: "destructive" });
     }
+
     setEntries((data as ContextEntry[]) ?? []);
     setLoading(false);
   }, [workspaceId]);
 
-  useEffect(() => { fetchEntries(); }, [fetchEntries]);
+  useEffect(() => {
+    fetchEntries();
+  }, [fetchEntries]);
 
   const handleCreate = async (form: ContextFormData) => {
     const row = {
@@ -126,6 +235,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
 
   const handleEdit = async (form: ContextFormData) => {
     if (!editEntry) return;
+
     const { error } = await supabase
       .from("context_entries")
       .update({
@@ -144,6 +254,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
       toast({ title: "Erro ao editar contexto", description: error.message, variant: "destructive" });
       throw error;
     }
+
     toast({ title: "Contexto atualizado" });
     setEditEntry(null);
     await fetchEntries();
@@ -154,11 +265,20 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
       .from("context_entries")
       .update({ is_key_decision: !entry.is_key_decision })
       .eq("id", entry.id);
+
     if (!error) {
       setEntries((prev) =>
-        prev.map((e) => (e.id === entry.id ? { ...e, is_key_decision: !e.is_key_decision } : e))
+        prev.map((current) => current.id === entry.id ? { ...current, is_key_decision: !current.is_key_decision } : current)
       );
     }
+  };
+
+  const toggleSection = (key: ContextSectionKey) => {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
   };
 
   const toggleFolder = (type: string) => {
@@ -177,33 +297,26 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
     });
   };
 
-  // markAsReviewed removed — status "reviewed" is now only set via BriefingSignalReview flow
-
   const handleDownloadBriefingPDF = (entry: ContextEntry) => {
-    const briefingKind = (entry.metadata?.briefing_kind as string) ?? "briefing";
-    const kindLabels: Record<string, string> = {
-      essential: "Briefing Essencial",
-      sitebolt: "Briefing SiteBolt",
-      enterprise_structuring: "Briefing de Estruturação Empresarial",
-      ai_automation: "Briefing de Automação e IA",
-    };
-    const title = kindLabels[briefingKind] ?? entry.title;
+    const title = getBriefingLabel(entry.metadata, entry.title);
+    const content = entry.content?.trim() || "Conteúdo indisponível.";
     const w = window.open("", "_blank");
     if (!w) return;
+
     w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
       <style>
-        body{font-family:'Segoe UI',system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;color:#1a1a1a}
-        h1{font-size:22px;border-bottom:2px solid #22c55e;padding-bottom:12px;margin-bottom:24px}
-        h2{font-size:16px;color:#16a34a;margin-top:28px;margin-bottom:8px}
-        p,strong{font-size:13px;line-height:1.6}
-        strong{display:block;margin-top:12px;color:#333}
+        body{font-family:'Segoe UI',system-ui,sans-serif;padding:40px;max-width:860px;margin:0 auto;color:#1a1a1a}
+        h1{font-size:24px;border-bottom:2px solid #22c55e;padding-bottom:12px;margin-bottom:24px}
+        h2{font-size:16px;color:#15803d;margin-top:28px;margin-bottom:8px}
+        p,strong{font-size:13px;line-height:1.7}
+        strong{display:block;margin-top:12px;color:#1f2937}
         hr{border:none;border-top:1px solid #e5e7eb;margin:20px 0}
-        .meta{font-size:11px;color:#888;margin-bottom:20px}
-        em{color:#999}
+        .meta{font-size:11px;color:#6b7280;margin-bottom:20px}
+        em{color:#6b7280}
       </style></head><body>
       <h1>${title}</h1>
       <p class="meta">${clientName ? `${clientName} · ` : ""}${new Date(entry.created_at).toLocaleDateString("pt-BR")}</p>
-      ${entry.content
+      ${content
         .replace(/## (.+)/g, "<h2>$1</h2>")
         .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
         .replace(/_\((.+?)\)_/g, "<em>($1)</em>")
@@ -216,11 +329,13 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
 
   const handleDeleteEntry = async (entry: ContextEntry) => {
     if (!window.confirm(`Tem certeza que deseja apagar "${entry.title}"? Essa ação não pode ser desfeita.`)) return;
+
     const { error } = await supabase.from("context_entries").delete().eq("id", entry.id);
     if (error) {
       toast({ title: "Erro ao apagar", description: error.message, variant: "destructive" });
       return;
     }
+
     toast({ title: "Contexto apagado" });
     await fetchEntries();
   };
@@ -233,39 +348,50 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
     );
   }
 
-  const groups = groupByType(entries);
+  const sections = groupEntriesBySection(entries);
+  const briefingCount = entries.filter((entry) => entry.context_type === "briefing").length;
 
   return (
     <div className="space-y-4 animate-fade-in">
-      {/* Toolbar */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <FolderOpen className="h-4 w-4 text-muted-foreground" />
           <span className="text-xs text-muted-foreground font-medium">
-            {entries.length} contexto(s) em {groups.length} pasta(s)
+            {entries.length} registro(s) · {briefingCount} briefing(s) · {sections.length} área(s)
           </span>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2 flex-wrap">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" variant="outline">
-                <FileText className="h-4 w-4 mr-1" /> Importar Briefing
+                <FileText className="h-4 w-4 mr-1" /> Importar briefing
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setBriefingType("essential")}>
-                Briefing Essencial
+              <DropdownMenuItem onClick={() => setBriefingType("essential")}>Briefing Essencial</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setBriefingType("sitebolt")}>Briefing SiteBolt</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline">
+                <Link2 className="h-4 w-4 mr-1" /> Enviar briefing ao cliente
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => { setLinkBriefingType("enterprise_structuring"); setLinkDialogOpen(true); }}>
+                Estruturação Empresarial
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setBriefingType("sitebolt")}>
-                Briefing SiteBolt
+              <DropdownMenuItem onClick={() => { setLinkBriefingType("ai_automation"); setLinkDialogOpen(true); }}>
+                Automação e IA
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button size="sm" variant="outline" onClick={() => setLinkDialogOpen(true)}>
-            <Link2 className="h-4 w-4 mr-1" /> Enviar briefing ao cliente
-          </Button>
+
           <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
-            <Upload className="h-4 w-4 mr-1" /> Importar
+            <Upload className="h-4 w-4 mr-1" /> Importar contexto
           </Button>
           <Button size="sm" onClick={() => setDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-1" /> Novo contexto
@@ -273,162 +399,214 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
         </div>
       </div>
 
-      {/* Folder view */}
-      {groups.length === 0 ? (
+      {sections.length === 0 ? (
         <p className="text-sm text-muted-foreground py-12 text-center">
           Nenhum contexto registrado neste workspace.
         </p>
       ) : (
-        <div className="space-y-2">
-          {groups.map(({ type, label, entries: folderEntries }) => {
-            const isOpen = openFolders.has(type);
+        <div className="space-y-3">
+          {sections.map((section) => {
+            const sectionOpen = openSections.has(section.key);
+            const sectionCount = section.folders.reduce((total, folder) => total + folder.entries.length, 0);
+
             return (
-              <Collapsible key={type} open={isOpen} onOpenChange={() => toggleFolder(type)}>
-                <CollapsibleTrigger asChild>
-                  <button className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors text-left">
-                    {isOpen ? (
-                      <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                    )}
-                    <FolderOpen className="h-4 w-4 text-primary shrink-0" />
-                    <span className="text-sm font-medium text-foreground flex-1">{label}</span>
-                    <Badge variant="outline" className="text-[10px] shrink-0">
-                      {folderEntries.length}
-                    </Badge>
-                  </button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="space-y-1.5 pl-4 pt-1.5 border-l-2 border-primary/10 ml-4">
-                    {folderEntries.map((entry) => {
-                      const reviewStatus = (entry.metadata?.import_review_status as string) ?? null;
-                      const isPending = reviewStatus === "pending_review";
-                      const isExpanded = expandedContent.has(entry.id);
-                      const isLong = entry.content.length > 300;
+              <Collapsible key={section.key} open={sectionOpen} onOpenChange={() => toggleSection(section.key)}>
+                <div className="rounded-xl border border-border/60 bg-card/40">
+                  <CollapsibleTrigger asChild>
+                    <button className="w-full flex items-start gap-3 px-4 py-3 text-left">
+                      {sectionOpen ? (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold text-foreground">{section.label}</span>
+                          <Badge variant="outline" className="text-[10px]">{sectionCount}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">{section.description}</p>
+                      </div>
+                    </button>
+                  </CollapsibleTrigger>
 
-                      return (
-                        <Card
-                          key={entry.id}
-                          className="cursor-pointer card-hover"
-                          onClick={() => setEditEntry(entry)}
-                        >
-                          <CardContent className="p-3 space-y-1.5">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-2 flex-wrap min-w-0">
-                                {isPending && (
-                                  <Badge variant="outline" className="text-[9px] bg-amber-500/10 text-amber-400 border-amber-500/20 shrink-0">
-                                    Pendente revisão
-                                  </Badge>
+                  <CollapsibleContent>
+                    <div className="px-3 pb-3 space-y-2">
+                      {section.folders.map((folder) => {
+                        const folderOpen = openFolders.has(folder.type);
+
+                        return (
+                          <Collapsible key={folder.type} open={folderOpen} onOpenChange={() => toggleFolder(folder.type)}>
+                            <CollapsibleTrigger asChild>
+                              <button className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors text-left">
+                                {folderOpen ? (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                                 )}
-                                {reviewStatus === "reviewed" && (
-                                  <Badge variant="outline" className="text-[9px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shrink-0">
-                                    Revisado
-                                  </Badge>
-                                )}
-                                {entry.is_key_decision && (
-                                  <Star
-                                    className="h-3.5 w-3.5 text-warning fill-warning cursor-pointer shrink-0"
-                                    onClick={(e) => { e.stopPropagation(); toggleKeyDecision(entry); }}
-                                  />
-                                )}
-                                {!entry.is_key_decision && (
-                                  <Star
-                                    className="h-3.5 w-3.5 text-muted-foreground/30 cursor-pointer hover:text-warning/60 shrink-0"
-                                    onClick={(e) => { e.stopPropagation(); toggleKeyDecision(entry); }}
-                                  />
-                                )}
+                                <FolderOpen className="h-4 w-4 text-primary shrink-0" />
+                                <span className="text-sm font-medium text-foreground flex-1">{folder.label}</span>
+                                <Badge variant="outline" className="text-[10px] shrink-0">{folder.entries.length}</Badge>
+                              </button>
+                            </CollapsibleTrigger>
+
+                            <CollapsibleContent>
+                              <div className="space-y-2 pl-4 pt-2 border-l-2 border-border ml-4">
+                                {folder.entries.map((entry) => {
+                                  const isBriefing = entry.context_type === "briefing";
+                                  const reviewStatus = (entry.metadata?.import_review_status as string | undefined) ?? null;
+                                  const isPending = reviewStatus === "pending_review";
+                                  const isExpanded = expandedContent.has(entry.id);
+                                  const isLong = entry.content.length > 300;
+                                  const briefingLabel = getBriefingLabel(entry.metadata, entry.title);
+                                  const briefingOrigin = getBriefingOrigin(entry.metadata);
+                                  const briefingPreview = getBriefingPreview(entry);
+
+                                  return (
+                                    <Card
+                                      key={entry.id}
+                                      className="card-hover"
+                                      onClick={() => isBriefing ? toggleContentExpand(entry.id) : setEditEntry(entry)}
+                                    >
+                                      <CardContent className="p-3 space-y-2">
+                                        <div className="flex items-start justify-between gap-3">
+                                          <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                            {isPending && <Badge variant="outline" className="text-[9px] shrink-0">Pendente revisão</Badge>}
+                                            {reviewStatus === "reviewed" && <Badge variant="secondary" className="text-[9px] shrink-0">Revisado</Badge>}
+                                            {isBriefing && <Badge variant="outline" className="text-[9px] shrink-0">{briefingLabel}</Badge>}
+                                            {isBriefing && briefingOrigin && <Badge variant="outline" className="text-[9px] shrink-0">{briefingOrigin}</Badge>}
+                                            {entry.is_key_decision ? (
+                                              <Star
+                                                className="h-3.5 w-3.5 text-warning fill-warning cursor-pointer shrink-0"
+                                                onClick={(e) => { e.stopPropagation(); toggleKeyDecision(entry); }}
+                                              />
+                                            ) : (
+                                              <Star
+                                                className="h-3.5 w-3.5 text-muted-foreground/30 cursor-pointer hover:text-warning/60 shrink-0"
+                                                onClick={(e) => { e.stopPropagation(); toggleKeyDecision(entry); }}
+                                              />
+                                            )}
+                                          </div>
+
+                                          <div className="flex items-center gap-1.5 shrink-0">
+                                            {isPending && isBriefing && entry.metadata?.structured_signals && (
+                                              <Badge variant="outline" className="text-[9px] shrink-0">
+                                                Revise os sinais
+                                              </Badge>
+                                            )}
+                                            {isBriefing && entry.content.trim().length > 0 && (
+                                              <button
+                                                title="Baixar PDF completo"
+                                                className="text-muted-foreground hover:text-primary p-1 rounded"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleDownloadBriefingPDF(entry);
+                                                }}
+                                              >
+                                                <Download className="h-3.5 w-3.5" />
+                                              </button>
+                                            )}
+                                            <button
+                                              title="Apagar"
+                                              className="text-muted-foreground/40 hover:text-destructive p-1 rounded"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteEntry(entry);
+                                              }}
+                                            >
+                                              <Trash2 className="h-3.5 w-3.5" />
+                                            </button>
+                                            {entry.source_url && (
+                                              <a
+                                                href={entry.source_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="text-muted-foreground hover:text-primary p-1 rounded"
+                                              >
+                                                <ExternalLink className="h-3.5 w-3.5" />
+                                              </a>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                          <p className="text-sm font-medium text-foreground">{entry.title}</p>
+                                          {isBriefing ? (
+                                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                              {briefingPreview || "Briefing salvo sem resumo disponível."}
+                                            </p>
+                                          ) : (
+                                            <p className={`text-xs text-muted-foreground whitespace-pre-wrap ${!isExpanded && isLong ? "line-clamp-3" : ""}`}>
+                                              {entry.content}
+                                            </p>
+                                          )}
+                                        </div>
+
+                                        {!isBriefing && isLong && (
+                                          <button
+                                            className="text-[10px] text-primary hover:underline flex items-center gap-1"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              toggleContentExpand(entry.id);
+                                            }}
+                                          >
+                                            <Eye className="h-3 w-3" />
+                                            {isExpanded ? "Recolher" : "Ver conteúdo completo"}
+                                          </button>
+                                        )}
+
+                                        {isBriefing && (
+                                          <button
+                                            className="text-[10px] text-primary hover:underline flex items-center gap-1"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              toggleContentExpand(entry.id);
+                                            }}
+                                          >
+                                            <Eye className="h-3 w-3" />
+                                            {isExpanded ? "Ocultar briefing completo" : "Ver briefing completo"}
+                                          </button>
+                                        )}
+
+                                        {isBriefing && isExpanded && (
+                                          <div className="rounded-md border border-border/60 bg-muted/10 p-3">
+                                            <pre className="whitespace-pre-wrap text-xs text-muted-foreground font-sans leading-relaxed">
+                                              {entry.content || "Conteúdo indisponível."}
+                                            </pre>
+                                          </div>
+                                        )}
+
+                                        {isBriefing && entry.metadata?.structured_signals && (
+                                          <BriefingSignalReview
+                                            entryId={entry.id}
+                                            metadata={entry.metadata as Record<string, unknown>}
+                                            onUpdated={fetchEntries}
+                                          />
+                                        )}
+
+                                        <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
+                                          {entry.happened_at && <span>{new Date(entry.happened_at).toLocaleString("pt-BR")}</span>}
+                                          {entry.source_label && <span>· {entry.source_label}</span>}
+                                          {entry.tags && entry.tags.length > 0 && <span>· {entry.tags.join(", ")}</span>}
+                                        </div>
+                                      </CardContent>
+                                    </Card>
+                                  );
+                                })}
                               </div>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                {isPending && entry.context_type === "briefing" && entry.metadata?.structured_signals && (
-                                  <Badge variant="outline" className="text-[9px] bg-amber-500/10 text-amber-400 border-amber-500/20 shrink-0">
-                                    Revise os sinais abaixo ↓
-                                  </Badge>
-                                )}
-                                {entry.context_type === "briefing" && entry.content.length > 50 && (
-                                  <button
-                                    title="Baixar PDF"
-                                    className="text-muted-foreground hover:text-primary p-1 rounded"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDownloadBriefingPDF(entry);
-                                    }}
-                                  >
-                                    <Download className="h-3.5 w-3.5" />
-                                  </button>
-                                )}
-                                <button
-                                  title="Apagar"
-                                  className="text-muted-foreground/40 hover:text-destructive p-1 rounded"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteEntry(entry);
-                                  }}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                                {entry.source_url && (
-                                  <a
-                                    href={entry.source_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="text-muted-foreground hover:text-primary"
-                                  >
-                                    <ExternalLink className="h-3.5 w-3.5" />
-                                  </a>
-                                )}
-                              </div>
-                            </div>
-
-                            <p className="text-sm font-medium text-foreground">{entry.title}</p>
-
-                            {/* Content: show full or truncated */}
-                            <div>
-                              <p className={`text-xs text-muted-foreground whitespace-pre-wrap ${!isExpanded && isLong ? "line-clamp-3" : ""}`}>
-                                {entry.content}
-                              </p>
-                              {isLong && (
-                                <button
-                                  className="text-[10px] text-primary hover:underline mt-1 flex items-center gap-1"
-                                  onClick={(e) => { e.stopPropagation(); toggleContentExpand(entry.id); }}
-                                >
-                                  <Eye className="h-3 w-3" />
-                                  {isExpanded ? "Recolher" : "Ver conteúdo completo"}
-                                </button>
-                              )}
-                            </div>
-
-                            {/* Briefing signal review */}
-                            {entry.context_type === "briefing" && entry.metadata?.structured_signals && (
-                              <BriefingSignalReview
-                                entryId={entry.id}
-                                metadata={entry.metadata as Record<string, unknown>}
-                                onUpdated={fetchEntries}
-                              />
-                            )}
-
-                            <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
-                              {entry.happened_at && (
-                                <span>{new Date(entry.happened_at).toLocaleString("pt-BR")}</span>
-                              )}
-                              {entry.source_label && <span>· {entry.source_label}</span>}
-                              {entry.tags && entry.tags.length > 0 && (
-                                <span>· {entry.tags.join(", ")}</span>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                </CollapsibleContent>
+                            </CollapsibleContent>
+                          </Collapsible>
+                        );
+                      })}
+                    </div>
+                  </CollapsibleContent>
+                </div>
               </Collapsible>
             );
           })}
         </div>
       )}
 
-      {/* Create dialog */}
       <ContextEntryDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
@@ -436,7 +614,6 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
         mode="create"
       />
 
-      {/* Edit dialog */}
       {editEntry && (
         <ContextEntryDialog
           open={!!editEntry}
@@ -456,7 +633,6 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
         />
       )}
 
-      {/* Import dialog */}
       <ImportContextDialog
         open={importOpen}
         onOpenChange={setImportOpen}
@@ -465,7 +641,6 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
         onImported={fetchEntries}
       />
 
-      {/* Briefing import dialog */}
       {briefingType && (
         <ImportBriefingDialog
           open={!!briefingType}
@@ -477,16 +652,6 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
         />
       )}
 
-      {/* Briefing link dialog */}
-      <GenerateBriefingLinkDialog
-        open={linkDialogOpen}
-        onOpenChange={setLinkDialogOpen}
-        workspaceId={workspaceId}
-        clientId={clientId}
-        clientName={clientName ?? "Cliente"}
-      />
-
-      {/* Briefing link dialog */}
       <GenerateBriefingLinkDialog
         open={linkDialogOpen}
         onOpenChange={setLinkDialogOpen}
