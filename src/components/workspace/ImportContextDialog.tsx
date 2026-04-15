@@ -257,7 +257,7 @@ export default function ImportContextDialog({ open, onOpenChange, workspaceId, c
       source_url: sourceUrl.trim() || null,
       happened_at: happenedAt || null,
       is_key_decision: e.context_type === "decisao",
-      tags: null,
+      tags: [],
     }));
 
     const { error } = await supabase.from("context_entries").insert(rows);
