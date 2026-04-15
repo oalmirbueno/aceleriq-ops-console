@@ -10,6 +10,7 @@ import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { ENTERPRISE_BLOCKS, ENTERPRISE_SIGNAL_TO_DOSSIER, ENTERPRISE_TASK_SIGNALS, ENTERPRISE_DOC_SIGNALS } from "@/components/workspace/enterpriseStructuringBlocks";
 import { decodeBriefingToken, saveBriefingProgress, loadBriefingProgress, clearBriefingProgress } from "@/lib/briefingToken";
+import { loadRemoteDraft, saveRemoteDraft, submitRemoteBriefing } from "@/lib/briefingPersistence";
 import { supabase } from "@/integrations/supabase/client";
 
 /** Flatten all blocks into individual questions */
@@ -19,7 +20,6 @@ interface FlatQuestion {
   blockIndex: number;
   questionIndex: number;
   question: string;
-  /** Unique key for answer storage */
   answerKey: string;
 }
 
@@ -55,28 +55,60 @@ export default function ClientBriefingPage() {
   );
   const [step, setStep] = useState<Step>("welcome");
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [clientName, setClientName] = useState<string | null>(null);
+  const [remoteId, setRemoteId] = useState<string | null>(null);
+  const [isSubmitted, setIsSubmitted] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sourceTokenRef = useRef<string>("");
 
   const answeredCount = FLAT_QUESTIONS.filter((q) => answers[q.answerKey]?.trim().length > 5).length;
   const progressPct = step === "welcome" ? 0 : step === "review" || step === "submitted" ? 100 : ((currentQ + 1) / TOTAL_QUESTIONS) * 100;
   const currentQuestion = FLAT_QUESTIONS[currentQ];
 
-  // Decode token & load saved progress
+  // Decode token & load saved progress (Supabase first, localStorage fallback)
   useEffect(() => {
-    if (!token) { setInvalid(true); return; }
+    if (!token) { setInvalid(true); setLoading(false); return; }
     const payload = decodeBriefingToken(token);
-    if (!payload) { setInvalid(true); return; }
+    if (!payload) { setInvalid(true); setLoading(false); return; }
     setDecoded(payload);
+    sourceTokenRef.current = token;
 
-    const saved = loadBriefingProgress(token);
-    if (saved) {
-      setAnswers((prev) => ({ ...prev, ...saved }));
-      // If there's saved progress, skip welcome
-      const hasSavedAnswers = Object.values(saved).some((v) => v.trim().length > 0);
-      if (hasSavedAnswers) setStep("fill");
-    }
+    const init = async () => {
+      // 1. Try Supabase first
+      const remote = await loadRemoteDraft(token);
 
+      if (remote) {
+        if (remote.status === "submitted") {
+          setIsSubmitted(true);
+          setStep("submitted");
+          setRemoteId(remote.id);
+          setLoading(false);
+          return;
+        }
+        // Restore draft from Supabase
+        setAnswers((prev) => ({ ...prev, ...remote.answers }));
+        setCurrentQ(remote.currentQuestion);
+        setRemoteId(remote.id);
+        const hasSavedAnswers = Object.values(remote.answers).some((v) => v?.trim().length > 0);
+        if (hasSavedAnswers) setStep("fill");
+        setLoading(false);
+        return;
+      }
+
+      // 2. Fallback to localStorage
+      const local = loadBriefingProgress(token);
+      if (local) {
+        setAnswers((prev) => ({ ...prev, ...local }));
+        const hasSavedAnswers = Object.values(local).some((v) => v.trim().length > 0);
+        if (hasSavedAnswers) setStep("fill");
+      }
+      setLoading(false);
+    };
+
+    init();
+
+    // Load client name
     supabase
       .from("clients")
       .select("name")
@@ -87,19 +119,39 @@ export default function ClientBriefingPage() {
       });
   }, [token]);
 
-  // Auto-save with debounce
-  const debouncedSave = useCallback((newAnswers: Record<string, string>) => {
-    if (!token) return;
+  // Auto-save with debounce — Supabase primary, localStorage as cache
+  const debouncedSave = useCallback((newAnswers: Record<string, string>, questionIndex: number) => {
+    if (!token || !decoded || isSubmitted) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
+    saveTimerRef.current = setTimeout(async () => {
+      // Always save to localStorage as local cache
       saveBriefingProgress(token, newAnswers);
-    }, 400);
-  }, [token]);
+
+      // Check if we have at least 1 meaningful answer before creating remote draft
+      const meaningful = FLAT_QUESTIONS.filter((q) => newAnswers[q.answerKey]?.trim().length > 5).length;
+      if (meaningful < 1) return;
+
+      // Save to Supabase
+      const id = await saveRemoteDraft(
+        token,
+        decoded.workspaceId,
+        decoded.clientId,
+        {
+          answers: newAnswers,
+          currentQuestion: questionIndex,
+          answeredCount: meaningful,
+          totalQuestions: TOTAL_QUESTIONS,
+        },
+        remoteId ?? undefined,
+      );
+      if (id && !remoteId) setRemoteId(id);
+    }, 1500);
+  }, [token, decoded, remoteId, isSubmitted]);
 
   const updateAnswer = (key: string, value: string) => {
     const newAnswers = { ...answers, [key]: value };
     setAnswers(newAnswers);
-    debouncedSave(newAnswers);
+    debouncedSave(newAnswers, currentQ);
   };
 
   const handleNext = () => {
@@ -162,46 +214,67 @@ export default function ClientBriefingPage() {
       const content = buildDocument();
       const signalsData = buildSignals();
 
-      const metadata: Record<string, unknown> = {
-        briefing_kind: "enterprise_structuring",
-        import_source: "client_form",
-        parser_mode: "local_rules",
-        import_review_status: "pending_review",
-        submitted_by_client: true,
-        submitted_at: new Date().toISOString(),
-        answers_count: answeredCount,
-        total_questions: TOTAL_QUESTIONS,
-        ...signalsData,
-      };
+      let success = false;
 
-      const { error } = await supabase.from("context_entries").insert({
-        workspace_id: decoded.workspaceId,
-        client_id: decoded.clientId,
-        context_type: "briefing",
-        title: "Briefing de Estruturação Empresarial",
-        content,
-        source_label: "Preenchido pelo cliente",
-        is_key_decision: false,
-        tags: ["briefing", "enterprise_structuring", "client_submitted"],
-        metadata,
-      });
+      if (remoteId) {
+        // Update existing draft → submitted
+        success = await submitRemoteBriefing(
+          remoteId,
+          content,
+          signalsData,
+          answeredCount,
+          TOTAL_QUESTIONS,
+        );
+      } else {
+        // No existing draft — create and submit in one step
+        const metadata: Record<string, unknown> = {
+          briefing_kind: "enterprise_structuring",
+          import_source: "client_form",
+          parser_mode: "local_rules",
+          source_token: token,
+          public_briefing_status: "submitted",
+          import_review_status: "pending_review",
+          submitted_by_client: true,
+          submitted_at: new Date().toISOString(),
+          answers_count: answeredCount,
+          total_questions: TOTAL_QUESTIONS,
+          ...signalsData,
+        };
 
-      if (error) {
+        const { error } = await supabase.from("context_entries").insert({
+          workspace_id: decoded.workspaceId,
+          client_id: decoded.clientId,
+          context_type: "briefing",
+          title: "Briefing de Estruturação Empresarial",
+          content,
+          source_label: "Preenchido pelo cliente",
+          is_key_decision: false,
+          tags: ["briefing", "enterprise_structuring", "client_submitted"],
+          metadata,
+        });
+
+        success = !error;
+        if (error) console.error("Submit error:", error);
+      }
+
+      if (!success) {
         toast({ title: "Erro ao enviar", description: "Tente novamente.", variant: "destructive" });
         setSaving(false);
         return;
       }
 
+      // Timeline event
       await supabase.from("timeline_events").insert({
         workspace_id: decoded.workspaceId,
         client_id: decoded.clientId,
         event_type: "context_added",
-        title: "📋 Cliente preencheu o Briefing de Estruturação",
+        title: "Cliente preencheu o Briefing de Estruturação",
         description: `${answeredCount} de ${TOTAL_QUESTIONS} perguntas respondidas · Pendente de revisão`,
         happened_at: new Date().toISOString(),
       });
 
       if (token) clearBriefingProgress(token);
+      setIsSubmitted(true);
       setStep("submitted");
       toast({ title: "Briefing enviado com sucesso!" });
     } catch {
@@ -226,7 +299,7 @@ export default function ClientBriefingPage() {
         .meta{font-size:11px;color:#888;margin-bottom:20px}
         em{color:#999}
       </style></head><body>
-      <h1>🏢 Briefing de Estruturação Empresarial</h1>
+      <h1>Briefing de Estruturação Empresarial</h1>
       <p class="meta">${clientName ? `${clientName} · ` : ""}${new Date().toLocaleDateString("pt-BR")} · ${answeredCount}/${TOTAL_QUESTIONS} perguntas</p>
       ${content
         .replace(/## (.+)/g, "<h2>$1</h2>")
@@ -238,6 +311,19 @@ export default function ClientBriefingPage() {
     w.document.close();
     w.print();
   };
+
+  // ── Loading ──
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Toaster />
+        <div className="flex items-center gap-3 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span className="text-sm">Carregando briefing...</span>
+        </div>
+      </div>
+    );
+  }
 
   // ── Invalid token ──
   if (invalid) {
@@ -319,7 +405,7 @@ export default function ClientBriefingPage() {
                   <Shield className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                   <div>
                     <p className="text-sm font-medium text-foreground">Seu progresso é salvo automaticamente</p>
-                    <p className="text-xs text-muted-foreground">Se precisar sair, pode voltar a qualquer momento e continuar de onde parou.</p>
+                    <p className="text-xs text-muted-foreground">Se precisar sair, pode voltar a qualquer momento — mesmo de outro dispositivo.</p>
                   </div>
                 </div>
 
