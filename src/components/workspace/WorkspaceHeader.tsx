@@ -1,11 +1,10 @@
 import { User, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getStagePremiumLabel, PIPELINE_STAGES_ORDERED } from "./aceleraConstants";
+import { getPlanDefinition } from "./aceleraConstants";
 
-const STAGES = [
-  "entrada", "diagnostico", "estrutura_base", "planejamento",
-  "producao", "ativacao", "otimizacao", "expansao",
-];
+const STAGES = [...PIPELINE_STAGES_ORDERED];
 
 interface WorkspaceHeaderProps {
   clientName: string;
@@ -14,13 +13,15 @@ interface WorkspaceHeaderProps {
   currentStage: string;
   changingStage: boolean;
   onStageChange: (stage: string) => void;
+  planName?: string | null;
 }
 
 export default function WorkspaceHeader({
-  clientName, ownerName, status, currentStage, changingStage, onStageChange,
+  clientName, ownerName, status, currentStage, changingStage, onStageChange, planName,
 }: WorkspaceHeaderProps) {
   const stageIdx = (s: string) => STAGES.indexOf(s);
   const current = stageIdx(currentStage);
+  const plan = getPlanDefinition(planName);
 
   return (
     <div className="space-y-4">
@@ -34,14 +35,21 @@ export default function WorkspaceHeader({
         <div className="flex items-center gap-2 text-sm">
           <span className="label-sm">Etapa</span>
           <Select value={currentStage} onValueChange={onStageChange} disabled={changingStage}>
-            <SelectTrigger className="h-8 w-[170px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 w-[260px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               {STAGES.map((s) => (
-                <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>
+                <SelectItem key={s} value={s}>{getStagePremiumLabel(s)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
+
+        {plan && (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="label-sm">Plano</span>
+            <Badge className="bg-primary/15 text-primary border-primary/30">{plan.label}</Badge>
+          </div>
+        )}
 
         <div className="flex items-center gap-2 text-sm">
           <span className="label-sm">Responsável</span>
@@ -64,7 +72,7 @@ export default function WorkspaceHeader({
             <div key={s} className="flex items-center gap-1">
               {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground/40" />}
               <span
-                className={`rounded-full px-3 py-1 text-xs capitalize transition-colors ${
+                className={`rounded-full px-3 py-1 text-xs transition-colors ${
                   active
                     ? "bg-primary/15 text-primary font-medium border border-primary/30"
                     : done
@@ -72,7 +80,7 @@ export default function WorkspaceHeader({
                       : "text-muted-foreground"
                 }`}
               >
-                {s.replace("_", " ")}
+                {getStagePremiumLabel(s)}
               </span>
             </div>
           );
