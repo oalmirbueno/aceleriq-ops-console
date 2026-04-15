@@ -197,9 +197,14 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
             </SelectContent>
           </Select>
         </div>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Nova Task
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setGenerateOpen(true)}>
+            <Sparkles className="h-4 w-4 mr-1" /> Gerar de Contexto
+          </Button>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Nova Task
+          </Button>
+        </div>
       </div>
 
       {/* list */}
