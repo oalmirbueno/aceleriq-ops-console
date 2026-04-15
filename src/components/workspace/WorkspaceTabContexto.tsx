@@ -214,7 +214,17 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
     w.print();
   };
 
-  if (loading) {
+  const handleDeleteEntry = async (entry: ContextEntry) => {
+    if (!window.confirm(`Tem certeza que deseja apagar "${entry.title}"? Essa ação não pode ser desfeita.`)) return;
+    const { error } = await supabase.from("context_entries").delete().eq("id", entry.id);
+    if (error) {
+      toast({ title: "Erro ao apagar", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Contexto apagado" });
+    await fetchEntries();
+  };
+
     return (
       <div className="flex items-center justify-center py-16">
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
