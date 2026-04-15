@@ -15,6 +15,7 @@ import {
   type StructuredSignals,
   type BriefingSignalsMetadata,
 } from "./briefingSignals";
+import { ENTERPRISE_SIGNAL_LABELS, ENTERPRISE_SIGNAL_TO_DOSSIER, ENTERPRISE_SIGNAL_KEYS } from "./enterpriseStructuringBlocks";
 
 const DOSSIER_BLOCK_OPTIONS = [
   { value: "identity", label: "Identidade" },
@@ -34,22 +35,29 @@ interface Props {
 }
 
 export default function BriefingSignalReview({ entryId, metadata, onUpdated }: Props) {
-  const signals = (metadata.structured_signals ?? {}) as StructuredSignals;
+  const signals = (metadata.structured_signals ?? {}) as Record<string, { summary: string; dossier_block: string }>;
   const reviewStatus = metadata.import_review_status as string;
+  const briefingKind = metadata.briefing_kind as string | undefined;
+  const isEnterprise = briefingKind === "enterprise_structuring";
 
-  const [editing, setEditing] = useState<SignalBlockKey | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
   const [editSummary, setEditSummary] = useState("");
   const [editDossierBlock, setEditDossierBlock] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const signalKeys = SIGNAL_BLOCK_KEYS.filter((k) => signals[k]);
-  const emptyKeys = SIGNAL_BLOCK_KEYS.filter((k) => !signals[k]);
+  // Resolve keys based on briefing kind
+  const allKnownKeys = isEnterprise ? ENTERPRISE_SIGNAL_KEYS : (SIGNAL_BLOCK_KEYS as readonly string[]);
+  const getLabel = (key: string) => (isEnterprise ? ENTERPRISE_SIGNAL_LABELS[key] : SIGNAL_LABELS[key as SignalBlockKey]) ?? key;
+  const getDossier = (key: string) => (isEnterprise ? ENTERPRISE_SIGNAL_TO_DOSSIER[key] : SIGNAL_TO_DOSSIER[key as SignalBlockKey]) ?? "identity";
 
-  const startEdit = (key: SignalBlockKey) => {
+  const signalKeys = allKnownKeys.filter((k) => signals[k]);
+  const emptyKeys = allKnownKeys.filter((k) => !signals[k]);
+
+  const startEdit = (key: string) => {
     const entry = signals[key];
     setEditing(key);
     setEditSummary(entry?.summary ?? "");
-    setEditDossierBlock(entry?.dossier_block ?? SIGNAL_TO_DOSSIER[key]);
+    setEditDossierBlock(entry?.dossier_block ?? getDossier(key));
   };
 
   const saveEdit = async () => {
