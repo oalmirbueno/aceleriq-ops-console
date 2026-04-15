@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
+import logoUrl from "@/assets/logo-aceleriq.png";
 import { ENTERPRISE_BLOCKS, ENTERPRISE_SIGNAL_TO_DOSSIER, ENTERPRISE_TASK_SIGNALS, ENTERPRISE_DOC_SIGNALS } from "@/components/workspace/enterpriseStructuringBlocks";
 import { decodeBriefingToken, saveBriefingProgress, loadBriefingProgress, clearBriefingProgress } from "@/lib/briefingToken";
 import { supabase } from "@/integrations/supabase/client";
@@ -196,8 +197,8 @@ export default function ClientBriefingPage() {
         workspace_id: decoded.workspaceId,
         client_id: decoded.clientId,
         event_type: "context_added",
-        title: "📋 Cliente preencheu o Briefing de Estruturação",
-        description: `${answeredCount} de ${TOTAL_QUESTIONS} perguntas respondidas · Pendente de revisão`,
+        title: "Cliente preencheu o Briefing de Estruturação",
+        description: `${answeredCount} de ${TOTAL_QUESTIONS} perguntas respondidas. Pendente de revisão.`,
         happened_at: new Date().toISOString(),
       });
 
@@ -211,32 +212,61 @@ export default function ClientBriefingPage() {
     }
   };
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     const content = buildDocument();
+    // Convert logo to base64 for embedding
+    let logoBase64 = "";
+    try {
+      const resp = await fetch(logoUrl);
+      const blob = await resp.blob();
+      logoBase64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+    } catch { /* silent */ }
+
     const w = window.open("", "_blank");
     if (!w) return;
+
+    const date = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+
     w.document.write(`<!DOCTYPE html><html><head><title>Briefing de Estruturação Empresarial</title>
       <style>
-        body{font-family:'Segoe UI',system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;color:#1a1a1a}
-        h1{font-size:22px;border-bottom:2px solid #22c55e;padding-bottom:12px;margin-bottom:24px}
-        h2{font-size:16px;color:#16a34a;margin-top:28px;margin-bottom:8px}
-        p,strong{font-size:13px;line-height:1.6}
-        strong{display:block;margin-top:12px;color:#333}
-        hr{border:none;border-top:1px solid #e5e7eb;margin:20px 0}
-        .meta{font-size:11px;color:#888;margin-bottom:20px}
-        em{color:#999}
+        @page { margin: 30mm 20mm; }
+        body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; padding: 0; max-width: 700px; margin: 0 auto; color: #1a1a1a; font-size: 13px; line-height: 1.7; }
+        .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #1a1a1a; padding-bottom: 16px; margin-bottom: 32px; }
+        .header img { height: 36px; }
+        .header-text { text-align: right; }
+        .header-text h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -0.3px; }
+        .header-text p { font-size: 11px; color: #666; margin: 4px 0 0; }
+        .section-title { font-size: 14px; font-weight: 600; color: #1a1a1a; margin: 32px 0 12px; padding-bottom: 6px; border-bottom: 1px solid #e5e7eb; text-transform: uppercase; letter-spacing: 0.5px; }
+        .question { font-weight: 600; color: #333; margin: 16px 0 4px; font-size: 12px; }
+        .answer { margin: 0 0 12px; color: #444; white-space: pre-wrap; }
+        .empty { color: #bbb; font-style: italic; }
+        .divider { border: none; border-top: 1px solid #eee; margin: 24px 0; }
+        .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 10px; color: #999; text-align: center; }
       </style></head><body>
-      <h1>🏢 Briefing de Estruturação Empresarial</h1>
-      <p class="meta">${clientName ? `${clientName} · ` : ""}${new Date().toLocaleDateString("pt-BR")} · ${answeredCount}/${TOTAL_QUESTIONS} perguntas</p>
+      <div class="header">
+        ${logoBase64 ? `<img src="${logoBase64}" alt="Logo" />` : "<div></div>"}
+        <div class="header-text">
+          <h1>Briefing de Estruturação Empresarial</h1>
+          <p>${clientName ? `${clientName} &middot; ` : ""}${date}</p>
+        </div>
+      </div>
       ${content
-        .replace(/## (.+)/g, "<h2>$1</h2>")
-        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-        .replace(/_\((.+?)\)_/g, "<em>($1)</em>")
-        .replace(/---/g, "<hr>")
+        .replace(/## (.+)/g, '<p class="section-title">$1</p>')
+        .replace(/\*\*(.+?)\*\*/g, '<p class="question">$1</p>')
+        .replace(/_\(não respondido\)_/g, '<p class="answer empty">Não respondida</p>')
+        .replace(/---/g, '<hr class="divider">')
+        .replace(/(?<=>)\n([^<])/g, '<p class="answer">$1')
         .replace(/\n/g, "<br>")}
+      <div class="footer">
+        Documento gerado automaticamente &middot; ${answeredCount} de ${TOTAL_QUESTIONS} perguntas respondidas &middot; ${date}
+      </div>
     </body></html>`);
     w.document.close();
-    w.print();
+    setTimeout(() => w.print(), 300);
   };
 
   // ── Invalid token ──
