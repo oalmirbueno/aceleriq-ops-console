@@ -125,11 +125,25 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
     }
   }
 
-  /** Get contexts for a dossier block: prefer structured signals, then dossier_block metadata, fallback to context_type */
+  /** IDs of reviewed briefings with valid structured signals — these should NOT appear via fallback */
+  const reviewedBriefingIds = new Set(
+    briefings
+      .filter((b) => {
+        const meta = b.metadata;
+        if (!meta || meta.import_review_status !== "reviewed") return false;
+        const signals = meta.structured_signals as Record<string, unknown> | undefined;
+        return signals && Object.keys(signals).length > 0;
+      })
+      .map((b) => b.id)
+  );
+
+  /** Get contexts for a dossier block: prefer dossier_block metadata, fallback to context_type.
+   *  Excludes reviewed briefings with valid signals to avoid raw-text pollution. */
   const getBlockContexts = (blockKey: string, contextTypes: readonly string[]) => {
-    const byDossierBlock = contexts.filter((c) => readDossierBlock(c.metadata) === blockKey);
+    const exclude = (c: ContextEntry) => reviewedBriefingIds.has(c.id);
+    const byDossierBlock = contexts.filter((c) => !exclude(c) && readDossierBlock(c.metadata) === blockKey);
     if (byDossierBlock.length > 0) return byDossierBlock;
-    return contexts.filter((c) => contextTypes.includes(c.context_type));
+    return contexts.filter((c) => !exclude(c) && contextTypes.includes(c.context_type));
   };
 
   return (
