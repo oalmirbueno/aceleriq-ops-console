@@ -270,6 +270,15 @@ export default function WorkspaceTabContexto({ workspaceId, clientId }: Props) {
           }}
         />
       )}
+
+      {/* Import dialog */}
+      <ImportContextDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        workspaceId={workspaceId}
+        clientId={clientId}
+        onImported={fetchEntries}
+      />
     </div>
   );
 }
