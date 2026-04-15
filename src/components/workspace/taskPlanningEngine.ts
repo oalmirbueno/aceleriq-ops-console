@@ -22,6 +22,7 @@ export interface PlanningContext {
   is_key_decision: boolean;
   happened_at: string | null;
   tags: string[];
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface GapAnswers {
