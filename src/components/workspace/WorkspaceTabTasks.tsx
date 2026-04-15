@@ -291,6 +291,13 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
         clientId={clientId}
         onGenerated={fetchTasks}
       />
+      <TaskPlanningWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        workspaceId={workspaceId}
+        clientId={clientId}
+        onGenerated={fetchTasks}
+      />
     </div>
   );
 }
