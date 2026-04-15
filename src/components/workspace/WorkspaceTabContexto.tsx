@@ -298,6 +298,18 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
                                     Revise os sinais abaixo ↓
                                   </Badge>
                                 )}
+                                {entry.context_type === "briefing" && entry.content.length > 50 && (
+                                  <button
+                                    title="Baixar PDF"
+                                    className="text-muted-foreground hover:text-primary p-1 rounded"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDownloadBriefingPDF(entry);
+                                    }}
+                                  >
+                                    <Download className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
                                 {entry.source_url && (
                                   <a
                                     href={entry.source_url}
