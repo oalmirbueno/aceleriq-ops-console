@@ -172,6 +172,17 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
     fetchTasks();
   };
 
+  const handleDelete = async (task: Task) => {
+    const { error } = await supabase.from("tasks").delete().eq("id", task.id);
+    if (error) {
+      toast({ title: "Erro ao excluir task", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Task excluída" });
+    if (editTask?.id === task.id) setEditTask(null);
+    fetchTasks();
+  };
+
   const getSourceLabel = (t: Task) => {
     if (!t.source_type) return "manual";
     return t.source_type;
