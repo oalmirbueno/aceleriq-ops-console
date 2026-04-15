@@ -8,6 +8,7 @@ import ScopeBadge from "./ScopeBadge";
 import { getBriefingLabel, BRIEFING_DEFINITIONS, type BriefingType, type ScopeClassification } from "./aceleraConstants";
 import { getContextLabel } from "./contextTypes";
 import { getDossierSignalsByBlock, type SignalBlockKey, SIGNAL_LABELS } from "./briefingSignals";
+import { ENTERPRISE_SIGNAL_LABELS } from "./enterpriseStructuringBlocks";
 
 interface Props {
   workspaceId: string;
@@ -116,7 +117,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
   const briefingKinds = briefings.map((c) => readBriefingKind(c.metadata)).filter(Boolean) as string[];
 
   // Collect dossier signals from reviewed briefings
-  const allDossierSignals = new Map<string, { key: SignalBlockKey; label: string; summary: string }[]>();
+  const allDossierSignals = new Map<string, { key: string; label: string; summary: string }[]>();
   for (const b of briefings) {
     const bSignals = getDossierSignalsByBlock(b.metadata);
     for (const [block, items] of bSignals) {
