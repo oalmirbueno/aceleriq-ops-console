@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Star, ExternalLink, Upload, FileText, FolderOpen, ChevronRight, ChevronDown, Eye, Link2, Download } from "lucide-react";
+import { Plus, Star, ExternalLink, Upload, FileText, FolderOpen, ChevronRight, ChevronDown, Eye, Link2, Download, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -214,6 +214,17 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
     w.print();
   };
 
+  const handleDeleteEntry = async (entry: ContextEntry) => {
+    if (!window.confirm(`Tem certeza que deseja apagar "${entry.title}"? Essa ação não pode ser desfeita.`)) return;
+    const { error } = await supabase.from("context_entries").delete().eq("id", entry.id);
+    if (error) {
+      toast({ title: "Erro ao apagar", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Contexto apagado" });
+    await fetchEntries();
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -345,6 +356,16 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
                                     <Download className="h-3.5 w-3.5" />
                                   </button>
                                 )}
+                                <button
+                                  title="Apagar"
+                                  className="text-muted-foreground/40 hover:text-destructive p-1 rounded"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteEntry(entry);
+                                  }}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
                                 {entry.source_url && (
                                   <a
                                     href={entry.source_url}
