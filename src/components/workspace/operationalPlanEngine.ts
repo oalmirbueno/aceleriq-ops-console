@@ -415,8 +415,15 @@ const TASK_TEMPLATES: TaskTemplate[] = [
     priority: "medium",
   },
 ];
+function buildSignalSources(sigs: ReviewedSignal[]): SignalSource[] {
+  return sigs.map((s) => ({
+    signal_key: s.key,
+    briefing_kind: s.source,
+    context_entry_id: s.contextEntryId,
+  }));
+}
 
-export function deriveTasksFromFronts(
+
   fronts: OperationalFront[],
   signals: ReviewedSignal[]
 ): DerivedTask[] {
