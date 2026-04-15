@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Plus, Search, ExternalLink } from "lucide-react";
+import { Users, Plus, Search, ExternalLink, FolderPlus } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import EmptyState from "@/components/EmptyState";
 import LoadingState from "@/components/LoadingState";
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 interface Client {
   id: string;
@@ -95,6 +96,41 @@ export default function ClientsPage() {
     if (ws) navigate(`/ops/workspaces/${ws.id}`);
   };
 
+  const createWorkspaceForClient = async (client: Client) => {
+    try {
+      const { data: ws, error: wErr } = await supabase
+        .from("workspaces")
+        .insert({
+          client_id: client.id,
+          name: `${client.name} — Workspace`,
+          status: "setup",
+          current_stage: "entrada",
+        })
+        .select("id")
+        .single();
+
+      if (wErr) throw wErr;
+
+      if (ws) {
+        await supabase.from("timeline_events").insert({
+          workspace_id: ws.id,
+          client_id: client.id,
+          event_type: "workspace_created",
+          title: "Workspace criado",
+          description: `Workspace criado para ${client.name}`,
+          happened_at: new Date().toISOString(),
+        });
+
+        toast({ title: "Workspace criado", description: client.name });
+        await fetchClients();
+        navigate(`/ops/workspaces/${ws.id}`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast({ title: "Erro ao criar workspace", description: err.message, variant: "destructive" });
+    }
+  };
+
   return (
     <>
       <AppHeader title="Clientes" subtitle="Gestão de clientes da operação" />
@@ -161,7 +197,7 @@ export default function ClientsPage() {
                 {filtered.map((c) => {
                   const stage = c.workspaces[0]?.current_stage;
                   return (
-                    <TableRow key={c.id} className="cursor-pointer" onClick={() => openWorkspace(c)}>
+                    <TableRow key={c.id} className="cursor-pointer" onClick={() => c.workspaces[0] ? openWorkspace(c) : undefined}>
                       <TableCell className="font-medium text-foreground">{c.name}</TableCell>
                       <TableCell className="text-muted-foreground">{c.company_name ?? "—"}</TableCell>
                       <TableCell>
@@ -172,13 +208,23 @@ export default function ClientsPage() {
                       <TableCell className="text-muted-foreground capitalize">{stage ?? "—"}</TableCell>
                       <TableCell className="text-muted-foreground capitalize">{c.plan_name ?? "—"}</TableCell>
                       <TableCell>
-                        {c.workspaces[0] && (
+                        {c.workspaces[0] ? (
                           <Button
                             size="icon"
                             variant="ghost"
                             onClick={(e) => { e.stopPropagation(); openWorkspace(c); }}
+                            title="Abrir workspace"
                           >
                             <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={(e) => { e.stopPropagation(); createWorkspaceForClient(c); }}
+                            title="Criar workspace"
+                          >
+                            <FolderPlus className="h-4 w-4 text-primary" />
                           </Button>
                         )}
                       </TableCell>

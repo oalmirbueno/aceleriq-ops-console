@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { FolderKanban } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingState from "@/components/LoadingState";
 import EmptyState from "@/components/EmptyState";
+import { Button } from "@/components/ui/button";
 import WorkspaceHeader from "@/components/workspace/WorkspaceHeader";
 import WorkspaceTabResumo from "@/components/workspace/WorkspaceTabResumo";
 import WorkspaceTabTimeline from "@/components/workspace/WorkspaceTabTimeline";
@@ -34,6 +35,7 @@ interface TimelineEvent {
 
 export default function WorkspaceDetailPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
+  const navigate = useNavigate();
   const [ws, setWs] = useState<Workspace | null>(null);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,7 +105,12 @@ export default function WorkspaceDetailPage() {
   if (!ws) return (
     <>
       <AppHeader title="Workspace" subtitle="Não encontrado" />
-      <EmptyState icon={FolderKanban} title="Workspace não encontrado" description="Este workspace não existe ou foi removido." />
+      <EmptyState icon={FolderKanban} title="Workspace não encontrado" description="Este workspace não existe ou foi removido. Volte à lista de clientes para continuar." />
+      <div className="flex justify-center -mt-12">
+        <Button variant="outline" onClick={() => navigate("/ops/clients")}>
+          Ir para Clientes
+        </Button>
+      </div>
     </>
   );
 
