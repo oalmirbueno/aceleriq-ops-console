@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import ContextEntryDialog, { type ContextFormData } from "./ContextEntryDialog";
 import ImportContextDialog from "./ImportContextDialog";
+import { normalizeTags } from "@/lib/normalizeTags";
 
 import { CONTEXT_TYPES, getContextLabel } from "./contextTypes";
 
