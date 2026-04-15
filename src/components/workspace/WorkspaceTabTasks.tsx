@@ -36,9 +36,10 @@ interface Task {
 interface Props {
   workspaceId: string;
   clientId: string;
+  planName?: string | null;
 }
 
-export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
+export default function WorkspaceTabTasks({ workspaceId, clientId, planName }: Props) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
@@ -316,6 +317,7 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
         onOpenChange={setWizardOpen}
         workspaceId={workspaceId}
         clientId={clientId}
+        planName={planName}
         onGenerated={fetchTasks}
       />
     </div>
