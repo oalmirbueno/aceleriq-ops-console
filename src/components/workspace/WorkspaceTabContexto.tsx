@@ -68,7 +68,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
   const [editEntry, setEditEntry] = useState<ContextEntry | null>(null);
   const [briefingType, setBriefingType] = useState<"essential" | "sitebolt" | null>(null);
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
-  const [enterpriseOpen, setEnterpriseOpen] = useState(false);
+  const [linkBriefingType, setLinkBriefingType] = useState<BriefingKind | undefined>(undefined);
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set(CONTEXT_TYPES));
   const [expandedContent, setExpandedContent] = useState<Set<string>>(new Set());
 
