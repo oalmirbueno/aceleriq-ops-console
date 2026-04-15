@@ -14,11 +14,20 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+/** Briefing kind labels for display */
+const BRIEFING_LABELS: Record<string, string> = {
+  enterprise_structuring: "Estruturação Empresarial",
+  ai_automation: "Automação e IA",
+};
+
+function getBriefingLabel(kind: string): string {
+  return BRIEFING_LABELS[kind] ?? kind;
+}
+
 /**
- * Decode the base64url briefing token and return { workspaceId, clientId }.
- * Returns null if invalid.
+ * Decode the base64url briefing token and return { workspaceId, clientId, briefingType }.
  */
-function decodeToken(token: string): { workspaceId: string; clientId: string } | null {
+function decodeToken(token: string): { workspaceId: string; clientId: string; briefingType: string } | null {
   try {
     const padded = token.replace(/-/g, "+").replace(/_/g, "/");
     const json = atob(padded);
@@ -27,7 +36,11 @@ function decodeToken(token: string): { workspaceId: string; clientId: string } |
       typeof payload.workspaceId === "string" && payload.workspaceId.length > 0 &&
       typeof payload.clientId === "string" && payload.clientId.length > 0
     ) {
-      return { workspaceId: payload.workspaceId, clientId: payload.clientId };
+      return {
+        workspaceId: payload.workspaceId,
+        clientId: payload.clientId,
+        briefingType: payload.briefingType ?? "enterprise_structuring",
+      };
     }
     return null;
   } catch {
@@ -35,9 +48,6 @@ function decodeToken(token: string): { workspaceId: string; clientId: string } |
   }
 }
 
-/**
- * Validate that workspace and client actually exist in the DB.
- */
 async function validateTokenPayload(
   supabase: ReturnType<typeof createClient>,
   workspaceId: string,
@@ -69,17 +79,18 @@ serve(async (req) => {
       return jsonResponse({ error: "Ação inválida" }, 400);
     }
 
-    // Decode and validate token server-side
     const decoded = decodeToken(source_token);
     if (!decoded) {
       return jsonResponse({ error: "Token inválido" }, 403);
     }
 
+    const briefingKind = decoded.briefingType;
+    const briefingLabel = `Briefing de ${getBriefingLabel(briefingKind)}`;
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Validate workspace+client exist
     const valid = await validateTokenPayload(supabase, decoded.workspaceId, decoded.clientId);
     if (!valid) {
       return jsonResponse({ error: "Token não corresponde a um workspace válido" }, 403);
@@ -121,7 +132,6 @@ serve(async (req) => {
 
       const now = new Date().toISOString();
 
-      // Check if draft already exists for this token
       const { data: existing } = await supabase
         .from("context_entries")
         .select("id, metadata")
@@ -131,7 +141,6 @@ serve(async (req) => {
         .limit(1)
         .maybeSingle();
 
-      // If already submitted, don't allow overwrite as draft
       if (existing) {
         const existingMeta = existing.metadata as Record<string, unknown> | null;
         if (existingMeta?.public_briefing_status === "submitted") {
@@ -140,7 +149,7 @@ serve(async (req) => {
       }
 
       const metadata: Record<string, unknown> = {
-        briefing_kind: "enterprise_structuring",
+        briefing_kind: briefingKind,
         import_source: "client_form",
         parser_mode: "local_rules",
         source_token,
@@ -170,18 +179,17 @@ serve(async (req) => {
         return jsonResponse({ id: existing.id });
       }
 
-      // Create new
       const { data: created, error } = await supabase
         .from("context_entries")
         .insert({
           workspace_id: decoded.workspaceId,
           client_id: decoded.clientId,
           context_type: "briefing",
-          title: "Briefing de Estruturação Empresarial (rascunho)",
+          title: `${briefingLabel} (rascunho)`,
           content: "",
           source_label: "Preenchido pelo cliente",
           is_key_decision: false,
-          tags: ["briefing", "enterprise_structuring", "client_draft"],
+          tags: ["briefing", briefingKind, "client_draft"],
           metadata,
         })
         .select("id")
@@ -196,7 +204,7 @@ serve(async (req) => {
 
     // ── SUBMIT BRIEFING ──
     if (action === "submit_briefing") {
-      const { content, signals_data, answered_count, total_questions, draft_answers } = body;
+      const { content, signals_data, answered_count, total_questions } = body;
 
       if (!content || typeof content !== "string") {
         return jsonResponse({ error: "Conteúdo do briefing obrigatório" }, 400);
@@ -204,7 +212,6 @@ serve(async (req) => {
 
       const now = new Date().toISOString();
 
-      // Find existing draft
       const { data: existing } = await supabase
         .from("context_entries")
         .select("id, metadata")
@@ -214,7 +221,6 @@ serve(async (req) => {
         .limit(1)
         .maybeSingle();
 
-      // If already submitted, return conflict
       if (existing) {
         const existingMeta = existing.metadata as Record<string, unknown> | null;
         if (existingMeta?.public_briefing_status === "submitted") {
@@ -223,7 +229,7 @@ serve(async (req) => {
       }
 
       const submissionMetadata: Record<string, unknown> = {
-        briefing_kind: "enterprise_structuring",
+        briefing_kind: briefingKind,
         import_source: "client_form",
         parser_mode: "local_rules",
         source_token,
@@ -243,9 +249,9 @@ serve(async (req) => {
         const { error } = await supabase
           .from("context_entries")
           .update({
-            title: "Briefing de Estruturação Empresarial",
+            title: briefingLabel,
             content,
-            tags: ["briefing", "enterprise_structuring", "client_submitted"],
+            tags: ["briefing", briefingKind, "client_submitted"],
             metadata: submissionMetadata,
           })
           .eq("id", existing.id);
@@ -256,18 +262,17 @@ serve(async (req) => {
         }
         docId = existing.id;
       } else {
-        // No existing draft — create and submit
         const { data: created, error } = await supabase
           .from("context_entries")
           .insert({
             workspace_id: decoded.workspaceId,
             client_id: decoded.clientId,
             context_type: "briefing",
-            title: "Briefing de Estruturação Empresarial",
+            title: briefingLabel,
             content,
             source_label: "Preenchido pelo cliente",
             is_key_decision: false,
-            tags: ["briefing", "enterprise_structuring", "client_submitted"],
+            tags: ["briefing", briefingKind, "client_submitted"],
             metadata: submissionMetadata,
           })
           .select("id")
@@ -280,12 +285,12 @@ serve(async (req) => {
         docId = created.id;
       }
 
-      // Timeline event — only on submit
+      // Timeline event
       const { error: tlError } = await supabase.from("timeline_events").insert({
         workspace_id: decoded.workspaceId,
         client_id: decoded.clientId,
         event_type: "context_added",
-        title: "Cliente preencheu o Briefing de Estruturação",
+        title: `Cliente preencheu o ${briefingLabel}`,
         description: `${answered_count ?? 0} de ${total_questions ?? 0} perguntas respondidas · Pendente de revisão`,
         happened_at: now,
       });

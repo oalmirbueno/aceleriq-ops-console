@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Star, ExternalLink, Upload, FileText, FolderOpen, ChevronRight, ChevronDown, Eye, Link2, Building2 } from "lucide-react";
+import { Plus, Star, ExternalLink, Upload, FileText, FolderOpen, ChevronRight, ChevronDown, Eye, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import { normalizeTags } from "@/lib/normalizeTags";
 import { CONTEXT_TYPES, getContextLabel } from "./contextTypes";
 import BriefingSignalReview from "./BriefingSignalReview";
 import GenerateBriefingLinkDialog from "./GenerateBriefingLinkDialog";
-import EnterpriseStructuringDialog from "./EnterpriseStructuringDialog";
+import type { BriefingKind } from "@/lib/briefingToken";
 
 interface ContextEntry {
   id: string;
@@ -68,7 +68,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
   const [editEntry, setEditEntry] = useState<ContextEntry | null>(null);
   const [briefingType, setBriefingType] = useState<"essential" | "sitebolt" | null>(null);
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
-  const [enterpriseOpen, setEnterpriseOpen] = useState(false);
+  const [linkBriefingType, setLinkBriefingType] = useState<BriefingKind | undefined>(undefined);
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set(CONTEXT_TYPES));
   const [expandedContent, setExpandedContent] = useState<Set<string>>(new Set());
 
@@ -215,9 +215,6 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button size="sm" variant="outline" onClick={() => setEnterpriseOpen(true)}>
-            <Building2 className="h-4 w-4 mr-1" /> Estruturação Empresarial
-          </Button>
           <Button size="sm" variant="outline" onClick={() => setLinkDialogOpen(true)}>
             <Link2 className="h-4 w-4 mr-1" /> Enviar briefing ao cliente
           </Button>
@@ -421,13 +418,14 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
         clientName={clientName ?? "Cliente"}
       />
 
-      {/* Enterprise Structuring dialog */}
-      <EnterpriseStructuringDialog
-        open={enterpriseOpen}
-        onOpenChange={setEnterpriseOpen}
+      {/* Briefing link dialog */}
+      <GenerateBriefingLinkDialog
+        open={linkDialogOpen}
+        onOpenChange={setLinkDialogOpen}
         workspaceId={workspaceId}
         clientId={clientId}
-        onCreated={fetchEntries}
+        clientName={clientName ?? "Cliente"}
+        defaultBriefingType={linkBriefingType}
       />
     </div>
   );

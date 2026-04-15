@@ -4,9 +4,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Check, ExternalLink } from "lucide-react";
+import { Copy, Check, ExternalLink, Building2, Bot } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { encodeBriefingToken, generateBriefingUrl } from "@/lib/briefingToken";
+import { encodeBriefingToken, generateBriefingUrl, type BriefingKind, BRIEFING_KIND_LABELS, BRIEFING_KIND_DESCRIPTIONS } from "@/lib/briefingToken";
 
 interface Props {
   open: boolean;
@@ -14,12 +14,20 @@ interface Props {
   workspaceId: string;
   clientId: string;
   clientName: string;
+  /** Pre-select a briefing type */
+  defaultBriefingType?: BriefingKind;
 }
 
-export default function GenerateBriefingLinkDialog({ open, onOpenChange, workspaceId, clientId, clientName }: Props) {
-  const [copied, setCopied] = useState(false);
+const BRIEFING_OPTIONS: { key: BriefingKind; icon: typeof Building2 }[] = [
+  { key: "enterprise_structuring", icon: Building2 },
+  { key: "ai_automation", icon: Bot },
+];
 
-  const token = encodeBriefingToken(workspaceId, clientId);
+export default function GenerateBriefingLinkDialog({ open, onOpenChange, workspaceId, clientId, clientName, defaultBriefingType }: Props) {
+  const [copied, setCopied] = useState(false);
+  const [selectedType, setSelectedType] = useState<BriefingKind>(defaultBriefingType ?? "enterprise_structuring");
+
+  const token = encodeBriefingToken(workspaceId, clientId, selectedType);
   const url = generateBriefingUrl(token);
 
   const handleCopy = async () => {
@@ -33,14 +41,38 @@ export default function GenerateBriefingLinkDialog({ open, onOpenChange, workspa
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Link do Briefing para o Cliente</DialogTitle>
+          <DialogTitle>Enviar Briefing ao Cliente</DialogTitle>
           <DialogDescription>
-            Envie este link para <strong>{clientName}</strong> preencher o Briefing de Estruturação Empresarial.
-            O progresso do cliente é salvo automaticamente — se ele sair e voltar, não perde nada.
+            Escolha o tipo de briefing e envie o link para <strong>{clientName}</strong>.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
+          {/* Type selector */}
+          <div className="grid grid-cols-2 gap-2">
+            {BRIEFING_OPTIONS.map(({ key, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => { setSelectedType(key); setCopied(false); }}
+                className={`rounded-lg border p-3 text-left transition-colors ${
+                  selectedType === key
+                    ? "border-primary bg-primary/10"
+                    : "border-border/50 bg-muted/20 hover:border-border"
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Icon className={`h-4 w-4 ${selectedType === key ? "text-primary" : "text-muted-foreground"}`} />
+                  <span className={`text-xs font-medium ${selectedType === key ? "text-foreground" : "text-muted-foreground"}`}>
+                    {BRIEFING_KIND_LABELS[key]}
+                  </span>
+                </div>
+                <p className="text-[10px] text-muted-foreground leading-snug">
+                  {BRIEFING_KIND_DESCRIPTIONS[key]}
+                </p>
+              </button>
+            ))}
+          </div>
+
           <div className="flex gap-2">
             <Input value={url} readOnly className="text-xs font-mono" />
             <Button size="icon" variant="outline" onClick={handleCopy}>
