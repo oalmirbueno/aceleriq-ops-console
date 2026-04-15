@@ -63,5 +63,7 @@ export function clearBriefingProgress(token: string) {
 }
 
 export function generateBriefingUrl(token: string): string {
-  return `${window.location.origin}/briefing/${token}`;
+  // Always use the published URL so clients access directly without Lovable login
+  const publishedOrigin = "https://acel-ops-core.lovable.app";
+  return `${publishedOrigin}/briefing/${token}`;
 }
