@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { FileText, FileUp } from "lucide-react";
+import { FileText, FileUp, Upload, X, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -19,12 +19,18 @@ const CONTEXT_TYPES = [
 
 type ContextType = (typeof CONTEXT_TYPES)[number];
 
-type ImportMode = "single" | "multi" | "briefing" | "markdown" | "pdf";
+type ImportMode = "single" | "multi" | "briefing" | "markdown" | "files";
 
 interface ParsedBlock {
   context_type: ContextType;
   title: string;
   content: string;
+}
+
+interface ProcessedFile {
+  name: string;
+  text: string;
+  error?: string;
 }
 
 interface Props {
@@ -78,31 +84,20 @@ function parseMultiBlocks(raw: string): ParsedBlock[] {
     if (match) {
       const normalized = normalize(match[1]);
       const mapped = LABEL_TO_TYPE[normalized];
-      if (mapped) {
-        flush();
-        currentType = mapped;
-        continue;
-      }
+      if (mapped) { flush(); currentType = mapped; continue; }
     }
     const inlineMatch = line.match(/^(\w[\wçãõéêíóúàâôûü]*)\s*:\s*(.+)$/i);
     if (inlineMatch && !currentType) {
       const normalized = normalize(inlineMatch[1]);
       const mapped = LABEL_TO_TYPE[normalized];
-      if (mapped) {
-        flush();
-        currentType = mapped;
-        currentLines.push(inlineMatch[2]);
-        continue;
-      }
+      if (mapped) { flush(); currentType = mapped; currentLines.push(inlineMatch[2]); continue; }
     }
     currentLines.push(line);
   }
   flush();
-
   return blocks;
 }
 
-/** Parse markdown into sections by headings (## or #) */
 function parseMarkdownSections(raw: string): ParsedBlock[] {
   const lines = raw.split("\n");
   const sections: { heading: string; lines: string[] }[] = [];
@@ -116,19 +111,15 @@ function parseMarkdownSections(raw: string): ParsedBlock[] {
     } else if (current) {
       current.lines.push(line);
     } else {
-      // Content before first heading — create a default section
       current = { heading: "Contexto importado", lines: [line] };
     }
   }
   if (current) sections.push(current);
 
-  // Try to map heading to context_type, fallback to anotacao
   return sections
     .map((s) => {
       const content = s.lines.join("\n").trim();
       if (!content) return null;
-
-      // Try to match heading to a known type
       const normalizedHeading = normalize(s.heading);
       let contextType: ContextType = "anotacao";
       for (const [key, type] of Object.entries(LABEL_TO_TYPE)) {
@@ -137,12 +128,7 @@ function parseMarkdownSections(raw: string): ParsedBlock[] {
           break;
         }
       }
-
-      return {
-        context_type: contextType,
-        title: s.heading.slice(0, 80),
-        content,
-      };
+      return { context_type: contextType, title: s.heading.slice(0, 80), content };
     })
     .filter(Boolean) as ParsedBlock[];
 }
@@ -167,9 +153,33 @@ async function extractTextFromPdf(file: File): Promise<string> {
   return pages.join("\n\n");
 }
 
+async function extractTextFromFile(file: File): Promise<string> {
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if (ext === "pdf" || file.type === "application/pdf") {
+    return extractTextFromPdf(file);
+  }
+  // Text-based files
+  return file.text();
+}
+
+const ACCEPTED_EXTENSIONS = [".pdf", ".md", ".txt", ".csv", ".json", ".xml", ".html", ".log", ".yaml", ".yml", ".toml"];
+const ACCEPTED_TYPES = ["application/pdf", "text/plain", "text/markdown", "text/csv", "text/html", "application/json", "text/xml", "application/xml"];
+
+function isAcceptedFile(file: File): boolean {
+  const ext = "." + (file.name.split(".").pop()?.toLowerCase() ?? "");
+  if (ACCEPTED_EXTENSIONS.includes(ext)) return true;
+  if (ACCEPTED_TYPES.includes(file.type)) return true;
+  if (file.type.startsWith("text/")) return true;
+  return false;
+}
+
 function deriveTitle(raw: string): string {
   const firstLine = raw.trim().split("\n")[0]?.trim() || "";
   return firstLine.slice(0, 80) || "Contexto importado";
+}
+
+function fileNameToTitle(name: string): string {
+  return name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ").slice(0, 80) || "Contexto importado";
 }
 
 export default function ImportContextDialog({ open, onOpenChange, workspaceId, clientId, onImported }: Props) {
@@ -181,8 +191,11 @@ export default function ImportContextDialog({ open, onOpenChange, workspaceId, c
   const [happenedAt, setHappenedAt] = useState("");
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState<ParsedBlock[] | null>(null);
-  const [pdfFileName, setPdfFileName] = useState<string | null>(null);
-  const [pdfLoading, setPdfLoading] = useState(false);
+
+  // File mode state
+  const [processedFiles, setProcessedFiles] = useState<ProcessedFile[]>([]);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
@@ -193,8 +206,9 @@ export default function ImportContextDialog({ open, onOpenChange, workspaceId, c
     setPreview(null);
     setMode("single");
     setSingleType("anotacao");
-    setPdfFileName(null);
-    setPdfLoading(false);
+    setProcessedFiles([]);
+    setFilesLoading(false);
+    setDragOver(false);
   };
 
   const handleOpenChange = (v: boolean) => {
@@ -205,48 +219,82 @@ export default function ImportContextDialog({ open, onOpenChange, workspaceId, c
   const trimmed = rawText.trim();
 
   const handlePreview = () => {
-    if (mode === "multi") {
-      setPreview(parseMultiBlocks(trimmed));
-    } else if (mode === "markdown") {
-      setPreview(parseMarkdownSections(trimmed));
-    }
+    if (mode === "multi") setPreview(parseMultiBlocks(trimmed));
+    else if (mode === "markdown") setPreview(parseMarkdownSections(trimmed));
   };
 
-  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.type !== "application/pdf") {
-      toast({ title: "Arquivo inválido", description: "Selecione um arquivo PDF.", variant: "destructive" });
+  // --- File processing ---
+  const processFiles = useCallback(async (files: File[]) => {
+    const validFiles = files.filter(isAcceptedFile).slice(0, 20);
+    if (validFiles.length === 0) {
+      toast({ title: "Nenhum arquivo suportado", description: "Aceitos: PDF, Markdown, TXT, CSV, JSON, XML, HTML, YAML, LOG.", variant: "destructive" });
       return;
     }
-    setPdfLoading(true);
-    setPdfFileName(file.name);
-    try {
-      const text = await extractTextFromPdf(file);
-      if (!text.trim()) {
-        toast({ title: "PDF sem texto", description: "Não foi possível extrair texto deste PDF. Pode ser um PDF escaneado/imagem.", variant: "destructive" });
-        setPdfFileName(null);
-      } else {
-        setRawText(text);
-        setSourceLabel(file.name);
-        toast({ title: "PDF lido com sucesso", description: `${text.length} caracteres extraídos.` });
+    if (files.length > 20) {
+      toast({ title: "Limite de arquivos", description: "Máximo 20 arquivos por importação. Apenas os primeiros 20 serão processados." });
+    }
+
+    setFilesLoading(true);
+    const results: ProcessedFile[] = [];
+
+    for (const file of validFiles) {
+      try {
+        const text = await extractTextFromFile(file);
+        if (!text.trim()) {
+          results.push({ name: file.name, text: "", error: "Sem texto extraível" });
+        } else {
+          results.push({ name: file.name, text });
+        }
+      } catch (err: any) {
+        results.push({ name: file.name, text: "", error: err?.message || "Erro ao ler" });
       }
-    } catch (err: any) {
-      toast({ title: "Erro ao ler PDF", description: err?.message || "Erro desconhecido", variant: "destructive" });
-      setPdfFileName(null);
-    } finally {
-      setPdfLoading(false);
+    }
+
+    setProcessedFiles((prev) => {
+      const merged = [...prev, ...results];
+      return merged.slice(0, 20);
+    });
+    setFilesLoading(false);
+  }, []);
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      processFiles(Array.from(e.target.files));
+      e.target.value = "";
     }
   };
 
-  const insertEntries = async (entries: Array<{ context_type: ContextType; title: string; content: string }>) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    if (e.dataTransfer.files) {
+      processFiles(Array.from(e.dataTransfer.files));
+    }
+  }, [processFiles]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+  }, []);
+
+  const removeFile = (index: number) => {
+    setProcessedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // --- Insert ---
+  const insertEntries = async (entries: Array<{ context_type: ContextType; title: string; content: string; source_label?: string }>) => {
     const rows = entries.map((e) => ({
       workspace_id: workspaceId,
       client_id: clientId,
       context_type: e.context_type,
       title: e.title,
       content: e.content,
-      source_label: sourceLabel.trim() || null,
+      source_label: e.source_label || sourceLabel.trim() || null,
       source_url: sourceUrl.trim() || null,
       happened_at: happenedAt || null,
       is_key_decision: e.context_type === "decisao",
@@ -275,30 +323,45 @@ export default function ImportContextDialog({ open, onOpenChange, workspaceId, c
   };
 
   const handleImport = async () => {
-    if (!trimmed) return;
     setSaving(true);
     try {
-      if (mode === "single" || mode === "pdf") {
-        const type = mode === "pdf" ? singleType : singleType;
-        await insertEntries([{ context_type: type, title: deriveTitle(trimmed), content: trimmed }]);
+      if (mode === "files") {
+        const valid = processedFiles.filter((f) => f.text.trim() && !f.error);
+        if (valid.length === 0) {
+          toast({ title: "Nenhum arquivo com conteúdo", variant: "destructive" });
+          setSaving(false);
+          return;
+        }
+        await insertEntries(valid.map((f) => ({
+          context_type: singleType,
+          title: fileNameToTitle(f.name),
+          content: f.text,
+          source_label: f.name,
+        })));
+        toast({ title: `${valid.length} contexto(s) importado(s)` });
+      } else if (mode === "single") {
+        if (!trimmed) { setSaving(false); return; }
+        await insertEntries([{ context_type: singleType, title: deriveTitle(trimmed), content: trimmed }]);
         toast({ title: "1 contexto importado" });
       } else if (mode === "briefing") {
+        if (!trimmed) { setSaving(false); return; }
         await insertEntries([{ context_type: "briefing", title: deriveTitle(trimmed), content: trimmed }]);
         toast({ title: "Briefing importado" });
       } else if (mode === "markdown") {
+        if (!trimmed) { setSaving(false); return; }
         const blocks = preview ?? parseMarkdownSections(trimmed);
         if (blocks.length === 0) {
-          toast({ title: "Nenhuma seção encontrada", description: "Use cabeçalhos markdown (## Título) para separar seções.", variant: "destructive" });
+          toast({ title: "Nenhuma seção encontrada", description: "Use cabeçalhos markdown (## Título).", variant: "destructive" });
           setSaving(false);
           return;
         }
         await insertEntries(blocks);
         toast({ title: `${blocks.length} contextos importados` });
       } else {
-        // multi
+        if (!trimmed) { setSaving(false); return; }
         const blocks = preview ?? parseMultiBlocks(trimmed);
         if (blocks.length === 0) {
-          toast({ title: "Nenhum bloco reconhecido", description: "Use marcadores como 'briefing:', 'dor:', 'objetivo:' no início das linhas.", variant: "destructive" });
+          toast({ title: "Nenhum bloco reconhecido", description: "Use marcadores como 'briefing:', 'dor:'.", variant: "destructive" });
           setSaving(false);
           return;
         }
@@ -314,23 +377,28 @@ export default function ImportContextDialog({ open, onOpenChange, workspaceId, c
     }
   };
 
-  const showTextarea = mode !== "pdf" || rawText;
+  const showTextarea = mode !== "files";
   const showPreviewButton = (mode === "multi" || mode === "markdown") && !preview && trimmed;
   const hasPreviewWithNoBlocks = preview !== null && preview.length === 0;
+  const validFilesCount = processedFiles.filter((f) => f.text.trim() && !f.error).length;
+
+  const canImport = mode === "files"
+    ? validFilesCount > 0 && !filesLoading
+    : !!trimmed && !hasPreviewWithNoBlocks;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Importar Contexto</DialogTitle>
-          <DialogDescription>Importe texto, markdown ou PDF para criar registros de contexto.</DialogDescription>
+          <DialogDescription>Importe texto, markdown, documentos ou arraste arquivos para criar contextos.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           {/* Mode */}
           <div className="space-y-1.5">
             <Label>Modo de importação</Label>
-            <Select value={mode} onValueChange={(v) => { setMode(v as ImportMode); setPreview(null); setRawText(""); setPdfFileName(null); }}>
+            <Select value={mode} onValueChange={(v) => { setMode(v as ImportMode); setPreview(null); setRawText(""); setProcessedFiles([]); }}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="single">1 contexto único</SelectItem>
@@ -339,15 +407,15 @@ export default function ImportContextDialog({ open, onOpenChange, workspaceId, c
                 <SelectItem value="markdown">
                   <span className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" /> Importar Markdown</span>
                 </SelectItem>
-                <SelectItem value="pdf">
-                  <span className="flex items-center gap-1.5"><FileUp className="h-3.5 w-3.5" /> Importar PDF</span>
+                <SelectItem value="files">
+                  <span className="flex items-center gap-1.5"><FileUp className="h-3.5 w-3.5" /> Importar arquivos</span>
                 </SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {/* Type for single/pdf mode */}
-          {(mode === "single" || mode === "pdf") && (
+          {/* Type for single/files mode */}
+          {(mode === "single" || mode === "files") && (
             <div className="space-y-1.5">
               <Label>Tipo</Label>
               <Select value={singleType} onValueChange={(v) => setSingleType(v as ContextType)}>
@@ -361,36 +429,74 @@ export default function ImportContextDialog({ open, onOpenChange, workspaceId, c
             </div>
           )}
 
-          {/* PDF upload */}
-          {mode === "pdf" && (
-            <div className="space-y-1.5">
-              <Label>Arquivo PDF</Label>
+          {/* File dropzone */}
+          {mode === "files" && (
+            <div className="space-y-3">
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,application/pdf"
+                multiple
+                accept=".pdf,.md,.txt,.csv,.json,.xml,.html,.log,.yaml,.yml,.toml"
                 className="hidden"
-                onChange={handlePdfUpload}
+                onChange={handleFileInput}
               />
-              <Button
-                variant="outline"
-                className="w-full justify-start gap-2"
+              <div
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
                 onClick={() => fileInputRef.current?.click()}
-                disabled={pdfLoading}
+                className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 cursor-pointer transition-colors ${
+                  dragOver
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/50 hover:bg-muted/30"
+                }`}
               >
-                <FileUp className="h-4 w-4" />
-                {pdfLoading ? "Lendo PDF..." : pdfFileName ? pdfFileName : "Selecionar PDF"}
-              </Button>
-              {pdfFileName && rawText && (
-                <p className="text-xs text-muted-foreground">{rawText.length} caracteres extraídos</p>
+                {filesLoading ? (
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                ) : (
+                  <Upload className="h-8 w-8 text-muted-foreground" />
+                )}
+                <p className="text-sm text-muted-foreground text-center">
+                  {filesLoading
+                    ? "Lendo arquivos..."
+                    : "Arraste arquivos aqui ou clique para selecionar"}
+                </p>
+                <p className="text-[10px] text-muted-foreground/60">
+                  PDF, Markdown, TXT, CSV, JSON, XML, HTML · até 20 arquivos
+                </p>
+              </div>
+
+              {/* File list */}
+              {processedFiles.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{processedFiles.length} arquivo(s) · {validFilesCount} válido(s)</Label>
+                  <div className="max-h-40 overflow-y-auto space-y-1 rounded-md border border-border p-2">
+                    {processedFiles.map((f, i) => (
+                      <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          <span className="truncate text-foreground">{f.name}</span>
+                          {f.error ? (
+                            <Badge variant="destructive" className="text-[9px] shrink-0">{f.error}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground shrink-0">{f.text.length} chars</span>
+                          )}
+                        </div>
+                        <button onClick={(e) => { e.stopPropagation(); removeFile(i); }} className="text-muted-foreground hover:text-destructive shrink-0">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           )}
 
-          {/* Raw text / extracted text */}
+          {/* Raw text / textarea for non-file modes */}
           {showTextarea && (
             <div className="space-y-1.5">
-              <Label>{mode === "pdf" ? "Texto extraído" : mode === "markdown" ? "Markdown *" : "Texto bruto *"}</Label>
+              <Label>{mode === "markdown" ? "Markdown *" : "Texto bruto *"}</Label>
               <Textarea
                 value={rawText}
                 onChange={(e) => { setRawText(e.target.value); setPreview(null); }}
@@ -402,7 +508,6 @@ export default function ImportContextDialog({ open, onOpenChange, workspaceId, c
                     : "Cole o texto aqui..."
                 }
                 rows={8}
-                readOnly={mode === "pdf"}
               />
             </div>
           )}
@@ -436,8 +541,8 @@ export default function ImportContextDialog({ open, onOpenChange, workspaceId, c
               <p className="text-xs text-muted-foreground font-medium">
                 {preview.length === 0
                   ? mode === "markdown"
-                    ? "Nenhuma seção encontrada. Use cabeçalhos markdown (## Título) para separar seções."
-                    : "Nenhum bloco reconhecido. Use marcadores como 'briefing:', 'dor:', 'objetivo:' no início das linhas."
+                    ? "Nenhuma seção encontrada. Use cabeçalhos markdown (## Título)."
+                    : "Nenhum bloco reconhecido. Use marcadores como 'briefing:', 'dor:'."
                   : `${preview.length} bloco(s) reconhecido(s):`}
               </p>
               {preview.map((b, i) => (
@@ -452,11 +557,8 @@ export default function ImportContextDialog({ open, onOpenChange, workspaceId, c
 
         <DialogFooter>
           <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={saving}>Cancelar</Button>
-          <Button
-            onClick={handleImport}
-            disabled={saving || !trimmed || hasPreviewWithNoBlocks || pdfLoading}
-          >
-            {saving ? "Importando..." : "Importar"}
+          <Button onClick={handleImport} disabled={saving || !canImport}>
+            {saving ? "Importando..." : mode === "files" ? `Importar ${validFilesCount} arquivo(s)` : "Importar"}
           </Button>
         </DialogFooter>
       </DialogContent>
