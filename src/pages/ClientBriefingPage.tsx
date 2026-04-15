@@ -208,54 +208,21 @@ export default function ClientBriefingPage() {
   };
 
   const handleSubmit = async () => {
-    if (!decoded) return;
+    if (!decoded || !token) return;
     setSaving(true);
     try {
       const content = buildDocument();
       const signalsData = buildSignals();
 
-      let success = false;
-
-      if (remoteId) {
-        // Update existing draft → submitted
-        success = await submitRemoteBriefing(
-          remoteId,
-          content,
-          signalsData,
-          answeredCount,
-          TOTAL_QUESTIONS,
-        );
-      } else {
-        // No existing draft — create and submit in one step
-        const metadata: Record<string, unknown> = {
-          briefing_kind: "enterprise_structuring",
-          import_source: "client_form",
-          parser_mode: "local_rules",
-          source_token: token,
-          public_briefing_status: "submitted",
-          import_review_status: "pending_review",
-          submitted_by_client: true,
-          submitted_at: new Date().toISOString(),
-          answers_count: answeredCount,
-          total_questions: TOTAL_QUESTIONS,
-          ...signalsData,
-        };
-
-        const { error } = await supabase.from("context_entries").insert({
-          workspace_id: decoded.workspaceId,
-          client_id: decoded.clientId,
-          context_type: "briefing",
-          title: "Briefing de Estruturação Empresarial",
-          content,
-          source_label: "Preenchido pelo cliente",
-          is_key_decision: false,
-          tags: ["briefing", "enterprise_structuring", "client_submitted"],
-          metadata,
-        });
-
-        success = !error;
-        if (error) console.error("Submit error:", error);
-      }
+      // Submit via edge function (handles both create-and-submit and update-to-submitted)
+      const success = await submitRemoteBriefing(
+        remoteId ?? "",
+        token,
+        content,
+        signalsData,
+        answeredCount,
+        TOTAL_QUESTIONS,
+      );
 
       if (!success) {
         toast({ title: "Erro ao enviar", description: "Tente novamente.", variant: "destructive" });
@@ -263,16 +230,7 @@ export default function ClientBriefingPage() {
         return;
       }
 
-      // Timeline event
-      await supabase.from("timeline_events").insert({
-        workspace_id: decoded.workspaceId,
-        client_id: decoded.clientId,
-        event_type: "context_added",
-        title: "Cliente preencheu o Briefing de Estruturação",
-        description: `${answeredCount} de ${TOTAL_QUESTIONS} perguntas respondidas · Pendente de revisão`,
-        happened_at: new Date().toISOString(),
-      });
-
+      // Timeline is registered server-side by the edge function
       if (token) clearBriefingProgress(token);
       setIsSubmitted(true);
       setStep("submitted");
