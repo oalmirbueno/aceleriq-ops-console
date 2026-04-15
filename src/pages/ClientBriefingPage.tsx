@@ -11,7 +11,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { ENTERPRISE_BLOCKS, ENTERPRISE_SIGNAL_TO_DOSSIER, ENTERPRISE_TASK_SIGNALS, ENTERPRISE_DOC_SIGNALS } from "@/components/workspace/enterpriseStructuringBlocks";
 import { decodeBriefingToken, saveBriefingProgress, loadBriefingProgress, clearBriefingProgress } from "@/lib/briefingToken";
 import { loadRemoteDraft, saveRemoteDraft, submitRemoteBriefing } from "@/lib/briefingPersistence";
-// supabase client used only for reading public data (client name)
+import { supabase } from "@/integrations/supabase/client";
 
 /** Flatten all blocks into individual questions */
 interface FlatQuestion {
