@@ -200,6 +200,9 @@ export default function WorkspaceTabTasks({ workspaceId, clientId }: Props) {
           </Select>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setWizardOpen(true)}>
+            <ClipboardList className="h-4 w-4 mr-1" /> Plano Operacional
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setGenerateOpen(true)}>
             <Sparkles className="h-4 w-4 mr-1" /> Gerar de Contexto
           </Button>
