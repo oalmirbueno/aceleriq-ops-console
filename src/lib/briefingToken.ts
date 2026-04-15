@@ -1,19 +1,23 @@
 /**
  * Briefing link token utilities.
- * Encodes workspace + client IDs into a shareable URL-safe token.
+ * Encodes workspace + client IDs + briefing type into a shareable URL-safe token.
  * Also manages localStorage persistence for client-side auto-save.
  */
+
+export type BriefingKind = "enterprise_structuring" | "ai_automation";
 
 interface BriefingTokenPayload {
   workspaceId: string;
   clientId: string;
+  briefingType?: BriefingKind;
   createdAt: number;
 }
 
-export function encodeBriefingToken(workspaceId: string, clientId: string): string {
+export function encodeBriefingToken(workspaceId: string, clientId: string, briefingType: BriefingKind = "enterprise_structuring"): string {
   const payload: BriefingTokenPayload = {
     workspaceId,
     clientId,
+    briefingType,
     createdAt: Date.now(),
   };
   return btoa(JSON.stringify(payload))
@@ -22,12 +26,17 @@ export function encodeBriefingToken(workspaceId: string, clientId: string): stri
     .replace(/=+$/, "");
 }
 
-export function decodeBriefingToken(token: string): BriefingTokenPayload | null {
+export function decodeBriefingToken(token: string): (BriefingTokenPayload & { briefingType: BriefingKind }) | null {
   try {
     const padded = token.replace(/-/g, "+").replace(/_/g, "/");
     const json = atob(padded);
     const payload = JSON.parse(json);
-    if (payload.workspaceId && payload.clientId) return payload;
+    if (payload.workspaceId && payload.clientId) {
+      return {
+        ...payload,
+        briefingType: payload.briefingType ?? "enterprise_structuring",
+      };
+    }
     return null;
   } catch {
     return null;
@@ -67,3 +76,14 @@ export function generateBriefingUrl(token: string): string {
   const publishedOrigin = "https://acel-ops-core.lovable.app";
   return `${publishedOrigin}/briefing/${token}`;
 }
+
+/** Human-readable labels for briefing types */
+export const BRIEFING_KIND_LABELS: Record<BriefingKind, string> = {
+  enterprise_structuring: "Estruturação Empresarial",
+  ai_automation: "Automação e IA",
+};
+
+export const BRIEFING_KIND_DESCRIPTIONS: Record<BriefingKind, string> = {
+  enterprise_structuring: "Mapeamento da estrutura, processos, equipe e operação da empresa.",
+  ai_automation: "Levantamento de oportunidades de automação e inteligência artificial.",
+};
