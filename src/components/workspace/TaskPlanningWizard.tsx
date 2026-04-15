@@ -245,7 +245,7 @@ export default function TaskPlanningWizard({ open, onOpenChange, workspaceId, cl
           {step === 2 && plan && (
             <div className="space-y-4">
               <p className="text-xs text-muted-foreground">
-                Leitura diagnóstica estruturada em 5 eixos com base nos sinais revisados.
+                Leitura diagnóstica estruturada em 5 eixos, derivada do Dossiê consolidado do cliente.
               </p>
               {plan.diagnostic.map((axis) => (
                 <div key={axis.key}>
@@ -274,7 +274,7 @@ export default function TaskPlanningWizard({ open, onOpenChange, workspaceId, cl
           {step === 3 && plan && (
             <div className="space-y-4">
               <p className="text-xs text-muted-foreground">
-                Frentes operacionais derivadas do Dossiê, organizadas por prioridade e aderência ao plano.
+                Frentes operacionais derivadas do Dossiê consolidado, organizadas por prioridade e aderência ao plano contratado.
               </p>
 
               {plan.fronts.length > 0 && (
