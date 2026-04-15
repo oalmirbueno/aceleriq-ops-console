@@ -22,6 +22,7 @@ export interface ReviewedSignal {
   summary: string;
   dossierBlock: string;
   source: "essential" | "enterprise_structuring" | "ai_automation" | string;
+  contextEntryId?: string;
 }
 
 export interface DiagnosticAxis {
@@ -89,7 +90,7 @@ function resolveSignalDossierBlock(key: string, explicitBlock?: string): string 
 /* ─── Extract reviewed signals from briefing metadata ─── */
 
 export function extractReviewedSignals(
-  briefings: Array<{ metadata: Record<string, unknown> | null }>
+  briefings: Array<{ id?: string; metadata: Record<string, unknown> | null }>
 ): ReviewedSignal[] {
   const signals: ReviewedSignal[] = [];
 
@@ -110,6 +111,7 @@ export function extractReviewedSignals(
         summary: entry.summary,
         dossierBlock: resolveSignalDossierBlock(key, entry.dossier_block),
         source: kind,
+        contextEntryId: b.id,
       });
     }
   }
@@ -426,6 +428,7 @@ export function deriveTasksFromFronts(
     const templates = TASK_TEMPLATES.filter((t) => t.frontKey === front.key);
     if (templates.length === 0) {
       // Generic task for fronts without specific template
+      const frontSigs = getFrontSignals(front, signals);
       tasks.push({
         title: `Executar: ${front.name}`,
         description: front.objective,
@@ -435,6 +438,7 @@ export function deriveTasksFromFronts(
         frontName: front.name,
         dossierBlock: front.dossierBlocks[0] ?? "",
         signalKeys: front.signals,
+        signalSources: buildSignalSources(frontSigs),
         scopeClassification: front.scopeClassification,
         operationalReason: `Frente "${front.name}" com ${front.signals.length} sinal(is) de suporte.`,
       });
@@ -444,6 +448,7 @@ export function deriveTasksFromFronts(
     for (const tmpl of templates) {
       if (tmpl.condition && !tmpl.condition(front, signals)) continue;
 
+      const frontSigs = getFrontSignals(front, signals);
       tasks.push({
         title: tmpl.title(front, signals),
         description: tmpl.description(front, signals),
@@ -453,6 +458,7 @@ export function deriveTasksFromFronts(
         frontName: front.name,
         dossierBlock: front.dossierBlocks[0] ?? "",
         signalKeys: front.signals,
+        signalSources: buildSignalSources(frontSigs),
         scopeClassification: front.scopeClassification,
         operationalReason: `Derivada da frente "${front.name}" — ${front.objective}`,
       });
