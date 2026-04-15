@@ -64,17 +64,19 @@ export default function BriefingSignalReview({ entryId, metadata, onUpdated }: P
     if (!editing) return;
     setSaving(true);
 
-    const updatedSignals: StructuredSignals = {
+    const updatedSignals = {
       ...signals,
       [editing]: { summary: editSummary.trim(), dossier_block: editDossierBlock },
     };
 
-    const taskSignals = Object.keys(updatedSignals).filter((k) =>
-      ["pain_points", "goals", "accesses", "diagnosis", "decisions", "gaps", "priorities"].includes(k)
-    );
-    const docSignals = Object.keys(updatedSignals).filter((k) =>
-      ["identity", "offer", "icp_persona", "goals", "accesses"].includes(k)
-    );
+    const allTaskKeys = ["pain_points", "goals", "accesses", "diagnosis", "decisions", "gaps", "priorities",
+      "process_gaps", "commercial_structure", "operational_structure", "tools_stack", "access_dependencies",
+      "structuring_opportunities", "priority_constraints", "growth_readiness"];
+    const allDocKeys = ["identity", "offer", "icp_persona", "goals", "accesses",
+      "company_moment", "revenue_model", "commercial_structure", "team_roles", "tools_stack", "digital_operation"];
+
+    const taskSignals = Object.keys(updatedSignals).filter((k) => allTaskKeys.includes(k));
+    const docSignals = Object.keys(updatedSignals).filter((k) => allDocKeys.includes(k));
     const dossierSignals = [...new Set(Object.values(updatedSignals).map((v) => v!.dossier_block))];
 
     const updatedMeta = {
@@ -96,20 +98,22 @@ export default function BriefingSignalReview({ entryId, metadata, onUpdated }: P
     setSaving(false);
   };
 
-  const removeSignal = async (key: SignalBlockKey) => {
+  const removeSignal = async (key: string) => {
     const updatedSignals = { ...signals };
     delete updatedSignals[key];
+
+    const allTaskKeys = ["pain_points", "goals", "accesses", "diagnosis", "decisions", "gaps", "priorities",
+      "process_gaps", "commercial_structure", "operational_structure", "tools_stack", "access_dependencies",
+      "structuring_opportunities", "priority_constraints", "growth_readiness"];
+    const allDocKeys = ["identity", "offer", "icp_persona", "goals", "accesses",
+      "company_moment", "revenue_model", "commercial_structure", "team_roles", "tools_stack", "digital_operation"];
 
     const updatedMeta = {
       ...metadata,
       structured_signals: updatedSignals,
       dossier_signals: [...new Set(Object.values(updatedSignals).map((v) => v!.dossier_block))],
-      task_signals: Object.keys(updatedSignals).filter((k) =>
-        ["pain_points", "goals", "accesses", "diagnosis", "decisions", "gaps", "priorities"].includes(k)
-      ),
-      documentation_signals: Object.keys(updatedSignals).filter((k) =>
-        ["identity", "offer", "icp_persona", "goals", "accesses"].includes(k)
-      ),
+      task_signals: Object.keys(updatedSignals).filter((k) => allTaskKeys.includes(k)),
+      documentation_signals: Object.keys(updatedSignals).filter((k) => allDocKeys.includes(k)),
     };
 
     const { error } = await supabase.from("context_entries").update({ metadata: updatedMeta }).eq("id", entryId);
@@ -164,7 +168,7 @@ export default function BriefingSignalReview({ entryId, metadata, onUpdated }: P
               <Card key={key} className="border-primary/30">
                 <CardContent className="p-3 space-y-2">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium">{SIGNAL_LABELS[key]}</span>
+                    <span className="text-xs font-medium">{getLabel(key)}</span>
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" className="h-6 px-1.5" onClick={() => setEditing(null)}>
                         <X className="h-3 w-3" />
@@ -202,7 +206,7 @@ export default function BriefingSignalReview({ entryId, metadata, onUpdated }: P
               <span className="text-primary/40 mt-0.5 shrink-0">•</span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-medium text-foreground">{SIGNAL_LABELS[key]}</span>
+                  <span className="font-medium text-foreground">{getLabel(key)}</span>
                   <Badge variant="outline" className="text-[9px] px-1 py-0">{entry.dossier_block}</Badge>
                 </div>
                 <p className="text-muted-foreground line-clamp-2 mt-0.5">{entry.summary}</p>
@@ -222,7 +226,7 @@ export default function BriefingSignalReview({ entryId, metadata, onUpdated }: P
 
       {emptyKeys.length > 0 && (
         <p className="text-[10px] text-muted-foreground">
-          {emptyKeys.length} sinal(is) não detectado(s): {emptyKeys.map((k) => SIGNAL_LABELS[k]).join(", ")}
+          {emptyKeys.length} sinal(is) não detectado(s): {emptyKeys.map((k) => getLabel(k)).join(", ")}
         </p>
       )}
     </div>
