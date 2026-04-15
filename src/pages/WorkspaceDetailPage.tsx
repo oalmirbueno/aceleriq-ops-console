@@ -175,7 +175,7 @@ export default function WorkspaceDetailPage() {
           </TabsContent>
 
           <TabsContent value="contexto">
-            <WorkspaceTabContexto workspaceId={ws.id} clientId={ws.client_id} />
+            <WorkspaceTabContexto workspaceId={ws.id} clientId={ws.client_id} clientName={clientName} />
           </TabsContent>
 
           <TabsContent value="tasks">
