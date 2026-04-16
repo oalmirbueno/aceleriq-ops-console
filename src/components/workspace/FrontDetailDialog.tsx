@@ -515,13 +515,13 @@ function LinkTaskButton({ workspaceId, frontId, onLink }: { workspaceId: string;
 /* ─── Linked Assets Section ─── */
 
 function LinkedAssetsSection({ workspaceId, frontId }: { workspaceId: string; frontId: string }) {
-  const [assets, setAssets] = useState<Array<{ id: string; title: string; asset_type: string; validation_status: string; url: string | null }>>([]);
+  const [assets, setAssets] = useState<Array<{ id: string; title: string; asset_type: string; validation_status: string; external_url: string | null }>>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     supabase
       .from("assets")
-      .select("id, title, asset_type, validation_status, url")
+      .select("id, title, asset_type, validation_status, external_url")
       .eq("workspace_id", workspaceId)
       .eq("operational_front_id", frontId)
       .order("created_at", { ascending: false })
@@ -549,8 +549,8 @@ function LinkedAssetsSection({ workspaceId, frontId }: { workspaceId: string; fr
               <Badge variant="outline" className={`text-[10px] px-1 py-0 ${getValidationColor(a.validation_status)}`}>
                 {getValidationLabel(a.validation_status)}
               </Badge>
-              {a.url && (
-                <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80">
+              {a.external_url && (
+                <a href={a.external_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80">
                   <ExternalLink className="h-3 w-3" />
                 </a>
               )}
