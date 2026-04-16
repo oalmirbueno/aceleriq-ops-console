@@ -1,7 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
-import { FileText, Building2, Target, ShoppingCart, Settings, Globe, Key, Search, Scale, ClipboardList, Lightbulb, Loader2 } from "lucide-react";
+import {
+  FileText, Building2, Target, ShoppingCart, Settings, Globe, Key,
+  Search, Scale, ClipboardList, Lightbulb, Loader2, ChevronDown, ChevronRight,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import ContractBlock from "./ContractBlock";
 import ScopeBadge from "./ScopeBadge";
@@ -31,15 +36,14 @@ interface TaskSummary {
   total: number;
   done: number;
   in_progress: number;
+  blocked: number;
 }
 
-/** Read briefing_kind from metadata, with legacy fallback to briefing_type */
 function readBriefingKind(meta: Record<string, unknown> | null): string | undefined {
   if (!meta) return undefined;
   return (meta.briefing_kind as string) ?? (meta.briefing_type as string) ?? undefined;
 }
 
-/** Read import_source from metadata, with legacy fallback to imported boolean */
 function readImportSource(meta: Record<string, unknown> | null): string | undefined {
   if (!meta) return undefined;
   if (meta.import_source) return meta.import_source as string;
@@ -47,12 +51,10 @@ function readImportSource(meta: Record<string, unknown> | null): string | undefi
   return undefined;
 }
 
-/** Read dossier_block from metadata */
 function readDossierBlock(meta: Record<string, unknown> | null): string | undefined {
   return (meta?.dossier_block as string) ?? undefined;
 }
 
-/** Read scope_classification from metadata */
 function readScopeClassification(meta: Record<string, unknown> | null): ScopeClassification | undefined {
   const val = meta?.scope_classification as string | undefined;
   if (!val) return undefined;
@@ -60,20 +62,29 @@ function readScopeClassification(meta: Record<string, unknown> | null): ScopeCla
 }
 
 const DOSSIE_BLOCKS = [
-  { key: "identity", label: "Identidade e Posicionamento", icon: Building2, contextTypes: ["briefing"] },
-  { key: "offer", label: "Oferta, ICP e Persona", icon: Target, contextTypes: ["briefing", "objetivo"] },
-  { key: "commercial", label: "Estrutura Comercial", icon: ShoppingCart, contextTypes: ["objetivo", "decisao"] },
-  { key: "operational", label: "Estrutura Operacional", icon: Settings, contextTypes: ["anotacao", "decisao"] },
-  { key: "digital", label: "Estrutura Digital", icon: Globe, contextTypes: ["acesso", "anotacao"] },
-  { key: "access", label: "Processos e Acessos", icon: Key, contextTypes: ["acesso"] },
-  { key: "diagnostic", label: "Diagnóstico Estrutural", icon: Search, contextTypes: ["diagnostico", "dor"] },
-  { key: "decisions", label: "Decisões, Lacunas e Prioridades", icon: Scale, contextTypes: ["decisao", "dor", "objetivo"] },
+  { key: "identity", label: "Identidade e Posicionamento", icon: Building2, contextTypes: ["briefing"], description: "Quem é o cliente, proposta de valor, posicionamento de mercado." },
+  { key: "offer", label: "Oferta, ICP e Persona", icon: Target, contextTypes: ["briefing", "objetivo"], description: "O que vende, para quem, perfil do cliente ideal." },
+  { key: "commercial", label: "Estrutura Comercial", icon: ShoppingCart, contextTypes: ["objetivo", "decisao"], description: "Funil de vendas, processo comercial, metas de aquisição." },
+  { key: "operational", label: "Estrutura Operacional", icon: Settings, contextTypes: ["anotacao", "decisao"], description: "Fluxo de entrega, processos, equipe, responsabilidades." },
+  { key: "digital", label: "Estrutura Digital", icon: Globe, contextTypes: ["acesso", "anotacao"], description: "Presença digital, canais, ferramentas, métricas." },
+  { key: "access", label: "Processos e Acessos", icon: Key, contextTypes: ["acesso"], description: "Acessos coletados, pendências, dependências técnicas." },
+  { key: "diagnostic", label: "Diagnóstico Estrutural", icon: Search, contextTypes: ["diagnostico", "dor"], description: "Gargalos, dores, lacunas operacionais identificadas." },
+  { key: "decisions", label: "Decisões, Lacunas e Prioridades", icon: Scale, contextTypes: ["decisao", "dor", "objetivo"], description: "Decisões estratégicas, prioridades e gaps a resolver." },
 ] as const;
 
 export default function WorkspaceTabDossie({ workspaceId, clientId, planName, clientMetadata, workspaceMetadata }: Props) {
   const [contexts, setContexts] = useState<ContextEntry[]>([]);
-  const [taskSummary, setTaskSummary] = useState<TaskSummary>({ total: 0, done: 0, in_progress: 0 });
+  const [taskSummary, setTaskSummary] = useState<TaskSummary>({ total: 0, done: 0, in_progress: 0, blocked: 0 });
   const [loading, setLoading] = useState(true);
+  const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set(DOSSIE_BLOCKS.map((b) => b.key)));
+
+  const toggleBlock = (key: string) => {
+    setExpandedBlocks((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -96,6 +107,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
       total: tasks.length,
       done: tasks.filter((t: any) => t.status === "done").length,
       in_progress: tasks.filter((t: any) => t.status === "in_progress").length,
+      blocked: tasks.filter((t: any) => t.status === "blocked").length,
     });
 
     setLoading(false);
@@ -111,11 +123,9 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
     );
   }
 
-  // Briefings — use official briefing_kind with legacy fallback
   const briefings = contexts.filter((c) => c.context_type === "briefing");
   const briefingKinds = briefings.map((c) => readBriefingKind(c.metadata)).filter(Boolean) as string[];
 
-  // Collect dossier signals from reviewed briefings
   const allDossierSignals = new Map<string, { key: string; label: string; summary: string }[]>();
   for (const b of briefings) {
     const bSignals = getDossierSignalsByBlock(b.metadata);
@@ -125,7 +135,6 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
     }
   }
 
-  /** IDs of reviewed briefings with valid structured signals — these should NOT appear via fallback */
   const reviewedBriefingIds = new Set(
     briefings
       .filter((b) => {
@@ -137,8 +146,6 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
       .map((b) => b.id)
   );
 
-  /** Get contexts for a dossier block: prefer dossier_block metadata, fallback to context_type.
-   *  Excludes reviewed briefings with valid signals to avoid raw-text pollution. */
   const getBlockContexts = (blockKey: string, contextTypes: readonly string[]) => {
     const exclude = (c: ContextEntry) => reviewedBriefingIds.has(c.id);
     const byDossierBlock = contexts.filter((c) => !exclude(c) && readDossierBlock(c.metadata) === blockKey);
@@ -146,19 +153,39 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
     return contexts.filter((c) => !exclude(c) && contextTypes.includes(c.context_type));
   };
 
+  // Count total signals across all blocks
+  const totalSignals = Array.from(allDossierSignals.values()).reduce((acc, items) => acc + items.length, 0);
+  const filledBlocks = DOSSIE_BLOCKS.filter((b) => (allDossierSignals.get(b.key)?.length ?? 0) > 0 || getBlockContexts(b.key, b.contextTypes).length > 0).length;
+
   return (
-    <div className="space-y-4 animate-fade-in">
-      {/* 1. Contrato Operacional */}
+    <div className="space-y-5 animate-fade-in">
+      {/* Dossiê overview */}
+      <div className="flex items-center gap-6 flex-wrap">
+        <div className="flex items-center gap-2 text-sm">
+          <FileText className="h-4 w-4 text-primary" />
+          <span className="font-medium text-foreground">Dossiê Operacional</span>
+        </div>
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <span>{filledBlocks}/{DOSSIE_BLOCKS.length} blocos preenchidos</span>
+          <span>{totalSignals} sinais estruturados</span>
+          <span>{briefings.length} briefing(s)</span>
+        </div>
+        {filledBlocks > 0 && (
+          <Progress value={(filledBlocks / DOSSIE_BLOCKS.length) * 100} className="h-1.5 w-32" />
+        )}
+      </div>
+
+      {/* Contract */}
       <ContractBlock
         clientMetadata={clientMetadata}
         workspaceMetadata={workspaceMetadata}
         planName={planName}
       />
 
-      {/* Briefings summary — compact secondary section */}
+      {/* Briefings */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <FileText className="h-4 w-4 text-primary" />
             Briefings
           </CardTitle>
@@ -168,17 +195,38 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
             const exists = briefingKinds.includes(def.key);
             const matchingBriefing = briefings.find((b) => readBriefingKind(b.metadata) === def.key);
             const importSource = matchingBriefing ? readImportSource(matchingBriefing.metadata) : undefined;
+            const reviewStatus = matchingBriefing?.metadata?.import_review_status as string | undefined;
 
             return (
-              <div key={def.key} className="flex items-center justify-between gap-3 py-1.5 border-b border-border/30 last:border-0">
+              <div key={def.key} className="flex items-center justify-between gap-4 py-2 border-b border-border/30 last:border-0">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-medium text-foreground">{def.label}</span>
-                    {exists && <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Preenchido</Badge>}
-                    {importSource && <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/20">Importado</Badge>}
-                    {def.importable && !exists && <Badge variant="outline" className="text-[10px] text-muted-foreground">Importável</Badge>}
+                    <span className="text-sm font-medium text-foreground">{def.label}</span>
+                    {exists && (
+                      <Badge variant="outline" className="text-[11px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                        Preenchido
+                      </Badge>
+                    )}
+                    {importSource && (
+                      <Badge variant="outline" className="text-[11px] bg-blue-500/10 text-blue-400 border-blue-500/20">
+                        Importado
+                      </Badge>
+                    )}
+                    {reviewStatus === "reviewed" && (
+                      <Badge variant="outline" className="text-[11px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                        Revisado
+                      </Badge>
+                    )}
+                    {reviewStatus === "pending_review" && (
+                      <Badge variant="outline" className="text-[11px] bg-amber-500/10 text-amber-400 border-amber-500/20">
+                        Pendente revisão
+                      </Badge>
+                    )}
+                    {def.importable && !exists && (
+                      <Badge variant="outline" className="text-[11px] text-muted-foreground">Importável</Badge>
+                    )}
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{def.description}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{def.description}</p>
                 </div>
               </div>
             );
@@ -186,105 +234,124 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
         </CardContent>
       </Card>
 
-      {/* 2–9. Dossiê blocks */}
+      {/* Dossiê blocks */}
       {DOSSIE_BLOCKS.map((block) => {
-      const blockContexts = getBlockContexts(block.key, block.contextTypes);
+        const blockContexts = getBlockContexts(block.key, block.contextTypes);
         const blockSignals = allDossierSignals.get(block.key) ?? [];
         const Icon = block.icon;
+        const isExpanded = expandedBlocks.has(block.key);
+        const hasContent = blockSignals.length > 0 || blockContexts.length > 0;
+
         return (
-          <Card key={block.key}>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Icon className="h-4 w-4 text-muted-foreground" />
+          <Card key={block.key} className={hasContent ? "" : "opacity-60"}>
+            <CardHeader
+              className="pb-3 cursor-pointer select-none hover:bg-muted/5 transition-colors"
+              onClick={() => toggleBlock(block.key)}
+            >
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                <Icon className="h-4 w-4 text-primary" />
                 {block.label}
                 {blockSignals.length > 0 && (
-                  <Badge variant="outline" className="text-[9px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                  <Badge variant="outline" className="text-[11px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
                     {blockSignals.length} sinal(is)
                   </Badge>
                 )}
+                {blockContexts.length > 0 && (
+                  <span className="text-xs text-muted-foreground font-normal ml-auto">
+                    {blockContexts.length} entrada(s)
+                  </span>
+                )}
               </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1 ml-10">{block.description}</p>
             </CardHeader>
-            <CardContent>
-              {/* Structured signals from reviewed briefings */}
-              {blockSignals.length > 0 && (
-                <div className="space-y-1.5 mb-3 pb-3 border-b border-border/30">
-                  {blockSignals.map((sig, idx) => (
-                    <div key={idx} className="flex items-start gap-2 text-xs">
-                      <span className="text-emerald-400 mt-0.5 shrink-0">✦</span>
-                      <div className="min-w-0">
-                        <span className="font-medium text-foreground">{sig.label}</span>
-                        <p className="text-muted-foreground line-clamp-2 mt-0.5">{sig.summary}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
 
-              {blockContexts.length === 0 && blockSignals.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Nenhuma informação registrada neste bloco.</p>
-              ) : (
-                <div className="space-y-2">
-                  {blockContexts.slice(0, 5).map((ctx) => {
-                    const scope = readScopeClassification(ctx.metadata);
-                    return (
-                      <div key={ctx.id} className="flex items-start gap-2 text-xs">
-                        <span className="text-primary/40 mt-0.5">•</span>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <Badge variant="outline" className="text-[9px] px-1.5 py-0">{getContextLabel(ctx.context_type)}</Badge>
-                            <span className="text-foreground/80 truncate">{ctx.title}</span>
-                            {ctx.is_key_decision && <Badge className="text-[9px] px-1 py-0 bg-amber-500/15 text-amber-400 border-amber-500/25">Decisão-chave</Badge>}
-                            {scope && <ScopeBadge scope={scope} className="text-[9px] px-1 py-0" />}
-                            {ctx.metadata?.import_review_status === "pending_review" && (
-                              <Badge variant="outline" className="text-[9px] px-1 py-0 bg-amber-500/10 text-amber-400 border-amber-500/20">Pendente revisão</Badge>
-                            )}
-                          </div>
-                          <p className="text-muted-foreground line-clamp-1 mt-0.5">{ctx.content}</p>
+            {isExpanded && (
+              <CardContent className="pt-0">
+                {/* Structured signals */}
+                {blockSignals.length > 0 && (
+                  <div className="space-y-3 mb-4">
+                    {blockSignals.map((sig, idx) => (
+                      <div key={idx} className="flex items-start gap-3">
+                        <span className="text-emerald-400 mt-1 shrink-0 text-sm">✦</span>
+                        <div className="min-w-0 flex-1">
+                          <span className="text-sm font-medium text-foreground">{sig.label}</span>
+                          <p className="text-sm text-muted-foreground leading-relaxed mt-0.5">{sig.summary}</p>
                         </div>
                       </div>
-                    );
-                  })}
-                  {blockContexts.length > 5 && (
-                    <p className="text-[10px] text-muted-foreground">+{blockContexts.length - 5} itens adicionais</p>
-                  )}
-                </div>
-              )}
-            </CardContent>
+                    ))}
+                    {blockContexts.length > 0 && <Separator className="my-3" />}
+                  </div>
+                )}
+
+                {/* Context entries */}
+                {!hasContent ? (
+                  <p className="text-sm text-muted-foreground">Nenhuma informação registrada neste bloco.</p>
+                ) : blockContexts.length > 0 && (
+                  <div className="space-y-3">
+                    {blockContexts.slice(0, 8).map((ctx) => {
+                      const scope = readScopeClassification(ctx.metadata);
+                      return (
+                        <div key={ctx.id} className="flex items-start gap-3">
+                          <span className="text-primary/40 mt-1.5 shrink-0">•</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                              <Badge variant="outline" className="text-[11px] px-2 py-0.5">{getContextLabel(ctx.context_type)}</Badge>
+                              <span className="text-sm font-medium text-foreground">{ctx.title}</span>
+                              {ctx.is_key_decision && <Badge className="text-[11px] px-1.5 py-0.5 bg-amber-500/15 text-amber-400 border-amber-500/25">Decisão-chave</Badge>}
+                              {scope && <ScopeBadge scope={scope} className="text-[11px] px-1.5 py-0.5" />}
+                            </div>
+                            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">{ctx.content}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {blockContexts.length > 8 && (
+                      <p className="text-xs text-muted-foreground ml-6">+{blockContexts.length - 8} itens adicionais</p>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            )}
           </Card>
         );
       })}
 
-      {/* 10. Plano Operacional Ativo */}
+      {/* Task summary */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <ClipboardList className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <ClipboardList className="h-4 w-4 text-primary" />
             Plano Operacional Ativo
           </CardTitle>
         </CardHeader>
         <CardContent>
           {taskSummary.total === 0 ? (
-            <p className="text-xs text-muted-foreground">Nenhuma task criada neste workspace.</p>
+            <p className="text-sm text-muted-foreground">Nenhuma task criada neste workspace.</p>
           ) : (
-            <div className="flex items-center gap-4 text-xs">
-              <span className="text-foreground">{taskSummary.total} tasks</span>
-              <span className="text-emerald-400">{taskSummary.done} concluídas</span>
-              <span className="text-blue-400">{taskSummary.in_progress} em progresso</span>
+            <div className="space-y-3">
+              <div className="flex items-center gap-6 text-sm">
+                <span className="text-foreground font-medium">{taskSummary.total} tasks</span>
+                <span className="text-emerald-400">{taskSummary.done} concluídas</span>
+                <span className="text-blue-400">{taskSummary.in_progress} em progresso</span>
+                {taskSummary.blocked > 0 && <span className="text-red-400">{taskSummary.blocked} bloqueadas</span>}
+              </div>
+              <Progress value={taskSummary.total > 0 ? (taskSummary.done / taskSummary.total) * 100 : 0} className="h-2" />
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* 11. Oportunidades Futuras */}
+      {/* Opportunities */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Lightbulb className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Lightbulb className="h-4 w-4 text-amber-400" />
             Oportunidades Futuras
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-xs text-muted-foreground">Nenhuma oportunidade mapeada fora do escopo atual.</p>
+          <p className="text-sm text-muted-foreground">Nenhuma oportunidade mapeada fora do escopo atual.</p>
         </CardContent>
       </Card>
     </div>
