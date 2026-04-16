@@ -1,7 +1,7 @@
 /**
  * Briefing link token utilities.
- * Encodes workspace + client IDs + briefing type into a shareable URL-safe token.
- * Also manages localStorage persistence for client-side auto-save.
+ * Supports both signed tokens (payload.signature) and legacy base64url tokens.
+ * Client-side decode is for UX only — authorization happens server-side.
  */
 
 export type BriefingKind = "enterprise_structuring" | "ai_automation";
@@ -10,25 +10,26 @@ interface BriefingTokenPayload {
   workspaceId: string;
   clientId: string;
   briefingType?: BriefingKind;
-  createdAt: number;
+  iat?: number;
+  exp?: number;
+  createdAt?: number;
 }
 
-export function encodeBriefingToken(workspaceId: string, clientId: string, briefingType: BriefingKind = "enterprise_structuring"): string {
-  const payload: BriefingTokenPayload = {
-    workspaceId,
-    clientId,
-    briefingType,
-    createdAt: Date.now(),
-  };
-  return btoa(JSON.stringify(payload))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
-
+/**
+ * Decode a briefing token for client-side UX (NOT authorization).
+ * Handles both signed tokens (payload.sig) and legacy base64url tokens.
+ */
 export function decodeBriefingToken(token: string): (BriefingTokenPayload & { briefingType: BriefingKind }) | null {
   try {
-    const padded = token.replace(/-/g, "+").replace(/_/g, "/");
+    let payloadB64 = token;
+
+    // Signed tokens have format: <payloadBase64url>.<signatureBase64url>
+    const dotIdx = token.lastIndexOf(".");
+    if (dotIdx !== -1) {
+      payloadB64 = token.substring(0, dotIdx);
+    }
+
+    const padded = payloadB64.replace(/-/g, "+").replace(/_/g, "/");
     const json = atob(padded);
     const payload = JSON.parse(json);
     if (payload.workspaceId && payload.clientId) {
@@ -69,12 +70,6 @@ export function clearBriefingProgress(token: string) {
   try {
     localStorage.removeItem(`${STORAGE_PREFIX}${token}`);
   } catch { /* silent */ }
-}
-
-export function generateBriefingUrl(token: string): string {
-  // Always use the published URL so clients access directly without Lovable login
-  const publishedOrigin = "https://acel-ops-core.lovable.app";
-  return `${publishedOrigin}/briefing/${token}`;
 }
 
 /** Human-readable labels for briefing types */
