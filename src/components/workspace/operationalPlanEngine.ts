@@ -50,6 +50,14 @@ export interface SignalSource {
   context_entry_id?: string;
 }
 
+export interface ActionPlan {
+  what: string;       // O que fazer
+  how: string;        // Como fazer
+  where: string;      // Onde executar / ferramentas / plataformas
+  recommendations: string; // Recomendações operacionais
+  deliverables: string;    // Entregáveis esperados
+}
+
 export interface DerivedTask {
   title: string;
   description: string;
@@ -62,6 +70,7 @@ export interface DerivedTask {
   signalSources: SignalSource[];
   scopeClassification: ScopeClassification;
   operationalReason: string;
+  actionPlan: ActionPlan;
 }
 
 export interface OperationalPlan {
