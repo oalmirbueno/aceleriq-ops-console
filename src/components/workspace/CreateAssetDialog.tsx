@@ -96,7 +96,7 @@ export default function CreateAssetDialog({ open, onOpenChange, workspaceId, cli
       return;
     }
 
-    await supabase.from("timeline_events").insert({
+    const { error: tlError } = await supabase.from("timeline_events").insert({
       workspace_id: workspaceId,
       client_id: clientId,
       event_type: "asset_created",
@@ -104,15 +104,17 @@ export default function CreateAssetDialog({ open, onOpenChange, workspaceId, cli
       description: `Tipo: ${ASSET_TYPE_OPTIONS.find(o => o.value === assetType)?.label ?? assetType}`,
       happened_at: new Date().toISOString(),
     });
+    if (tlError) console.error("Timeline insert error:", tlError);
 
     if (frontId && frontId !== "__none__") {
-      await supabase.from("timeline_events").insert({
+      const { error: tlError2 } = await supabase.from("timeline_events").insert({
         workspace_id: workspaceId,
         client_id: clientId,
         event_type: "asset_linked_front",
         title: `Asset vinculado à frente: ${title.trim()}`,
         happened_at: new Date().toISOString(),
       });
+      if (tlError2) console.error("Timeline link insert error:", tlError2);
     }
 
     toast({ title: "Asset criado" });
