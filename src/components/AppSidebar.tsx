@@ -1,6 +1,7 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, FolderKanban, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, FolderKanban, LogOut, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { isAdmin } from "@/lib/adminCheck";
 import logo from "@/assets/logo-aceleriq.png";
 
 const navItems = [
@@ -42,6 +43,23 @@ export default function AppSidebar() {
             </NavLink>
           );
         })}
+
+        {isAdmin(user?.email) && (
+          <>
+            <p className="label-sm mt-6 mb-3 px-2">ADMIN</p>
+            <NavLink
+              to="/ops/settings"
+              className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
+                location.pathname === "/ops/settings"
+                  ? "bg-primary/10 text-primary font-medium"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              }`}
+            >
+              <Settings className="h-4 w-4" />
+              Configurações
+            </NavLink>
+          </>
+        )}
       </nav>
 
       {/* User footer */}

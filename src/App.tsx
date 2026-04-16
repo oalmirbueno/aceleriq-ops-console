@@ -11,6 +11,7 @@ import DashboardPage from "@/pages/DashboardPage";
 import ClientsPage from "@/pages/ClientsPage";
 import WorkspacesPage from "@/pages/WorkspacesPage";
 import WorkspaceDetailPage from "@/pages/WorkspaceDetailPage";
+import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "@/pages/NotFound";
 import ClientBriefingPage from "@/pages/ClientBriefingPage";
 
@@ -39,6 +40,7 @@ const App = () => (
               <Route path="clients" element={<ClientsPage />} />
               <Route path="workspaces" element={<WorkspacesPage />} />
               <Route path="workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
+              <Route path="settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
