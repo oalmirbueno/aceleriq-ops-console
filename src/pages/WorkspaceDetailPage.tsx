@@ -145,8 +145,8 @@ export default function WorkspaceDetailPage() {
             <TabsTrigger value="dossie">Dossiê</TabsTrigger>
             <TabsTrigger value="timeline">Timeline</TabsTrigger>
             <TabsTrigger value="contexto">Contexto</TabsTrigger>
-            <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="producao">Produção</TabsTrigger>
+            <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="canvas" disabled className="opacity-40">Canvas</TabsTrigger>
           </TabsList>
 
