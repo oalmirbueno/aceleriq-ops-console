@@ -93,8 +93,9 @@ export default function WorkspaceTabResumo({
         <CardContent className="p-6">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <h2 className="text-lg font-semibold text-foreground">{clientName}</h2>
-              <p className="text-sm text-muted-foreground mt-0.5">{workspaceName}</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Empresa</p>
+              <h2 className="text-xl font-bold text-foreground">{clientName}</h2>
+              <p className="text-sm text-muted-foreground mt-1">Workspace: <span className="text-foreground font-medium">{workspaceName}</span></p>
             </div>
             <div className="flex items-center gap-3">
               <Badge variant="outline" className="text-xs px-3 py-1 capitalize">{status}</Badge>
