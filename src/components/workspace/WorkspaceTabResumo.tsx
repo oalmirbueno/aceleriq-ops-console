@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   FileText, Clock, ListChecks, Layers, BarChart3,
   CheckCircle2, AlertTriangle, ArrowRight, TrendingUp,
+  DollarSign, CalendarClock,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,14 +22,25 @@ interface TimelineEvent {
 
 interface WorkspaceTabResumoProps {
   clientName: string;
+  companyName: string | null;
   workspaceName: string;
   status: string;
   currentStage: string;
   ownerName: string | null;
+  planName: string | null;
+  segment: string | null;
+  createdAt: string;
+  focusAreas: string[] | null;
   summary: string | null;
   recentEvents: TimelineEvent[];
   workspaceId: string;
 }
+
+const PLAN_PRICING: Record<string, { label: string; monthly: number; extras: string[] }> = {
+  starter: { label: "Starter", monthly: 1497, extras: [] },
+  growth: { label: "Growth", monthly: 2997, extras: ["Automações básicas", "Suporte prioritário"] },
+  enterprise: { label: "Enterprise", monthly: 5997, extras: ["Automações avançadas", "Suporte dedicado", "Consultoria estratégica", "IA personalizada"] },
+};
 
 interface FrontSummary {
   total: number;
@@ -46,7 +58,7 @@ interface TaskStats {
 }
 
 export default function WorkspaceTabResumo({
-  clientName, workspaceName, status, currentStage, ownerName, summary, recentEvents, workspaceId,
+  clientName, companyName, workspaceName, status, currentStage, ownerName, planName, segment, createdAt, focusAreas, summary, recentEvents, workspaceId,
 }: WorkspaceTabResumoProps) {
   const [taskStats, setTaskStats] = useState<TaskStats>({ total: 0, done: 0, in_progress: 0, blocked: 0, todo: 0 });
   const [frontSummary, setFrontSummary] = useState<FrontSummary>({ total: 0, active: 0, conditional: 0, out_of_scope: 0 });
@@ -86,6 +98,18 @@ export default function WorkspaceTabResumo({
 
   const taskPct = taskStats.total > 0 ? Math.round((taskStats.done / taskStats.total) * 100) : 0;
 
+  const planInfo = PLAN_PRICING[planName ?? ""] ?? null;
+
+  const renewalDate = useMemo(() => {
+    if (!createdAt) return null;
+    const start = new Date(createdAt);
+    const now = new Date();
+    // Next renewal = nearest future month anniversary
+    const renewal = new Date(start);
+    while (renewal <= now) renewal.setMonth(renewal.getMonth() + 1);
+    return renewal;
+  }, [createdAt]);
+
   return (
     <div className="space-y-5 animate-fade-in">
       {/* Hero info */}
@@ -93,8 +117,12 @@ export default function WorkspaceTabResumo({
         <CardContent className="p-6">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <h2 className="text-lg font-semibold text-foreground">{clientName}</h2>
-              <p className="text-sm text-muted-foreground mt-0.5">{workspaceName}</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Empresa</p>
+              <h2 className="text-xl font-bold text-foreground">{companyName || clientName}</h2>
+              {companyName && companyName !== clientName && (
+                <p className="text-sm text-muted-foreground mt-0.5">Cliente: <span className="text-foreground font-medium">{clientName}</span></p>
+              )}
+              <p className="text-sm text-muted-foreground mt-1">Workspace: <span className="text-foreground font-medium">{workspaceName}</span></p>
             </div>
             <div className="flex items-center gap-3">
               <Badge variant="outline" className="text-xs px-3 py-1 capitalize">{status}</Badge>
@@ -104,8 +132,80 @@ export default function WorkspaceTabResumo({
             </div>
           </div>
 
-          {ownerName && (
-            <p className="text-xs text-muted-foreground mt-3">Responsável: <span className="text-foreground">{ownerName}</span></p>
+          <Separator className="my-4" />
+
+          {/* Contextual info grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Responsável</p>
+              <p className="text-foreground font-medium">{ownerName || "Não definido"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Plano</p>
+              <p className="text-foreground font-medium capitalize">{planInfo?.label ?? planName ?? "Não definido"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Segmento</p>
+              <p className="text-foreground font-medium">{segment || "Não definido"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Início</p>
+              <p className="text-foreground font-medium">
+                {new Date(createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+              </p>
+            </div>
+          </div>
+
+          {/* Plan value & renewal */}
+          {planInfo && (
+            <>
+              <Separator className="my-4" />
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                <div className="flex items-start gap-2.5">
+                  <DollarSign className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Valor Mensal</p>
+                    <p className="text-lg font-bold text-foreground">
+                      R$ {planInfo.monthly.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <CalendarClock className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Próxima Renovação</p>
+                    <p className="text-foreground font-medium">
+                      {renewalDate?.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" }) ?? "—"}
+                    </p>
+                  </div>
+                </div>
+                {planInfo.extras.length > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1.5">Adicionais Inclusos</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {planInfo.extras.map((extra) => (
+                        <Badge key={extra} variant="secondary" className="text-xs">{extra}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Focus areas */}
+          {focusAreas && focusAreas.length > 0 && (
+            <>
+              <Separator className="my-4" />
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-2">Áreas de Foco</p>
+                <div className="flex flex-wrap gap-2">
+                  {focusAreas.map((area) => (
+                    <Badge key={area} variant="secondary" className="text-xs capitalize">{area.replace(/_/g, " ")}</Badge>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
 
           {summary && (
