@@ -7,8 +7,38 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const PROVIDER_TIMEOUT_MS = 60_000;
+
+/**
+ * Provider registry — mapeia provider.slug → caller direto (sem Lovable Gateway).
+ * Lê o secret pelo nome configurado em ai_providers.secret_env_name.
+ *
+ * MVP: apenas Google Gemini (texto/LLM).
+ */
+const PROVIDER_CALLERS: Record<
+  string,
+  (args: ProviderCallArgs) => Promise<ProviderCallResult>
+> = {
+  google: callGoogleGemini,
+};
+
+interface ProviderCallArgs {
+  apiKey: string;
+  modelId: string;
+  messages: AiMessage[];
+  temperature: number;
+  responseFormat?: "json_object" | "text";
+  signal: AbortSignal;
+}
+
+interface ProviderCallResult {
+  ok: boolean;
+  status: number;
+  content?: string;
+  usage?: unknown;
+  errorMessage?: string;
+  errorBody?: string;
+}
 
 function jsonError(message: string, status: number) {
   return new Response(JSON.stringify({ error: message }), {
@@ -46,7 +76,6 @@ serve(async (req) => {
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
   const userClient = createClient(SUPABASE_URL, ANON_KEY, {
     global: { headers: { Authorization: authHeader } },
@@ -57,11 +86,6 @@ serve(async (req) => {
     return jsonError("Token inválido ou expirado", 401);
   }
   const userId = userData.user.id;
-
-  if (!LOVABLE_API_KEY) {
-    console.error("[ai-invoke] LOVABLE_API_KEY ausente");
-    return jsonError("Serviço de IA indisponível", 500);
-  }
 
   let body: InvokeBody;
   try {
@@ -84,7 +108,7 @@ serve(async (req) => {
   const { data: route, error: routeErr } = await adminClient
     .from("ai_routes")
     .select(
-      "id, route_key, enabled, system_prompt, default_temperature, response_format, ai_models!inner(id, model_id, label, enabled, ai_providers!inner(id, slug, label, enabled))",
+      "id, route_key, enabled, system_prompt, default_temperature, response_format, ai_models!inner(id, model_id, label, enabled, ai_providers!inner(id, slug, label, enabled, secret_env_name))",
     )
     .eq("route_key", body.route_key)
     .maybeSingle();
@@ -102,11 +126,33 @@ serve(async (req) => {
     model_id: string;
     label: string;
     enabled: boolean;
-    ai_providers: { slug: string; label: string; enabled: boolean };
+    ai_providers: {
+      slug: string;
+      label: string;
+      enabled: boolean;
+      secret_env_name: string | null;
+    };
   };
 
   if (!model.enabled || !model.ai_providers?.enabled) {
     return jsonError("Modelo ou provider desativado", 503);
+  }
+
+  const providerSlug = model.ai_providers.slug;
+  const caller = PROVIDER_CALLERS[providerSlug];
+  if (!caller) {
+    return jsonError(`Provider '${providerSlug}' não suportado neste MVP`, 501);
+  }
+
+  const secretName = model.ai_providers.secret_env_name;
+  if (!secretName) {
+    console.error(`[ai-invoke] provider ${providerSlug} sem secret_env_name configurado`);
+    return jsonError("Provider sem secret configurado", 500);
+  }
+  const apiKey = Deno.env.get(secretName);
+  if (!apiKey) {
+    console.error(`[ai-invoke] secret ${secretName} ausente no ambiente`);
+    return jsonError(`Credencial ${secretName} não disponível`, 500);
   }
 
   // Compor messages: route.system_prompt vence se existir, senão preserva system do client
@@ -119,29 +165,22 @@ serve(async (req) => {
     finalMessages.push(m);
   }
 
-  const gatewayBody: Record<string, unknown> = {
-    model: model.model_id,
-    messages: finalMessages,
-    temperature: body.temperature ?? route.default_temperature ?? 0.2,
-  };
   const responseFormat = body.response_format ?? route.response_format;
-  if (responseFormat === "json_object") {
-    gatewayBody.response_format = { type: "json_object" };
-  }
+  const temperature = body.temperature ?? route.default_temperature ?? 0.2;
+  const modelLabel = `${providerSlug}/${model.model_id}`;
 
   const startedAt = Date.now();
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
 
-  let gwResp: Response;
+  let result: ProviderCallResult;
   try {
-    gwResp = await fetch(GATEWAY_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(gatewayBody),
+    result = await caller({
+      apiKey,
+      modelId: model.model_id,
+      messages: finalMessages,
+      temperature,
+      responseFormat,
       signal: controller.signal,
     });
   } catch (err) {
@@ -152,7 +191,7 @@ serve(async (req) => {
       workspace_id: body.workspace_id ?? null,
       client_id: body.client_id ?? null,
       status: "error",
-      model_label: `${model.ai_providers.slug}/${model.model_id}`,
+      model_label: modelLabel,
       input_summary: body.input_summary ?? null,
       output_summary: null,
       error_message: aborted ? "timeout" : "fetch_error",
@@ -164,37 +203,32 @@ serve(async (req) => {
   clearTimeout(timeoutId);
   const latency = Date.now() - startedAt;
 
-  if (!gwResp.ok) {
-    const errText = await gwResp.text().catch(() => "");
-    console.error("[ai-invoke] gateway error:", gwResp.status, errText);
+  if (!result.ok) {
+    console.error(`[ai-invoke] provider error (${providerSlug}):`, result.status, result.errorBody?.slice(0, 500));
     await logEvent(adminClient, {
       route_key: body.route_key,
       workspace_id: body.workspace_id ?? null,
       client_id: body.client_id ?? null,
       status: "error",
-      model_label: `${model.ai_providers.slug}/${model.model_id}`,
+      model_label: modelLabel,
       input_summary: body.input_summary ?? null,
       output_summary: null,
-      error_message: `gateway_${gwResp.status}`,
+      error_message: result.errorMessage ?? `provider_${result.status}`,
       created_by: userId,
-      metadata: { latency_ms: latency, body: errText.slice(0, 500) },
+      metadata: { latency_ms: latency, body: result.errorBody?.slice(0, 500) },
     });
-    if (gwResp.status === 429) return jsonError("Limite de requisições excedido", 429);
-    if (gwResp.status === 402) return jsonError("Créditos esgotados — adicione saldo no workspace", 402);
-    return jsonError("Erro no gateway de IA", 502);
+    if (result.status === 429) return jsonError("Limite de requisições do provider excedido", 429);
+    if (result.status === 401 || result.status === 403) return jsonError("Credencial do provider inválida", 502);
+    return jsonError("Erro no provider de IA", 502);
   }
 
-  const gwJson = await gwResp.json().catch(() => null);
-  const content: string | undefined = gwJson?.choices?.[0]?.message?.content;
-  const usage = gwJson?.usage ?? null;
-
-  if (!content) {
+  if (!result.content) {
     await logEvent(adminClient, {
       route_key: body.route_key,
       workspace_id: body.workspace_id ?? null,
       client_id: body.client_id ?? null,
       status: "error",
-      model_label: `${model.ai_providers.slug}/${model.model_id}`,
+      model_label: modelLabel,
       input_summary: body.input_summary ?? null,
       output_summary: null,
       error_message: "empty_response",
@@ -209,18 +243,84 @@ serve(async (req) => {
     workspace_id: body.workspace_id ?? null,
     client_id: body.client_id ?? null,
     status: "success",
-    model_label: `${model.ai_providers.slug}/${model.model_id}`,
+    model_label: modelLabel,
     input_summary: body.input_summary ?? null,
-    output_summary: content.slice(0, 500),
+    output_summary: result.content.slice(0, 500),
     error_message: null,
     created_by: userId,
-    metadata: { latency_ms: latency, usage },
+    metadata: { latency_ms: latency, usage: result.usage ?? null },
   });
 
-  return new Response(JSON.stringify({ content, model: `${model.ai_providers.slug}/${model.model_id}`, usage }), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+  return new Response(
+    JSON.stringify({ content: result.content, model: modelLabel, usage: result.usage ?? null }),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
 });
+
+/* ─── Provider: Google Gemini (REST direto, sem Lovable Gateway) ─── */
+
+async function callGoogleGemini(args: ProviderCallArgs): Promise<ProviderCallResult> {
+  // Extrai system instruction (Gemini usa campo separado)
+  const systemMsgs = args.messages.filter((m) => m.role === "system");
+  const convo = args.messages.filter((m) => m.role !== "system");
+
+  const contents = convo.map((m) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
+
+  const generationConfig: Record<string, unknown> = {
+    temperature: args.temperature,
+  };
+  if (args.responseFormat === "json_object") {
+    generationConfig.responseMimeType = "application/json";
+  }
+
+  const reqBody: Record<string, unknown> = {
+    contents,
+    generationConfig,
+  };
+  if (systemMsgs.length > 0) {
+    reqBody.systemInstruction = {
+      role: "user",
+      parts: [{ text: systemMsgs.map((m) => m.content).join("\n\n") }],
+    };
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+    args.modelId,
+  )}:generateContent?key=${encodeURIComponent(args.apiKey)}`;
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(reqBody),
+    signal: args.signal,
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text().catch(() => "");
+    return {
+      ok: false,
+      status: resp.status,
+      errorMessage: `gemini_${resp.status}`,
+      errorBody: errText,
+    };
+  }
+
+  const json = await resp.json().catch(() => null);
+  const content: string | undefined = json?.candidates?.[0]?.content?.parts
+    ?.map((p: { text?: string }) => p.text ?? "")
+    .join("")
+    .trim();
+
+  return {
+    ok: true,
+    status: resp.status,
+    content,
+    usage: json?.usageMetadata ?? null,
+  };
+}
 
 async function logEvent(
   client: ReturnType<typeof createClient>,
