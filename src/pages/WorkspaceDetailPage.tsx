@@ -159,6 +159,7 @@ export default function WorkspaceDetailPage() {
               ownerName={ownerName}
               summary={ws.summary ?? null}
               recentEvents={timeline}
+              workspaceId={ws.id}
             />
           </TabsContent>
 
