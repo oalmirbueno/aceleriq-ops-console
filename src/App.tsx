@@ -12,6 +12,8 @@ import ClientsPage from "@/pages/ClientsPage";
 import WorkspacesPage from "@/pages/WorkspacesPage";
 import WorkspaceDetailPage from "@/pages/WorkspaceDetailPage";
 import SettingsPage from "@/pages/SettingsPage";
+import AiManagementPage from "@/pages/AiManagementPage";
+import AdminRoute from "@/components/AdminRoute";
 import NotFound from "@/pages/NotFound";
 import ClientBriefingPage from "@/pages/ClientBriefingPage";
 
@@ -41,6 +43,7 @@ const App = () => (
               <Route path="workspaces" element={<WorkspacesPage />} />
               <Route path="workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="ai" element={<AdminRoute><AiManagementPage /></AdminRoute>} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
