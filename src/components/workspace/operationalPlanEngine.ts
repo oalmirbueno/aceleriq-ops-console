@@ -323,15 +323,20 @@ function resolveScopeForPlan(front: FrontDef, planName: string | null): ScopeCla
 
 export function buildOperationalFronts(
   signals: ReviewedSignal[],
-  planName: string | null
+  planName: string | null,
+  focusAreas?: string[] | null
 ): { fronts: OperationalFront[]; retained: OperationalFront[] } {
   const signalKeys = new Set(signals.map((s) => s.key));
   const dossierBlocks = new Set(signals.map((s) => s.dossierBlock));
+  const hasFocusFilter = focusAreas && focusAreas.length > 0;
 
   const fronts: OperationalFront[] = [];
   const retained: OperationalFront[] = [];
 
   for (const def of FRONT_DEFINITIONS) {
+    // If focus areas are set, skip fronts that don't match any
+    if (hasFocusFilter && !def.focusAreas.some((fa) => focusAreas.includes(fa))) continue;
+
     // Check if this front has enough signal support
     const matchingSignals = def.triggerSignals.filter((k) => signalKeys.has(k));
     const matchingBlocks = def.triggerDossierBlocks.filter((k) => dossierBlocks.has(k));
