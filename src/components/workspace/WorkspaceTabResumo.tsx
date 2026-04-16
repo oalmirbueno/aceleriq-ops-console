@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { getStagePremiumLabel } from "./aceleraConstants";
 import { getBucketLabel, getBucketColor, getExecutionLabel, getExecutionColor } from "./frontConstants";
+import { getPlanConfig } from "@/lib/planConfig";
 
 interface TimelineEvent {
   id: string;
@@ -36,11 +37,7 @@ interface WorkspaceTabResumoProps {
   workspaceId: string;
 }
 
-const PLAN_PRICING: Record<string, { label: string; monthly: number; extras: string[] }> = {
-  starter: { label: "Starter", monthly: 1497, extras: [] },
-  growth: { label: "Growth", monthly: 2997, extras: ["Automações básicas", "Suporte prioritário"] },
-  enterprise: { label: "Enterprise", monthly: 5997, extras: ["Automações avançadas", "Suporte dedicado", "Consultoria estratégica", "IA personalizada"] },
-};
+
 
 interface FrontSummary {
   total: number;
