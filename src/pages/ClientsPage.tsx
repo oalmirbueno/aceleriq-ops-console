@@ -21,8 +21,22 @@ interface Client {
   status: string;
   segment: string | null;
   plan_name: string | null;
+  metadata: Record<string, unknown> | null;
   workspaces: { id: string; current_stage: string }[];
 }
+
+const FOCUS_LABELS: Record<string, string> = {
+  marketing: "Marketing",
+  commercial: "Comercial",
+  website: "Site",
+  systems: "Sistemas",
+  branding: "Branding",
+  seo: "SEO",
+  ai: "IA",
+  legal: "Jurídico",
+  strategy: "Estratégia",
+  security: "Segurança",
+};
 
 const STATUS_OPTIONS = [
   { value: "__all__", label: "Todos os status" },
@@ -68,7 +82,7 @@ export default function ClientsPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from("clients")
-      .select("id, name, company_name, status, segment, plan_name, workspaces(id, current_stage)")
+      .select("id, name, company_name, status, segment, plan_name, metadata, workspaces(id, current_stage)")
       .order("created_at", { ascending: false });
 
     if (!error && data) setClients(data as Client[]);
@@ -190,6 +204,7 @@ export default function ClientsPage() {
                   <TableHead>Empresa</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Etapa</TableHead>
+                  <TableHead>Foco</TableHead>
                   <TableHead>Plano</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
@@ -197,17 +212,32 @@ export default function ClientsPage() {
               <TableBody>
                 {filtered.map((c) => {
                   const stage = c.workspaces[0]?.current_stage;
-                  return (
-                    <TableRow key={c.id} className="cursor-pointer" onClick={() => c.workspaces[0] ? openWorkspace(c) : undefined}>
-                      <TableCell className="font-medium text-foreground">{c.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{c.company_name ?? "—"}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={statusColor[c.status] ?? ""}>
-                          {c.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{stage ? getStagePremiumLabel(stage) : "—"}</TableCell>
-                      <TableCell className="text-muted-foreground capitalize">{c.plan_name ?? "—"}</TableCell>
+                   const focusAreas = (c.metadata?.focus_areas as string[] | undefined) ?? [];
+                   return (
+                     <TableRow key={c.id} className="cursor-pointer" onClick={() => c.workspaces[0] ? openWorkspace(c) : undefined}>
+                       <TableCell className="font-medium text-foreground">{c.name}</TableCell>
+                       <TableCell className="text-muted-foreground">{c.company_name ?? "—"}</TableCell>
+                       <TableCell>
+                         <Badge variant="outline" className={statusColor[c.status] ?? ""}>
+                           {c.status}
+                         </Badge>
+                       </TableCell>
+                       <TableCell className="text-muted-foreground">{stage ? getStagePremiumLabel(stage) : "—"}</TableCell>
+                       <TableCell>
+                         {focusAreas.length > 0 ? (
+                           <div className="flex flex-wrap gap-1">
+                             {focusAreas.slice(0, 3).map((fa) => (
+                               <Badge key={fa} variant="secondary" className="text-[10px] px-1.5 py-0">{FOCUS_LABELS[fa] ?? fa}</Badge>
+                             ))}
+                             {focusAreas.length > 3 && (
+                               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">+{focusAreas.length - 3}</Badge>
+                             )}
+                           </div>
+                         ) : (
+                           <span className="text-muted-foreground">—</span>
+                         )}
+                       </TableCell>
+                       <TableCell className="text-muted-foreground capitalize">{c.plan_name ?? "—"}</TableCell>
                       <TableCell>
                         {c.workspaces[0] ? (
                           <Button
