@@ -115,6 +115,11 @@ export default function WorkspaceTabTasks({ workspaceId, clientId, planName }: P
       : tasks.filter((t) => getFrontId(t) === frontFilter);
 
   const handleCreate = async (form: TaskFormData) => {
+    const meta: Record<string, unknown> = {};
+    if (form.action_plan && Object.values(form.action_plan).some((v) => v.trim())) {
+      meta.action_plan = form.action_plan;
+    }
+
     const payload: Record<string, unknown> = {
       workspace_id: workspaceId,
       client_id: clientId,
@@ -124,6 +129,7 @@ export default function WorkspaceTabTasks({ workspaceId, clientId, planName }: P
       priority: form.priority,
       stage: form.stage || null,
       due_date: form.due_date || null,
+      metadata: Object.keys(meta).length > 0 ? meta : null,
     };
 
     const { data, error } = await supabase.from("tasks").insert(payload).select("id").single();
@@ -151,6 +157,12 @@ export default function WorkspaceTabTasks({ workspaceId, clientId, planName }: P
     const becomingDone = form.status === "done";
     const leavingDone = editTask.status === "done" && form.status !== "done";
 
+    // Merge action_plan into existing metadata
+    const existingMeta = (editTask.metadata ?? {}) as Record<string, unknown>;
+    if (form.action_plan && Object.values(form.action_plan).some((v) => v.trim())) {
+      existingMeta.action_plan = form.action_plan;
+    }
+
     const payload: Record<string, unknown> = {
       title: form.title.trim(),
       description: form.description.trim() || null,
@@ -159,6 +171,7 @@ export default function WorkspaceTabTasks({ workspaceId, clientId, planName }: P
       stage: form.stage || null,
       due_date: form.due_date || null,
       completed_at: becomingDone ? (editTask.completed_at ?? new Date().toISOString()) : leavingDone ? null : editTask.completed_at,
+      metadata: existingMeta,
     };
 
     const { error } = await supabase.from("tasks").update(payload).eq("id", editTask.id);
@@ -376,6 +389,7 @@ export default function WorkspaceTabTasks({ workspaceId, clientId, planName }: P
           priority: editTask.priority,
           stage: editTask.stage ?? "",
           due_date: editTask.due_date ?? "",
+          action_plan: (editTask.metadata as Record<string, unknown>)?.action_plan as TaskFormData["action_plan"] ?? undefined,
         } : null}
       />
       <GenerateTasksDialog

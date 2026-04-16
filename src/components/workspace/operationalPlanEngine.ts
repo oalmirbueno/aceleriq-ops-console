@@ -50,6 +50,14 @@ export interface SignalSource {
   context_entry_id?: string;
 }
 
+export interface ActionPlan {
+  what: string;       // O que fazer
+  how: string;        // Como fazer
+  where: string;      // Onde executar / ferramentas / plataformas
+  recommendations: string; // Recomendações operacionais
+  deliverables: string;    // Entregáveis esperados
+}
+
 export interface DerivedTask {
   title: string;
   description: string;
@@ -62,6 +70,7 @@ export interface DerivedTask {
   signalSources: SignalSource[];
   scopeClassification: ScopeClassification;
   operationalReason: string;
+  actionPlan: ActionPlan;
 }
 
 export interface OperationalPlan {
@@ -370,6 +379,7 @@ interface TaskTemplate {
   frontKey: string;
   title: (front: OperationalFront, signals: ReviewedSignal[]) => string;
   description: (front: OperationalFront, signals: ReviewedSignal[]) => string;
+  actionPlan: (front: OperationalFront, signals: ReviewedSignal[]) => ActionPlan;
   priority: string;
   condition?: (front: OperationalFront, signals: ReviewedSignal[]) => boolean;
 }
@@ -378,74 +388,155 @@ function getFrontSignals(front: OperationalFront, allSignals: ReviewedSignal[]):
   return allSignals.filter((s) => front.signals.includes(s.key));
 }
 
-function signalSnippet(signals: ReviewedSignal[], maxLen = 100): string {
+function signalSnippet(signals: ReviewedSignal[], maxLen = 200): string {
   if (signals.length === 0) return "";
-  const first = signals[0];
-  return first.summary.length > maxLen ? first.summary.slice(0, maxLen) + "…" : first.summary;
+  const raw = signals[0]?.summary ?? "";
+  return raw.length > maxLen ? raw.slice(0, maxLen) + "…" : raw;
+}
+
+function signalContext(signals: ReviewedSignal[]): string {
+  return signals.map((s) => `• ${s.label}: ${s.summary ?? ""}`).join("\n");
 }
 
 const TASK_TEMPLATES: TaskTemplate[] = [
   {
     frontKey: "access",
     title: () => "Coletar e validar acessos pendentes",
-    description: (f, sigs) => `Organizar acessos necessários: ${signalSnippet(getFrontSignals(f, sigs))}`,
+    description: (f, sigs) => `Levantar, solicitar e validar todos os acessos necessários para operação.\n\nContexto dos sinais:\n${signalContext(getFrontSignals(f, sigs))}`,
     priority: "high",
+    actionPlan: (f, sigs) => ({
+      what: "Mapear todos os acessos necessários (plataformas, ferramentas, contas, domínios, redes sociais, analytics) e garantir que estejam funcionais e com permissões corretas.",
+      how: "1. Listar acessos identificados nos sinais do briefing\n2. Enviar checklist ao cliente via e-mail ou formulário\n3. Validar cada acesso recebido (login, permissões, 2FA)\n4. Documentar status de cada acesso no contexto do workspace",
+      where: "Google Workspace, Meta Business Suite, Google Analytics, Google Search Console, ferramentas de automação do cliente, domínios e hospedagem.",
+      recommendations: "Priorizar acessos bloqueantes para outras frentes. Solicitar acessos de administrador sempre que possível. Documentar senhas em gerenciador seguro compartilhado.",
+      deliverables: "• Checklist de acessos com status (obtido/pendente/bloqueado)\n• Acessos validados e documentados\n• Comunicação formal ao cliente sobre pendências",
+    }),
   },
   {
     frontKey: "diagnostic_deep",
-    title: () => "Completar diagnóstico operacional",
-    description: (f, sigs) => `Investigar lacunas identificadas: ${signalSnippet(getFrontSignals(f, sigs))}`,
+    title: () => "Completar diagnóstico operacional aprofundado",
+    description: (f, sigs) => `Investigar lacunas operacionais e gargalos antes de definir plano de ação.\n\nContexto dos sinais:\n${signalContext(getFrontSignals(f, sigs))}`,
     priority: "high",
+    actionPlan: (f, sigs) => ({
+      what: "Realizar análise completa do estado atual da operação do cliente, identificando gargalos, lacunas de processo e oportunidades de melhoria.",
+      how: "1. Revisar todos os sinais do Dossiê relacionados a dores e diagnóstico\n2. Mapear processos atuais vs. processos ideais\n3. Identificar dependências entre áreas\n4. Classificar gargalos por impacto e urgência\n5. Documentar findings no Dossiê",
+      where: "Análise interna no workspace, reunião de alinhamento com cliente se necessário, ferramentas de mapeamento de processos.",
+      recommendations: "Não avançar para execução sem diagnóstico completo. Priorizar gargalos que impactam receita diretamente. Validar findings com o cliente antes de planejar ações.",
+      deliverables: "• Mapa de gargalos classificados por impacto\n• Relatório de diagnóstico operacional\n• Recomendações priorizadas para próximas etapas",
+    }),
   },
   {
     frontKey: "documentation",
-    title: () => "Documentar identidade e posicionamento",
-    description: () => "Formalizar identidade, proposta de valor e posicionamento com base nos sinais revisados.",
+    title: () => "Documentar identidade, posicionamento e processos",
+    description: () => "Formalizar identidade do cliente, proposta de valor, posicionamento e processos-chave com base nos sinais revisados.",
     priority: "medium",
+    actionPlan: () => ({
+      what: "Criar documentação estruturada da identidade do cliente, posicionamento de mercado, proposta de valor e processos operacionais principais.",
+      how: "1. Consolidar sinais de identidade e oferta do Dossiê\n2. Redigir documento de posicionamento (quem é, o que faz, para quem, diferencial)\n3. Mapear processos-chave de entrega e atendimento\n4. Validar documentação com o cliente",
+      where: "Documento interno no workspace, Google Docs ou Notion para compartilhar com cliente.",
+      recommendations: "Usar linguagem do próprio cliente sempre que possível. Documentação deve ser referência viva, não arquivo morto. Atualizar conforme operação evolui.",
+      deliverables: "• Documento de identidade e posicionamento\n• Mapa de processos operacionais\n• Proposta de valor formalizada",
+    }),
   },
   {
     frontKey: "commercial",
     title: () => "Estruturar funil e processo comercial",
-    description: (f, sigs) => `Montar ou otimizar funil de vendas: ${signalSnippet(getFrontSignals(f, sigs))}`,
+    description: (f, sigs) => `Montar ou otimizar funil de aquisição e processo de vendas completo.\n\nContexto dos sinais:\n${signalContext(getFrontSignals(f, sigs))}`,
     priority: "high",
+    actionPlan: (f, sigs) => ({
+      what: "Definir ou reestruturar o funil comercial do cliente — da atração ao fechamento — incluindo etapas, critérios de qualificação e automações.",
+      how: "1. Definir ICP (perfil de cliente ideal) com base nos sinais\n2. Mapear etapas do funil (atração → qualificação → proposta → fechamento)\n3. Definir critérios de passagem entre etapas\n4. Configurar CRM ou ferramenta de gestão comercial\n5. Criar templates de proposta e follow-up",
+      where: "CRM do cliente (HubSpot, Pipedrive, RD Station, ou equivalente), planilhas de controle se não houver CRM.",
+      recommendations: "Começar simples e evoluir. Funil complexo demais no início gera abandono. Automatizar follow-up desde o primeiro dia. Definir métricas de conversão por etapa.",
+      deliverables: "• Funil comercial documentado com etapas e critérios\n• CRM configurado com pipeline\n• Templates de proposta e follow-up\n• Métricas de acompanhamento definidas",
+    }),
   },
   {
     frontKey: "operational",
     title: () => "Organizar fluxo de entrega e operação",
-    description: (f, sigs) => `Estruturar operação: ${signalSnippet(getFrontSignals(f, sigs))}`,
+    description: (f, sigs) => `Estruturar processos de entrega, papéis e fluxos operacionais.\n\nContexto dos sinais:\n${signalContext(getFrontSignals(f, sigs))}`,
     priority: "high",
+    actionPlan: (f, sigs) => ({
+      what: "Organizar a operação de entrega do cliente — definir fluxos, responsabilidades, prazos e pontos de controle.",
+      how: "1. Mapear fluxo atual de entrega (do pedido ao pós-venda)\n2. Identificar etapas sem dono ou sem prazo\n3. Definir responsabilidades claras por etapa\n4. Criar checklist operacional por tipo de entrega\n5. Implementar rotina de acompanhamento",
+      where: "Ferramenta de gestão de projetos (Asana, Trello, ClickUp, Notion), reuniões de alinhamento operacional.",
+      recommendations: "Priorizar processos que mais geram retrabalho ou reclamação. Não tentar organizar tudo de uma vez — começar pelo processo principal de entrega. Criar SOPs progressivamente.",
+      deliverables: "• Fluxo de entrega documentado\n• Matriz de responsabilidades (RACI)\n• Checklist operacional por tipo de entrega\n• Rotina de acompanhamento definida",
+    }),
   },
   {
     frontKey: "digital",
-    title: () => "Implantar estrutura digital",
-    description: (f, sigs) => `Organizar presença e operação digital: ${signalSnippet(getFrontSignals(f, sigs))}`,
+    title: () => "Implantar estrutura de operação digital",
+    description: (f, sigs) => `Organizar presença digital, canais, métricas e operação online.\n\nContexto dos sinais:\n${signalContext(getFrontSignals(f, sigs))}`,
     priority: "medium",
+    actionPlan: (f, sigs) => ({
+      what: "Estruturar a presença digital do cliente — canais, conteúdo, métricas e ferramentas — de forma integrada e rastreável.",
+      how: "1. Auditar presença digital atual (site, redes, Google, e-mail)\n2. Definir canais prioritários com base no ICP\n3. Configurar analytics e rastreamento\n4. Criar calendário editorial básico\n5. Configurar ferramentas de automação de marketing",
+      where: "Google Analytics, Google Search Console, Meta Business, Instagram, LinkedIn, ferramenta de e-mail marketing, site do cliente.",
+      recommendations: "Focar nos canais onde o público-alvo realmente está. Não abrir todos os canais ao mesmo tempo. Garantir rastreamento antes de investir em tráfego.",
+      deliverables: "• Auditoria de presença digital\n• Canais prioritários definidos e configurados\n• Analytics e rastreamento implementados\n• Calendário editorial inicial",
+    }),
   },
   {
     frontKey: "technical",
-    title: () => "Configurar ferramentas e integrações",
-    description: (f, sigs) => `Implantar stack técnica: ${signalSnippet(getFrontSignals(f, sigs))}`,
+    title: () => "Configurar ferramentas, integrações e infraestrutura",
+    description: (f, sigs) => `Implantar stack técnica necessária para operação.\n\nContexto dos sinais:\n${signalContext(getFrontSignals(f, sigs))}`,
     priority: "medium",
+    actionPlan: (f, sigs) => ({
+      what: "Configurar e integrar as ferramentas técnicas necessárias para a operação do cliente funcionar de forma conectada.",
+      how: "1. Levantar ferramentas atuais e gaps de integração\n2. Definir stack técnica ideal vs. viável agora\n3. Configurar integrações prioritárias (CRM ↔ e-mail, site ↔ analytics, automações)\n4. Testar fluxos de dados entre ferramentas\n5. Documentar configurações e acessos",
+      where: "Ferramentas do cliente, APIs, Zapier/Make para automações, integrações nativas.",
+      recommendations: "Começar pelas integrações que eliminam trabalho manual repetitivo. Documentar todas as configurações para manutenção futura. Testar com dados reais antes de ativar.",
+      deliverables: "• Stack técnica documentada\n• Integrações configuradas e testadas\n• Documentação de configuração e acessos\n• Fluxos de dados validados",
+    }),
   },
   {
     frontKey: "automation",
-    title: () => "Implantar automações prioritárias",
-    description: (f, sigs) => `Automatizar processos de maior impacto: ${signalSnippet(getFrontSignals(f, sigs))}`,
+    title: () => "Implantar automações de maior impacto",
+    description: (f, sigs) => `Automatizar processos repetitivos e de maior impacto operacional.\n\nContexto dos sinais:\n${signalContext(getFrontSignals(f, sigs))}`,
     priority: "medium",
+    actionPlan: (f, sigs) => ({
+      what: "Identificar e implantar automações que reduzem trabalho manual, eliminam erros e aceleram processos críticos.",
+      how: "1. Mapear processos repetitivos e manuais identificados no diagnóstico\n2. Classificar por impacto (tempo economizado × frequência)\n3. Definir ferramentas de automação (Zapier, Make, n8n, scripts)\n4. Construir e testar cada automação\n5. Monitorar por 1 semana antes de considerar estável",
+      where: "Zapier, Make, n8n, Google Apps Script, APIs das ferramentas do cliente.",
+      recommendations: "Automação simples e confiável > complexa e frágil. Começar com 2-3 automações de alto impacto. Documentar cada automação com trigger, ação e fallback. Criar alertas de falha.",
+      deliverables: "• Mapa de automações priorizadas\n• Automações implementadas e testadas\n• Documentação técnica de cada automação\n• Relatório de impacto (tempo economizado)",
+    }),
   },
   {
     frontKey: "activation",
-    title: () => "Executar primeira ativação com entregáveis",
-    description: () => "Entregar resultados visíveis iniciais para validar operação.",
+    title: () => "Executar primeira ativação com entregáveis visíveis",
+    description: () => "Entregar resultados visíveis iniciais para validar a operação e gerar confiança no processo.",
     priority: "medium",
+    actionPlan: () => ({
+      what: "Realizar a primeira entrega tangível e visível para o cliente — um marco que demonstra valor concreto da operação.",
+      how: "1. Identificar o entregável de maior impacto visual e menor complexidade\n2. Preparar entrega com qualidade profissional\n3. Apresentar ao cliente com contexto de valor\n4. Coletar feedback e ajustar\n5. Documentar como case de referência",
+      where: "Canais do cliente, reunião de apresentação, documento de entrega formal.",
+      recommendations: "A primeira entrega define a percepção de toda a operação. Priorizar qualidade sobre quantidade. Apresentar com contexto — mostrar o 'antes e depois'. Pedir feedback formal.",
+      deliverables: "• Entregável principal ativado e funcionando\n• Apresentação de resultados ao cliente\n• Feedback documentado\n• Registro na timeline do workspace",
+    }),
   },
 ];
+
 function buildSignalSources(sigs: ReviewedSignal[]): SignalSource[] {
   return sigs.map((s) => ({
     signal_key: s.key,
     briefing_kind: s.source,
     context_entry_id: s.contextEntryId,
   }));
+}
+
+function buildGenericActionPlan(front: OperationalFront, signals: ReviewedSignal[]): ActionPlan {
+  const frontSigs = getFrontSignals(front, signals);
+  return {
+    what: front.objective,
+    how: `1. Revisar sinais relacionados no Dossiê\n2. Planejar ações específicas\n3. Executar e documentar\n4. Validar resultados`,
+    where: "Definir conforme contexto da operação.",
+    recommendations: frontSigs.length > 0
+      ? `Basear execução nos sinais identificados:\n${frontSigs.map(s => `• ${s.label}`).join("\n")}`
+      : "Avaliar contexto antes de iniciar execução.",
+    deliverables: "• Ações executadas e documentadas\n• Resultados validados",
+  };
 }
 
 export function deriveTasksFromFronts(
@@ -459,11 +550,10 @@ export function deriveTasksFromFronts(
 
     const templates = TASK_TEMPLATES.filter((t) => t.frontKey === front.key);
     if (templates.length === 0) {
-      // Generic task for fronts without specific template
       const frontSigs = getFrontSignals(front, signals);
       tasks.push({
         title: `Executar: ${front.name}`,
-        description: front.objective,
+        description: `${front.objective}\n\nContexto dos sinais:\n${signalContext(frontSigs)}`,
         priority: front.priority,
         stage: front.stage,
         frontKey: front.key,
@@ -473,6 +563,7 @@ export function deriveTasksFromFronts(
         signalSources: buildSignalSources(frontSigs),
         scopeClassification: front.scopeClassification,
         operationalReason: `Frente "${front.name}" com ${front.signals.length} sinal(is) de suporte.`,
+        actionPlan: buildGenericActionPlan(front, signals),
       });
       continue;
     }
@@ -493,6 +584,7 @@ export function deriveTasksFromFronts(
         signalSources: buildSignalSources(frontSigs),
         scopeClassification: front.scopeClassification,
         operationalReason: `Derivada da frente "${front.name}" — ${front.objective}`,
+        actionPlan: tmpl.actionPlan(front, signals),
       });
     }
   }
