@@ -253,7 +253,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
       </Card>
 
       {/* Dossiê blocks */}
-      {DOSSIE_BLOCKS.map((block) => {
+      {visibleBlocks.map((block) => {
         const blockContexts = getBlockContexts(block.key, block.contextTypes);
         const blockSignals = allDossierSignals.get(block.key) ?? [];
         const Icon = block.icon;
