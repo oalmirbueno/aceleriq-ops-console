@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { getAssetTypeLabel, getAssetTypeColor, getValidationLabel, getValidationColor } from "./assetConstants";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -429,7 +430,10 @@ export default function FrontDetailDialog({ front, open, onOpenChange, onUpdated
             )}
           </div>
 
-          {/* Origin metadata */}
+          <Separator />
+
+          {/* Linked Assets */}
+          <LinkedAssetsSection workspaceId={workspaceId} frontId={front.id} />
           {front.metadata && (front.metadata as Record<string, unknown>).plan_name && (
             <>
               <Separator />
@@ -505,5 +509,55 @@ function LinkTaskButton({ workspaceId, frontId, onLink }: { workspaceId: string;
     <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={loadTasks}>
       <Link2 className="h-3 w-3 mr-1" /> Vincular Task
     </Button>
+  );
+}
+
+/* ─── Linked Assets Section ─── */
+
+function LinkedAssetsSection({ workspaceId, frontId }: { workspaceId: string; frontId: string }) {
+  const [assets, setAssets] = useState<Array<{ id: string; title: string; asset_type: string; validation_status: string; url: string | null }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase
+      .from("assets")
+      .select("id, title, asset_type, validation_status, url")
+      .eq("workspace_id", workspaceId)
+      .eq("operational_front_id", frontId)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        setAssets((data ?? []) as typeof assets);
+        setLoading(false);
+      });
+  }, [workspaceId, frontId]);
+
+  return (
+    <div>
+      <span className="text-xs text-muted-foreground font-medium">Assets / Provas</span>
+      {loading ? (
+        <p className="text-xs text-muted-foreground mt-1">Carregando...</p>
+      ) : assets.length === 0 ? (
+        <p className="text-xs text-muted-foreground mt-1">Nenhum asset vinculado a esta frente.</p>
+      ) : (
+        <div className="space-y-1 mt-1.5">
+          {assets.map((a) => (
+            <div key={a.id} className="flex items-center gap-2 text-xs p-1.5 rounded bg-muted/30">
+              <Badge variant="outline" className={`text-[10px] px-1 py-0 ${getAssetTypeColor(a.asset_type)}`}>
+                {getAssetTypeLabel(a.asset_type)}
+              </Badge>
+              <span className="truncate flex-1">{a.title}</span>
+              <Badge variant="outline" className={`text-[10px] px-1 py-0 ${getValidationColor(a.validation_status)}`}>
+                {getValidationLabel(a.validation_status)}
+              </Badge>
+              {a.url && (
+                <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80">
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
