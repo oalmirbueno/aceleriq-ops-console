@@ -7,9 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { slugify } from "@/lib/slugify";
 import { toast } from "@/hooks/use-toast";
+import {
+  Target, ShoppingCart, Globe, Settings, Search, Scale,
+  Lightbulb, Building2, Key, Megaphone,
+} from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -20,9 +25,23 @@ interface Props {
 const SEGMENTS = ["SaaS", "E-commerce", "Serviços", "Indústria", "Educação", "Outro"];
 const PLANS = ["starter", "growth", "enterprise"];
 
+const FOCUS_AREAS = [
+  { key: "marketing", label: "Marketing Digital", icon: Megaphone, description: "Redes sociais, tráfego pago, conteúdo" },
+  { key: "commercial", label: "Comercial & Vendas", icon: ShoppingCart, description: "CRM, funil, processos de vendas" },
+  { key: "website", label: "Site & Landing Pages", icon: Globe, description: "Criação, redesign, otimização" },
+  { key: "systems", label: "Sistemas & Automação", icon: Settings, description: "ERP, integrações, automações" },
+  { key: "branding", label: "Branding & Identidade", icon: Target, description: "Logo, identidade visual, posicionamento" },
+  { key: "seo", label: "SEO & Tráfego Orgânico", icon: Search, description: "Otimização, conteúdo, autoridade" },
+  { key: "ai", label: "Inteligência Artificial", icon: Lightbulb, description: "Chatbots, IA generativa, automação IA" },
+  { key: "legal", label: "Jurídico & Compliance", icon: Scale, description: "LGPD, contratos, termos" },
+  { key: "strategy", label: "Estratégia & Gestão", icon: Building2, description: "Planejamento, OKRs, processos" },
+  { key: "security", label: "Segurança & Infra", icon: Key, description: "Servidores, domínios, e-mails" },
+] as const;
+
 export default function CreateClientDialog({ open, onOpenChange, onCreated }: Props) {
   const [loading, setLoading] = useState(false);
   const [createWorkspace, setCreateWorkspace] = useState(true);
+  const [selectedFocus, setSelectedFocus] = useState<Set<string>>(new Set());
   const [form, setForm] = useState({
     name: "",
     company_name: "",
@@ -33,6 +52,14 @@ export default function CreateClientDialog({ open, onOpenChange, onCreated }: Pr
 
   const set = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
 
+  const toggleFocus = (key: string) => {
+    setSelectedFocus((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) return;
@@ -40,6 +67,7 @@ export default function CreateClientDialog({ open, onOpenChange, onCreated }: Pr
 
     try {
       const slug = slugify(form.name) + "-" + Date.now().toString(36);
+      const focusAreas = Array.from(selectedFocus);
 
       const { data: client, error: cErr } = await supabase
         .from("clients")
@@ -51,6 +79,7 @@ export default function CreateClientDialog({ open, onOpenChange, onCreated }: Pr
           plan_name: form.plan_name || null,
           status: "active",
           executive_summary: form.executive_summary.trim() || null,
+          metadata: focusAreas.length > 0 ? { focus_areas: focusAreas } : null,
         })
         .select("id, name")
         .single();
@@ -86,6 +115,7 @@ export default function CreateClientDialog({ open, onOpenChange, onCreated }: Pr
 
       toast({ title: "Cliente criado", description: form.name });
       setForm({ name: "", company_name: "", segment: "", plan_name: "growth", executive_summary: "" });
+      setSelectedFocus(new Set());
       onOpenChange(false);
       onCreated();
     } catch (err: any) {
@@ -98,13 +128,13 @@ export default function CreateClientDialog({ open, onOpenChange, onCreated }: Pr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Novo Cliente</DialogTitle>
-          <DialogDescription>Preencha os dados mínimos para criar um novo cliente.</DialogDescription>
+          <DialogDescription>Preencha os dados e selecione as áreas de foco do projeto.</DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-1.5">
             <Label>Nome *</Label>
             <Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Nome do cliente" required />
@@ -143,6 +173,42 @@ export default function CreateClientDialog({ open, onOpenChange, onCreated }: Pr
           <div className="space-y-1.5">
             <Label>Resumo executivo</Label>
             <Input value={form.executive_summary} onChange={(e) => set("executive_summary", e.target.value)} placeholder="Breve descrição" />
+          </div>
+
+          {/* Focus areas multi-select */}
+          <div className="space-y-2.5">
+            <Label className="text-sm font-semibold">Áreas de Foco do Projeto</Label>
+            <p className="text-xs text-muted-foreground -mt-1">Marque o que vamos trabalhar com este cliente</p>
+            <div className="grid grid-cols-2 gap-2">
+              {FOCUS_AREAS.map((area) => {
+                const Icon = area.icon;
+                const selected = selectedFocus.has(area.key);
+                return (
+                  <button
+                    key={area.key}
+                    type="button"
+                    onClick={() => toggleFocus(area.key)}
+                    className={`flex items-start gap-2.5 p-3 rounded-lg border text-left transition-all ${
+                      selected
+                        ? "border-primary bg-primary/10 ring-1 ring-primary/30"
+                        : "border-border hover:border-primary/30 hover:bg-muted/30"
+                    }`}
+                  >
+                    <Checkbox checked={selected} className="mt-0.5 pointer-events-none" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <Icon className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <span className="text-sm font-medium text-foreground">{area.label}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{area.description}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {selectedFocus.size > 0 && (
+              <p className="text-xs text-primary font-medium">{selectedFocus.size} área(s) selecionada(s)</p>
+            )}
           </div>
 
           <div className="flex items-center gap-3 rounded-md border border-border bg-secondary/50 p-3">
