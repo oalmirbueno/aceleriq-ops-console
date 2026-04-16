@@ -244,6 +244,31 @@ export default function WorkspaceTabResumo({
             </>
           )}
 
+          {/* Custom extras when no plan */}
+          {!planInfo && (
+            <>
+              <Separator className="my-4" />
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1.5">Adicionais Personalizados</p>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {customExtras.map((extra) => (
+                    <Badge key={extra} variant="outline" className="text-xs border-primary/30 bg-primary/5 flex items-center gap-1">
+                      {extra}
+                      <button onClick={() => removeExtra(extra)} className="hover:text-destructive transition-colors"><X className="h-3 w-3" /></button>
+                    </Badge>
+                  ))}
+                  {customExtras.length === 0 && <span className="text-xs text-muted-foreground">Nenhum adicional</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input value={newExtra} onChange={(e) => setNewExtra(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addExtra()} placeholder="Ex: Landing page extra, Treinamento..." className="h-8 text-xs max-w-xs" />
+                  <Button size="sm" variant="outline" onClick={addExtra} disabled={!newExtra.trim() || savingExtras} className="h-8 text-xs">
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+
           {/* Focus areas */}
           {focusAreas && focusAreas.length > 0 && (
             <>
