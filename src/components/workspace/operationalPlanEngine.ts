@@ -108,7 +108,7 @@ export function extractReviewedSignals(
       signals.push({
         key,
         label: resolveSignalLabel(key),
-        summary: entry.summary,
+        summary: entry.summary ?? "",
         dossierBlock: resolveSignalDossierBlock(key, entry.dossier_block),
         source: kind,
         contextEntryId: b.id,
@@ -168,7 +168,8 @@ export function buildDiagnostic(signals: ReviewedSignal[]): DiagnosticAxis[] {
     const items: string[] = [];
     for (const sig of signals) {
       if (axis.signalKeys.includes(sig.key) || axis.dossierBlocks.includes(sig.dossierBlock)) {
-        const snippet = sig.summary.length > 150 ? sig.summary.slice(0, 150) + "…" : sig.summary;
+        const raw = sig.summary ?? "";
+        const snippet = raw.length > 150 ? raw.slice(0, 150) + "…" : raw;
         items.push(`${sig.label}: ${snippet}`);
       }
     }
