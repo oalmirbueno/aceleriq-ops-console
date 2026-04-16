@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, FolderKanban, LogOut, Settings } from "lucide-react";
+import { LayoutDashboard, Users, FolderKanban, LogOut, Settings, Brain } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { isAdmin } from "@/lib/adminCheck";
 import logo from "@/assets/logo-aceleriq.png";
@@ -47,6 +47,17 @@ export default function AppSidebar() {
         {isAdmin(userRole) && (
           <>
             <p className="label-sm mt-6 mb-3 px-2">ADMIN</p>
+            <NavLink
+              to="/ops/ai"
+              className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
+                location.pathname.startsWith("/ops/ai")
+                  ? "bg-primary/10 text-primary font-medium"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              }`}
+            >
+              <Brain className="h-4 w-4" />
+              Inteligência Artificial
+            </NavLink>
             <NavLink
               to="/ops/settings"
               className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
