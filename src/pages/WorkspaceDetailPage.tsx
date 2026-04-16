@@ -26,7 +26,7 @@ interface Workspace {
   client_id: string;
   summary: string | null;
   metadata: Record<string, unknown> | null;
-  clients: { id: string; name: string; plan_name: string | null; metadata: Record<string, unknown> | null } | null;
+  clients: { id: string; name: string; company_name: string | null; plan_name: string | null; metadata: Record<string, unknown> | null } | null;
   profiles: { full_name: string | null; email: string } | null;
 }
 
@@ -51,7 +51,7 @@ export default function WorkspaceDetailPage() {
     if (!workspaceId) return;
     const { data, error } = await supabase
       .from("workspaces")
-      .select("id, name, status, current_stage, primary_owner_id, client_id, summary, metadata, clients(id, name, plan_name, metadata), profiles:primary_owner_id(full_name, email)")
+      .select("id, name, status, current_stage, primary_owner_id, client_id, summary, metadata, clients(id, name, company_name, plan_name, metadata), profiles:primary_owner_id(full_name, email)")
       .eq("id", workspaceId)
       .single();
 
@@ -153,6 +153,7 @@ export default function WorkspaceDetailPage() {
           <TabsContent value="resumo">
             <WorkspaceTabResumo
               clientName={clientName}
+              companyName={ws.clients?.company_name ?? null}
               workspaceName={ws.name}
               status={ws.status}
               currentStage={ws.current_stage}
