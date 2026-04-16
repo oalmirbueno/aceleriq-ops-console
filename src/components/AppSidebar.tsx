@@ -16,8 +16,8 @@ export default function AppSidebar() {
   return (
     <aside className="flex h-screen w-60 flex-col border-r border-border bg-background">
       {/* Logo */}
-      <div className="flex h-14 items-center gap-2 border-b border-border px-5">
-        <img src={logo} alt="Aceleriq" className="h-6" />
+      <div className="flex h-16 items-center gap-2.5 border-b border-border px-5">
+        <img src={logo} alt="Aceleriq" className="h-8" />
       </div>
 
       {/* Nav */}

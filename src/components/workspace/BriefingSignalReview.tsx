@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Check, Pencil, X } from "lucide-react";
+import { Check, Pencil, X, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -184,26 +185,40 @@ export default function BriefingSignalReview({ entryId, metadata, onUpdated }: P
   };
 
   if (signalKeys.length === 0) {
-    return <div className="text-xs text-muted-foreground py-2">Nenhum sinal estruturado detectado neste briefing.</div>;
+    return (
+      <div className="text-sm text-muted-foreground py-4">
+        Nenhum sinal estruturado detectado neste briefing.
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-3 mt-3" onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-center justify-between gap-2">
-        <h4 className="text-xs font-semibold text-foreground">Sinais Estruturados</h4>
+    <div className="space-y-4 mt-4" onClick={(e) => e.stopPropagation()}>
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h4 className="text-sm font-semibold text-foreground">Sinais Estruturados</h4>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {signalKeys.length} sinal(is) detectado(s) — revise e ajuste antes de aprovar.
+          </p>
+        </div>
         {reviewStatus === "pending_review" && (
-          <Button size="sm" className="h-6 text-[10px] px-2" onClick={markReviewed} disabled={saving || editing !== null}>
-            <Check className="h-3 w-3 mr-1" /> Marcar revisado
+          <Button size="sm" className="h-8 text-xs px-3" onClick={markReviewed} disabled={saving || editing !== null}>
+            <Check className="h-3.5 w-3.5 mr-1.5" /> Marcar como revisado
           </Button>
         )}
         {reviewStatus === "reviewed" && (
-          <Badge variant="secondary" className="text-[9px]">
+          <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
+            <CheckCircle2 className="h-4 w-4" />
             Revisado — alimenta Dossiê e Tasks
-          </Badge>
+          </div>
         )}
       </div>
 
-      <div className="space-y-1.5">
+      <Separator />
+
+      {/* Signal list */}
+      <div className="space-y-3">
         {signalKeys.map((key) => {
           const entry = signals[key];
           const isEditing = editing === key;
@@ -212,29 +227,33 @@ export default function BriefingSignalReview({ entryId, metadata, onUpdated }: P
 
           if (isEditing) {
             return (
-              <Card key={key} className="border-border">
-                <CardContent className="p-3 space-y-2">
+              <Card key={key} className="border-primary/30">
+                <CardContent className="p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium">{getLabel(key)}</span>
-                    <div className="flex gap-1">
-                      <Button size="sm" variant="ghost" className="h-6 px-1.5" onClick={() => setEditing(null)}>
-                        <X className="h-3 w-3" />
+                    <span className="text-sm font-semibold text-foreground">{getLabel(key)}</span>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => setEditing(null)}>
+                        <X className="h-4 w-4" />
                       </Button>
-                      <Button size="sm" className="h-6 px-2 text-[10px]" onClick={saveEdit} disabled={saving}>
+                      <Button size="sm" className="h-8 px-3 text-xs" onClick={saveEdit} disabled={saving}>
                         Salvar
                       </Button>
                     </div>
                   </div>
-                  <Textarea value={editSummary} onChange={(e) => setEditSummary(e.target.value)} className="text-xs min-h-[60px]" />
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-muted-foreground">Bloco Dossiê:</span>
+                  <Textarea
+                    value={editSummary}
+                    onChange={(e) => setEditSummary(e.target.value)}
+                    className="text-sm min-h-[100px] leading-relaxed resize-y"
+                  />
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground">Bloco do Dossiê:</span>
                     <Select value={editDossierBlock} onValueChange={setEditDossierBlock}>
-                      <SelectTrigger className="h-6 text-[10px] w-32">
+                      <SelectTrigger className="h-8 text-xs w-40">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {DOSSIER_BLOCK_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value} className="text-xs">
+                          <SelectItem key={option.value} value={option.value} className="text-sm">
                             {option.label}
                           </SelectItem>
                         ))}
@@ -247,32 +266,52 @@ export default function BriefingSignalReview({ entryId, metadata, onUpdated }: P
           }
 
           return (
-            <div key={key} className="flex items-start gap-2 text-xs border rounded-md p-2 bg-muted/10">
-              <span className="text-primary/40 mt-0.5 shrink-0">•</span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-medium text-foreground">{getLabel(key)}</span>
-                  <Badge variant="outline" className="text-[9px] px-1 py-0">{entry.dossier_block}</Badge>
+            <Card key={key} className="border-border hover:border-primary/20 transition-colors">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                      <span className="text-sm font-semibold text-foreground">{getLabel(key)}</span>
+                      <Badge variant="outline" className="text-[11px] px-2 py-0.5">
+                        {DOSSIER_BLOCK_OPTIONS.find((o) => o.value === entry.dossier_block)?.label ?? entry.dossier_block}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
+                      {entry.summary}
+                    </p>
+                  </div>
+                  <div className="flex gap-1 shrink-0 mt-0.5">
+                    <button
+                      onClick={() => startEdit(key)}
+                      className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                      title="Editar sinal"
+                    >
+                      <Pencil className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                    <button
+                      onClick={() => removeSignal(key)}
+                      className="p-1.5 rounded-md hover:bg-destructive/10 transition-colors"
+                      title="Remover sinal"
+                    >
+                      <X className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                    </button>
+                  </div>
                 </div>
-                <p className="text-muted-foreground line-clamp-2 mt-0.5">{entry.summary}</p>
-              </div>
-              <div className="flex gap-0.5 shrink-0">
-                <button onClick={() => startEdit(key)} className="p-1 rounded hover:bg-muted">
-                  <Pencil className="h-3 w-3 text-muted-foreground" />
-                </button>
-                <button onClick={() => removeSignal(key)} className="p-1 rounded hover:bg-destructive/10">
-                  <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
-                </button>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           );
         })}
       </div>
 
+      {/* Empty signals info */}
       {emptyKeys.length > 0 && (
-        <p className="text-[10px] text-muted-foreground">
-          {emptyKeys.length} sinal(is) não detectado(s): {emptyKeys.map((key) => getLabel(key)).join(", ")}
-        </p>
+        <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/20 rounded-lg p-3">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-medium">{emptyKeys.length} sinal(is) não detectado(s):</span>{" "}
+            {emptyKeys.map((key) => getLabel(key)).join(", ")}
+          </div>
+        </div>
       )}
     </div>
   );
