@@ -39,9 +39,10 @@ interface Front {
 interface Props {
   workspaceId: string;
   clientId: string;
+  onTimelineRefresh?: () => Promise<void> | void;
 }
 
-export default function WorkspaceTabAssets({ workspaceId, clientId }: Props) {
+export default function WorkspaceTabAssets({ workspaceId, clientId, onTimelineRefresh }: Props) {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [fronts, setFronts] = useState<Front[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,22 +97,27 @@ export default function WorkspaceTabAssets({ workspaceId, clientId }: Props) {
     if (error) {
       toast({ title: "Erro ao atualizar status", description: error.message, variant: "destructive" });
     } else {
-      // Timeline for validated and case_ready transitions
       if (newStatus === "validated" || newStatus === "case_ready") {
         const eventType = newStatus === "validated" ? "asset_validated" : "asset_case_ready";
         const eventTitle = newStatus === "validated"
           ? `Asset validado: ${assetTitle}`
           : `Asset pronto p/ case: ${assetTitle}`;
-        await supabase.from("timeline_events").insert({
+        const { error: timelineError } = await supabase.from("timeline_events").insert({
           workspace_id: workspaceId,
           client_id: clientId,
           event_type: eventType,
           title: eventTitle,
           happened_at: new Date().toISOString(),
         });
+
+        if (timelineError) {
+          toast({ title: "Status atualizado, mas timeline falhou", description: timelineError.message, variant: "destructive" });
+        }
       }
+
       toast({ title: "Status atualizado" });
-      fetchData();
+      await fetchData();
+      await onTimelineRefresh?.();
     }
     setChangingId(null);
   };
@@ -123,7 +129,8 @@ export default function WorkspaceTabAssets({ workspaceId, clientId }: Props) {
       toast({ title: "Erro ao apagar", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Asset apagado" });
-      fetchData();
+      await fetchData();
+      await onTimelineRefresh?.();
     }
   };
 
@@ -252,7 +259,10 @@ export default function WorkspaceTabAssets({ workspaceId, clientId }: Props) {
         onOpenChange={setCreateOpen}
         workspaceId={workspaceId}
         clientId={clientId}
-        onCreated={fetchData}
+        onCreated={async () => {
+          await fetchData();
+          await onTimelineRefresh?.();
+        }}
       />
     </div>
   );
