@@ -116,6 +116,17 @@ export default function WorkspaceTabAssets({ workspaceId, clientId }: Props) {
     setChangingId(null);
   };
 
+  const handleDelete = async (assetId: string, assetTitle: string) => {
+    if (!confirm(`Apagar asset "${assetTitle}"?`)) return;
+    const { error } = await supabase.from("assets").delete().eq("id", assetId);
+    if (error) {
+      toast({ title: "Erro ao apagar", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Asset apagado" });
+      fetchData();
+    }
+  };
+
   const frontName = (id: string | null) => {
     if (!id) return null;
     return fronts.find(f => f.id === id)?.name ?? null;
