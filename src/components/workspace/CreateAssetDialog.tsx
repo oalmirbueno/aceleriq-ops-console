@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 import { ASSET_TYPE_OPTIONS, VALIDATION_STATUS_OPTIONS } from "./assetConstants";
 
 interface Front {
@@ -54,7 +55,6 @@ export default function CreateAssetDialog({ open, onOpenChange, workspaceId, cli
     setFrontId(preselectedFrontId ?? "");
     setTaskId("");
 
-    // Load fronts and tasks
     supabase.from("operational_fronts").select("id, name").eq("workspace_id", workspaceId).order("name").then(({ data }) => {
       setFronts((data ?? []) as Front[]);
     });
@@ -67,7 +67,7 @@ export default function CreateAssetDialog({ open, onOpenChange, workspaceId, cli
     if (!title.trim()) return;
     setSaving(true);
 
-    const { error } = await supabase.from("assets").insert({
+    const payload = {
       workspace_id: workspaceId,
       client_id: clientId,
       asset_type: assetType,
@@ -80,21 +80,44 @@ export default function CreateAssetDialog({ open, onOpenChange, workspaceId, cli
       operational_front_id: frontId && frontId !== "__none__" ? frontId : null,
       task_id: taskId && taskId !== "__none__" ? taskId : null,
       happened_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from("assets").insert(payload);
+
+    if (error) {
+      toast({
+        title: "Erro ao criar asset",
+        description: error.message.includes("url")
+          ? "A tabela assets ainda não tem a coluna 'url'. Rode a migration pendente no banco e tente novamente."
+          : error.message,
+        variant: "destructive",
+      });
+      setSaving(false);
+      return;
+    }
+
+    await supabase.from("timeline_events").insert({
+      workspace_id: workspaceId,
+      client_id: clientId,
+      event_type: "asset_created",
+      title: `Asset criado: ${title.trim()}`,
+      description: `Tipo: ${ASSET_TYPE_OPTIONS.find(o => o.value === assetType)?.label ?? assetType}`,
+      happened_at: new Date().toISOString(),
     });
 
-    if (!error) {
-      // Timeline event
+    if (frontId && frontId !== "__none__") {
       await supabase.from("timeline_events").insert({
         workspace_id: workspaceId,
         client_id: clientId,
-        event_type: "asset_created",
-        title: `Asset criado: ${title.trim()}`,
-        description: `Tipo: ${ASSET_TYPE_OPTIONS.find(o => o.value === assetType)?.label ?? assetType}`,
+        event_type: "asset_linked_front",
+        title: `Asset vinculado à frente: ${title.trim()}`,
         happened_at: new Date().toISOString(),
       });
-      onCreated();
-      onOpenChange(false);
     }
+
+    toast({ title: "Asset criado" });
+    onCreated();
+    onOpenChange(false);
     setSaving(false);
   };
 
