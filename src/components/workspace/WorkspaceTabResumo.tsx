@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   FileText, Clock, ListChecks, Layers, BarChart3,
   CheckCircle2, AlertTriangle, ArrowRight, TrendingUp,
-  DollarSign, CalendarClock,
+  DollarSign, CalendarClock, Plus, X,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
