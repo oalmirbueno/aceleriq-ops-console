@@ -198,7 +198,7 @@ export default function WorkspaceDetailPage() {
           </TabsContent>
 
           <TabsContent value="assets">
-            <WorkspaceTabAssets workspaceId={ws.id} clientId={ws.client_id} />
+            <WorkspaceTabAssets workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
           </TabsContent>
         </Tabs>
       </div>
