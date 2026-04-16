@@ -98,15 +98,15 @@ export default function WorkspaceTabAssets({ workspaceId, clientId, onTimelineRe
       toast({ title: "Erro ao atualizar status", description: error.message, variant: "destructive" });
     } else {
       if (newStatus === "validated" || newStatus === "case_ready") {
-        const eventType = newStatus === "validated" ? "asset_validated" : "asset_case_ready";
         const eventTitle = newStatus === "validated"
           ? `Asset validado: ${assetTitle}`
           : `Asset pronto p/ case: ${assetTitle}`;
         const { error: timelineError } = await supabase.from("timeline_events").insert({
           workspace_id: workspaceId,
           client_id: clientId,
-          event_type: eventType,
+          event_type: "context_added",
           title: eventTitle,
+          description: `Status: ${newStatus === "validated" ? "Validado" : "Pronto p/ Case"}`,
           happened_at: new Date().toISOString(),
         });
 
