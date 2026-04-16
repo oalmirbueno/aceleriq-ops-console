@@ -77,8 +77,8 @@ export default function CreateAssetDialog({ open, onOpenChange, workspaceId, cli
       primary_use: primaryUse.trim() || null,
       observation: observation.trim() || null,
       validation_status: validationStatus,
-      operational_front_id: frontId || null,
-      task_id: taskId || null,
+      operational_front_id: frontId && frontId !== "__none__" ? frontId : null,
+      task_id: taskId && taskId !== "__none__" ? taskId : null,
       happened_at: new Date().toISOString(),
     });
 
@@ -166,7 +166,7 @@ export default function CreateAssetDialog({ open, onOpenChange, workspaceId, cli
               <Select value={frontId} onValueChange={setFrontId}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhuma</SelectItem>
+                  <SelectItem value="__none__">Nenhuma</SelectItem>
                   {fronts.map(f => (
                     <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
                   ))}
@@ -180,7 +180,7 @@ export default function CreateAssetDialog({ open, onOpenChange, workspaceId, cli
             <Select value={taskId} onValueChange={setTaskId}>
               <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Nenhuma" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Nenhuma</SelectItem>
+                <SelectItem value="__none__">Nenhuma</SelectItem>
                 {tasks.map(t => (
                   <SelectItem key={t.id} value={t.id}>
                     <span className="truncate">{t.title}</span>
