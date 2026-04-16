@@ -56,10 +56,10 @@ interface Props {
 /* ─── Bucket filter labels with operational clarity ─── */
 const BUCKET_FILTER_OPTIONS = [
   { value: "all", label: "Todas as frentes" },
-  { value: "active", label: "Ativas — em execução" },
-  { value: "conditional", label: "Condicionais — aguardando confirmação" },
-  { value: "future", label: "Futuras — postergadas" },
-  { value: "out_of_scope", label: "Fora do Plano" },
+  { value: "active", label: "Ativas — em execução agora" },
+  { value: "conditional", label: "Condicionais — aguardando confirmação do operador" },
+  { value: "future", label: "Futuras — postergadas para fase posterior" },
+  { value: "out_of_scope", label: "Fora do Plano — add-on, avulso ou custo extra" },
 ];
 
 export default function WorkspaceTabProducao({ workspaceId, clientId, planName }: Props) {
@@ -303,7 +303,7 @@ export default function WorkspaceTabProducao({ workspaceId, clientId, planName }
         <div className="flex items-center gap-2">
           <Layers className="h-4 w-4 text-muted-foreground" />
           <Select value={bucketFilter} onValueChange={setBucketFilter}>
-            <SelectTrigger className="h-8 w-[220px] text-xs">
+            <SelectTrigger className="h-8 w-[320px] text-xs">
               <SelectValue placeholder="Filtrar por status" />
             </SelectTrigger>
             <SelectContent>
@@ -330,7 +330,8 @@ export default function WorkspaceTabProducao({ workspaceId, clientId, planName }
           <Layers className="h-8 w-8 text-muted-foreground mb-3" />
           <p className="text-sm font-medium text-foreground mb-1">Nenhuma frente operacional</p>
           <p className="text-xs text-muted-foreground max-w-sm text-center">
-            Clique em "Gerar do Dossiê" para criar frentes automaticamente a partir dos briefings revisados, ou adicione manualmente.
+            Clique em "Gerar do Dossiê" para criar frentes automaticamente a partir dos briefings revisados.
+            Cada frente será classificada como Ativa, Condicional ou Fora do Plano conforme o escopo contratado.
           </p>
         </div>
       ) : (
