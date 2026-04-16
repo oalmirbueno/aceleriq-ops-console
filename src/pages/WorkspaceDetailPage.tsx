@@ -163,6 +163,8 @@ export default function WorkspaceDetailPage() {
               segment={ws.clients?.segment ?? null}
               createdAt={ws.created_at}
               focusAreas={(ws.clients?.metadata as any)?.focus_areas ?? null}
+              clientId={ws.client_id}
+              clientMetadata={ws.clients?.metadata as Record<string, unknown> | null}
               summary={ws.summary ?? null}
               recentEvents={timeline}
               workspaceId={ws.id}
