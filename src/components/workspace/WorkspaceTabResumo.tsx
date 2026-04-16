@@ -95,7 +95,8 @@ export default function WorkspaceTabResumo({
 
   const taskPct = taskStats.total > 0 ? Math.round((taskStats.done / taskStats.total) * 100) : 0;
 
-  const planInfo = PLAN_PRICING[planName ?? ""] ?? null;
+  const planConfig = getPlanConfig();
+  const planInfo = planConfig[planName as keyof typeof planConfig] ?? null;
 
   const renewalDate = useMemo(() => {
     if (!createdAt) return null;
