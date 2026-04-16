@@ -192,7 +192,7 @@ export default function WorkspaceDetailPage() {
           </TabsContent>
 
           <TabsContent value="producao">
-            <WorkspaceTabProducao workspaceId={ws.id} clientId={ws.client_id} planName={ws.clients?.plan_name} />
+            <WorkspaceTabProducao workspaceId={ws.id} clientId={ws.client_id} planName={ws.clients?.plan_name} focusAreas={(ws.clients?.metadata as any)?.focus_areas ?? null} />
           </TabsContent>
         </Tabs>
       </div>
