@@ -25,8 +25,9 @@ interface Workspace {
   primary_owner_id: string | null;
   client_id: string;
   summary: string | null;
+  created_at: string;
   metadata: Record<string, unknown> | null;
-  clients: { id: string; name: string; company_name: string | null; plan_name: string | null; metadata: Record<string, unknown> | null } | null;
+  clients: { id: string; name: string; company_name: string | null; segment: string | null; plan_name: string | null; metadata: Record<string, unknown> | null } | null;
   profiles: { full_name: string | null; email: string } | null;
 }
 
@@ -51,7 +52,7 @@ export default function WorkspaceDetailPage() {
     if (!workspaceId) return;
     const { data, error } = await supabase
       .from("workspaces")
-      .select("id, name, status, current_stage, primary_owner_id, client_id, summary, metadata, clients(id, name, company_name, plan_name, metadata), profiles:primary_owner_id(full_name, email)")
+      .select("id, name, status, current_stage, primary_owner_id, client_id, summary, created_at, metadata, clients(id, name, company_name, segment, plan_name, metadata), profiles:primary_owner_id(full_name, email)")
       .eq("id", workspaceId)
       .single();
 
@@ -158,6 +159,10 @@ export default function WorkspaceDetailPage() {
               status={ws.status}
               currentStage={ws.current_stage}
               ownerName={ownerName}
+              planName={planName}
+              segment={ws.clients?.segment ?? null}
+              createdAt={ws.created_at}
+              focusAreas={(ws.clients?.metadata as any)?.focus_areas ?? null}
               summary={ws.summary ?? null}
               recentEvents={timeline}
               workspaceId={ws.id}

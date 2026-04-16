@@ -26,6 +26,10 @@ interface WorkspaceTabResumoProps {
   status: string;
   currentStage: string;
   ownerName: string | null;
+  planName: string | null;
+  segment: string | null;
+  createdAt: string;
+  focusAreas: string[] | null;
   summary: string | null;
   recentEvents: TimelineEvent[];
   workspaceId: string;
@@ -47,7 +51,7 @@ interface TaskStats {
 }
 
 export default function WorkspaceTabResumo({
-  clientName, companyName, workspaceName, status, currentStage, ownerName, summary, recentEvents, workspaceId,
+  clientName, companyName, workspaceName, status, currentStage, ownerName, planName, segment, createdAt, focusAreas, summary, recentEvents, workspaceId,
 }: WorkspaceTabResumoProps) {
   const [taskStats, setTaskStats] = useState<TaskStats>({ total: 0, done: 0, in_progress: 0, blocked: 0, todo: 0 });
   const [frontSummary, setFrontSummary] = useState<FrontSummary>({ total: 0, active: 0, conditional: 0, out_of_scope: 0 });
@@ -109,8 +113,43 @@ export default function WorkspaceTabResumo({
             </div>
           </div>
 
-          {ownerName && (
-            <p className="text-xs text-muted-foreground mt-3">Responsável: <span className="text-foreground">{ownerName}</span></p>
+          <Separator className="my-4" />
+
+          {/* Contextual info grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Responsável</p>
+              <p className="text-foreground font-medium">{ownerName || "Não definido"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Plano</p>
+              <p className="text-foreground font-medium capitalize">{planName || "Não definido"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Segmento</p>
+              <p className="text-foreground font-medium">{segment || "Não definido"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Início</p>
+              <p className="text-foreground font-medium">
+                {new Date(createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+              </p>
+            </div>
+          </div>
+
+          {/* Focus areas */}
+          {focusAreas && focusAreas.length > 0 && (
+            <>
+              <Separator className="my-4" />
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-2">Áreas de Foco</p>
+                <div className="flex flex-wrap gap-2">
+                  {focusAreas.map((area) => (
+                    <Badge key={area} variant="secondary" className="text-xs capitalize">{area.replace(/_/g, " ")}</Badge>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
 
           {summary && (
