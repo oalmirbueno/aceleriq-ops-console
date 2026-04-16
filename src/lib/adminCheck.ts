@@ -1,6 +1,7 @@
-const ADMIN_EMAILS = ["almirbarrosbueno@gmail.com"];
-
-export function isAdmin(email: string | undefined | null): boolean {
-  if (!email) return false;
-  return ADMIN_EMAILS.includes(email.toLowerCase());
+/**
+ * Admin check based on server-loaded role from profiles table.
+ * No longer uses hardcoded email list.
+ */
+export function isAdmin(role: string | undefined | null): boolean {
+  return role === "admin";
 }

@@ -16,16 +16,16 @@ import { getPlanConfig, savePlanConfig, getDefaultConfig, type PlanKey, type Pla
 const PLAN_KEYS: PlanKey[] = ["starter", "growth", "enterprise"];
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const navigate = useNavigate();
   const [config, setConfig] = useState<Record<PlanKey, PlanConfig>>(getPlanConfig);
   const [newExtras, setNewExtras] = useState<Record<PlanKey, string>>({ starter: "", growth: "", enterprise: "" });
 
   useEffect(() => {
-    if (!isAdmin(user?.email)) navigate("/ops", { replace: true });
-  }, [user, navigate]);
+    if (!isAdmin(userRole)) navigate("/ops", { replace: true });
+  }, [userRole, navigate]);
 
-  if (!isAdmin(user?.email)) return null;
+  if (!isAdmin(userRole)) return null;
 
   const updateField = (plan: PlanKey, field: keyof PlanConfig, value: string | number) => {
     setConfig((prev) => ({

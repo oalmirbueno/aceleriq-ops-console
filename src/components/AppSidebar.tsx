@@ -11,7 +11,7 @@ const navItems = [
 ];
 
 export default function AppSidebar() {
-  const { logout, user } = useAuth();
+  const { logout, user, userRole } = useAuth();
   const location = useLocation();
 
   return (
@@ -44,7 +44,7 @@ export default function AppSidebar() {
           );
         })}
 
-        {isAdmin(user?.email) && (
+        {isAdmin(userRole) && (
           <>
             <p className="label-sm mt-6 mb-3 px-2">ADMIN</p>
             <NavLink

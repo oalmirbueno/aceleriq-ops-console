@@ -14,7 +14,6 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-/** Briefing kind labels for display */
 const BRIEFING_LABELS: Record<string, string> = {
   enterprise_structuring: "Estruturação Empresarial",
   ai_automation: "Automação e IA",
@@ -24,18 +23,79 @@ function getBriefingLabel(kind: string): string {
   return BRIEFING_LABELS[kind] ?? kind;
 }
 
+/** HMAC-SHA256 verify */
+async function hmacVerify(data: string, signature: string, secret: string): Promise<boolean> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["verify"],
+  );
+  // Decode base64url signature
+  const sigB64 = signature.replace(/-/g, "+").replace(/_/g, "/");
+  const sigBytes = Uint8Array.from(atob(sigB64), c => c.charCodeAt(0));
+  return crypto.subtle.verify("HMAC", key, sigBytes, enc.encode(data));
+}
+
 /**
- * Decode the base64url briefing token and return { workspaceId, clientId, briefingType }.
+ * Decode and verify a signed token: <payloadBase64url>.<signatureBase64url>
+ * Returns parsed payload or null if invalid/expired.
  */
-function decodeToken(token: string): { workspaceId: string; clientId: string; briefingType: string } | null {
+async function decodeAndVerifyToken(
+  token: string,
+  secret: string,
+): Promise<{ workspaceId: string; clientId: string; briefingType: string } | null> {
+  const dotIdx = token.lastIndexOf(".");
+  if (dotIdx === -1) return null;
+
+  const payloadB64 = token.substring(0, dotIdx);
+  const signature = token.substring(dotIdx + 1);
+
+  // Decode payload
+  let payload: any;
+  try {
+    const padded = payloadB64.replace(/-/g, "+").replace(/_/g, "/");
+    payload = JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+
+  // Verify signature
+  const payloadJson = JSON.stringify({
+    workspaceId: payload.workspaceId,
+    clientId: payload.clientId,
+    briefingType: payload.briefingType,
+    iat: payload.iat,
+    exp: payload.exp,
+  });
+
+  const valid = await hmacVerify(payloadJson, signature, secret);
+  if (!valid) return null;
+
+  // Check expiration
+  if (typeof payload.exp === "number" && Date.now() > payload.exp) {
+    return null;
+  }
+
+  if (!payload.workspaceId || !payload.clientId) return null;
+
+  return {
+    workspaceId: payload.workspaceId,
+    clientId: payload.clientId,
+    briefingType: payload.briefingType ?? "enterprise_structuring",
+  };
+}
+
+/**
+ * Legacy token fallback: decode unsigned base64url token.
+ * This is temporary compatibility for already-issued links.
+ * Legacy tokens are only accepted for load_draft and save_draft (not submit).
+ */
+function decodeLegacyToken(token: string): { workspaceId: string; clientId: string; briefingType: string } | null {
+  // Signed tokens contain a dot; legacy ones don't
+  if (token.includes(".")) return null;
   try {
     const padded = token.replace(/-/g, "+").replace(/_/g, "/");
-    const json = atob(padded);
-    const payload = JSON.parse(json);
-    if (
-      typeof payload.workspaceId === "string" && payload.workspaceId.length > 0 &&
-      typeof payload.clientId === "string" && payload.clientId.length > 0
-    ) {
+    const payload = JSON.parse(atob(padded));
+    if (typeof payload.workspaceId === "string" && typeof payload.clientId === "string") {
       return {
         workspaceId: payload.workspaceId,
         clientId: payload.clientId,
@@ -79,9 +139,30 @@ serve(async (req) => {
       return jsonResponse({ error: "Ação inválida" }, 400);
     }
 
-    const decoded = decodeToken(source_token);
+    const secret = Deno.env.get("PUBLIC_BRIEFING_TOKEN_SECRET");
+    if (!secret) {
+      console.error("PUBLIC_BRIEFING_TOKEN_SECRET not configured");
+      return jsonResponse({ error: "Configuração de segurança ausente" }, 500);
+    }
+
+    // Try signed token first
+    let decoded = await decodeAndVerifyToken(source_token, secret);
+    let isLegacy = false;
+
+    // Fallback to legacy for draft operations only (limited compatibility)
     if (!decoded) {
-      return jsonResponse({ error: "Token inválido" }, 403);
+      decoded = decodeLegacyToken(source_token);
+      if (decoded) {
+        isLegacy = true;
+        // Legacy tokens cannot submit — only load and save drafts
+        if (action === "submit_briefing") {
+          return jsonResponse({ error: "Token expirado ou inválido. Solicite um novo link ao seu consultor." }, 403);
+        }
+      }
+    }
+
+    if (!decoded) {
+      return jsonResponse({ error: "Token inválido ou expirado" }, 403);
     }
 
     const briefingKind = decoded.briefingType;
@@ -98,14 +179,22 @@ serve(async (req) => {
 
     // ── LOAD DRAFT ──
     if (action === "load_draft") {
-      const { data } = await supabase
+      // For signed tokens, search by workspace+client+type; for legacy, by source_token
+      const query = supabase
         .from("context_entries")
         .select("id, metadata")
         .eq("context_type", "briefing")
-        .eq("metadata->>source_token", source_token)
+        .eq("workspace_id", decoded.workspaceId)
+        .eq("client_id", decoded.clientId)
         .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
+
+      // Legacy tokens use source_token match; signed tokens match by workspace/client
+      if (isLegacy) {
+        query.eq("metadata->>source_token", source_token);
+      }
+
+      const { data } = await query.maybeSingle();
 
       if (!data) {
         return jsonResponse({ draft: null });
@@ -119,6 +208,7 @@ serve(async (req) => {
           currentQuestion: (meta?.last_question_index as number) ?? 0,
           status: (meta?.public_briefing_status as string) ?? "draft",
         },
+        ...(isLegacy ? { legacy_token: true } : {}),
       });
     }
 
@@ -132,14 +222,20 @@ serve(async (req) => {
 
       const now = new Date().toISOString();
 
-      const { data: existing } = await supabase
+      const existingQuery = supabase
         .from("context_entries")
         .select("id, metadata")
         .eq("context_type", "briefing")
-        .eq("metadata->>source_token", source_token)
+        .eq("workspace_id", decoded.workspaceId)
+        .eq("client_id", decoded.clientId)
         .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
+
+      if (isLegacy) {
+        existingQuery.eq("metadata->>source_token", source_token);
+      }
+
+      const { data: existing } = await existingQuery.maybeSingle();
 
       if (existing) {
         const existingMeta = existing.metadata as Record<string, unknown> | null;
@@ -202,7 +298,7 @@ serve(async (req) => {
       return jsonResponse({ id: created.id });
     }
 
-    // ── SUBMIT BRIEFING ──
+    // ── SUBMIT BRIEFING ── (signed tokens only — legacy blocked above)
     if (action === "submit_briefing") {
       const { content, signals_data, answered_count, total_questions } = body;
 
@@ -216,7 +312,8 @@ serve(async (req) => {
         .from("context_entries")
         .select("id, metadata")
         .eq("context_type", "briefing")
-        .eq("metadata->>source_token", source_token)
+        .eq("workspace_id", decoded.workspaceId)
+        .eq("client_id", decoded.clientId)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -306,7 +403,7 @@ serve(async (req) => {
   } catch (e) {
     console.error("public-briefing error:", e);
     return jsonResponse(
-      { error: e instanceof Error ? e.message : "Erro desconhecido" },
+      { error: "Erro interno" },
       500,
     );
   }

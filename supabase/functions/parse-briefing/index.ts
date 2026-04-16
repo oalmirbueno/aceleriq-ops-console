@@ -1,10 +1,42 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+function jsonError(message: string, status: number) {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+/**
+ * Extract and validate JWT from Authorization header.
+ * Returns the authenticated user ID or a Response error.
+ */
+async function requireAuth(req: Request): Promise<{ userId: string } | Response> {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return jsonError("Autenticação obrigatória", 401);
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data?.user) {
+    return jsonError("Token inválido ou expirado", 401);
+  }
+
+  return { userId: data.user.id };
+}
 
 const DOSSIER_BLOCKS = [
   "identity",
@@ -46,22 +78,20 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // ── Auth gate ──
+  const authResult = await requireAuth(req);
+  if (authResult instanceof Response) return authResult;
+
   try {
     const { text, briefing_type } = await req.json();
 
     if (!text || typeof text !== "string" || text.trim().length < 20) {
-      return new Response(
-        JSON.stringify({ error: "Texto do briefing muito curto ou ausente" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonError("Texto do briefing muito curto ou ausente", 400);
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: "LOVABLE_API_KEY não configurada" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonError("LOVABLE_API_KEY não configurada", 500);
     }
 
     const briefingLabel = briefing_type === "sitebolt" ? "Briefing SiteBolt" : "Briefing Essencial";
@@ -120,23 +150,14 @@ serve(async (req) => {
 
     if (!response.ok) {
       if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns segundos." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return jsonError("Limite de requisições excedido. Tente novamente em alguns segundos.", 429);
       }
       if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Créditos insuficientes. Adicione créditos em Settings > Workspace > Usage." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return jsonError("Créditos insuficientes. Adicione créditos em Settings > Workspace > Usage.", 402);
       }
       const errText = await response.text();
       console.error("AI gateway error:", response.status, errText);
-      return new Response(
-        JSON.stringify({ error: "Erro ao processar briefing com IA" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonError("Erro ao processar briefing com IA", 500);
     }
 
     const data = await response.json();
@@ -144,15 +165,11 @@ serve(async (req) => {
 
     if (!toolCall?.function?.arguments) {
       console.error("No tool call in response:", JSON.stringify(data));
-      return new Response(
-        JSON.stringify({ error: "IA não retornou dados estruturados" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonError("IA não retornou dados estruturados", 500);
     }
 
     const parsed = JSON.parse(toolCall.function.arguments);
 
-    // Validate sections
     const sections = (parsed.sections || [])
       .filter(
         (s: any) =>
@@ -171,9 +188,6 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("parse-briefing error:", e);
-    return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonError("Erro interno", 500);
   }
 });
