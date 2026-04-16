@@ -21,6 +21,7 @@ interface TimelineEvent {
 
 interface WorkspaceTabResumoProps {
   clientName: string;
+  companyName: string | null;
   workspaceName: string;
   status: string;
   currentStage: string;
@@ -46,7 +47,7 @@ interface TaskStats {
 }
 
 export default function WorkspaceTabResumo({
-  clientName, workspaceName, status, currentStage, ownerName, summary, recentEvents, workspaceId,
+  clientName, companyName, workspaceName, status, currentStage, ownerName, summary, recentEvents, workspaceId,
 }: WorkspaceTabResumoProps) {
   const [taskStats, setTaskStats] = useState<TaskStats>({ total: 0, done: 0, in_progress: 0, blocked: 0, todo: 0 });
   const [frontSummary, setFrontSummary] = useState<FrontSummary>({ total: 0, active: 0, conditional: 0, out_of_scope: 0 });
@@ -94,7 +95,10 @@ export default function WorkspaceTabResumo({
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Empresa</p>
-              <h2 className="text-xl font-bold text-foreground">{clientName}</h2>
+              <h2 className="text-xl font-bold text-foreground">{companyName || clientName}</h2>
+              {companyName && companyName !== clientName && (
+                <p className="text-sm text-muted-foreground mt-0.5">Cliente: <span className="text-foreground font-medium">{clientName}</span></p>
+              )}
               <p className="text-sm text-muted-foreground mt-1">Workspace: <span className="text-foreground font-medium">{workspaceName}</span></p>
             </div>
             <div className="flex items-center gap-3">
