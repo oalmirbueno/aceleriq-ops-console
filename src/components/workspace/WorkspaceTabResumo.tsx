@@ -106,6 +106,29 @@ export default function WorkspaceTabResumo({
 
   const taskPct = taskStats.total > 0 ? Math.round((taskStats.done / taskStats.total) * 100) : 0;
 
+  const persistExtras = useCallback(async (updated: string[]) => {
+    setSavingExtras(true);
+    const merged = { ...(clientMetadata ?? {}), custom_extras: updated };
+    const { error } = await supabase.from("clients").update({ metadata: merged }).eq("id", clientId);
+    if (error) toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+    setSavingExtras(false);
+  }, [clientId, clientMetadata]);
+
+  const addExtra = () => {
+    const val = newExtra.trim();
+    if (!val || customExtras.includes(val)) return;
+    const updated = [...customExtras, val];
+    setCustomExtras(updated);
+    setNewExtra("");
+    persistExtras(updated);
+  };
+
+  const removeExtra = (extra: string) => {
+    const updated = customExtras.filter((e) => e !== extra);
+    setCustomExtras(updated);
+    persistExtras(updated);
+  };
+
   const planInfo = PLAN_PRICING[planName ?? ""] ?? null;
 
   const renewalDate = useMemo(() => {
@@ -187,13 +210,33 @@ export default function WorkspaceTabResumo({
                     </p>
                   </div>
                 </div>
-                {planInfo.extras.length > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1.5">Adicionais Inclusos</p>
+                {(planInfo.extras.length > 0 || customExtras.length > 0) && (
+                  <div className="md:col-span-3">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1.5">Adicionais</p>
                     <div className="flex flex-wrap gap-1.5">
                       {planInfo.extras.map((extra) => (
                         <Badge key={extra} variant="secondary" className="text-xs">{extra}</Badge>
                       ))}
+                      {customExtras.map((extra) => (
+                        <Badge key={extra} variant="outline" className="text-xs border-primary/30 bg-primary/5 flex items-center gap-1">
+                          {extra}
+                          <button onClick={() => removeExtra(extra)} className="hover:text-destructive transition-colors" title="Remover">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Input
+                        value={newExtra}
+                        onChange={(e) => setNewExtra(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && addExtra()}
+                        placeholder="Ex: Landing page extra, Treinamento..."
+                        className="h-8 text-xs max-w-xs"
+                      />
+                      <Button size="sm" variant="outline" onClick={addExtra} disabled={!newExtra.trim() || savingExtras} className="h-8 text-xs">
+                        <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar
+                      </Button>
                     </div>
                   </div>
                 )}
