@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { getAssetTypeLabel, getAssetTypeColor, getValidationLabel, getValidationColor } from "./assetConstants";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -429,7 +430,10 @@ export default function FrontDetailDialog({ front, open, onOpenChange, onUpdated
             )}
           </div>
 
-          {/* Origin metadata */}
+          <Separator />
+
+          {/* Linked Assets */}
+          <LinkedAssetsSection workspaceId={workspaceId} frontId={front.id} />
           {front.metadata && (front.metadata as Record<string, unknown>).plan_name && (
             <>
               <Separator />
