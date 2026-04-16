@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Layers, AlertTriangle } from "lucide-react";
+import { Plus, Layers, AlertTriangle, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +15,12 @@ import {
 } from "./frontConstants";
 import { getScopeLabel, getScopeColor, type ScopeClassification } from "./aceleraConstants";
 import { getPriorityLabel, getPriorityColor } from "./taskConstants";
+import {
+  buildOperationalPlan,
+  scopeToBucket,
+  type OperationalFront as EngineFront,
+  type DerivedTask,
+} from "./operationalPlanEngine";
 
 interface OperationalFront {
   id: string;
@@ -47,10 +53,20 @@ interface Props {
   planName?: string | null;
 }
 
+/* ─── Bucket filter labels with operational clarity ─── */
+const BUCKET_FILTER_OPTIONS = [
+  { value: "all", label: "Todas as frentes" },
+  { value: "active", label: "Ativas — em execução" },
+  { value: "conditional", label: "Condicionais — aguardando confirmação" },
+  { value: "future", label: "Futuras — postergadas" },
+  { value: "out_of_scope", label: "Fora do Plano" },
+];
+
 export default function WorkspaceTabProducao({ workspaceId, clientId, planName }: Props) {
   const [fronts, setFronts] = useState<OperationalFront[]>([]);
   const [taskSummaries, setTaskSummaries] = useState<Map<string, TaskSummary>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedFront, setSelectedFront] = useState<OperationalFront | null>(null);
   const [bucketFilter, setBucketFilter] = useState<string>("all");
@@ -102,6 +118,145 @@ export default function WorkspaceTabProducao({ workspaceId, clientId, planName }
 
   useEffect(() => { fetchFronts(); }, [fetchFronts]);
 
+  /* ─── Auto-generate from Dossiê ─── */
+  const handleGenerate = useCallback(async () => {
+    setGenerating(true);
+    try {
+      // 1. Fetch reviewed briefings
+      const { data: briefings } = await supabase
+        .from("context_entries")
+        .select("id, metadata")
+        .eq("workspace_id", workspaceId)
+        .eq("context_type", "briefing");
+
+      const reviewed = (briefings ?? []).filter(
+        (b) => (b.metadata as Record<string, unknown>)?.import_review_status === "reviewed"
+      );
+
+      if (reviewed.length === 0) {
+        toast({ title: "Nenhum briefing revisado", description: "Revise ao menos um briefing antes de gerar frentes.", variant: "destructive" });
+        return;
+      }
+
+      // 2. Build operational plan from engine
+      const plan = buildOperationalPlan(
+        reviewed.map((b) => ({ id: b.id, metadata: b.metadata as Record<string, unknown> })),
+        planName ?? null
+      );
+
+      const allEngineFronts = [...plan.fronts, ...plan.retained];
+      if (allEngineFronts.length === 0) {
+        toast({ title: "Nenhuma frente derivada", description: "Os sinais revisados não geraram frentes operacionais." });
+        return;
+      }
+
+      // 3. Fetch existing front_keys for deduplication
+      const { data: existing } = await supabase
+        .from("operational_fronts")
+        .select("front_key, bucket_status")
+        .eq("workspace_id", workspaceId);
+
+      const existingKeys = new Map<string, string>();
+      for (const e of (existing ?? [])) {
+        if (e.front_key) existingKeys.set(e.front_key, e.bucket_status);
+      }
+
+      // 4. Filter new fronts only (preserve existing bucket on rerun)
+      const newFronts = allEngineFronts.filter((f) => !existingKeys.has(f.key));
+
+      if (newFronts.length === 0) {
+        toast({ title: "Frentes já existentes", description: "Todas as frentes derivadas já foram criadas anteriormente." });
+        return;
+      }
+
+      // 5. Insert new fronts with correct bucket mapping
+      const frontsToInsert = newFronts.map((f) => ({
+        workspace_id: workspaceId,
+        client_id: clientId,
+        name: f.name,
+        objective: f.objective,
+        front_key: f.key,
+        priority: f.priority,
+        bucket_status: scopeToBucket(f.scopeClassification),
+        scope_classification: f.scopeClassification,
+        execution_status: "not_started",
+        metadata: {
+          plan_name: planName,
+          generation_mode: "dossie_auto",
+          signals: f.signals,
+          dossier_blocks: f.dossierBlocks,
+          stage: f.stage,
+          retained: f.retained,
+          retained_reason: f.retainedReason ?? null,
+        },
+      }));
+
+      const { data: inserted, error: insertError } = await supabase
+        .from("operational_fronts")
+        .insert(frontsToInsert)
+        .select("id, front_key");
+
+      if (insertError) {
+        toast({ title: "Erro ao criar frentes", description: insertError.message, variant: "destructive" });
+        return;
+      }
+
+      // 6. Derive and insert tasks for active fronts
+      const activeFronts = newFronts.filter((f) => scopeToBucket(f.scopeClassification) === "active");
+      if (activeFronts.length > 0 && inserted) {
+        const frontIdMap = new Map<string, string>();
+        for (const row of inserted) {
+          if (row.front_key) frontIdMap.set(row.front_key, row.id);
+        }
+
+        const derivedTasks = plan.tasks.filter((t) =>
+          activeFronts.some((f) => f.key === t.frontKey)
+        );
+
+        if (derivedTasks.length > 0) {
+          const tasksToInsert = derivedTasks.map((t) => ({
+            workspace_id: workspaceId,
+            client_id: clientId,
+            title: t.title,
+            description: t.description,
+            status: "todo",
+            priority: t.priority,
+            stage: t.stage,
+            source_type: "context",
+            metadata: {
+              generation_mode: "operational_wizard",
+              operational_front_id: frontIdMap.get(t.frontKey) ?? null,
+              front_key: t.frontKey,
+              front_name: t.frontName,
+              dossier_block: t.dossierBlock,
+              signal_keys: t.signalKeys,
+              signal_sources: t.signalSources,
+              scope_classification: t.scopeClassification,
+              operational_reason: t.operationalReason,
+            },
+          }));
+
+          await supabase.from("tasks").insert(tasksToInsert);
+        }
+      }
+
+      // 7. Timeline event
+      await supabase.from("timeline_events").insert({
+        workspace_id: workspaceId,
+        client_id: clientId,
+        event_type: "fronts_generated",
+        title: `${newFronts.length} frente(s) gerada(s) do Dossiê`,
+        description: `Ativas: ${newFronts.filter((f) => scopeToBucket(f.scopeClassification) === "active").length}, Condicionais: ${newFronts.filter((f) => scopeToBucket(f.scopeClassification) === "conditional").length}, Fora do plano: ${newFronts.filter((f) => scopeToBucket(f.scopeClassification) === "out_of_scope").length}`,
+        happened_at: new Date().toISOString(),
+      });
+
+      toast({ title: `${newFronts.length} frente(s) criada(s)` });
+      fetchFronts();
+    } finally {
+      setGenerating(false);
+    }
+  }, [workspaceId, clientId, planName, fetchFronts]);
+
   const handleCreate = async (form: FrontFormData) => {
     const payload = {
       workspace_id: workspaceId,
@@ -147,21 +302,25 @@ export default function WorkspaceTabProducao({ workspaceId, clientId, planName }
         <div className="flex items-center gap-2">
           <Layers className="h-4 w-4 text-muted-foreground" />
           <Select value={bucketFilter} onValueChange={setBucketFilter}>
-            <SelectTrigger className="h-8 w-[160px] text-xs">
-              <SelectValue placeholder="Bucket" />
+            <SelectTrigger className="h-8 w-[220px] text-xs">
+              <SelectValue placeholder="Filtrar por status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="active">Ativas</SelectItem>
-              <SelectItem value="conditional">Condicionais</SelectItem>
-              <SelectItem value="future">Futuro</SelectItem>
-              <SelectItem value="out_of_scope">Fora do Escopo</SelectItem>
+              {BUCKET_FILTER_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Nova Frente
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={handleGenerate} disabled={generating}>
+            {generating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+            Gerar do Dossiê
+          </Button>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Nova Frente
+          </Button>
+        </div>
       </div>
 
       {/* List */}
@@ -169,7 +328,9 @@ export default function WorkspaceTabProducao({ workspaceId, clientId, planName }
         <div className="flex flex-col items-center justify-center py-16 animate-fade-in">
           <Layers className="h-8 w-8 text-muted-foreground mb-3" />
           <p className="text-sm font-medium text-foreground mb-1">Nenhuma frente operacional</p>
-          <p className="text-xs text-muted-foreground">Crie frentes para acompanhar a execução por unidade de trabalho.</p>
+          <p className="text-xs text-muted-foreground max-w-sm text-center">
+            Clique em "Gerar do Dossiê" para criar frentes automaticamente a partir dos briefings revisados, ou adicione manualmente.
+          </p>
         </div>
       ) : (
         <div className="space-y-2">

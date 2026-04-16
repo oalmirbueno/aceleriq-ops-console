@@ -276,6 +276,26 @@ const FRONT_DEFINITIONS: FrontDef[] = [
 
 const SCOPE_RETAINED: ScopeClassification[] = ["conditional", "addon", "standalone", "extra_cost"];
 
+/* ─── Scope → Bucket mapping ─── */
+
+/**
+ * Maps scope classification to the correct bucket_status.
+ * - in_plan → active (execute now)
+ * - conditional → conditional (needs operator confirmation)
+ * - addon / standalone / extra_cost → out_of_scope (not in current plan)
+ * - future is NEVER assigned by default — reserved for explicit future scheduling
+ */
+export function scopeToBucket(scope: ScopeClassification): "active" | "conditional" | "future" | "out_of_scope" {
+  switch (scope) {
+    case "in_plan": return "active";
+    case "conditional": return "conditional";
+    case "addon":
+    case "standalone":
+    case "extra_cost": return "out_of_scope";
+    default: return "out_of_scope";
+  }
+}
+
 function resolveScopeForPlan(front: FrontDef, planName: string | null): ScopeClassification {
   const plan = planName ?? "starter";
   return front.planScope[plan] ?? "addon";
