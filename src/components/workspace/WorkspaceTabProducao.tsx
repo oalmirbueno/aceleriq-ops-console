@@ -303,7 +303,7 @@ export default function WorkspaceTabProducao({ workspaceId, clientId, planName }
         <div className="flex items-center gap-2">
           <Layers className="h-4 w-4 text-muted-foreground" />
           <Select value={bucketFilter} onValueChange={setBucketFilter}>
-            <SelectTrigger className="h-8 w-[220px] text-xs">
+            <SelectTrigger className="h-8 w-[320px] text-xs">
               <SelectValue placeholder="Filtrar por status" />
             </SelectTrigger>
             <SelectContent>
