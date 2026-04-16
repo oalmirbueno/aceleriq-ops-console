@@ -108,7 +108,7 @@ export function extractReviewedSignals(
       signals.push({
         key,
         label: resolveSignalLabel(key),
-        summary: entry.summary,
+        summary: entry.summary ?? "",
         dossierBlock: resolveSignalDossierBlock(key, entry.dossier_block),
         source: kind,
         contextEntryId: b.id,
