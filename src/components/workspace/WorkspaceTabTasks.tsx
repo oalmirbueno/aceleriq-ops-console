@@ -251,13 +251,13 @@ export default function WorkspaceTabTasks({ workspaceId, clientId, planName }: P
   }
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-5 animate-fade-in">
       {/* toolbar */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          <ListFilter className="h-4 w-4 text-muted-foreground" />
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <ListFilter className="h-5 w-5 text-muted-foreground" />
           <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="h-8 w-[140px] text-xs">
+            <SelectTrigger className="h-9 w-[160px] text-sm">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -270,9 +270,9 @@ export default function WorkspaceTabTasks({ workspaceId, clientId, planName }: P
 
           {fronts.length > 0 && (
             <>
-              <Layers className="h-4 w-4 text-muted-foreground ml-1" />
+              <Layers className="h-5 w-5 text-muted-foreground ml-1" />
               <Select value={frontFilter} onValueChange={setFrontFilter}>
-                <SelectTrigger className="h-8 w-[180px] text-xs">
+                <SelectTrigger className="h-9 w-[200px] text-sm">
                   <SelectValue placeholder="Frente" />
                 </SelectTrigger>
                 <SelectContent>
@@ -288,51 +288,51 @@ export default function WorkspaceTabTasks({ workspaceId, clientId, planName }: P
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => setWizardOpen(true)}>
-            <ClipboardList className="h-4 w-4 mr-1" /> Plano Operacional
+            <ClipboardList className="h-4 w-4 mr-1.5" /> Plano Operacional
           </Button>
           <Button size="sm" variant="outline" onClick={() => setGenerateOpen(true)}>
-            <Sparkles className="h-4 w-4 mr-1" /> Gerar de Contexto
+            <Sparkles className="h-4 w-4 mr-1.5" /> Gerar de Contexto
           </Button>
           <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" /> Nova Task
+            <Plus className="h-4 w-4 mr-1.5" /> Nova Task
           </Button>
         </div>
       </div>
 
       {/* list */}
       {filteredTasks.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 animate-fade-in">
-          <CheckCircle2 className="h-8 w-8 text-muted-foreground mb-3" />
-          <p className="text-sm font-medium text-foreground mb-1">
+        <div className="flex flex-col items-center justify-center py-20 animate-fade-in">
+          <CheckCircle2 className="h-10 w-10 text-muted-foreground mb-4" />
+          <p className="text-base font-medium text-foreground mb-1">
             {filter === "all" && frontFilter === "all" ? "Nenhuma task neste workspace" : "Nenhuma task com esses filtros"}
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground max-w-md text-center">
             {filter === "all" && frontFilter === "all"
               ? "Use o Plano Operacional ou gere frentes na aba Produção para criar tasks automaticamente."
               : "Tente outro filtro ou crie uma nova task."}
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {filteredTasks.map((t) => {
             const frontName = getFrontName(t);
             return (
               <Card key={t.id} className="cursor-pointer hover:border-primary/30 transition-colors" onClick={() => setEditTask(t)}>
-                <CardContent className="p-3 flex items-start gap-3">
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium text-foreground truncate">{t.title}</span>
-                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${getStatusColor(t.status)}`}>
+                <CardContent className="p-4 flex items-start gap-3">
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <span className="text-base font-medium text-foreground truncate">{t.title}</span>
+                      <Badge variant="outline" className={`text-xs px-2 py-0.5 ${getStatusColor(t.status)}`}>
                         {getStatusLabel(t.status)}
                       </Badge>
-                      <span className={`text-[10px] ${getPriorityColor(t.priority)}`}>
+                      <span className={`text-xs font-medium ${getPriorityColor(t.priority)}`}>
                         {getPriorityLabel(t.priority)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                       {frontName && (
-                        <span className="text-primary/80 font-medium flex items-center gap-1">
-                          <Layers className="h-2.5 w-2.5" />
+                        <span className="text-primary/80 font-medium flex items-center gap-1.5">
+                          <Layers className="h-3.5 w-3.5" />
                           {frontName}
                         </span>
                       )}
@@ -342,9 +342,9 @@ export default function WorkspaceTabTasks({ workspaceId, clientId, planName }: P
                     </div>
                   </div>
                   {/* quick status */}
-                  <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                     <Select value={t.status} onValueChange={(v) => handleQuickStatus(t, v)}>
-                      <SelectTrigger className="h-7 w-[120px] text-[10px]">
+                      <SelectTrigger className="h-8 w-[130px] text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -359,7 +359,7 @@ export default function WorkspaceTabTasks({ workspaceId, clientId, planName }: P
                         className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded"
                         title="Cancelar task"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     )}
                   </div>
