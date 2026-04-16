@@ -67,13 +67,15 @@ export default function CreateAssetDialog({ open, onOpenChange, workspaceId, cli
     if (!title.trim()) return;
     setSaving(true);
 
-    const payload = {
+    const externalUrl = url.trim() || null;
+    const payload: Record<string, unknown> = {
       workspace_id: workspaceId,
       client_id: clientId,
       asset_type: assetType,
       title: title.trim(),
       description: description.trim() || null,
-      url: url.trim() || null,
+      external_url: externalUrl,
+      storage_path: externalUrl ? null : "pending",
       primary_use: primaryUse.trim() || null,
       observation: observation.trim() || null,
       validation_status: validationStatus,
@@ -87,9 +89,7 @@ export default function CreateAssetDialog({ open, onOpenChange, workspaceId, cli
     if (error) {
       toast({
         title: "Erro ao criar asset",
-        description: error.message.includes("url")
-          ? "A tabela assets ainda não tem a coluna 'url'. Rode a migration pendente no banco e tente novamente."
-          : error.message,
+        description: error.message,
         variant: "destructive",
       });
       setSaving(false);
