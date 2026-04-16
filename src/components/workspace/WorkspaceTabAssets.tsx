@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, PackageCheck, ExternalLink } from "lucide-react";
+import { Plus, PackageCheck, ExternalLink, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -116,6 +116,17 @@ export default function WorkspaceTabAssets({ workspaceId, clientId }: Props) {
     setChangingId(null);
   };
 
+  const handleDelete = async (assetId: string, assetTitle: string) => {
+    if (!confirm(`Apagar asset "${assetTitle}"?`)) return;
+    const { error } = await supabase.from("assets").delete().eq("id", assetId);
+    if (error) {
+      toast({ title: "Erro ao apagar", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Asset apagado" });
+      fetchData();
+    }
+  };
+
   const frontName = (id: string | null) => {
     if (!id) return null;
     return fronts.find(f => f.id === id)?.name ?? null;
@@ -219,6 +230,14 @@ export default function WorkspaceTabAssets({ workspaceId, clientId }: Props) {
                           ))}
                         </SelectContent>
                       </Select>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleDelete(a.id, a.title)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
