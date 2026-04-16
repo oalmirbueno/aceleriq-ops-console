@@ -615,11 +615,12 @@ export function deriveTasksFromFronts(
 
 export function buildOperationalPlan(
   briefings: Array<{ id?: string; metadata: Record<string, unknown> | null }>,
-  planName: string | null
+  planName: string | null,
+  focusAreas?: string[] | null
 ): OperationalPlan {
   const signals = extractReviewedSignals(briefings);
   const diagnostic = buildDiagnostic(signals);
-  const { fronts, retained } = buildOperationalFronts(signals, planName);
+  const { fronts, retained } = buildOperationalFronts(signals, planName, focusAreas);
   const tasks = deriveTasksFromFronts(fronts, signals);
 
   return { diagnostic, fronts, tasks, retained };
