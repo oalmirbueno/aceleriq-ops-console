@@ -233,6 +233,7 @@ export default function WorkspaceTabProducao({ workspaceId, clientId, planName }
               signal_sources: t.signalSources,
               scope_classification: t.scopeClassification,
               operational_reason: t.operationalReason,
+              action_plan: t.actionPlan,
             },
           }));
 
