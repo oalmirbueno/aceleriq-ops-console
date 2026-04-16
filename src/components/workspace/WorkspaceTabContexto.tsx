@@ -413,39 +413,39 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
               <Collapsible key={section.key} open={sectionOpen} onOpenChange={() => toggleSection(section.key)}>
                 <div className="rounded-xl border border-border/60 bg-card/40">
                   <CollapsibleTrigger asChild>
-                    <button className="w-full flex items-start gap-3 px-4 py-3 text-left">
+                    <button className="w-full flex items-start gap-3 px-5 py-4 text-left">
                       {sectionOpen ? (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                        <ChevronDown className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
                       ) : (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                        <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
                       )}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-semibold text-foreground">{section.label}</span>
-                          <Badge variant="outline" className="text-[10px]">{sectionCount}</Badge>
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className="text-base font-semibold text-foreground">{section.label}</span>
+                          <Badge variant="outline" className="text-xs">{sectionCount}</Badge>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">{section.description}</p>
+                        <p className="text-sm text-muted-foreground mt-1">{section.description}</p>
                       </div>
                     </button>
                   </CollapsibleTrigger>
 
                   <CollapsibleContent>
-                    <div className="px-3 pb-3 space-y-2">
+                    <div className="px-4 pb-4 space-y-3">
                       {section.folders.map((folder) => {
                         const folderOpen = openFolders.has(folder.type);
 
                         return (
                           <Collapsible key={folder.type} open={folderOpen} onOpenChange={() => toggleFolder(folder.type)}>
                             <CollapsibleTrigger asChild>
-                              <button className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors text-left">
+                              <button className="w-full flex items-center gap-2.5 px-4 py-3 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors text-left">
                                 {folderOpen ? (
                                   <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
                                 ) : (
                                   <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                                 )}
-                                <FolderOpen className="h-4 w-4 text-primary shrink-0" />
+                                <FolderOpen className="h-5 w-5 text-primary shrink-0" />
                                 <span className="text-sm font-medium text-foreground flex-1">{folder.label}</span>
-                                <Badge variant="outline" className="text-[10px] shrink-0">{folder.entries.length}</Badge>
+                                <Badge variant="outline" className="text-xs shrink-0">{folder.entries.length}</Badge>
                               </button>
                             </CollapsibleTrigger>
 
