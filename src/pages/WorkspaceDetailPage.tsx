@@ -128,7 +128,7 @@ export default function WorkspaceDetailPage() {
     <>
       <AppHeader title={clientName} subtitle={ws.name} />
 
-      <div className="p-6 animate-fade-in space-y-5">
+      <div className="p-6 animate-fade-in space-y-6">
         <WorkspaceHeader
           clientName={clientName}
           ownerName={ownerName}
