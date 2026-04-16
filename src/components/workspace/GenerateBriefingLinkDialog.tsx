@@ -1,12 +1,13 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Check, ExternalLink, Building2, Bot } from "lucide-react";
+import { Copy, Check, ExternalLink, Building2, Bot, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { encodeBriefingToken, generateBriefingUrl, type BriefingKind, BRIEFING_KIND_LABELS, BRIEFING_KIND_DESCRIPTIONS } from "@/lib/briefingToken";
+import { type BriefingKind, BRIEFING_KIND_LABELS, BRIEFING_KIND_DESCRIPTIONS } from "@/lib/briefingToken";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   open: boolean;
@@ -14,7 +15,6 @@ interface Props {
   workspaceId: string;
   clientId: string;
   clientName: string;
-  /** Pre-select a briefing type */
   defaultBriefingType?: BriefingKind;
 }
 
@@ -23,18 +23,59 @@ const BRIEFING_OPTIONS: { key: BriefingKind; icon: typeof Building2 }[] = [
   { key: "ai_automation", icon: Bot },
 ];
 
+function generateBriefingUrl(token: string): string {
+  const publishedOrigin = "https://acel-ops-core.lovable.app";
+  return `${publishedOrigin}/briefing/${token}`;
+}
+
 export default function GenerateBriefingLinkDialog({ open, onOpenChange, workspaceId, clientId, clientName, defaultBriefingType }: Props) {
   const [copied, setCopied] = useState(false);
   const [selectedType, setSelectedType] = useState<BriefingKind>(defaultBriefingType ?? "enterprise_structuring");
+  const [signedToken, setSignedToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Stable token — only changes when workspaceId, clientId or selectedType change
-  const token = useMemo(
-    () => encodeBriefingToken(workspaceId, clientId, selectedType),
-    [workspaceId, clientId, selectedType]
-  );
-  const url = generateBriefingUrl(token);
+  // Request signed token from server when dialog opens or type changes
+  useEffect(() => {
+    if (!open) return;
+    
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setSignedToken(null);
+    setCopied(false);
+
+    (async () => {
+      try {
+        const { data, error: fnError } = await supabase.functions.invoke("issue-briefing-token", {
+          body: { workspaceId, clientId, briefingType: selectedType },
+        });
+
+        if (cancelled) return;
+
+        if (fnError || data?.error) {
+          setError(fnError?.message ?? data?.error ?? "Erro ao gerar token");
+          setLoading(false);
+          return;
+        }
+
+        setSignedToken(data.token);
+        setLoading(false);
+      } catch (e) {
+        if (!cancelled) {
+          setError("Erro ao gerar link seguro");
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [open, selectedType, workspaceId, clientId]);
+
+  const url = signedToken ? generateBriefingUrl(signedToken) : "";
 
   const handleCopy = async () => {
+    if (!url) return;
     await navigator.clipboard.writeText(url);
     setCopied(true);
     toast({ title: "Link copiado!" });
@@ -78,10 +119,21 @@ export default function GenerateBriefingLinkDialog({ open, onOpenChange, workspa
           </div>
 
           <div className="flex gap-2">
-            <Input value={url} readOnly className="text-xs font-mono" />
-            <Button size="icon" variant="outline" onClick={handleCopy}>
-              {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-            </Button>
+            {loading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Gerando link seguro...
+              </div>
+            ) : error ? (
+              <div className="text-sm text-destructive py-2">{error}</div>
+            ) : (
+              <>
+                <Input value={url} readOnly className="text-xs font-mono" />
+                <Button size="icon" variant="outline" onClick={handleCopy}>
+                  {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </>
+            )}
           </div>
 
           <div className="text-[11px] text-muted-foreground space-y-1">
@@ -90,16 +142,19 @@ export default function GenerateBriefingLinkDialog({ open, onOpenChange, workspa
             <p>✓ O cliente pode baixar o briefing em PDF</p>
             <p>✓ Ao enviar, o briefing aparece automaticamente na aba Contexto</p>
             <p>✓ Um evento é registrado na Timeline quando o cliente enviar</p>
+            <p>✓ Link assinado com expiração de 30 dias</p>
           </div>
         </div>
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
-          <a href={url} target="_blank" rel="noopener noreferrer">
-            <Button variant="outline" size="sm">
-              <ExternalLink className="h-4 w-4 mr-1" /> Pré-visualizar
-            </Button>
-          </a>
+          {signedToken && (
+            <a href={url} target="_blank" rel="noopener noreferrer">
+              <Button variant="outline" size="sm">
+                <ExternalLink className="h-4 w-4 mr-1" /> Pré-visualizar
+              </Button>
+            </a>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
