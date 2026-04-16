@@ -96,25 +96,29 @@ export default function CreateAssetDialog({ open, onOpenChange, workspaceId, cli
       return;
     }
 
+    const frontLabel = frontId && frontId !== "__none__"
+      ? fronts.find(f => f.id === frontId)?.name ?? ""
+      : "";
+    const tlDesc = [
+      `Tipo: ${ASSET_TYPE_OPTIONS.find(o => o.value === assetType)?.label ?? assetType}`,
+      frontLabel ? `Frente: ${frontLabel}` : null,
+    ].filter(Boolean).join(" · ");
+
     const { error: tlError } = await supabase.from("timeline_events").insert({
       workspace_id: workspaceId,
       client_id: clientId,
-      event_type: "asset_created",
+      event_type: "context_added",
       title: `Asset criado: ${title.trim()}`,
-      description: `Tipo: ${ASSET_TYPE_OPTIONS.find(o => o.value === assetType)?.label ?? assetType}`,
+      description: tlDesc,
       happened_at: new Date().toISOString(),
     });
-    if (tlError) console.error("Timeline insert error:", tlError);
-
-    if (frontId && frontId !== "__none__") {
-      const { error: tlError2 } = await supabase.from("timeline_events").insert({
-        workspace_id: workspaceId,
-        client_id: clientId,
-        event_type: "asset_linked_front",
-        title: `Asset vinculado à frente: ${title.trim()}`,
-        happened_at: new Date().toISOString(),
+    if (tlError) {
+      console.error("Timeline insert error:", tlError);
+      toast({
+        title: "Asset salvo, mas timeline falhou",
+        description: `Erro: ${tlError.message}`,
+        variant: "destructive",
       });
-      if (tlError2) console.error("Timeline link insert error:", tlError2);
     }
 
     toast({ title: "Asset criado" });
