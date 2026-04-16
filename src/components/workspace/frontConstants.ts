@@ -6,10 +6,10 @@ export type BucketStatus = "active" | "conditional" | "future" | "out_of_scope";
 export type ExecutionStatus = "not_started" | "in_progress" | "blocked" | "paused" | "in_validation" | "done" | "reopened";
 
 export const BUCKET_STATUS_OPTIONS: Array<{ value: BucketStatus; label: string; hint?: string }> = [
-  { value: "active", label: "Ativa", hint: "Em execução agora" },
-  { value: "conditional", label: "Condicional", hint: "Aguardando confirmação" },
-  { value: "future", label: "Futura", hint: "Postergada para fase posterior" },
-  { value: "out_of_scope", label: "Fora do Plano", hint: "Add-on, avulso ou custo extra" },
+  { value: "active", label: "Ativa", hint: "Em execução agora — inclusa no plano" },
+  { value: "conditional", label: "Condicional", hint: "Aguardando confirmação do operador para executar" },
+  { value: "future", label: "Futura", hint: "Postergada para fase posterior com critério explícito" },
+  { value: "out_of_scope", label: "Fora do Plano", hint: "Add-on, avulso ou custo extra — não incluído na execução automática" },
 ];
 
 export const EXECUTION_STATUS_OPTIONS: Array<{ value: ExecutionStatus; label: string }> = [
