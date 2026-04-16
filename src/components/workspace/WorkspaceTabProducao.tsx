@@ -51,7 +51,6 @@ interface Props {
   workspaceId: string;
   clientId: string;
   planName?: string | null;
-  focusAreas?: string[] | null;
 }
 
 /* ─── Bucket filter labels with operational clarity ─── */
@@ -63,7 +62,7 @@ const BUCKET_FILTER_OPTIONS = [
   { value: "out_of_scope", label: "Fora do Plano" },
 ];
 
-export default function WorkspaceTabProducao({ workspaceId, clientId, planName, focusAreas }: Props) {
+export default function WorkspaceTabProducao({ workspaceId, clientId, planName }: Props) {
   const [fronts, setFronts] = useState<OperationalFront[]>([]);
   const [taskSummaries, setTaskSummaries] = useState<Map<string, TaskSummary>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -142,8 +141,7 @@ export default function WorkspaceTabProducao({ workspaceId, clientId, planName, 
       // 2. Build operational plan from engine
       const plan = buildOperationalPlan(
         reviewed.map((b) => ({ id: b.id, metadata: b.metadata as Record<string, unknown> })),
-        planName ?? null,
-        focusAreas
+        planName ?? null
       );
 
       const allEngineFronts = [...plan.fronts, ...plan.retained];

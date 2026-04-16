@@ -163,8 +163,6 @@ export default function WorkspaceDetailPage() {
               segment={ws.clients?.segment ?? null}
               createdAt={ws.created_at}
               focusAreas={(ws.clients?.metadata as any)?.focus_areas ?? null}
-              clientId={ws.client_id}
-              clientMetadata={ws.clients?.metadata as Record<string, unknown> | null}
               summary={ws.summary ?? null}
               recentEvents={timeline}
               workspaceId={ws.id}
@@ -194,7 +192,7 @@ export default function WorkspaceDetailPage() {
           </TabsContent>
 
           <TabsContent value="producao">
-            <WorkspaceTabProducao workspaceId={ws.id} clientId={ws.client_id} planName={ws.clients?.plan_name} focusAreas={(ws.clients?.metadata as any)?.focus_areas ?? null} />
+            <WorkspaceTabProducao workspaceId={ws.id} clientId={ws.client_id} planName={ws.clients?.plan_name} />
           </TabsContent>
         </Tabs>
       </div>

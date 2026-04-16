@@ -62,29 +62,20 @@ function readScopeClassification(meta: Record<string, unknown> | null): ScopeCla
 }
 
 const DOSSIE_BLOCKS = [
-  { key: "identity", label: "Identidade e Posicionamento", icon: Building2, contextTypes: ["briefing"], description: "Quem é o cliente, proposta de valor, posicionamento de mercado.", focusAreas: ["branding", "strategy"] },
-  { key: "offer", label: "Oferta, ICP e Persona", icon: Target, contextTypes: ["briefing", "objetivo"], description: "O que vende, para quem, perfil do cliente ideal.", focusAreas: ["commercial", "marketing"] },
-  { key: "commercial", label: "Estrutura Comercial", icon: ShoppingCart, contextTypes: ["objetivo", "decisao"], description: "Funil de vendas, processo comercial, metas de aquisição.", focusAreas: ["commercial"] },
-  { key: "operational", label: "Estrutura Operacional", icon: Settings, contextTypes: ["anotacao", "decisao"], description: "Fluxo de entrega, processos, equipe, responsabilidades.", focusAreas: ["systems", "strategy"] },
-  { key: "digital", label: "Estrutura Digital", icon: Globe, contextTypes: ["acesso", "anotacao"], description: "Presença digital, canais, ferramentas, métricas.", focusAreas: ["marketing", "website", "seo"] },
-  { key: "access", label: "Processos e Acessos", icon: Key, contextTypes: ["acesso"], description: "Acessos coletados, pendências, dependências técnicas.", focusAreas: ["systems", "security"] },
-  { key: "diagnostic", label: "Diagnóstico Estrutural", icon: Search, contextTypes: ["diagnostico", "dor"], description: "Gargalos, dores, lacunas operacionais identificadas.", focusAreas: ["strategy", "systems", "ai"] },
-  { key: "decisions", label: "Decisões, Lacunas e Prioridades", icon: Scale, contextTypes: ["decisao", "dor", "objetivo"], description: "Decisões estratégicas, prioridades e gaps a resolver.", focusAreas: ["strategy", "legal"] },
+  { key: "identity", label: "Identidade e Posicionamento", icon: Building2, contextTypes: ["briefing"], description: "Quem é o cliente, proposta de valor, posicionamento de mercado." },
+  { key: "offer", label: "Oferta, ICP e Persona", icon: Target, contextTypes: ["briefing", "objetivo"], description: "O que vende, para quem, perfil do cliente ideal." },
+  { key: "commercial", label: "Estrutura Comercial", icon: ShoppingCart, contextTypes: ["objetivo", "decisao"], description: "Funil de vendas, processo comercial, metas de aquisição." },
+  { key: "operational", label: "Estrutura Operacional", icon: Settings, contextTypes: ["anotacao", "decisao"], description: "Fluxo de entrega, processos, equipe, responsabilidades." },
+  { key: "digital", label: "Estrutura Digital", icon: Globe, contextTypes: ["acesso", "anotacao"], description: "Presença digital, canais, ferramentas, métricas." },
+  { key: "access", label: "Processos e Acessos", icon: Key, contextTypes: ["acesso"], description: "Acessos coletados, pendências, dependências técnicas." },
+  { key: "diagnostic", label: "Diagnóstico Estrutural", icon: Search, contextTypes: ["diagnostico", "dor"], description: "Gargalos, dores, lacunas operacionais identificadas." },
+  { key: "decisions", label: "Decisões, Lacunas e Prioridades", icon: Scale, contextTypes: ["decisao", "dor", "objetivo"], description: "Decisões estratégicas, prioridades e gaps a resolver." },
 ] as const;
 
 export default function WorkspaceTabDossie({ workspaceId, clientId, planName, clientMetadata, workspaceMetadata }: Props) {
   const [contexts, setContexts] = useState<ContextEntry[]>([]);
   const [taskSummary, setTaskSummary] = useState<TaskSummary>({ total: 0, done: 0, in_progress: 0, blocked: 0 });
   const [loading, setLoading] = useState(true);
-  const [showAll, setShowAll] = useState(false);
-
-  const focusAreas = (clientMetadata?.focus_areas as string[] | undefined) ?? [];
-  const hasFilter = focusAreas.length > 0 && !showAll;
-
-  const visibleBlocks = hasFilter
-    ? DOSSIE_BLOCKS.filter((b) => b.focusAreas.some((fa) => focusAreas.includes(fa)))
-    : DOSSIE_BLOCKS;
-
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set(DOSSIE_BLOCKS.map((b) => b.key)));
 
   const toggleBlock = (key: string) => {
@@ -164,8 +155,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
 
   // Count total signals across all blocks
   const totalSignals = Array.from(allDossierSignals.values()).reduce((acc, items) => acc + items.length, 0);
-  const filledBlocks = visibleBlocks.filter((b) => (allDossierSignals.get(b.key)?.length ?? 0) > 0 || getBlockContexts(b.key, b.contextTypes).length > 0).length;
-  const hiddenCount = DOSSIE_BLOCKS.length - visibleBlocks.length;
+  const filledBlocks = DOSSIE_BLOCKS.filter((b) => (allDossierSignals.get(b.key)?.length ?? 0) > 0 || getBlockContexts(b.key, b.contextTypes).length > 0).length;
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -176,20 +166,12 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
           <span className="font-medium text-foreground">Dossiê Operacional</span>
         </div>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <span>{filledBlocks}/{visibleBlocks.length} blocos preenchidos</span>
+          <span>{filledBlocks}/{DOSSIE_BLOCKS.length} blocos preenchidos</span>
           <span>{totalSignals} sinais estruturados</span>
           <span>{briefings.length} briefing(s)</span>
         </div>
         {filledBlocks > 0 && (
-          <Progress value={(filledBlocks / visibleBlocks.length) * 100} className="h-1.5 w-32" />
-        )}
-        {hiddenCount > 0 && (
-          <button
-            onClick={() => setShowAll(!showAll)}
-            className="text-xs text-primary hover:underline"
-          >
-            {showAll ? "Mostrar apenas foco" : `+${hiddenCount} blocos ocultos (fora do foco)`}
-          </button>
+          <Progress value={(filledBlocks / DOSSIE_BLOCKS.length) * 100} className="h-1.5 w-32" />
         )}
       </div>
 
@@ -253,7 +235,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
       </Card>
 
       {/* Dossiê blocks */}
-      {visibleBlocks.map((block) => {
+      {DOSSIE_BLOCKS.map((block) => {
         const blockContexts = getBlockContexts(block.key, block.contextTypes);
         const blockSignals = allDossierSignals.get(block.key) ?? [];
         const Icon = block.icon;

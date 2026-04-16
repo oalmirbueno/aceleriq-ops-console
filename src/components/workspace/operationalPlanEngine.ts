@@ -198,7 +198,6 @@ interface FrontDef {
   triggerDossierBlocks: string[];
   stage: string;
   planScope: Record<string, ScopeClassification>;
-  focusAreas: string[];
 }
 
 const FRONT_DEFINITIONS: FrontDef[] = [
@@ -210,7 +209,6 @@ const FRONT_DEFINITIONS: FrontDef[] = [
     triggerDossierBlocks: ["commercial", "offer"],
     stage: "estrutura_base",
     planScope: { starter: "conditional", growth: "in_plan", enterprise: "in_plan" },
-    focusAreas: ["commercial"],
   },
   {
     key: "operational",
@@ -220,7 +218,6 @@ const FRONT_DEFINITIONS: FrontDef[] = [
     triggerDossierBlocks: ["operational"],
     stage: "estrutura_base",
     planScope: { starter: "conditional", growth: "in_plan", enterprise: "in_plan" },
-    focusAreas: ["systems", "strategy"],
   },
   {
     key: "digital",
@@ -230,7 +227,6 @@ const FRONT_DEFINITIONS: FrontDef[] = [
     triggerDossierBlocks: ["digital"],
     stage: "producao",
     planScope: { starter: "in_plan", growth: "in_plan", enterprise: "in_plan" },
-    focusAreas: ["marketing", "website", "seo"],
   },
   {
     key: "access",
@@ -240,7 +236,6 @@ const FRONT_DEFINITIONS: FrontDef[] = [
     triggerDossierBlocks: ["access"],
     stage: "entrada",
     planScope: { starter: "in_plan", growth: "in_plan", enterprise: "in_plan" },
-    focusAreas: ["systems", "security"],
   },
   {
     key: "automation",
@@ -250,7 +245,6 @@ const FRONT_DEFINITIONS: FrontDef[] = [
     triggerDossierBlocks: [],
     stage: "producao",
     planScope: { starter: "addon", growth: "conditional", enterprise: "in_plan" },
-    focusAreas: ["ai", "systems"],
   },
   {
     key: "documentation",
@@ -260,7 +254,6 @@ const FRONT_DEFINITIONS: FrontDef[] = [
     triggerDossierBlocks: ["identity"],
     stage: "planejamento",
     planScope: { starter: "in_plan", growth: "in_plan", enterprise: "in_plan" },
-    focusAreas: ["branding", "strategy"],
   },
   {
     key: "technical",
@@ -270,7 +263,6 @@ const FRONT_DEFINITIONS: FrontDef[] = [
     triggerDossierBlocks: [],
     stage: "producao",
     planScope: { starter: "addon", growth: "in_plan", enterprise: "in_plan" },
-    focusAreas: ["systems", "security"],
   },
   {
     key: "activation",
@@ -280,7 +272,6 @@ const FRONT_DEFINITIONS: FrontDef[] = [
     triggerDossierBlocks: [],
     stage: "ativacao",
     planScope: { starter: "in_plan", growth: "in_plan", enterprise: "in_plan" },
-    focusAreas: ["marketing", "commercial", "website"],
   },
   {
     key: "diagnostic_deep",
@@ -290,7 +281,6 @@ const FRONT_DEFINITIONS: FrontDef[] = [
     triggerDossierBlocks: ["diagnostic"],
     stage: "diagnostico",
     planScope: { starter: "conditional", growth: "in_plan", enterprise: "in_plan" },
-    focusAreas: ["strategy", "systems", "ai"],
   },
 ];
 
@@ -323,20 +313,15 @@ function resolveScopeForPlan(front: FrontDef, planName: string | null): ScopeCla
 
 export function buildOperationalFronts(
   signals: ReviewedSignal[],
-  planName: string | null,
-  focusAreas?: string[] | null
+  planName: string | null
 ): { fronts: OperationalFront[]; retained: OperationalFront[] } {
   const signalKeys = new Set(signals.map((s) => s.key));
   const dossierBlocks = new Set(signals.map((s) => s.dossierBlock));
-  const hasFocusFilter = focusAreas && focusAreas.length > 0;
 
   const fronts: OperationalFront[] = [];
   const retained: OperationalFront[] = [];
 
   for (const def of FRONT_DEFINITIONS) {
-    // If focus areas are set, skip fronts that don't match any
-    if (hasFocusFilter && !def.focusAreas.some((fa) => focusAreas.includes(fa))) continue;
-
     // Check if this front has enough signal support
     const matchingSignals = def.triggerSignals.filter((k) => signalKeys.has(k));
     const matchingBlocks = def.triggerDossierBlocks.filter((k) => dossierBlocks.has(k));
@@ -615,12 +600,11 @@ export function deriveTasksFromFronts(
 
 export function buildOperationalPlan(
   briefings: Array<{ id?: string; metadata: Record<string, unknown> | null }>,
-  planName: string | null,
-  focusAreas?: string[] | null
+  planName: string | null
 ): OperationalPlan {
   const signals = extractReviewedSignals(briefings);
   const diagnostic = buildDiagnostic(signals);
-  const { fronts, retained } = buildOperationalFronts(signals, planName, focusAreas);
+  const { fronts, retained } = buildOperationalFronts(signals, planName);
   const tasks = deriveTasksFromFronts(fronts, signals);
 
   return { diagnostic, fronts, tasks, retained };
