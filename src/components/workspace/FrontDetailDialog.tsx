@@ -154,7 +154,7 @@ export default function FrontDetailDialog({ front, open, onOpenChange, onUpdated
     const oldLabel = getExecutionLabel(front.execution_status);
     const newLabel = getExecutionLabel(newStatus);
     await updateFront(
-      { execution_status: newStatus, blocked_reason: newStatus !== "blocked" ? null : front.blocked_reason },
+      { execution_status: newStatus, blocked_reason: null },
       `Frente "${front.name}" — status alterado`,
       `De "${oldLabel}" para "${newLabel}"`
     );
