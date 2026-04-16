@@ -11,14 +11,13 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import {
   AlertTriangle, CheckCircle2, Pause, Play, RotateCcw, Lock, Unlock,
-  Plus, Link2, ExternalLink, FileText, Trash2, Pencil, Save, X,
+  Plus, Link2, ExternalLink, FileText, Trash2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import {
-  EXECUTION_STATUS_OPTIONS, BUCKET_STATUS_OPTIONS, PRIORITY_OPTIONS,
-  getBucketLabel, getExecutionLabel, getExecutionColor, getBucketColor,
-  type ExecutionStatus,
+  EXECUTION_STATUS_OPTIONS, getBucketLabel, getExecutionLabel,
+  getExecutionColor, getBucketColor, type ExecutionStatus,
 } from "./frontConstants";
 import { getScopeLabel, getScopeColor, type ScopeClassification } from "./aceleraConstants";
 import { getStatusLabel, getStatusColor } from "./taskConstants";
@@ -72,16 +71,6 @@ export default function FrontDetailDialog({ front, open, onOpenChange, onUpdated
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [blockReason, setBlockReason] = useState("");
   const [showBlockInput, setShowBlockInput] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-
-  // Edit mode
-  const [editing, setEditing] = useState(false);
-  const [editName, setEditName] = useState("");
-  const [editObjective, setEditObjective] = useState("");
-  const [editOutcome, setEditOutcome] = useState("");
-  const [editPriority, setEditPriority] = useState("");
-  const [editBucket, setEditBucket] = useState("");
-  const [savingEdit, setSavingEdit] = useState(false);
 
   // Evidence state
   const [evidenceLabel, setEvidenceLabel] = useState("");
@@ -91,39 +80,36 @@ export default function FrontDetailDialog({ front, open, onOpenChange, onUpdated
 
   const frontId = front?.id;
 
-  // Initialize edit fields when front changes
-  useEffect(() => {
-    if (front) {
-      setEditName(front.name);
-      setEditObjective(front.objective ?? "");
-      setEditOutcome(front.expected_outcome ?? "");
-      setEditPriority(front.priority);
-      setEditBucket(front.bucket_status);
-    }
-  }, [front]);
-
   const fetchLinkedTasks = useCallback(async () => {
     if (!frontId) return;
     setLoadingTasks(true);
-    const { data: fullTasks } = await supabase
+    // Tasks linked via metadata.operational_front_id
+    const { data } = await supabase
       .from("tasks")
-      .select("id, title, status, priority, metadata")
+      .select("id, title, status, priority")
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false });
 
-    const linked = (fullTasks ?? []).filter((t: Record<string, unknown>) => {
-      const meta = t.metadata as Record<string, unknown> | null;
-      return meta?.operational_front_id === frontId;
-    });
-    setLinkedTasks(linked as LinkedTask[]);
+    // Filter client-side for metadata match
+    if (data) {
+      // We need to fetch full metadata to check link — use a broader query
+      const { data: fullTasks } = await supabase
+        .from("tasks")
+        .select("id, title, status, priority, metadata")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false });
+
+      const linked = (fullTasks ?? []).filter((t: Record<string, unknown>) => {
+        const meta = t.metadata as Record<string, unknown> | null;
+        return meta?.operational_front_id === frontId;
+      });
+      setLinkedTasks(linked as LinkedTask[]);
+    }
     setLoadingTasks(false);
   }, [frontId, workspaceId]);
 
   useEffect(() => {
-    if (open && frontId) {
-      fetchLinkedTasks();
-      setEditing(false);
-    }
+    if (open && frontId) fetchLinkedTasks();
   }, [open, frontId, fetchLinkedTasks]);
 
   if (!front) return null;
@@ -192,61 +178,6 @@ export default function FrontDetailDialog({ front, open, onOpenChange, onUpdated
     );
   };
 
-  const handleSaveEdit = async () => {
-    if (!editName.trim()) return;
-    setSavingEdit(true);
-    await updateFront(
-      {
-        name: editName.trim(),
-        objective: editObjective.trim() || null,
-        expected_outcome: editOutcome.trim() || null,
-        priority: editPriority,
-        bucket_status: editBucket,
-      },
-      `Frente "${front.name}" editada`,
-      editName.trim() !== front.name ? `Renomeada para "${editName.trim()}"` : undefined
-    );
-    setSavingEdit(false);
-    setEditing(false);
-  };
-
-  const handleDelete = async () => {
-    if (!window.confirm(`Tem certeza que deseja apagar a frente "${front.name}"?\n\nAs tasks vinculadas NÃO serão apagadas, mas perderão o vínculo.`)) return;
-    setDeleting(true);
-
-    // Unlink tasks
-    if (linkedTasks.length > 0) {
-      for (const t of linkedTasks) {
-        const { data: taskData } = await supabase.from("tasks").select("metadata").eq("id", t.id).single();
-        const meta = (taskData?.metadata as Record<string, unknown>) ?? {};
-        delete meta.operational_front_id;
-        delete meta.front_key;
-        delete meta.front_name;
-        await supabase.from("tasks").update({ metadata: meta }).eq("id", t.id);
-      }
-    }
-
-    const { error } = await supabase.from("operational_fronts").delete().eq("id", front.id);
-    if (error) {
-      toast({ title: "Erro ao apagar frente", description: error.message, variant: "destructive" });
-      setDeleting(false);
-      return;
-    }
-
-    await supabase.from("timeline_events").insert({
-      workspace_id: workspaceId,
-      client_id: clientId,
-      event_type: "front_deleted",
-      title: `Frente apagada: ${front.name}`,
-      happened_at: new Date().toISOString(),
-    });
-
-    toast({ title: "Frente apagada" });
-    setDeleting(false);
-    onOpenChange(false);
-    onUpdated();
-  };
-
   const handleAddEvidence = async () => {
     if (!evidenceLabel.trim()) return;
     const newItem: EvidenceItem = {
@@ -276,10 +207,11 @@ export default function FrontDetailDialog({ front, open, onOpenChange, onUpdated
   };
 
   const handleLinkTask = async (taskId: string) => {
+    // Update task metadata to link it
     const { data: task } = await supabase.from("tasks").select("metadata").eq("id", taskId).single();
     const existingMeta = (task?.metadata as Record<string, unknown>) ?? {};
     await supabase.from("tasks").update({
-      metadata: { ...existingMeta, operational_front_id: front.id, front_name: front.name },
+      metadata: { ...existingMeta, operational_front_id: front.id },
     }).eq("id", taskId);
     toast({ title: "Task vinculada à frente" });
     fetchLinkedTasks();
@@ -291,181 +223,112 @@ export default function FrontDetailDialog({ front, open, onOpenChange, onUpdated
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 flex-wrap">
+          <DialogTitle className="flex items-center gap-2">
             {front.name}
             <Badge variant="outline" className={`text-[10px] ${getBucketColor(front.bucket_status)}`}>
               {getBucketLabel(front.bucket_status)}
             </Badge>
-            <div className="ml-auto flex items-center gap-1.5">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2 text-xs gap-1"
-                onClick={() => setEditing(!editing)}
-              >
-                {editing ? <X className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-                {editing ? "Cancelar" : "Editar"}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2 text-xs gap-1 text-destructive hover:text-destructive"
-                onClick={handleDelete}
-                disabled={deleting}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                {deleting ? "Apagando..." : "Apagar"}
-              </Button>
-            </div>
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
-          {/* ─── Edit mode ─── */}
-          {editing && (
-            <div className="space-y-4 p-4 rounded-lg border border-primary/20 bg-card">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Nome</Label>
-                <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+          {/* Status & Info */}
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <span className="text-muted-foreground text-xs">Status de Execução</span>
+              <div className="flex items-center gap-2 mt-1">
+                <Select value={front.execution_status} onValueChange={(v) => handleStatusChange(v as ExecutionStatus)}>
+                  <SelectTrigger className="h-8 w-[180px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EXECUTION_STATUS_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Objetivo</Label>
-                <Textarea value={editObjective} onChange={(e) => setEditObjective(e.target.value)} className="min-h-[80px]" />
+            </div>
+            <div>
+              <span className="text-muted-foreground text-xs">Escopo</span>
+              <div className="mt-1">
+                <Badge variant="outline" className={`text-[10px] ${getScopeColor(scopeClass)}`}>
+                  {getScopeLabel(scopeClass)}
+                </Badge>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Resultado Esperado</Label>
-                <Textarea value={editOutcome} onChange={(e) => setEditOutcome(e.target.value)} className="min-h-[80px]" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Prioridade</Label>
-                  <Select value={editPriority} onValueChange={setEditPriority}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {PRIORITY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Bucket</Label>
-                  <Select value={editBucket} onValueChange={setEditBucket}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {BUCKET_STATUS_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <Button size="sm" onClick={handleSaveEdit} disabled={savingEdit || !editName.trim()} className="gap-1.5">
-                  <Save className="h-3.5 w-3.5" />
-                  {savingEdit ? "Salvando..." : "Salvar alterações"}
+            </div>
+          </div>
+
+          {/* Block input */}
+          {showBlockInput && (
+            <div className="space-y-2 p-3 border rounded-md border-red-500/30 bg-red-500/5">
+              <Label className="text-xs text-red-400">Motivo do bloqueio</Label>
+              <Input value={blockReason} onChange={(e) => setBlockReason(e.target.value)} placeholder="Descreva o impedimento..." />
+              <div className="flex gap-2">
+                <Button size="sm" variant="destructive" onClick={handleBlock} disabled={!blockReason.trim()}>
+                  <Lock className="h-3.5 w-3.5 mr-1" /> Bloquear
                 </Button>
+                <Button size="sm" variant="outline" onClick={() => setShowBlockInput(false)}>Cancelar</Button>
               </div>
             </div>
           )}
 
-          {/* Status & Info */}
-          {!editing && (
-            <>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <span className="text-muted-foreground text-xs">Status de Execução</span>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Select value={front.execution_status} onValueChange={(v) => handleStatusChange(v as ExecutionStatus)}>
-                      <SelectTrigger className="h-8 w-[180px] text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {EXECUTION_STATUS_OPTIONS.map((o) => (
-                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground text-xs">Escopo</span>
-                  <div className="mt-1">
-                    <Badge variant="outline" className={`text-[10px] ${getScopeColor(scopeClass)}`}>
-                      {getScopeLabel(scopeClass)}
-                    </Badge>
-                  </div>
-                </div>
+          {/* Blocked banner */}
+          {front.execution_status === "blocked" && front.blocked_reason && (
+            <div className="flex items-start gap-2 p-3 rounded-md border border-red-500/30 bg-red-500/5">
+              <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <p className="text-xs text-red-400 font-medium">Bloqueada</p>
+                <p className="text-xs text-red-300">{front.blocked_reason}</p>
               </div>
-
-              {/* Block input */}
-              {showBlockInput && (
-                <div className="space-y-2 p-3 border rounded-md border-red-500/30 bg-red-500/5">
-                  <Label className="text-xs text-red-400">Motivo do bloqueio</Label>
-                  <Input value={blockReason} onChange={(e) => setBlockReason(e.target.value)} placeholder="Descreva o impedimento..." />
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="destructive" onClick={handleBlock} disabled={!blockReason.trim()}>
-                      <Lock className="h-3.5 w-3.5 mr-1" /> Bloquear
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setShowBlockInput(false)}>Cancelar</Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Blocked banner */}
-              {front.execution_status === "blocked" && front.blocked_reason && (
-                <div className="flex items-start gap-2 p-3 rounded-md border border-red-500/30 bg-red-500/5">
-                  <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-xs text-red-400 font-medium">Bloqueada</p>
-                    <p className="text-xs text-red-300">{front.blocked_reason}</p>
-                  </div>
-                  <Button size="sm" variant="outline" className="shrink-0" onClick={handleUnblock}>
-                    <Unlock className="h-3.5 w-3.5 mr-1" /> Desbloquear
-                  </Button>
-                </div>
-              )}
-
-              {/* Objective & outcome */}
-              {front.objective && (
-                <div>
-                  <span className="text-xs text-muted-foreground">Objetivo</span>
-                  <p className="text-sm mt-0.5 leading-relaxed">{front.objective}</p>
-                </div>
-              )}
-              {front.expected_outcome && (
-                <div>
-                  <span className="text-xs text-muted-foreground">Resultado Esperado</span>
-                  <p className="text-sm mt-0.5 leading-relaxed">{front.expected_outcome}</p>
-                </div>
-              )}
-
-              {/* Quick actions */}
-              <div className="flex flex-wrap gap-2">
-                {front.execution_status !== "in_progress" && front.execution_status !== "blocked" && (
-                  <Button size="sm" variant="outline" onClick={() => handleStatusChange("in_progress")}>
-                    <Play className="h-3.5 w-3.5 mr-1" /> Iniciar
-                  </Button>
-                )}
-                {front.execution_status === "in_progress" && (
-                  <Button size="sm" variant="outline" onClick={() => handleStatusChange("paused")}>
-                    <Pause className="h-3.5 w-3.5 mr-1" /> Pausar
-                  </Button>
-                )}
-                {front.execution_status !== "done" && front.execution_status !== "blocked" && (
-                  <Button size="sm" variant="outline" onClick={() => handleStatusChange("in_validation")}>
-                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Validar
-                  </Button>
-                )}
-                {front.execution_status === "in_validation" && (
-                  <Button size="sm" onClick={() => handleStatusChange("done")}>
-                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Concluir
-                  </Button>
-                )}
-                {front.execution_status === "done" && (
-                  <Button size="sm" variant="outline" onClick={() => handleStatusChange("reopened")}>
-                    <RotateCcw className="h-3.5 w-3.5 mr-1" /> Reabrir
-                  </Button>
-                )}
-              </div>
-            </>
+              <Button size="sm" variant="outline" className="shrink-0" onClick={handleUnblock}>
+                <Unlock className="h-3.5 w-3.5 mr-1" /> Desbloquear
+              </Button>
+            </div>
           )}
+
+          {/* Objective & outcome */}
+          {front.objective && (
+            <div>
+              <span className="text-xs text-muted-foreground">Objetivo</span>
+              <p className="text-sm mt-0.5">{front.objective}</p>
+            </div>
+          )}
+          {front.expected_outcome && (
+            <div>
+              <span className="text-xs text-muted-foreground">Resultado Esperado</span>
+              <p className="text-sm mt-0.5">{front.expected_outcome}</p>
+            </div>
+          )}
+
+          {/* Quick actions */}
+          <div className="flex flex-wrap gap-2">
+            {front.execution_status !== "in_progress" && front.execution_status !== "blocked" && (
+              <Button size="sm" variant="outline" onClick={() => handleStatusChange("in_progress")}>
+                <Play className="h-3.5 w-3.5 mr-1" /> Iniciar
+              </Button>
+            )}
+            {front.execution_status === "in_progress" && (
+              <Button size="sm" variant="outline" onClick={() => handleStatusChange("paused")}>
+                <Pause className="h-3.5 w-3.5 mr-1" /> Pausar
+              </Button>
+            )}
+            {front.execution_status !== "done" && front.execution_status !== "blocked" && (
+              <Button size="sm" variant="outline" onClick={() => handleStatusChange("in_validation")}>
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Validar
+              </Button>
+            )}
+            {front.execution_status === "in_validation" && (
+              <Button size="sm" onClick={() => handleStatusChange("done")}>
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Concluir
+              </Button>
+            )}
+            {front.execution_status === "done" && (
+              <Button size="sm" variant="outline" onClick={() => handleStatusChange("reopened")}>
+                <RotateCcw className="h-3.5 w-3.5 mr-1" /> Reabrir
+              </Button>
+            )}
+          </div>
 
           <Separator />
 
@@ -492,7 +355,7 @@ export default function FrontDetailDialog({ front, open, onOpenChange, onUpdated
           {/* Linked tasks */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-muted-foreground font-medium">Tasks Vinculadas ({linkedTasks.length})</span>
+              <span className="text-xs text-muted-foreground font-medium">Tasks Vinculadas</span>
               <LinkTaskButton workspaceId={workspaceId} frontId={front.id} onLink={handleLinkTask} />
             </div>
             {loadingTasks ? (
@@ -502,7 +365,7 @@ export default function FrontDetailDialog({ front, open, onOpenChange, onUpdated
             ) : (
               <div className="space-y-1">
                 {linkedTasks.map((t) => (
-                  <div key={t.id} className="flex items-center gap-2 text-xs p-2 rounded bg-muted/30">
+                  <div key={t.id} className="flex items-center gap-2 text-xs p-1.5 rounded bg-muted/30">
                     <Badge variant="outline" className={`text-[10px] px-1 py-0 ${getStatusColor(t.status)}`}>
                       {getStatusLabel(t.status)}
                     </Badge>
@@ -606,6 +469,7 @@ function LinkTaskButton({ workspaceId, frontId, onLink }: { workspaceId: string;
       .order("created_at", { ascending: false })
       .limit(50);
 
+    // Filter out already linked
     const unlinked = (data ?? []).filter((t) => {
       const meta = t.metadata as Record<string, unknown> | null;
       return !meta?.operational_front_id || meta.operational_front_id !== frontId;

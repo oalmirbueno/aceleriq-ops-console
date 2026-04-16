@@ -2,20 +2,17 @@ import { useState, useEffect, useCallback } from "react";
 import {
   FileText, Building2, Target, ShoppingCart, Settings, Globe, Key,
   Search, Scale, ClipboardList, Lightbulb, Loader2, ChevronDown, ChevronRight,
-  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import ContractBlock from "./ContractBlock";
 import ScopeBadge from "./ScopeBadge";
 import { getBriefingLabel, BRIEFING_DEFINITIONS, type BriefingType, type ScopeClassification } from "./aceleraConstants";
 import { getContextLabel } from "./contextTypes";
 import { getDossierSignalsByBlock, type SignalBlockKey, SIGNAL_LABELS } from "./briefingSignals";
-import DossierBlockDetailDialog from "./DossierBlockDetailDialog";
 
 interface Props {
   workspaceId: string;
@@ -80,7 +77,6 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
   const [taskSummary, setTaskSummary] = useState<TaskSummary>({ total: 0, done: 0, in_progress: 0, blocked: 0 });
   const [loading, setLoading] = useState(true);
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set(DOSSIE_BLOCKS.map((b) => b.key)));
-  const [openBlockKey, setOpenBlockKey] = useState<string | null>(null);
 
   const toggleBlock = (key: string) => {
     setExpandedBlocks((prev) => {
@@ -157,13 +153,9 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
     return contexts.filter((c) => !exclude(c) && contextTypes.includes(c.context_type));
   };
 
+  // Count total signals across all blocks
   const totalSignals = Array.from(allDossierSignals.values()).reduce((acc, items) => acc + items.length, 0);
   const filledBlocks = DOSSIE_BLOCKS.filter((b) => (allDossierSignals.get(b.key)?.length ?? 0) > 0 || getBlockContexts(b.key, b.contextTypes).length > 0).length;
-
-  // Find the open block for the detail dialog
-  const openBlock = openBlockKey ? DOSSIE_BLOCKS.find((b) => b.key === openBlockKey) : null;
-  const openBlockSignals = openBlockKey ? (allDossierSignals.get(openBlockKey) ?? []) : [];
-  const openBlockContexts = openBlock ? getBlockContexts(openBlock.key, openBlock.contextTypes) : [];
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -266,19 +258,10 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
                   </Badge>
                 )}
                 {blockContexts.length > 0 && (
-                  <span className="text-xs text-muted-foreground font-normal ml-auto mr-2">
+                  <span className="text-xs text-muted-foreground font-normal ml-auto">
                     {blockContexts.length} entrada(s)
                   </span>
                 )}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 px-2 text-xs gap-1 ml-auto shrink-0 text-primary hover:text-primary"
-                  onClick={(e) => { e.stopPropagation(); setOpenBlockKey(block.key); }}
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  Abrir
-                </Button>
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-1 ml-10">{block.description}</p>
             </CardHeader>
@@ -293,7 +276,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
                         <span className="text-emerald-400 mt-1 shrink-0 text-sm">✦</span>
                         <div className="min-w-0 flex-1">
                           <span className="text-sm font-medium text-foreground">{sig.label}</span>
-                          <p className="text-sm text-muted-foreground leading-relaxed mt-0.5 line-clamp-3">{sig.summary}</p>
+                          <p className="text-sm text-muted-foreground leading-relaxed mt-0.5">{sig.summary}</p>
                         </div>
                       </div>
                     ))}
@@ -301,29 +284,15 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
                   </div>
                 )}
 
-                {/* Context entries preview */}
+                {/* Context entries */}
                 {!hasContent ? (
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">Nenhuma informação registrada.</p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs"
-                      onClick={() => setOpenBlockKey(block.key)}
-                    >
-                      Adicionar
-                    </Button>
-                  </div>
+                  <p className="text-sm text-muted-foreground">Nenhuma informação registrada neste bloco.</p>
                 ) : blockContexts.length > 0 && (
-                  <div className="space-y-2">
-                    {blockContexts.slice(0, 3).map((ctx) => {
+                  <div className="space-y-3">
+                    {blockContexts.slice(0, 8).map((ctx) => {
                       const scope = readScopeClassification(ctx.metadata);
                       return (
-                        <div
-                          key={ctx.id}
-                          className="flex items-start gap-3 cursor-pointer hover:bg-muted/5 rounded-md p-1.5 -mx-1.5 transition-colors"
-                          onClick={() => setOpenBlockKey(block.key)}
-                        >
+                        <div key={ctx.id} className="flex items-start gap-3">
                           <span className="text-primary/40 mt-1.5 shrink-0">•</span>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap mb-0.5">
@@ -337,13 +306,8 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
                         </div>
                       );
                     })}
-                    {blockContexts.length > 3 && (
-                      <button
-                        className="text-xs text-primary hover:underline ml-6"
-                        onClick={() => setOpenBlockKey(block.key)}
-                      >
-                        +{blockContexts.length - 3} itens — clique para ver tudo
-                      </button>
+                    {blockContexts.length > 8 && (
+                      <p className="text-xs text-muted-foreground ml-6">+{blockContexts.length - 8} itens adicionais</p>
                     )}
                   </div>
                 )}
@@ -390,20 +354,6 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
           <p className="text-sm text-muted-foreground">Nenhuma oportunidade mapeada fora do escopo atual.</p>
         </CardContent>
       </Card>
-
-      {/* Detail dialog */}
-      {openBlock && (
-        <DossierBlockDetailDialog
-          open={!!openBlockKey}
-          onOpenChange={(v) => { if (!v) setOpenBlockKey(null); }}
-          block={openBlock}
-          signals={openBlockSignals}
-          contexts={openBlockContexts}
-          workspaceId={workspaceId}
-          clientId={clientId}
-          onDataChanged={fetchData}
-        />
-      )}
     </div>
   );
 }

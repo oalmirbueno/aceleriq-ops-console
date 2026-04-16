@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   FileText, Clock, ListChecks, Layers, BarChart3,
   CheckCircle2, AlertTriangle, ArrowRight, TrendingUp,
+  DollarSign, CalendarClock,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,12 @@ interface WorkspaceTabResumoProps {
   recentEvents: TimelineEvent[];
   workspaceId: string;
 }
+
+const PLAN_PRICING: Record<string, { label: string; monthly: number; extras: string[] }> = {
+  starter: { label: "Starter", monthly: 1497, extras: [] },
+  growth: { label: "Growth", monthly: 2997, extras: ["Automações básicas", "Suporte prioritário"] },
+  enterprise: { label: "Enterprise", monthly: 5997, extras: ["Automações avançadas", "Suporte dedicado", "Consultoria estratégica", "IA personalizada"] },
+};
 
 interface FrontSummary {
   total: number;
@@ -91,6 +98,18 @@ export default function WorkspaceTabResumo({
 
   const taskPct = taskStats.total > 0 ? Math.round((taskStats.done / taskStats.total) * 100) : 0;
 
+  const planInfo = PLAN_PRICING[planName ?? ""] ?? null;
+
+  const renewalDate = useMemo(() => {
+    if (!createdAt) return null;
+    const start = new Date(createdAt);
+    const now = new Date();
+    // Next renewal = nearest future month anniversary
+    const renewal = new Date(start);
+    while (renewal <= now) renewal.setMonth(renewal.getMonth() + 1);
+    return renewal;
+  }, [createdAt]);
+
   return (
     <div className="space-y-5 animate-fade-in">
       {/* Hero info */}
@@ -123,7 +142,7 @@ export default function WorkspaceTabResumo({
             </div>
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Plano</p>
-              <p className="text-foreground font-medium capitalize">{planName || "Não definido"}</p>
+              <p className="text-foreground font-medium capitalize">{planInfo?.label ?? planName ?? "Não definido"}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Segmento</p>
@@ -136,6 +155,43 @@ export default function WorkspaceTabResumo({
               </p>
             </div>
           </div>
+
+          {/* Plan value & renewal */}
+          {planInfo && (
+            <>
+              <Separator className="my-4" />
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                <div className="flex items-start gap-2.5">
+                  <DollarSign className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Valor Mensal</p>
+                    <p className="text-lg font-bold text-foreground">
+                      R$ {planInfo.monthly.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <CalendarClock className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Próxima Renovação</p>
+                    <p className="text-foreground font-medium">
+                      {renewalDate?.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" }) ?? "—"}
+                    </p>
+                  </div>
+                </div>
+                {planInfo.extras.length > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1.5">Adicionais Inclusos</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {planInfo.extras.map((extra) => (
+                        <Badge key={extra} variant="secondary" className="text-xs">{extra}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
 
           {/* Focus areas */}
           {focusAreas && focusAreas.length > 0 && (

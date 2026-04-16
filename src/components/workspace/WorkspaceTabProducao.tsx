@@ -297,13 +297,13 @@ export default function WorkspaceTabProducao({ workspaceId, clientId, planName }
   }
 
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="space-y-4 animate-fade-in">
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-          <Layers className="h-5 w-5 text-muted-foreground" />
+          <Layers className="h-4 w-4 text-muted-foreground" />
           <Select value={bucketFilter} onValueChange={setBucketFilter}>
-            <SelectTrigger className="h-9 w-[240px] text-sm">
+            <SelectTrigger className="h-8 w-[220px] text-xs">
               <SelectValue placeholder="Filtrar por status" />
             </SelectTrigger>
             <SelectContent>
@@ -315,26 +315,26 @@ export default function WorkspaceTabProducao({ workspaceId, clientId, planName }
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={handleGenerate} disabled={generating}>
-            {generating ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1.5" />}
+            {generating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
             Gerar do Dossiê
           </Button>
           <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-1.5" /> Nova Frente
+            <Plus className="h-4 w-4 mr-1" /> Nova Frente
           </Button>
         </div>
       </div>
 
       {/* List */}
       {fronts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 animate-fade-in">
-          <Layers className="h-10 w-10 text-muted-foreground mb-4" />
-          <p className="text-base font-medium text-foreground mb-1">Nenhuma frente operacional</p>
-          <p className="text-sm text-muted-foreground max-w-md text-center">
+        <div className="flex flex-col items-center justify-center py-16 animate-fade-in">
+          <Layers className="h-8 w-8 text-muted-foreground mb-3" />
+          <p className="text-sm font-medium text-foreground mb-1">Nenhuma frente operacional</p>
+          <p className="text-xs text-muted-foreground max-w-sm text-center">
             Clique em "Gerar do Dossiê" para criar frentes automaticamente a partir dos briefings revisados, ou adicione manualmente.
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {fronts.map((f) => {
             const summary = taskSummaries.get(f.id);
             const pct = summary && summary.total > 0 ? Math.round((summary.done / summary.total) * 100) : null;
@@ -346,27 +346,27 @@ export default function WorkspaceTabProducao({ workspaceId, clientId, planName }
                 className="cursor-pointer hover:border-primary/30 transition-colors"
                 onClick={() => setSelectedFront(f)}
               >
-                <CardContent className="p-4 space-y-2.5">
-                  <div className="flex items-start gap-3">
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-start gap-2">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2.5 flex-wrap">
-                        <span className="text-base font-medium truncate">{f.name}</span>
-                        <Badge variant="outline" className={`text-xs px-2 py-0.5 ${getBucketColor(f.bucket_status)}`}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium truncate">{f.name}</span>
+                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${getBucketColor(f.bucket_status)}`}>
                           {getBucketLabel(f.bucket_status)}
                         </Badge>
-                        <span className={`text-xs font-medium ${getExecutionColor(f.execution_status)}`}>
+                        <span className={`text-[10px] font-medium ${getExecutionColor(f.execution_status)}`}>
                           {getExecutionLabel(f.execution_status)}
                         </span>
-                        <Badge variant="outline" className={`text-xs px-2 py-0.5 ${getScopeColor(scopeClass)}`}>
+                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${getScopeColor(scopeClass)}`}>
                           {getScopeLabel(scopeClass)}
                         </Badge>
                       </div>
                       {f.objective && (
-                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{f.objective}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{f.objective}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className={`text-xs font-medium ${getPriorityColor(f.priority)}`}>
+                      <span className={`text-[10px] ${getPriorityColor(f.priority)}`}>
                         {getPriorityLabel(f.priority)}
                       </span>
                     </div>
@@ -374,16 +374,16 @@ export default function WorkspaceTabProducao({ workspaceId, clientId, planName }
 
                   {/* Progress bar */}
                   {pct !== null && (
-                    <div className="flex items-center gap-3">
-                      <Progress value={pct} className="h-2 flex-1" />
-                      <span className="text-xs text-muted-foreground w-10 text-right">{pct}%</span>
+                    <div className="flex items-center gap-2">
+                      <Progress value={pct} className="h-1.5 flex-1" />
+                      <span className="text-[10px] text-muted-foreground w-8 text-right">{pct}%</span>
                     </div>
                   )}
 
                   {/* Blocked banner */}
                   {f.execution_status === "blocked" && f.blocked_reason && (
-                    <div className="flex items-center gap-2 text-xs text-red-400">
-                      <AlertTriangle className="h-4 w-4" />
+                    <div className="flex items-center gap-1.5 text-[10px] text-red-400">
+                      <AlertTriangle className="h-3 w-3" />
                       <span className="truncate">{f.blocked_reason}</span>
                     </div>
                   )}

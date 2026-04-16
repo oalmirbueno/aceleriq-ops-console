@@ -352,11 +352,11 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
   const briefingCount = entries.filter((entry) => entry.context_type === "briefing").length;
 
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2.5">
-          <FolderOpen className="h-5 w-5 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground font-medium">
+        <div className="flex items-center gap-2">
+          <FolderOpen className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground font-medium">
             {entries.length} registro(s) · {briefingCount} briefing(s) · {sections.length} área(s)
           </span>
         </div>
@@ -365,7 +365,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" variant="outline">
-                <FileText className="h-4 w-4 mr-1.5" /> Importar briefing
+                <FileText className="h-4 w-4 mr-1" /> Importar briefing
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -377,7 +377,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" variant="outline">
-                <Link2 className="h-4 w-4 mr-1.5" /> Enviar briefing ao cliente
+                <Link2 className="h-4 w-4 mr-1" /> Enviar briefing ao cliente
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -391,10 +391,10 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
           </DropdownMenu>
 
           <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
-            <Upload className="h-4 w-4 mr-1.5" /> Importar contexto
+            <Upload className="h-4 w-4 mr-1" /> Importar contexto
           </Button>
           <Button size="sm" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-1.5" /> Novo contexto
+            <Plus className="h-4 w-4 mr-1" /> Novo contexto
           </Button>
         </div>
       </div>
@@ -413,44 +413,44 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
               <Collapsible key={section.key} open={sectionOpen} onOpenChange={() => toggleSection(section.key)}>
                 <div className="rounded-xl border border-border/60 bg-card/40">
                   <CollapsibleTrigger asChild>
-                    <button className="w-full flex items-start gap-3 px-5 py-4 text-left">
+                    <button className="w-full flex items-start gap-3 px-4 py-3 text-left">
                       {sectionOpen ? (
-                        <ChevronDown className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
                       ) : (
-                        <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
                       )}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2.5 flex-wrap">
-                          <span className="text-base font-semibold text-foreground">{section.label}</span>
-                          <Badge variant="outline" className="text-xs">{sectionCount}</Badge>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold text-foreground">{section.label}</span>
+                          <Badge variant="outline" className="text-[10px]">{sectionCount}</Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground mt-1">{section.description}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{section.description}</p>
                       </div>
                     </button>
                   </CollapsibleTrigger>
 
                   <CollapsibleContent>
-                    <div className="px-4 pb-4 space-y-3">
+                    <div className="px-3 pb-3 space-y-2">
                       {section.folders.map((folder) => {
                         const folderOpen = openFolders.has(folder.type);
 
                         return (
                           <Collapsible key={folder.type} open={folderOpen} onOpenChange={() => toggleFolder(folder.type)}>
                             <CollapsibleTrigger asChild>
-                              <button className="w-full flex items-center gap-2.5 px-4 py-3 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors text-left">
+                              <button className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors text-left">
                                 {folderOpen ? (
                                   <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
                                 ) : (
                                   <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                                 )}
-                                <FolderOpen className="h-5 w-5 text-primary shrink-0" />
+                                <FolderOpen className="h-4 w-4 text-primary shrink-0" />
                                 <span className="text-sm font-medium text-foreground flex-1">{folder.label}</span>
-                                <Badge variant="outline" className="text-xs shrink-0">{folder.entries.length}</Badge>
+                                <Badge variant="outline" className="text-[10px] shrink-0">{folder.entries.length}</Badge>
                               </button>
                             </CollapsibleTrigger>
 
                             <CollapsibleContent>
-                              <div className="space-y-3 pl-5 pt-3 border-l-2 border-border ml-5">
+                              <div className="space-y-2 pl-4 pt-2 border-l-2 border-border ml-4">
                                 {folder.entries.map((entry) => {
                                   const isBriefing = entry.context_type === "briefing";
                                   const reviewStatus = (entry.metadata?.import_review_status as string | undefined) ?? null;
@@ -467,13 +467,13 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
                                       className="card-hover"
                                       onClick={() => isBriefing ? toggleContentExpand(entry.id) : setEditEntry(entry)}
                                     >
-                                      <CardContent className="p-4 space-y-2.5">
+                                      <CardContent className="p-3 space-y-2">
                                         <div className="flex items-start justify-between gap-3">
                                           <div className="flex items-center gap-2 flex-wrap min-w-0">
-                                             {isPending && <Badge variant="outline" className="text-xs shrink-0">Pendente revisão</Badge>}
-                                            {reviewStatus === "reviewed" && <Badge variant="secondary" className="text-xs shrink-0">Revisado</Badge>}
-                                             {isBriefing && <Badge variant="outline" className="text-xs shrink-0">{briefingLabel}</Badge>}
-                                             {isBriefing && briefingOrigin && <Badge variant="outline" className="text-xs shrink-0">{briefingOrigin}</Badge>}
+                                            {isPending && <Badge variant="outline" className="text-[9px] shrink-0">Pendente revisão</Badge>}
+                                            {reviewStatus === "reviewed" && <Badge variant="secondary" className="text-[9px] shrink-0">Revisado</Badge>}
+                                            {isBriefing && <Badge variant="outline" className="text-[9px] shrink-0">{briefingLabel}</Badge>}
+                                            {isBriefing && briefingOrigin && <Badge variant="outline" className="text-[9px] shrink-0">{briefingOrigin}</Badge>}
                                             {entry.is_key_decision ? (
                                               <Star
                                                 className="h-3.5 w-3.5 text-warning fill-warning cursor-pointer shrink-0"
@@ -488,10 +488,10 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
                                           </div>
 
                                           <div className="flex items-center gap-1.5 shrink-0">
-                                             {isPending && isBriefing && entry.metadata?.structured_signals && (
-                                               <Badge variant="outline" className="text-xs shrink-0">
-                                                 Revise os sinais
-                                               </Badge>
+                                            {isPending && isBriefing && entry.metadata?.structured_signals && (
+                                              <Badge variant="outline" className="text-[9px] shrink-0">
+                                                Revise os sinais
+                                              </Badge>
                                             )}
                                             {isBriefing && entry.content.trim().length > 0 && (
                                               <button
@@ -530,15 +530,15 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
                                         </div>
 
                                         <div className="space-y-1">
-                                           <p className="text-base font-medium text-foreground">{entry.title}</p>
+                                          <p className="text-sm font-medium text-foreground">{entry.title}</p>
                                           {isBriefing ? (
-                                             <p className="text-sm text-muted-foreground leading-relaxed">
-                                               {briefingPreview || "Briefing salvo sem resumo disponível."}
-                                             </p>
-                                           ) : (
-                                             <p className={`text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed ${!isExpanded && isLong ? "line-clamp-3" : ""}`}>
-                                               {entry.content}
-                                             </p>
+                                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                              {briefingPreview || "Briefing salvo sem resumo disponível."}
+                                            </p>
+                                          ) : (
+                                            <p className={`text-xs text-muted-foreground whitespace-pre-wrap ${!isExpanded && isLong ? "line-clamp-3" : ""}`}>
+                                              {entry.content}
+                                            </p>
                                           )}
                                         </div>
 
