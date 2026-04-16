@@ -115,6 +115,11 @@ export default function WorkspaceTabTasks({ workspaceId, clientId, planName }: P
       : tasks.filter((t) => getFrontId(t) === frontFilter);
 
   const handleCreate = async (form: TaskFormData) => {
+    const meta: Record<string, unknown> = {};
+    if (form.action_plan && Object.values(form.action_plan).some((v) => v.trim())) {
+      meta.action_plan = form.action_plan;
+    }
+
     const payload: Record<string, unknown> = {
       workspace_id: workspaceId,
       client_id: clientId,
@@ -124,6 +129,7 @@ export default function WorkspaceTabTasks({ workspaceId, clientId, planName }: P
       priority: form.priority,
       stage: form.stage || null,
       due_date: form.due_date || null,
+      metadata: Object.keys(meta).length > 0 ? meta : null,
     };
 
     const { data, error } = await supabase.from("tasks").insert(payload).select("id").single();
