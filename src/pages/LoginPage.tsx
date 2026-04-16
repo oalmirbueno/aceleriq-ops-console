@@ -31,13 +31,13 @@ export default function LoginPage() {
       <div className="grid-perspective" />
       <div className="login-orb" />
 
-      <div className="login-card relative z-10 w-full max-w-sm rounded-xl border border-border bg-card p-8">
-        <div className="mb-8 flex justify-center">
-          <img src={logo} alt="Aceleriq" className="h-8" />
+      <div className="login-card relative z-10 w-full max-w-md rounded-xl border border-border bg-card p-10">
+        <div className="mb-10 flex justify-center">
+          <img src={logo} alt="Aceleriq" className="h-12" />
         </div>
 
         <div className="login-form">
-          <p className="mb-6 text-center text-xs text-muted-foreground">
+          <p className="mb-8 text-center text-sm text-muted-foreground">
             Acesse o painel de operações
           </p>
 
