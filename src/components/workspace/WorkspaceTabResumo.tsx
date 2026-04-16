@@ -8,6 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { getStagePremiumLabel } from "./aceleraConstants";
 import { getBucketLabel, getBucketColor, getExecutionLabel, getExecutionColor } from "./frontConstants";
@@ -31,6 +34,8 @@ interface WorkspaceTabResumoProps {
   segment: string | null;
   createdAt: string;
   focusAreas: string[] | null;
+  clientId: string;
+  clientMetadata: Record<string, unknown> | null;
   summary: string | null;
   recentEvents: TimelineEvent[];
   workspaceId: string;
@@ -58,12 +63,15 @@ interface TaskStats {
 }
 
 export default function WorkspaceTabResumo({
-  clientName, companyName, workspaceName, status, currentStage, ownerName, planName, segment, createdAt, focusAreas, summary, recentEvents, workspaceId,
+  clientName, companyName, workspaceName, status, currentStage, ownerName, planName, segment, createdAt, focusAreas, clientId, clientMetadata, summary, recentEvents, workspaceId,
 }: WorkspaceTabResumoProps) {
   const [taskStats, setTaskStats] = useState<TaskStats>({ total: 0, done: 0, in_progress: 0, blocked: 0, todo: 0 });
   const [frontSummary, setFrontSummary] = useState<FrontSummary>({ total: 0, active: 0, conditional: 0, out_of_scope: 0 });
   const [briefingCount, setBriefingCount] = useState(0);
   const [reviewedCount, setReviewedCount] = useState(0);
+  const [customExtras, setCustomExtras] = useState<string[]>((clientMetadata?.custom_extras as string[] | undefined) ?? []);
+  const [newExtra, setNewExtra] = useState("");
+  const [savingExtras, setSavingExtras] = useState(false);
 
   const fetchStats = useCallback(async () => {
     const [taskRes, frontRes, briefRes] = await Promise.all([
