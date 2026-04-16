@@ -23,7 +23,7 @@ interface Asset {
   asset_type: string;
   title: string;
   description: string | null;
-  url: string | null;
+  external_url: string | null;
   validation_status: string;
   primary_use: string | null;
   observation: string | null;
@@ -202,8 +202,8 @@ export default function WorkspaceTabAssets({ workspaceId, clientId }: Props) {
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {a.url && (
-                        <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80">
+                      {a.external_url && (
+                        <a href={a.external_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80">
                           <ExternalLink className="h-3.5 w-3.5" />
                         </a>
                       )}
