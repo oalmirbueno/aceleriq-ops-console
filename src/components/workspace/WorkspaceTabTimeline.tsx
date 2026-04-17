@@ -28,6 +28,7 @@ const EVENT_CONFIG: Record<string, { icon: typeof Clock; color: string; label: s
   front_created: { icon: Layers, color: "text-primary bg-primary/15 border-primary/30", label: "Frente" },
   fronts_generated: { icon: Sparkles, color: "text-primary bg-primary/15 border-primary/30", label: "Geração" },
   context_created: { icon: FileText, color: "text-muted-foreground bg-muted/30 border-border", label: "Contexto" },
+  metric_added: { icon: BarChart3, color: "text-emerald-400 bg-emerald-400/15 border-emerald-400/30", label: "Métrica" },
 };
 
 const DEFAULT_CONFIG = { icon: Clock, color: "text-muted-foreground bg-muted/30 border-border", label: "Evento" };
