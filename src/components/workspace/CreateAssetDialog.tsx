@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { ASSET_TYPE_OPTIONS, VALIDATION_STATUS_OPTIONS } from "./assetConstants";
+import { ASSET_TIMELINE_EVENT_TYPE, buildAssetEventDescription, buildAssetEventTitle } from "./assetTimeline";
 
 interface Front {
   id: string;
@@ -97,19 +98,26 @@ export default function CreateAssetDialog({ open, onOpenChange, workspaceId, cli
     }
 
     const frontLabel = frontId && frontId !== "__none__"
-      ? fronts.find(f => f.id === frontId)?.name ?? ""
-      : "";
-    const tlDesc = [
-      `Tipo: ${ASSET_TYPE_OPTIONS.find(o => o.value === assetType)?.label ?? assetType}`,
-      frontLabel ? `Frente: ${frontLabel}` : null,
-    ].filter(Boolean).join(" · ");
+      ? fronts.find(f => f.id === frontId)?.name ?? null
+      : null;
+    const taskLabel = taskId && taskId !== "__none__"
+      ? tasks.find(t => t.id === taskId)?.title ?? null
+      : null;
 
     const { error: tlError } = await supabase.from("timeline_events").insert({
       workspace_id: workspaceId,
       client_id: clientId,
-      event_type: "context_added",
-      title: `Asset criado: ${title.trim()}`,
-      description: tlDesc,
+      event_type: ASSET_TIMELINE_EVENT_TYPE,
+      title: buildAssetEventTitle({ action: "created", assetTitle: title.trim(), assetType: assetType }),
+      description: buildAssetEventDescription({
+        action: "created",
+        assetTitle: title.trim(),
+        assetType: assetType,
+        newStatus: validationStatus,
+        frontName: frontLabel,
+        taskTitle: taskLabel,
+        primaryUse: primaryUse.trim() || null,
+      }),
       happened_at: new Date().toISOString(),
     });
     if (tlError) {
