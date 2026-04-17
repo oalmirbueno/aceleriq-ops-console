@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { ASSET_TYPE_OPTIONS, VALIDATION_STATUS_OPTIONS } from "./assetConstants";
+import { ASSET_TIMELINE_EVENT_TYPE, buildAssetEventDescription, buildAssetEventTitle } from "./assetTimeline";
 
 interface Front {
   id: string;
