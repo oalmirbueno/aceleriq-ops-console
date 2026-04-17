@@ -14,6 +14,7 @@ import WorkspaceTabDossie from "@/components/workspace/WorkspaceTabDossie";
 import WorkspaceTabProducao from "@/components/workspace/WorkspaceTabProducao";
 import WorkspaceTabAssets from "@/components/workspace/WorkspaceTabAssets";
 import WorkspaceTabMetricas from "@/components/workspace/WorkspaceTabMetricas";
+import WorkspaceTabBeforeAfter from "@/components/workspace/WorkspaceTabBeforeAfter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
