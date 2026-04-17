@@ -13,6 +13,7 @@ import WorkspaceTabTasks from "@/components/workspace/WorkspaceTabTasks";
 import WorkspaceTabDossie from "@/components/workspace/WorkspaceTabDossie";
 import WorkspaceTabProducao from "@/components/workspace/WorkspaceTabProducao";
 import WorkspaceTabAssets from "@/components/workspace/WorkspaceTabAssets";
+import WorkspaceTabMetricas from "@/components/workspace/WorkspaceTabMetricas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -150,6 +151,7 @@ export default function WorkspaceDetailPage() {
             <TabsTrigger value="producao">Produção</TabsTrigger>
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="assets">Assets</TabsTrigger>
+            <TabsTrigger value="metricas">Métricas</TabsTrigger>
             <TabsTrigger value="canvas" disabled className="opacity-40">Canvas</TabsTrigger>
           </TabsList>
 
@@ -199,6 +201,10 @@ export default function WorkspaceDetailPage() {
 
           <TabsContent value="assets">
             <WorkspaceTabAssets workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
+          </TabsContent>
+
+          <TabsContent value="metricas">
+            <WorkspaceTabMetricas workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
           </TabsContent>
         </Tabs>
       </div>
