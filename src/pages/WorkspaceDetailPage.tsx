@@ -155,6 +155,7 @@ export default function WorkspaceDetailPage() {
             <TabsTrigger value="assets">Assets</TabsTrigger>
             <TabsTrigger value="metricas">Métricas</TabsTrigger>
             <TabsTrigger value="before-after">Before/After</TabsTrigger>
+            <TabsTrigger value="case">Case</TabsTrigger>
             <TabsTrigger value="canvas" disabled className="opacity-40">Canvas</TabsTrigger>
           </TabsList>
 
@@ -212,6 +213,10 @@ export default function WorkspaceDetailPage() {
 
           <TabsContent value="before-after">
             <WorkspaceTabBeforeAfter workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
+          </TabsContent>
+
+          <TabsContent value="case">
+            <WorkspaceTabCase workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
           </TabsContent>
         </Tabs>
       </div>
