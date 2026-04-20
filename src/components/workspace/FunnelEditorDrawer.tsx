@@ -227,6 +227,108 @@ export default function FunnelEditorDrawer({
   // ─── Computed: total conversion ─────────────────────────────────────
   const totalConv = useMemo(() => calculateFunnelConversion(steps), [steps]);
 
+  // Itens de checklist pendentes em todos os steps
+  const pendingChecklist = useMemo(() => {
+    const out: Array<{ stepId: string; stepTitle: string; blockKind: string; itemId: string; text: string }> = [];
+    for (const s of steps) {
+      const list = Array.isArray(s.checklist) ? s.checklist : [];
+      for (const item of list) {
+        if (!item?.done && item?.text?.trim()) {
+          out.push({
+            stepId: s.id,
+            stepTitle: s.title || getFunnelBlock(s.block_kind as FunnelBlockKind).label,
+            blockKind: s.block_kind,
+            itemId: item.id,
+            text: item.text.trim(),
+          });
+        }
+      }
+    }
+    return out;
+  }, [steps]);
+
+  const [generatingTasks, setGeneratingTasks] = useState(false);
+
+  const generateTasksFromChecklists = useCallback(async () => {
+    if (!funnel || pendingChecklist.length === 0) return;
+    setGeneratingTasks(true);
+    try {
+      // Dedupe: evita recriar tasks já geradas pra mesmo (funnel_id, step_id, checklist_item_id)
+      const { data: existing } = await supabase
+        .from("tasks")
+        .select("metadata")
+        .eq("workspace_id", workspaceId)
+        .eq("client_id", clientId)
+        .eq("source_type", "funnel_checklist");
+      const existingKeys = new Set<string>(
+        (existing ?? [])
+          .map((r: { metadata: unknown }) => {
+            const m = (r.metadata ?? {}) as Record<string, unknown>;
+            return m.funnel_id && m.step_id && m.checklist_item_id
+              ? `${m.funnel_id}|${m.step_id}|${m.checklist_item_id}`
+              : null;
+          })
+          .filter((v): v is string => !!v),
+      );
+
+      const fresh = pendingChecklist.filter(
+        (it) => !existingKeys.has(`${funnel.id}|${it.stepId}|${it.itemId}`),
+      );
+      if (fresh.length === 0) {
+        toast({
+          title: "Nada novo pra gerar",
+          description: "Todos os itens pendentes já viraram tasks anteriormente.",
+        });
+        return;
+      }
+
+      const rows = fresh.map((it) => ({
+        workspace_id: workspaceId,
+        client_id: clientId,
+        title: it.text,
+        description: `Etapa "${it.stepTitle}" do funil "${funnel.name}".`,
+        status: "todo",
+        priority: "medium",
+        stage: "producao",
+        due_date: null,
+        assignee_id: null,
+        source_type: "funnel_checklist",
+        source_id: funnel.id,
+        metadata: {
+          generation_mode: "from_funnel_checklist",
+          funnel_id: funnel.id,
+          step_id: it.stepId,
+          step_title: it.stepTitle,
+          block_kind: it.blockKind,
+          checklist_item_id: it.itemId,
+        },
+      }));
+
+      const { error } = await supabase.from("tasks").insert(rows);
+      if (error) {
+        toast({ title: "Erro ao gerar tasks", description: error.message, variant: "destructive" });
+        return;
+      }
+
+      // Timeline event
+      await supabase.from("timeline_events").insert({
+        workspace_id: workspaceId,
+        client_id: clientId,
+        event_type: "task_created",
+        title: `${fresh.length} task${fresh.length > 1 ? "s" : ""} gerada${fresh.length > 1 ? "s" : ""} do funil`,
+        description: `Funil "${funnel.name}" — itens de checklist convertidos em tasks.`,
+        happened_at: new Date().toISOString(),
+      });
+
+      toast({
+        title: `${fresh.length} task${fresh.length > 1 ? "s criadas" : " criada"}`,
+        description: "Disponíveis na aba Tasks do workspace.",
+      });
+    } finally {
+      setGeneratingTasks(false);
+    }
+  }, [funnel, pendingChecklist, workspaceId, clientId]);
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-3xl p-0 flex flex-col">
