@@ -397,13 +397,16 @@ export default function ClientVaultPage() {
 
         {/* ─── Conteúdo ─── */}
         {totalCreds === 0 ? (
-          <EmptyState
-            icon={KeyRound}
-            title="Nenhum acesso cadastrado"
-            description="Adicione a primeira credencial deste cliente."
-            actionLabel="Adicionar acesso"
-            onAction={() => setCreatingCategory("platform")}
-          />
+          <div className="flex flex-col items-center justify-center py-20 rounded-lg border border-dashed border-border">
+            <div className="mb-4 rounded-xl border border-border bg-secondary p-4">
+              <KeyRound className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="mb-1 text-sm font-medium text-foreground">Nenhum acesso cadastrado</h3>
+            <p className="text-xs text-muted-foreground mb-4">Adicione a primeira credencial deste cliente.</p>
+            <Button size="sm" className="gap-1.5" onClick={() => setCreatingCategory("platform")}>
+              <Plus className="h-3.5 w-3.5" /> Adicionar acesso
+            </Button>
+          </div>
         ) : filteredCount === 0 ? (
           <div className="rounded-lg border border-dashed border-border py-12 text-center">
             <Search className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
