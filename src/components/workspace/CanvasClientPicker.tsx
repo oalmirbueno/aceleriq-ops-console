@@ -40,10 +40,19 @@ export default function CanvasClientPicker({
 
   const fetchClients = async () => {
     setLoading(true);
-    const { data } = await supabase
+    // logo_url may not exist yet on schemas that haven't run the migration —
+    // request it but tolerate failure by retrying without it.
+    let { data, error } = await supabase
       .from("clients")
-      .select("id, name, company_name, segment, plan_name, status")
+      .select("id, name, company_name, segment, plan_name, status, logo_url")
       .order("name", { ascending: true });
+    if (error) {
+      const fallback = await supabase
+        .from("clients")
+        .select("id, name, company_name, segment, plan_name, status")
+        .order("name", { ascending: true });
+      data = fallback.data as any;
+    }
     setClients((data ?? []) as ClientRow[]);
     setLoading(false);
   };
