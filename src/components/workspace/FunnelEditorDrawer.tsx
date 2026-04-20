@@ -342,6 +342,7 @@ export default function FunnelEditorDrawer({
                       isFirst={i === 0}
                       isLast={i === steps.length - 1}
                       linkableNodes={linkableNodes}
+                      clientId={clientId}
                       onToggleExpand={() => setExpandedId((cur) => cur === step.id ? null : step.id)}
                       onPatch={(patch) => patchStep(step.id, patch)}
                       onDelete={() => deleteStep(step.id)}

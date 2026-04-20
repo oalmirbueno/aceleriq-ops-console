@@ -19,12 +19,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ChevronDown, ChevronUp, GripVertical, Trash2, Link2, Plus, X,
-  ArrowDown, GitBranch, ExternalLink,
+  ArrowDown, GitBranch, ExternalLink, Zap, RefreshCw, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getFunnelBlock, type FunnelBlockKind, FUNNEL_BLOCKS,
 } from "./funnelBlocks";
+import { useLinkedStepMetrics, type LinkedMetricValue } from "@/hooks/useLinkedStepMetrics";
 
 export interface FunnelStepRow {
   id: string;
@@ -66,6 +67,8 @@ interface Props {
   isFirst: boolean;
   isLast: boolean;
   linkableNodes: LinkableNodeOption[];
+  /** Client id needed to fetch linked node's metric_snapshots */
+  clientId: string;
   onToggleExpand: () => void;
   onPatch: (patch: Partial<FunnelStepRow>) => void;
   onDelete: () => void;
@@ -76,7 +79,7 @@ interface Props {
 }
 
 export default function FunnelStepCard({
-  step, branches, allSteps, expanded, isFirst, isLast, linkableNodes,
+  step, branches, allSteps, expanded, isFirst, isLast, linkableNodes, clientId,
   onToggleExpand, onPatch, onDelete, onMove, onChangeKind,
   onAddBranch, onRemoveBranch,
 }: Props) {
@@ -253,18 +256,11 @@ export default function FunnelStepCard({
                 </div>
               </div>
               {meta.metricKeys.length > 0 && (
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  {meta.metricKeys.map((mk) => (
-                    <div key={mk} className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground">{mk}</Label>
-                      <Input
-                        value={String(step.metrics?.[mk] ?? "")}
-                        onChange={(e) => onPatch({ metrics: { ...step.metrics, [mk]: e.target.value } })}
-                        className="h-7 text-xs"
-                      />
-                    </div>
-                  ))}
-                </div>
+                <LinkedMetricsPanel
+                  step={step}
+                  clientId={clientId}
+                  onPatch={onPatch}
+                />
               )}
             </div>
           )}
@@ -436,6 +432,164 @@ function BranchEditor({
           <Plus className="h-3 w-3" />
         </Button>
       </div>
+    </div>
+  );
+}
+
+// ─── Linked metrics panel ─────────────────────────────────────────────────
+/**
+ * Quando step.linked_node_id está setado, puxa snapshots reais do node vinculado
+ * e oferece override manual. Quando não há vínculo, cai no modo manual clássico.
+ */
+function LinkedMetricsPanel({
+  step, clientId, onPatch,
+}: {
+  step: FunnelStepRow;
+  clientId: string;
+  onPatch: (patch: Partial<FunnelStepRow>) => void;
+}) {
+  const meta = getFunnelBlock(step.block_kind);
+  const isLinked = !!step.linked_node_id;
+  const { loading, linkedNodeTitle, metrics, refresh } = useLinkedStepMetrics(
+    isLinked ? step : null,
+    clientId,
+  );
+  const [overrideMode, setOverrideMode] = useState(false);
+
+  // Modo manual original quando não há vínculo
+  if (!isLinked) {
+    return (
+      <div className="grid grid-cols-2 gap-2 pt-1">
+        {meta.metricKeys.map((mk) => (
+          <div key={mk} className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">{mk}</Label>
+            <Input
+              value={String(step.metrics?.[mk] ?? "")}
+              onChange={(e) => onPatch({ metrics: { ...step.metrics, [mk]: e.target.value } })}
+              className="h-7 text-xs"
+            />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const resolvedCount = Object.values(metrics).filter((m) => m.source != null).length;
+  const totalCount = meta.metricKeys.length;
+
+  return (
+    <div className="space-y-2 pt-2 border-t border-border/40">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Zap className="h-3 w-3 text-primary shrink-0" />
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">
+            Auto via node vinculado
+          </p>
+          {linkedNodeTitle && (
+            <span className="text-[10px] text-muted-foreground truncate">
+              · {linkedNodeTitle}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <Badge variant="outline" className="text-[9px] border-border text-muted-foreground tabular-nums">
+            {resolvedCount}/{totalCount} preenchidas
+          </Badge>
+          <Button
+            size="icon" variant="ghost" className="h-5 w-5"
+            onClick={refresh} disabled={loading}
+            title="Recarregar métricas do node vinculado"
+          >
+            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+          </Button>
+          <Button
+            size="sm" variant="ghost" className="h-5 text-[9px] px-1.5"
+            onClick={() => setOverrideMode((v) => !v)}
+            title="Editar manualmente (override)"
+          >
+            {overrideMode ? "Auto" : "Override"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {meta.metricKeys.map((mk) => {
+          const m: LinkedMetricValue = metrics[mk] ?? {
+            value: null, raw: null, unit: null, capturedAt: null, source: null,
+          };
+          const overrideVal = step.metrics?.[mk];
+          const hasOverride = overrideVal != null && overrideVal !== "";
+          const showOverrideInput = overrideMode || hasOverride;
+          const displayValue = hasOverride ? String(overrideVal) : m.raw != null ? String(m.raw) : "";
+
+          return (
+            <div key={mk} className="space-y-1">
+              <div className="flex items-center justify-between gap-1">
+                <Label className="text-[10px] text-muted-foreground truncate">{mk}</Label>
+                {m.source === "snapshot" && !hasOverride && (
+                  <Badge variant="outline" className="text-[8px] border-primary/40 text-primary px-1 py-0 h-3.5 leading-none">
+                    auto
+                  </Badge>
+                )}
+                {m.source === "node_data" && !hasOverride && (
+                  <Badge variant="outline" className="text-[8px] border-muted-foreground/40 text-muted-foreground px-1 py-0 h-3.5 leading-none">
+                    node
+                  </Badge>
+                )}
+                {hasOverride && (
+                  <Badge variant="outline" className="text-[8px] border-amber-500/40 text-amber-400 px-1 py-0 h-3.5 leading-none">
+                    manual
+                  </Badge>
+                )}
+              </div>
+              {showOverrideInput ? (
+                <div className="flex gap-1">
+                  <Input
+                    value={String(overrideVal ?? "")}
+                    onChange={(e) => onPatch({ metrics: { ...step.metrics, [mk]: e.target.value } })}
+                    className="h-7 text-xs flex-1"
+                    placeholder={m.raw != null ? String(m.raw) : "—"}
+                  />
+                  {hasOverride && (
+                    <Button
+                      size="icon" variant="ghost" className="h-7 w-7 text-rose-400 shrink-0"
+                      onClick={() => {
+                        const next = { ...step.metrics };
+                        delete next[mk];
+                        onPatch({ metrics: next });
+                      }}
+                      title="Limpar override"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="h-7 px-2 rounded-md border border-border/60 bg-muted/20 flex items-center justify-between gap-1">
+                  <span className={cn(
+                    "text-xs tabular-nums truncate",
+                    m.source ? "text-foreground" : "text-muted-foreground/50 italic",
+                  )}>
+                    {displayValue || "sem dado"}
+                    {m.unit ? ` ${m.unit}` : ""}
+                  </span>
+                  {m.capturedAt && (
+                    <span className="text-[9px] text-muted-foreground/60 shrink-0">
+                      {new Date(m.capturedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {resolvedCount === 0 && !loading && (
+        <p className="text-[9px] text-muted-foreground/70 italic">
+          Nenhum snapshot encontrado pra esse node. Crie snapshots em <span className="text-foreground/80">Métricas</span> ou faça override.
+        </p>
+      )}
     </div>
   );
 }
