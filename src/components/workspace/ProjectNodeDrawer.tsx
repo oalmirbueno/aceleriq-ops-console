@@ -81,6 +81,8 @@ export default function ProjectNodeDrawer({
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [metrics, setMetrics] = useState<Array<{ label: string; value: string }>>([]);
   const [saving, setSaving] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moving, setMoving] = useState(false);
 
   useEffect(() => {
     if (!node) return;
