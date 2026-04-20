@@ -120,13 +120,17 @@ export default function CanvasClientTabs({
               const isEditing = editingId === t.id;
               const isFirst = idx === 0;
 
+              const isDragging = dragId === t.id;
+              const isOver = dragOverId === t.id && dragId !== null && dragId !== t.id;
+              const draggable = !!onReorder && !isEditing;
+
               const tabContent = (
                 <div
                   className={`shrink-0 group flex items-center gap-1.5 h-9 pl-1.5 pr-1 rounded-md border text-xs font-medium transition-all ${
                     active
                       ? "bg-card border-primary/50 text-foreground shadow-sm"
                       : "border-border bg-background/40 text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                  }`}
+                  } ${isDragging ? "opacity-40 scale-[0.97]" : ""} ${isOver ? "ring-2 ring-primary/60 ring-offset-1 ring-offset-background" : ""} ${draggable ? "cursor-grab active:cursor-grabbing" : ""}`}
                 >
                   {isEditing ? (
                     <div className="flex items-center gap-1.5 max-w-[260px]">
