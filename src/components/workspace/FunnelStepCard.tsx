@@ -256,18 +256,11 @@ export default function FunnelStepCard({
                 </div>
               </div>
               {meta.metricKeys.length > 0 && (
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  {meta.metricKeys.map((mk) => (
-                    <div key={mk} className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground">{mk}</Label>
-                      <Input
-                        value={String(step.metrics?.[mk] ?? "")}
-                        onChange={(e) => onPatch({ metrics: { ...step.metrics, [mk]: e.target.value } })}
-                        className="h-7 text-xs"
-                      />
-                    </div>
-                  ))}
-                </div>
+                <LinkedMetricsPanel
+                  step={step}
+                  clientId={clientId}
+                  onPatch={onPatch}
+                />
               )}
             </div>
           )}
