@@ -49,12 +49,13 @@ function FallbackIcon({ type }: { type?: string }) {
  * - Video: <video> tag, frame at metadata
  * - Other: typed icon
  */
-export default function AttachmentPreview({ url, type, onRefreshUrl, className }: Props) {
+export default function AttachmentPreview({ url, type, label, onRefreshUrl, className, disableLightbox }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfRendered, setPdfRendered] = useState(false);
   const [errored, setErrored] = useState(false);
   const [activeUrl, setActiveUrl] = useState(url);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   useEffect(() => {
     setActiveUrl(url);
