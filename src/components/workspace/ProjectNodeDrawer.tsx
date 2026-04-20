@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { ACELERA_STAGES, getProjectTypeMeta, getStageMeta, type AceleraStageKey, type ProjectNodeKind } from "./canvasProjectTypes";
 import { ESTEIRA_STATUSES, getEsteiraStatus, mapLegacyStatus, premiumStatusToDb } from "./canvasEsteiraStatus";
+import AttachmentUploader, { type AttachmentItem } from "./AttachmentUploader";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 
 interface Props {
@@ -32,7 +33,6 @@ interface Props {
 
 type LinkItem = { label: string; url: string };
 type ChecklistItem = { id: string; text: string; done: boolean };
-type AttachmentItem = { label: string; url: string; type?: string };
 
 interface RichData {
   kind?: ProjectNodeKind;
@@ -139,10 +139,7 @@ export default function ProjectNodeDrawer({ node, open, onOpenChange, workspaceI
   const updateCheck = (id: string, patch: Partial<ChecklistItem>) => setChecklist((l) => l.map((x) => x.id === id ? { ...x, ...patch } : x));
   const removeCheck = (id: string) => setChecklist((l) => l.filter((x) => x.id !== id));
 
-  /* ─── Attachments ─── */
-  const addAttach = () => setAttachments((l) => [...l, { label: "", url: "", type: "" }]);
-  const updateAttach = (i: number, patch: Partial<AttachmentItem>) => setAttachments((l) => l.map((x, idx) => idx === i ? { ...x, ...patch } : x));
-  const removeAttach = (i: number) => setAttachments((l) => l.filter((_, idx) => idx !== i));
+  /* ─── Attachments handled by AttachmentUploader ─── */
 
   /* ─── Metrics ─── */
   const addMetric = () => setMetrics((l) => [...l, { label: "", value: "" }]);
@@ -302,31 +299,12 @@ export default function ProjectNodeDrawer({ node, open, onOpenChange, workspaceI
               </TabsContent>
 
               <TabsContent value="attachments" className="m-0 space-y-2">
-                {attachments.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-4">Nenhum anexo. Cole URLs de arquivos, designs, PDFs…</p>
-                )}
-                {attachments.map((a, i) => (
-                  <div key={i} className="rounded-md border border-border p-2 space-y-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <Input value={a.label} onChange={(e) => updateAttach(i, { label: e.target.value })} placeholder="Nome do anexo" className="h-8 text-xs flex-1" />
-                      <Input value={a.type ?? ""} onChange={(e) => updateAttach(i, { type: e.target.value })} placeholder="Tipo (pdf, fig…)" className="h-8 text-xs w-28" />
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => removeAttach(i)}>
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Input value={a.url} onChange={(e) => updateAttach(i, { url: e.target.value })} placeholder="URL do arquivo" className="h-8 text-xs flex-1" />
-                      {a.url && (
-                        <Button size="icon" variant="ghost" className="h-8 w-8" asChild>
-                          <a href={a.url} target="_blank" rel="noreferrer"><ExternalLink className="h-3.5 w-3.5" /></a>
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                <Button size="sm" variant="outline" onClick={addAttach} className="w-full">
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar anexo
-                </Button>
+                <AttachmentUploader
+                  workspaceId={workspaceId}
+                  nodeId={node.id}
+                  attachments={attachments}
+                  onChange={setAttachments}
+                />
               </TabsContent>
 
               <TabsContent value="metrics" className="m-0 space-y-2">
