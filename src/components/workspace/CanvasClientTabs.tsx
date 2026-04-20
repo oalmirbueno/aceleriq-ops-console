@@ -34,6 +34,8 @@ interface Props {
   onRenameClient?: (id: string, newTitle: string) => Promise<void> | void;
   onChangeLogo?: (id: string) => Promise<void> | void;
   onMoveToStart?: (id: string) => Promise<void> | void;
+  /** Persist a new order (array of tab ids in desired sequence). */
+  onReorder?: (orderedIds: string[]) => Promise<void> | void;
   showAllTab?: boolean;
 }
 
