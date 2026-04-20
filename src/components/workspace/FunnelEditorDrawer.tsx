@@ -36,6 +36,7 @@ import {
 import FunnelStepCard, {
   type FunnelStepRow, type FunnelBranchRow, type LinkableNodeOption,
 } from "./FunnelStepCard";
+import FunnelConeView from "./FunnelConeView";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 
 interface FunnelRow {
@@ -316,7 +317,7 @@ export default function FunnelEditorDrawer({
 
         {/* ─── Pipeline ─── */}
         <ScrollArea className="flex-1">
-          <div className="px-5 py-4 space-y-2">
+          <div className="px-5 py-4 space-y-3">
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -325,6 +326,12 @@ export default function FunnelEditorDrawer({
               <EmptyPipeline onAdd={addStep} />
             ) : (
               <>
+                {/* Visão clássica em cone — proporcional ao volume */}
+                <FunnelConeView
+                  steps={steps}
+                  highlightId={expandedId}
+                  onPickStep={(id) => setExpandedId((cur) => (cur === id ? null : id))}
+                />
                 {steps.map((step, i) => (
                   <div key={step.id}>
                     <FunnelStepCard
