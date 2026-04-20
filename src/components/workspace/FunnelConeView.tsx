@@ -217,6 +217,32 @@ export default function FunnelConeView({ steps, highlightId, onPickStep, exportN
               {showGhost ? "✕ Ocultar projeção" : "Comparar projeção"}
             </button>
           )}
+          <button
+            type="button"
+            disabled={exporting}
+            onClick={async () => {
+              if (!svgRef.current) return;
+              setExporting(true);
+              try {
+                const safe = (exportName || "funil").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "funil";
+                const stamp = new Date().toISOString().slice(0, 10);
+                await exportSvgAsPng(svgRef.current, `${safe}-${stamp}.png`, 2);
+              } catch (e) {
+                console.error("export funnel png", e);
+              } finally {
+                setExporting(false);
+              }
+            }}
+            className={cn(
+              "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md border transition-colors",
+              "border-border text-muted-foreground hover:text-foreground hover:border-foreground/20",
+              exporting && "opacity-60 cursor-wait",
+            )}
+            title="Exportar funil em PNG (2x)"
+          >
+            <Download className="h-3 w-3" />
+            {exporting ? "Exportando…" : "Exportar PNG"}
+          </button>
           <span className="text-[9px] text-muted-foreground/50 tabular-nums">
             {slices.length} etapa{slices.length === 1 ? "" : "s"} · topo {formatNumber(slices[0].volume)}
           </span>
@@ -224,6 +250,7 @@ export default function FunnelConeView({ steps, highlightId, onPickStep, exportN
       </div>
 
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${VIEW_W} ${totalH}`}
         className="w-full h-auto block"
         preserveAspectRatio="xMidYMid meet"
