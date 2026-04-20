@@ -5,15 +5,17 @@ import {
   type Node, type Edge, type NodeChange, type EdgeChange, type Connection,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Trash2, Loader2 } from "lucide-react";
+import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import CanvasNodeCard, { type CanvasNodeData } from "./CanvasNodeCard";
+import CanvasGroupNode from "./CanvasGroupNode";
 import CanvasNodeDrawer, { type CanvasNodeRecord } from "./CanvasNodeDrawer";
 import AddCanvasNodeDialog from "./AddCanvasNodeDialog";
 import CanvasPalette from "./CanvasPalette";
 import CanvasInspector from "./CanvasInspector";
+import CanvasClientPicker from "./CanvasClientPicker";
 import { computeAutoLayout, nextNodePosition } from "./canvasLayout";
 import { CANVAS_TIMELINE_EVENT_TYPE, buildCanvasTitle, buildCanvasDescription } from "./canvasTimeline";
 import type { CanvasNodeType } from "./canvasConstants";
@@ -27,6 +29,9 @@ interface CanvasEdgeRecord {
   label: string | null;
 }
 
+/** Extends CanvasNodeRecord with optional parent_node_id (added by migration) */
+type CanvasNodeRow = CanvasNodeRecord & { parent_node_id?: string | null };
+
 interface Props {
   workspaceId: string;
   clientId: string;
@@ -36,16 +41,24 @@ interface Props {
   onTimelineRefresh?: () => Promise<void> | void;
 }
 
-const nodeTypes = { canvasCard: CanvasNodeCard };
+const nodeTypes = {
+  canvasCard: CanvasNodeCard,
+  canvasGroup: CanvasGroupNode,
+};
+
+const GROUP_WIDTH = 760;
+const GROUP_HEIGHT = 520;
+const GROUP_GAP = 60;
 
 function CanvasStudioInner({
   workspaceId, clientId, clientName,
   fullscreen, onToggleFullscreen, onTimelineRefresh,
 }: Props) {
-  const [dbNodes, setDbNodes] = useState<CanvasNodeRecord[]>([]);
+  const [dbNodes, setDbNodes] = useState<CanvasNodeRow[]>([]);
   const [dbEdges, setDbEdges] = useState<CanvasEdgeRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
+  const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState<CanvasNodeRecord | null>(null);
 
   const [rfNodes, setRfNodes] = useState<Node[]>([]);
@@ -56,31 +69,56 @@ function CanvasStudioInner({
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
+  const [paletteCollapsed, setPaletteCollapsed] = useState(false);
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     const [{ data: nodesData }, { data: edgesData }] = await Promise.all([
       supabase.from("canvas_nodes").select("*").eq("workspace_id", workspaceId).order("created_at"),
       supabase.from("canvas_edges").select("*").eq("workspace_id", workspaceId),
     ]);
-    setDbNodes((nodesData ?? []) as CanvasNodeRecord[]);
+    setDbNodes((nodesData ?? []) as CanvasNodeRow[]);
     setDbEdges((edgesData ?? []) as CanvasEdgeRecord[]);
     setLoading(false);
   }, [workspaceId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  /* DB → ReactFlow with filters */
+  /* DB → ReactFlow with filters + grouping */
   useEffect(() => {
     const q = search.trim().toLowerCase();
     const visible = dbNodes.filter((n) => {
+      // client groups always visible (they're frames)
+      if (n.node_type === "client") return true;
       if (typeFilter && n.node_type !== typeFilter) return false;
       if (statusFilter && n.status !== statusFilter) return false;
       if (q && !n.title.toLowerCase().includes(q)) return false;
       return true;
     });
     const visibleIds = new Set(visible.map((n) => n.id));
-    setRfNodes(
-      visible.map((n): Node => ({
+
+    const childCounts: Record<string, number> = {};
+    visible.forEach((n) => {
+      if (n.parent_node_id) {
+        childCounts[n.parent_node_id] = (childCounts[n.parent_node_id] ?? 0) + 1;
+      }
+    });
+
+    const built: Node[] = visible.map((n): Node => {
+      if (n.node_type === "client") {
+        return {
+          id: n.id,
+          type: "canvasGroup",
+          position: { x: Number(n.pos_x ?? 0), y: Number(n.pos_y ?? 0) },
+          style: { width: GROUP_WIDTH, height: GROUP_HEIGHT, zIndex: 0 },
+          data: {
+            title: n.title,
+            childCount: childCounts[n.id] ?? 0,
+          },
+        };
+      }
+      const base: Node = {
         id: n.id,
         type: "canvasCard",
         position: { x: Number(n.pos_x ?? 0), y: Number(n.pos_y ?? 0) },
@@ -91,8 +129,15 @@ function CanvasStudioInner({
           description: n.description,
           hasLinkedEntity: !!n.linked_entity_id,
         } satisfies CanvasNodeData,
-      })),
-    );
+      };
+      if (n.parent_node_id && visibleIds.has(n.parent_node_id)) {
+        base.parentId = n.parent_node_id;
+        base.extent = "parent";
+      }
+      return base;
+    });
+
+    setRfNodes(built);
     setRfEdges(
       dbEdges
         .filter((e) => visibleIds.has(e.source_node_id) && visibleIds.has(e.target_node_id))
@@ -170,14 +215,74 @@ function CanvasStudioInner({
     if (found) setSelectedNode(found);
   }, [dbNodes]);
 
-  /* Quick-add direto da paleta */
+  /* ─── Pick existing client → create group node ─── */
+  const handlePickClient = async (c: { id: string; name: string }) => {
+    // Compute next group position (stack horizontally)
+    const existingGroups = dbNodes.filter((n) => n.node_type === "client");
+    const x = existingGroups.length === 0
+      ? 80
+      : Math.max(...existingGroups.map((g) => Number(g.pos_x ?? 0))) + GROUP_WIDTH + GROUP_GAP;
+
+    const { data, error } = await supabase
+      .from("canvas_nodes")
+      .insert({
+        workspace_id: workspaceId,
+        client_id: c.id, // link to chosen client (not workspace's clientId)
+        node_type: "client",
+        title: c.name,
+        status: "active",
+        description: "Pasta do cliente",
+        pos_x: x,
+        pos_y: 80,
+        linked_entity_type: "clients",
+        linked_entity_id: c.id,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      toast({ title: "Erro ao adicionar cliente", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    await supabase.from("timeline_events").insert({
+      workspace_id: workspaceId,
+      client_id: clientId,
+      event_type: CANVAS_TIMELINE_EVENT_TYPE,
+      title: buildCanvasTitle({ action: "node_created", nodeTitle: c.name }),
+      description: buildCanvasDescription({ action: "node_created", nodeTitle: c.name, nodeType: "client" }),
+      happened_at: new Date().toISOString(),
+    });
+
+    toast({ title: "Cliente adicionado", description: `Pasta criada para ${c.name}` });
+    if (data) setDbNodes((prev) => [...prev, data as CanvasNodeRow]);
+    await onTimelineRefresh?.();
+  };
+
+  /* Pick parent group automatically: nearest client group OR null */
+  const pickParentGroup = (): string | null => {
+    const groups = dbNodes.filter((n) => n.node_type === "client");
+    if (groups.length === 0) return null;
+    if (groups.length === 1) return groups[0].id;
+    return null; // ambiguous: leave free, user can assign in drawer
+  };
+
+  /* Quick-add via paleta */
   const handleQuickAdd = async (type: CanvasNodeType) => {
+    if (type === "client") {
+      setClientPickerOpen(true);
+      return;
+    }
     const labelByType: Record<string, string> = {
-      client: "Cliente", dossier: "Dossiê", context: "Contexto",
+      dossier: "Dossiê", context: "Contexto",
       front: "Frente", task: "Task", asset: "Asset",
       metric: "Métrica", before_after: "Before/After", case: "Case",
     };
-    const pos = nextNodePosition(dbNodes);
+    const parent = pickParentGroup();
+    const pos = parent
+      ? { x: 40, y: 80 + (dbNodes.filter((n) => n.parent_node_id === parent).length * 110) }
+      : nextNodePosition(dbNodes);
+
     const { data, error } = await supabase
       .from("canvas_nodes")
       .insert({
@@ -188,6 +293,7 @@ function CanvasStudioInner({
         status: "draft",
         pos_x: pos.x,
         pos_y: pos.y,
+        parent_node_id: parent,
       })
       .select()
       .single();
@@ -197,7 +303,7 @@ function CanvasStudioInner({
       return;
     }
     if (data) {
-      setDbNodes((prev) => [...prev, data as CanvasNodeRecord]);
+      setDbNodes((prev) => [...prev, data as CanvasNodeRow]);
       setSelectedNode(data as CanvasNodeRecord);
     }
   };
@@ -205,7 +311,16 @@ function CanvasStudioInner({
   const handleCreateNode = async (input: {
     node_type: string; title: string; status: string; description: string | null;
   }) => {
-    const pos = nextNodePosition(dbNodes);
+    if (input.node_type === "client") {
+      // Redirect: should pick existing client
+      setClientPickerOpen(true);
+      return;
+    }
+    const parent = pickParentGroup();
+    const pos = parent
+      ? { x: 40, y: 80 + (dbNodes.filter((n) => n.parent_node_id === parent).length * 110) }
+      : nextNodePosition(dbNodes);
+
     const { data, error } = await supabase
       .from("canvas_nodes")
       .insert({
@@ -217,6 +332,7 @@ function CanvasStudioInner({
         description: input.description,
         pos_x: pos.x,
         pos_y: pos.y,
+        parent_node_id: parent,
       })
       .select()
       .single();
@@ -234,7 +350,7 @@ function CanvasStudioInner({
       happened_at: new Date().toISOString(),
     });
     toast({ title: "Node criado" });
-    if (data) setDbNodes((prev) => [...prev, data as CanvasNodeRecord]);
+    if (data) setDbNodes((prev) => [...prev, data as CanvasNodeRow]);
     await onTimelineRefresh?.();
   };
 
@@ -247,43 +363,59 @@ function CanvasStudioInner({
       setBusyAction(null);
       return;
     }
-    const inserts: Array<Record<string, unknown>> = [];
-    if (!hasClient) inserts.push({
-      workspace_id: workspaceId, client_id: clientId, node_type: "client", title: clientName,
-      status: "active", description: "Cliente raiz do workspace",
-      pos_x: 100, pos_y: 100,
-    });
-    if (!hasDossier) inserts.push({
-      workspace_id: workspaceId, client_id: clientId, node_type: "dossier", title: "Dossiê",
-      status: "active", description: "Leitura operacional consolidada",
-      pos_x: 100, pos_y: 280,
-    });
 
-    const { data, error } = await supabase.from("canvas_nodes").insert(inserts).select();
-    if (error) {
-      toast({ title: "Erro ao gerar base", description: error.message, variant: "destructive" });
-      setBusyAction(null);
-      return;
+    let clientNodeId: string | null = hasClient ? dbNodes.find((n) => n.node_type === "client")?.id ?? null : null;
+
+    if (!hasClient) {
+      const { data: clientNode, error: cErr } = await supabase
+        .from("canvas_nodes")
+        .insert({
+          workspace_id: workspaceId,
+          client_id: clientId,
+          node_type: "client",
+          title: clientName,
+          status: "active",
+          description: "Cliente raiz do workspace",
+          pos_x: 80,
+          pos_y: 80,
+          linked_entity_type: "clients",
+          linked_entity_id: clientId,
+        })
+        .select()
+        .single();
+      if (cErr) {
+        toast({ title: "Erro ao gerar base", description: cErr.message, variant: "destructive" });
+        setBusyAction(null);
+        return;
+      }
+      clientNodeId = (clientNode as CanvasNodeRow).id;
+      setDbNodes((prev) => [...prev, clientNode as CanvasNodeRow]);
     }
-    if (data && data.length === 2) {
-      const [a, b] = data as CanvasNodeRecord[];
-      await supabase.from("canvas_edges").insert({
-        workspace_id: workspaceId,
-        source_node_id: a.id,
-        target_node_id: b.id,
-        edge_type: "structural",
-      });
+
+    if (!hasDossier && clientNodeId) {
+      const { data: dossierNode, error: dErr } = await supabase
+        .from("canvas_nodes")
+        .insert({
+          workspace_id: workspaceId,
+          client_id: clientId,
+          node_type: "dossier",
+          title: "Dossiê",
+          status: "active",
+          description: "Leitura operacional consolidada",
+          pos_x: 40,
+          pos_y: 80,
+          parent_node_id: clientNodeId,
+        })
+        .select()
+        .single();
+      if (dErr) {
+        toast({ title: "Erro ao gerar dossiê", description: dErr.message, variant: "destructive" });
+        setBusyAction(null);
+        return;
+      }
+      setDbNodes((prev) => [...prev, dossierNode as CanvasNodeRow]);
     }
-    for (const n of (data ?? []) as CanvasNodeRecord[]) {
-      await supabase.from("timeline_events").insert({
-        workspace_id: workspaceId,
-        client_id: clientId,
-        event_type: CANVAS_TIMELINE_EVENT_TYPE,
-        title: buildCanvasTitle({ action: "node_created", nodeTitle: n.title }),
-        description: buildCanvasDescription({ action: "node_created", nodeTitle: n.title, nodeType: n.node_type }),
-        happened_at: new Date().toISOString(),
-      });
-    }
+
     toast({ title: "Estrutura base criada" });
     await fetchData();
     await onTimelineRefresh?.();
@@ -293,7 +425,9 @@ function CanvasStudioInner({
   const handleAutoLayout = async () => {
     if (dbNodes.length === 0) return;
     setBusyAction("layout");
-    const layout = computeAutoLayout(dbNodes);
+    // Layout only ungrouped nodes; leave parented nodes positioned within their parent
+    const ungrouped = dbNodes.filter((n) => !n.parent_node_id && n.node_type !== "client");
+    const layout = computeAutoLayout(ungrouped);
     await Promise.all(
       layout.map((p) =>
         supabase
@@ -314,6 +448,11 @@ function CanvasStudioInner({
   };
 
   const handleDeleteNode = async (id: string) => {
+    // If it's a group, also reparent children to null first
+    const node = dbNodes.find((n) => n.id === id);
+    if (node?.node_type === "client") {
+      await supabase.from("canvas_nodes").update({ parent_node_id: null }).eq("parent_node_id", id);
+    }
     await supabase.from("canvas_edges").delete().or(`source_node_id.eq.${id},target_node_id.eq.${id}`).eq("workspace_id", workspaceId);
     const { error } = await supabase.from("canvas_nodes").delete().eq("id", id);
     if (error) {
@@ -329,19 +468,25 @@ function CanvasStudioInner({
     total: dbNodes.length,
     edges: dbEdges.length,
     visible: rfNodes.length,
+    clients: dbNodes.filter((n) => n.node_type === "client").length,
   }), [dbNodes, dbEdges, rfNodes]);
 
   const hasFilters = !!search || !!typeFilter || !!statusFilter;
+  const existingClientIds = useMemo(
+    () => dbNodes.filter((n) => n.node_type === "client" && n.linked_entity_id).map((n) => n.linked_entity_id as string),
+    [dbNodes],
+  );
 
   return (
     <div className={`flex flex-col bg-background ${fullscreen ? "h-full" : "h-[80vh] rounded-lg border border-border overflow-hidden"}`}>
       {/* Top bar */}
       <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-card/40 backdrop-blur-sm">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="h-2 w-2 rounded-full bg-primary shrink-0" />
-          <p className="text-sm font-semibold text-foreground truncate">Canvas · {clientName}</p>
+          <div className="h-2 w-2 rounded-full bg-primary shrink-0 animate-pulse" />
+          <p className="text-sm font-semibold text-foreground truncate">Canvas</p>
           <span className="text-[11px] text-muted-foreground hidden sm:inline">
-            {summary.total} nodes · {summary.edges} edges {hasFilters && `· mostrando ${summary.visible}`}
+            {summary.clients} pasta{summary.clients === 1 ? "" : "s"} · {summary.total} nodes · {summary.edges} edges
+            {hasFilters && ` · mostrando ${summary.visible}`}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -371,7 +516,12 @@ function CanvasStudioInner({
 
       {/* Body: palette + canvas + inspector */}
       <div className="flex flex-1 min-h-0">
-        <CanvasPalette onAdd={handleQuickAdd} onOpenDialog={() => setAddOpen(true)} />
+        <CanvasPalette
+          onAdd={handleQuickAdd}
+          onOpenDialog={() => setAddOpen(true)}
+          collapsed={paletteCollapsed}
+          onToggleCollapse={() => setPaletteCollapsed((v) => !v)}
+        />
 
         <div className="flex-1 min-w-0 relative">
           {loading ? (
@@ -428,6 +578,8 @@ function CanvasStudioInner({
           onStatusFilter={setStatusFilter}
           onPick={setSelectedNode}
           selectedId={selectedNode?.id ?? null}
+          collapsed={inspectorCollapsed}
+          onToggleCollapse={() => setInspectorCollapsed((v) => !v)}
         />
       </div>
 
@@ -435,6 +587,14 @@ function CanvasStudioInner({
         open={addOpen}
         onOpenChange={setAddOpen}
         onCreate={handleCreateNode}
+      />
+
+      <CanvasClientPicker
+        open={clientPickerOpen}
+        onOpenChange={setClientPickerOpen}
+        existingClientIds={existingClientIds}
+        onPick={handlePickClient}
+        hasOtherClients={summary.clients > 0}
       />
 
       <CanvasNodeDrawer
