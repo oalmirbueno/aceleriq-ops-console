@@ -723,8 +723,8 @@ function AutomationHint({ step }: { step: FunnelStepRow }) {
   const tool = String(cfg.tool ?? cfg.platform ?? cfg.crm ?? "—");
   const trigger = String(cfg.trigger ?? cfg.event_name ?? cfg.endpoint ?? "—");
   return (
-    <div className="rounded-md border border-amber-500/30 bg-amber-500/[0.04] p-2.5 space-y-1">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400 flex items-center gap-1">
+    <div className="rounded-md border border-warning/30 bg-warning/[0.05] p-2.5 space-y-1">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-warning flex items-center gap-1">
         <Zap className="h-3 w-3" /> Bloco de automação
       </p>
       <p className="text-[10px] text-muted-foreground leading-snug">
