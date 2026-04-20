@@ -1023,9 +1023,8 @@ function CanvasStudioInner({
               onInit={handleRfInit}
               onMoveEnd={handleMoveEnd}
               fitViewOptions={{ padding: 0.4 }}
-              minZoom={0.2}
+              minZoom={0.1}
               maxZoom={2}
-              translateExtent={CANVAS_TRANSLATE_EXTENT}
               panOnDrag={[0, 1, 2]}
               panOnScroll={false}
               zoomOnScroll
