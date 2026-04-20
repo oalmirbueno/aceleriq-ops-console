@@ -1,15 +1,8 @@
 /**
- * CanvasStageNavigator — minimal horizontal carousel scrubber.
+ * CanvasStageNavigator — horizontal scrubber do canvas.
  *
- * Substitui o pill antigo "A.C.E.L.E.R.A" por uma trilha fininha no rodapé do
- * canvas. A barra mostra a posição atual da viewport sobre o conteúdo total
- * das etapas e permite arrastar (clique e segura) ou clicar pra deslizar
- * lateralmente — comportamento estilo carrossel.
- *
- * - Sem letras visíveis (pedido do usuário).
- * - Marcadores discretos por etapa, com tooltip identificando A.C.E.L.E.R.A.
- * - Indicador de progresso (% done) substitui badge gigante por uma barrinha
- *   sob o marcador, mantendo a leitura sem poluir o canvas.
+ * Mantém a leitura das etapas A.C.E.L.E.R.A de forma discreta, mas sem virar
+ * um controle de zoom: aqui o comportamento é somente navegação horizontal.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReactFlow, useStore } from "@xyflow/react";
@@ -20,50 +13,12 @@ interface Props {
   doneCounts?: Record<string, number>;
 }
 
-function ProgressRing({ pct }: { pct: number }) {
-  const size = 28;
-  const stroke = 1.5;
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const dash = c * Math.max(0, Math.min(1, pct));
-
-  return (
-    <svg
-      className="absolute inset-0 pointer-events-none"
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      aria-hidden
-    >
-      <circle
-        cx={size / 2} cy={size / 2} r={r}
-        fill="none"
-        stroke="hsl(var(--border))"
-        strokeWidth={stroke}
-      />
-      {pct > 0 && (
-        <circle
-          cx={size / 2} cy={size / 2} r={r}
-          fill="none"
-          stroke="hsl(var(--primary))"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={`${dash} ${c - dash}`}
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          style={{ transition: "stroke-dasharray 400ms ease-out" }}
-        />
-      )}
-    </svg>
-  );
-}
-
 /* Track total content width = soma das colunas das etapas */
 const TOTAL_CONTENT_WIDTH = STAGE_COLUMN_WIDTH * ACELERA_STAGES.length;
 
 export default function CanvasStageNavigator({ counts = {}, doneCounts = {} }: Props) {
   const rf = useReactFlow();
   const trackRef = useRef<HTMLDivElement | null>(null);
-  const [trackWidth, setTrackWidth] = useState(0);
   const [dragging, setDragging] = useState(false);
 
   /* Lê viewport ao vivo sem subscrever via prop drilling */
@@ -75,8 +30,11 @@ export default function CanvasStageNavigator({ counts = {}, doneCounts = {} }: P
   /* Janela visível no espaço do conteúdo */
   const viewLeft = -tx / Math.max(zoom, 0.0001);
   const viewWidth = containerWidth / Math.max(zoom, 0.0001);
-  const viewLeftPct = Math.max(0, Math.min(1, viewLeft / TOTAL_CONTENT_WIDTH));
+  const maxViewLeft = Math.max(0, TOTAL_CONTENT_WIDTH - viewWidth);
   const viewWidthPct = Math.max(0.04, Math.min(1, viewWidth / TOTAL_CONTENT_WIDTH));
+  const viewLeftPct = maxViewLeft > 0
+    ? (Math.max(0, Math.min(maxViewLeft, viewLeft)) / maxViewLeft) * (1 - viewWidthPct)
+    : 0;
 
   /* Mede largura real do trilho pra projetar drag → posição */
   useEffect(() => {
@@ -91,21 +49,24 @@ export default function CanvasStageNavigator({ counts = {}, doneCounts = {} }: P
 
   const centerOnRatio = useCallback(
     (ratio: number, animate = true) => {
-      const x = Math.max(0, Math.min(1, ratio)) * TOTAL_CONTENT_WIDTH;
-      const y = ty ? -ty / Math.max(zoom, 0.0001) + 200 : 320;
-      rf.setCenter(x, y, { zoom, duration: animate ? 360 : 0 });
+      const clampedRatio = Math.max(0, Math.min(1, ratio));
+      const nextLeft = maxViewLeft * clampedRatio;
+      rf.setViewport(
+        { x: -nextLeft * zoom, y: ty, zoom },
+        { duration: animate ? 220 : 0 },
+      );
     },
-    [rf, ty, zoom],
+    [maxViewLeft, rf, ty, zoom],
   );
 
   /* Pointer events — clique posiciona, drag desliza */
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!trackRef.current) return;
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    e.currentTarget.setPointerCapture?.(e.pointerId);
     setDragging(true);
     const rect = trackRef.current.getBoundingClientRect();
     const ratio = (e.clientX - rect.left) / Math.max(1, rect.width);
-    centerOnRatio(ratio, true);
+    centerOnRatio(ratio, false);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -117,15 +78,7 @@ export default function CanvasStageNavigator({ counts = {}, doneCounts = {} }: P
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     setDragging(false);
-    (e.target as Element).releasePointerCapture?.(e.pointerId);
-  };
-
-  /* Wheel horizontal sobre a barra: rola lateralmente o canvas */
-  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    if (Math.abs(e.deltaY) < 1 && Math.abs(e.deltaX) < 1) return;
-    const dx = (e.deltaY + e.deltaX) * (1 / Math.max(zoom, 0.0001));
-    const newRatio = (viewLeft + viewWidth / 2 + dx) / TOTAL_CONTENT_WIDTH;
-    centerOnRatio(newRatio, false);
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
   };
 
   /* Stage markers — posição relativa ao trilho */
@@ -149,8 +102,7 @@ export default function CanvasStageNavigator({ counts = {}, doneCounts = {} }: P
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        onWheel={handleWheel}
-        className={`relative h-7 px-2 rounded-full border border-border/60 bg-card/85 backdrop-blur-md shadow-lg transition-colors ${
+        className={`relative h-9 px-3 rounded-full border border-border/60 bg-card/90 backdrop-blur-md shadow-lg transition-colors select-none touch-none ${
           dragging ? "cursor-grabbing" : "cursor-grab"
         }`}
         role="slider"
@@ -160,7 +112,7 @@ export default function CanvasStageNavigator({ counts = {}, doneCounts = {} }: P
         aria-valuenow={Math.round(viewLeftPct * 100)}
       >
         {/* Trilho fino */}
-        <div className="absolute inset-x-2 top-1/2 -translate-y-1/2 h-px bg-border/50" />
+        <div className="absolute inset-x-3 top-1/2 -translate-y-1/2 h-px bg-border/50" />
 
         {/* Marcadores de etapa */}
         {markers.map((m) => (
@@ -177,9 +129,12 @@ export default function CanvasStageNavigator({ counts = {}, doneCounts = {} }: P
                 ? `${m.stage.short} — ${m.stage.label} · ${Math.round(m.pct * 100)}% (${m.done}/${m.count})`
                 : `${m.stage.short} — ${m.stage.label}`
             }
-            className="group absolute top-1/2 -translate-y-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5"
+            className="group absolute top-1/2 -translate-y-1/2 -translate-x-1/2 flex flex-col items-center gap-1"
             style={{ left: `${m.center * 100}%` }}
           >
+            <span className="text-[9px] font-mono font-semibold tracking-[0.18em] text-muted-foreground/55 transition-colors group-hover:text-foreground/80">
+              {m.stage.letter}
+            </span>
             <span
               className={`h-1.5 w-1.5 rounded-full transition-all ${
                 m.count > 0
@@ -198,9 +153,9 @@ export default function CanvasStageNavigator({ counts = {}, doneCounts = {} }: P
 
         {/* Janela visível (thumb) */}
         <div
-          className="absolute top-1/2 -translate-y-1/2 h-3 rounded-full bg-foreground/15 border border-foreground/25 backdrop-blur-sm pointer-events-none transition-[left,width] duration-150 ease-out"
+          className="absolute top-1/2 -translate-y-1/2 h-2.5 rounded-full bg-foreground/15 border border-foreground/20 backdrop-blur-sm pointer-events-none transition-[left,width] duration-75 ease-out"
           style={{
-            left: `calc(${viewLeftPct * 100}% + 8px - ${viewLeftPct * 16}px)`,
+            left: `calc(${viewLeftPct * 100}% + 12px - ${viewLeftPct * 24}px)`,
             width: `calc(${viewWidthPct * 100}% - 4px)`,
             minWidth: 24,
           }}
