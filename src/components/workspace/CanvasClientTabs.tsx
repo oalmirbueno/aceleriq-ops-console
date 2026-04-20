@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Plus, X, Layers, Pencil } from "lucide-react";
+import { Plus, X, Layers, Pencil, Image as ImageIcon, ArrowLeftToLine, Trash2 } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import ClientAvatar from "./ClientAvatar";
 
 export interface CanvasClientTab {
@@ -25,6 +32,8 @@ interface Props {
   onAddClient: () => void;
   onRemoveClient?: (id: string) => void;
   onRenameClient?: (id: string, newTitle: string) => Promise<void> | void;
+  onChangeLogo?: (id: string) => Promise<void> | void;
+  onMoveToStart?: (id: string) => Promise<void> | void;
   showAllTab?: boolean;
 }
 
