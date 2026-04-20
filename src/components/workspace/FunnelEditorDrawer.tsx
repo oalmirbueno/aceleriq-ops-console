@@ -198,6 +198,38 @@ export default function FunnelEditorDrawer({
     await patchStep(id, { block_kind: kind, config: {}, metrics: {} });
   };
 
+  // ─── Aplicar template (cria múltiplos steps de uma vez) ─────────────
+  const applyTemplate = async (template: FunnelTemplate) => {
+    if (!funnel) return;
+    const startPos = (steps[steps.length - 1]?.position ?? -1) + 1;
+    const rows = template.steps.map((t, i) => {
+      const meta = getFunnelBlock(t.kind);
+      return {
+        funnel_id: funnel.id,
+        workspace_id: workspaceId,
+        position: startPos + i,
+        block_kind: t.kind,
+        title: t.title,
+        description: t.description ?? null,
+        conversion_rate: t.conversion_rate ?? null,
+        config: t.config ?? {},
+        checklist: meta.checklistTemplate.map((text) => ({
+          id: crypto.randomUUID(), text, done: false,
+        })),
+      };
+    });
+    const { data, error } = await supabase
+      .from("funnel_steps" as never)
+      .insert(rows)
+      .select("*");
+    if (error) {
+      toast({ title: "Falha ao aplicar template", description: error.message, variant: "destructive" });
+      return;
+    }
+    setSteps((prev) => [...prev, ...((data ?? []) as FunnelStepRow[])]);
+    toast({ title: `Template "${template.name}" aplicado`, description: `${rows.length} etapas adicionadas` });
+  };
+
   // ─── Branches CRUD ──────────────────────────────────────────────────
   const addBranch = async (fromStepId: string, toStepId: string, condition: FunnelBranchRow["condition"]) => {
     if (!funnel) return;
@@ -485,7 +517,7 @@ export default function FunnelEditorDrawer({
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : steps.length === 0 ? (
-              <EmptyPipeline onAdd={addStep} />
+              <EmptyPipeline onAdd={addStep} onApplyTemplate={applyTemplate} />
             ) : (
               <>
                 {/* Visão clássica em cone — proporcional ao volume */}
@@ -549,14 +581,50 @@ export default function FunnelEditorDrawer({
 }
 
 // ─── Empty state ──────────────────────────────────────────────────────────
-function EmptyPipeline({ onAdd }: { onAdd: (k: FunnelBlockKind) => void }) {
+function EmptyPipeline({
+  onAdd, onApplyTemplate,
+}: {
+  onAdd: (k: FunnelBlockKind) => void;
+  onApplyTemplate: (t: FunnelTemplate) => void;
+}) {
   return (
     <div className="border-2 border-dashed border-border rounded-lg p-8 text-center space-y-4">
       <Sparkles className="h-8 w-8 mx-auto text-muted-foreground" />
       <div className="space-y-1">
         <p className="text-sm font-medium">Funil vazio</p>
-        <p className="text-xs text-muted-foreground">Comece adicionando o primeiro bloco — geralmente uma fonte de tráfego.</p>
+        <p className="text-xs text-muted-foreground">Comece a partir de um template pronto ou adicione blocos manualmente.</p>
       </div>
+
+      {/* Templates prontos */}
+      <div className="space-y-2 text-left max-w-md mx-auto">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground text-center">
+          Templates prontos
+        </p>
+        <div className="grid gap-1.5">
+          {FUNNEL_TEMPLATES.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => onApplyTemplate(t)}
+              className="rounded-md border border-border bg-card/40 px-3 py-2 text-left hover:border-primary/40 hover:bg-primary/5 transition-colors group"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium group-hover:text-primary transition-colors">{t.name}</span>
+                <Badge variant="outline" className="text-[9px] border-border text-muted-foreground shrink-0">
+                  {t.steps.length} etapas
+                </Badge>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">{t.description}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 max-w-md mx-auto">
+        <div className="flex-1 h-px bg-border" />
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">ou comece do zero</span>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+
       <div className="flex flex-wrap justify-center gap-1.5">
         {(["traffic_ad","page_landing","comm_email_sequence","page_checkout"] as FunnelBlockKind[]).map((k) => {
           const m = getFunnelBlock(k);
