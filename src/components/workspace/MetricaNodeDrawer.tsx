@@ -280,6 +280,7 @@ export default function MetricaNodeDrawer({
         onOpenChange={onOpenChange}
         workspaceId={workspaceId}
         clientId={clientId}
+        clientName={clientName}
         blueprintOverride={blueprint}
         quickActionHandlers={handlers}
         onDelete={onDelete}

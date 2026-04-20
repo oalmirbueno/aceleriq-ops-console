@@ -252,6 +252,7 @@ export default function LancamentoNodeDrawer({
         onOpenChange={onOpenChange}
         workspaceId={workspaceId}
         clientId={clientId}
+        clientName={clientName}
         blueprintOverride={blueprint}
         quickActionHandlers={handlers}
         onDelete={onDelete}

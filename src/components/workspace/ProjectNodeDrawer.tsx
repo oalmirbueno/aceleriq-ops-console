@@ -50,6 +50,7 @@ function SpecializedGenericDrawer(args: {
         onOpenChange={args.onOpenChange}
         workspaceId={args.workspaceId}
         clientId={args.clientId}
+        clientName={args.clientName}
         quickActionHandlers={handlers}
         onDelete={args.onDelete}
       />
