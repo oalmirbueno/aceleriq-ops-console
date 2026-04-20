@@ -121,59 +121,76 @@ export default function AttachmentPreview({ url, type, label, onRefreshUrl, clas
   }, [activeUrl, type, pdfRendered, pdfLoading, onRefreshUrl]);
 
   const baseCls = `relative h-16 w-16 rounded-md border border-border bg-muted/30 flex items-center justify-center overflow-hidden shrink-0 ${className ?? ""}`;
+  const canOpenLightbox = !disableLightbox && !!activeUrl && !errored;
+  const interactiveCls = canOpenLightbox
+    ? "cursor-zoom-in group transition-all hover:border-primary/60 hover:shadow-md"
+    : "";
+
+  const hoverOverlay = canOpenLightbox ? (
+    <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+      <Maximize2 className="h-4 w-4 text-foreground" />
+    </div>
+  ) : null;
+
+  const Wrapper = ({ children }: { children: React.ReactNode }) =>
+    canOpenLightbox ? (
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setLightboxOpen(true); }}
+        className={`${baseCls} ${interactiveCls}`}
+        title="Abrir visualização"
+      >
+        {children}
+        {hoverOverlay}
+      </button>
+    ) : (
+      <div className={baseCls}>{children}</div>
+    );
+
+  let inner: React.ReactNode;
 
   /* Image */
   if (isImage(type) && activeUrl) {
-    return (
-      <div className={baseCls}>
-        {!errored ? (
-          <img
-            src={activeUrl}
-            alt=""
-            loading="lazy"
-            className="h-full w-full object-cover"
-            onError={async () => {
-              if (onRefreshUrl) {
-                const fresh = await onRefreshUrl();
-                if (fresh && fresh !== activeUrl) {
-                  setActiveUrl(fresh);
-                  return;
-                }
-              }
-              setErrored(true);
-            }}
-          />
-        ) : (
-          <FallbackIcon type={type} />
-        )}
-      </div>
+    inner = !errored ? (
+      <img
+        src={activeUrl}
+        alt=""
+        loading="lazy"
+        className="h-full w-full object-cover"
+        onError={async () => {
+          if (onRefreshUrl) {
+            const fresh = await onRefreshUrl();
+            if (fresh && fresh !== activeUrl) {
+              setActiveUrl(fresh);
+              return;
+            }
+          }
+          setErrored(true);
+        }}
+      />
+    ) : (
+      <FallbackIcon type={type} />
     );
   }
-
   /* Video */
-  if (isVideo(type) && activeUrl) {
-    return (
-      <div className={baseCls}>
-        {!errored ? (
-          <video
-            src={activeUrl}
-            preload="metadata"
-            muted
-            playsInline
-            className="h-full w-full object-cover"
-            onError={() => setErrored(true)}
-          />
-        ) : (
-          <FallbackIcon type={type} />
-        )}
-      </div>
+  else if (isVideo(type) && activeUrl) {
+    inner = !errored ? (
+      <video
+        src={activeUrl}
+        preload="metadata"
+        muted
+        playsInline
+        className="h-full w-full object-cover"
+        onError={() => setErrored(true)}
+      />
+    ) : (
+      <FallbackIcon type={type} />
     );
   }
-
   /* PDF */
-  if (isPdf(type)) {
-    return (
-      <div className={baseCls}>
+  else if (isPdf(type)) {
+    inner = (
+      <>
         <canvas
           ref={canvasRef}
           className={`h-full w-full object-cover ${pdfRendered ? "opacity-100" : "opacity-0"} transition-opacity`}
@@ -197,14 +214,27 @@ export default function AttachmentPreview({ url, type, label, onRefreshUrl, clas
             PDF
           </span>
         )}
-      </div>
+      </>
     );
   }
-
   /* Fallback */
+  else {
+    inner = <FallbackIcon type={type} />;
+  }
+
   return (
-    <div className={baseCls}>
-      <FallbackIcon type={type} />
-    </div>
+    <>
+      <Wrapper>{inner}</Wrapper>
+      {canOpenLightbox && (
+        <AttachmentLightbox
+          open={lightboxOpen}
+          onOpenChange={setLightboxOpen}
+          url={activeUrl}
+          type={type}
+          label={label}
+          onRefreshUrl={onRefreshUrl}
+        />
+      )}
+    </>
   );
 }
