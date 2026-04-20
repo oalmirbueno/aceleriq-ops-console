@@ -1003,7 +1003,8 @@ function CanvasStudioInner({
               onConnect={onConnect}
               onNodeClick={onNodeClick}
               nodeTypes={nodeTypes}
-              fitView
+              onInit={handleRfInit}
+              onMoveEnd={handleMoveEnd}
               fitViewOptions={{ padding: 0.4 }}
               minZoom={0.2}
               maxZoom={2}
