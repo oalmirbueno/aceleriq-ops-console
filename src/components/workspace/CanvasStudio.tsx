@@ -1020,20 +1020,23 @@ function CanvasStudioInner({
               fitViewOptions={{ padding: 0.4 }}
               minZoom={0.2}
               maxZoom={2}
-              panOnDrag
-              panOnScroll
-              panOnScrollSpeed={0.8}
-              zoomOnScroll={false}
+              panOnDrag={[1]}
+              panOnScroll={false}
+              panActivationKeyCode={["Shift"]}
+              zoomOnScroll
+              zoomActivationKeyCode={null}
               zoomOnPinch
               zoomOnDoubleClick={false}
               selectionOnDrag={false}
+              selectionKeyCode={["Shift"]}
+              multiSelectionKeyCode={["Meta", "Control"]}
+              selectionMode={SelectionMode.Partial}
               proOptions={{ hideAttribution: true }}
               className="bg-background canvas-flow"
               defaultEdgeOptions={{ type: "smoothstep", animated: true }}
             >
               <StageLanesBg height={STAGE_BAND_HEIGHT} offsetY={CONTENT_TOP - 12} />
               <Background gap={24} size={1} className="opacity-30" />
-              <Controls showInteractive={false} />
               <CanvasStageNavigator
                 counts={scopedProjectNodes.reduce<Record<string, number>>((acc, n) => {
                   const k = nodeStageOf(n);
@@ -1047,7 +1050,6 @@ function CanvasStudioInner({
                   return acc;
                 }, {})}
               />
-              {showControls && <Controls showInteractive={false} />}
               {showMiniMap && (
                 <MiniMap
                   nodeColor={() => "hsl(var(--primary))"}
@@ -1058,17 +1060,6 @@ function CanvasStudioInner({
               )}
               {/* Toggles cluster — sobreposto, canto inferior direito */}
               <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-md border border-border bg-card/95 backdrop-blur-sm shadow-md p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setShowControls((v) => !v)}
-                  className={`h-6 px-2 rounded text-[10px] font-medium transition-colors ${
-                    showControls ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
-                  }`}
-                  title={showControls ? "Ocultar zoom controls" : "Mostrar zoom controls"}
-                >
-                  Zoom
-                </button>
-                <div className="h-3 w-px bg-border/60" />
                 <button
                   type="button"
                   onClick={() => setShowMiniMap((v) => !v)}
