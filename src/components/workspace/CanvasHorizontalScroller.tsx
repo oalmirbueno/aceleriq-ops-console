@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useReactFlow, useStore } from "@xyflow/react";
+import { ACELERA_STAGES, STAGE_COLUMN_WIDTH } from "./canvasProjectTypes";
 
 /**
  * Scrollbar horizontal minimalista para o canvas.
@@ -15,22 +16,13 @@ export default function CanvasHorizontalScroller() {
   const tx = useStore((s) => s.transform[0]);
   const zoom = useStore((s) => s.transform[2]);
   const containerWidth = useStore((s) => s.width);
-  const nodeBounds = useStore((s) => {
-    let minX = Infinity;
-    let maxX = -Infinity;
-    s.nodeLookup.forEach((n) => {
-      const w = n.measured?.width ?? n.width ?? 240;
-      const x = n.position.x;
-      if (x < minX) minX = x;
-      if (x + w > maxX) maxX = x + w;
-    });
-    if (!isFinite(minX)) return { minX: 0, maxX: 0 };
-    return { minX, maxX };
-  });
-
-  const padding = 400;
-  const contentMinX = nodeBounds.minX - padding;
-  const contentMaxX = nodeBounds.maxX + padding;
+  // Espaço de conteúdo FIXO baseado nas etapas A.C.E.L.E.R.A.
+  // Não depende dos nodes — assim a barra é estável e sempre visível,
+  // representando a faixa horizontal completa do método.
+  const STAGE_TOTAL = STAGE_COLUMN_WIDTH * ACELERA_STAGES.length;
+  const SIDE_PAD = 600;
+  const contentMinX = -SIDE_PAD;
+  const contentMaxX = STAGE_TOTAL + SIDE_PAD;
   const contentWidth = Math.max(contentMaxX - contentMinX, 1);
   const viewWidth = containerWidth / Math.max(zoom, 0.0001);
   const viewLeft = -tx / Math.max(zoom, 0.0001);
@@ -75,9 +67,7 @@ export default function CanvasHorizontalScroller() {
     e.currentTarget.releasePointerCapture?.(e.pointerId);
   };
 
-  // Esconde se o conteúdo cabe inteiro na tela
-  const hidden = useMemo(() => thumbWidthPct >= 0.999, [thumbWidthPct]);
-  if (hidden) return null;
+  // Sempre visível — é o "carrossel" das etapas ACELERA
 
   return (
     <div
