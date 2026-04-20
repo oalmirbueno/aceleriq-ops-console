@@ -31,7 +31,8 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   FUNNEL_BLOCKS, blocksByFamily, getFamilyMeta, getFunnelBlock,
-  calculateFunnelConversion, type FunnelBlockKind,
+  calculateFunnelConversion, computeFunnelKpis, FUNNEL_TEMPLATES,
+  type FunnelBlockKind, type FunnelTemplate,
 } from "./funnelBlocks";
 import FunnelStepCard, {
   type FunnelStepRow, type FunnelBranchRow, type LinkableNodeOption,
@@ -226,6 +227,7 @@ export default function FunnelEditorDrawer({
 
   // ─── Computed: total conversion ─────────────────────────────────────
   const totalConv = useMemo(() => calculateFunnelConversion(steps), [steps]);
+  const kpis = useMemo(() => computeFunnelKpis(steps), [steps]);
 
   // Itens de checklist pendentes em todos os steps
   const pendingChecklist = useMemo(() => {
