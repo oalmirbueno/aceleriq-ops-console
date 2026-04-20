@@ -1043,6 +1043,240 @@ const IDEIA: NodeBlueprint = {
 // Registry
 // ═══════════════════════════════════════════════════════════════════════════
 
+const CHECKLIST: NodeBlueprint = {
+  kind: "checklist",
+  purpose: "Checklist enterprise de governança e operação — RACI, processos, qualidade, segurança e prontidão.",
+  methodChecklist: [
+    { id: "scope_def",     label: "Escopo do checklist definido (operação X)",     required: true  },
+    { id: "raci_clear",    label: "RACI preenchido para itens críticos",           required: true  },
+    { id: "owner_each",    label: "Cada item tem responsável (R) único",           required: true  },
+    { id: "deadline_each", label: "Prazo definido por item",                       required: true  },
+    { id: "evidence",      label: "Critério de aceite + evidência por item",       required: true  },
+    { id: "review_cad",    label: "Cadência de revisão acordada",                  required: true  },
+    { id: "approval",      label: "Approver (A) confirmado",                       required: true  },
+    { id: "archive",       label: "Versão final arquivada no repositório certo",   required: false },
+  ],
+  sections: [
+    {
+      id: "scope", title: "Escopo e contexto",
+      description: "Pra que esse checklist existe e quando ele é aplicado.",
+      fields: [
+        { id: "purpose",     label: "Objetivo do checklist",       type: "textarea", hint: "Ex: Garantir prontidão pré-launch / Onboarding de cliente / Setup de tracking" },
+        { id: "trigger",     label: "Quando é executado",          type: "text",     hint: "Sempre antes de X / Mensalmente / Por projeto" },
+        { id: "scope_in",    label: "Está no escopo",              type: "list" },
+        { id: "scope_out",   label: "Fora do escopo",              type: "list",     hint: "O que esse checklist NÃO cobre" },
+        { id: "version",     label: "Versão",                      type: "text",     decisionOnly: true },
+      ],
+    },
+    {
+      id: "raci", title: "RACI — papéis por item",
+      description: "Responsible (faz), Accountable (responde), Consulted (opina), Informed (sabe). Um único A por item.",
+      fields: [
+        { id: "responsible", label: "R — Quem executa (por área/pessoa)", type: "kv", hint: "item ou área → executor" },
+        { id: "accountable", label: "A — Quem responde pelo resultado",   type: "kv", hint: "item → 1 nome (único)" },
+        { id: "consulted",   label: "C — Consultados antes de decidir",   type: "kv", hint: "item → especialistas/áreas" },
+        { id: "informed",    label: "I — Informados após executar",       type: "kv", hint: "item → stakeholders" },
+      ],
+    },
+    {
+      id: "governance", title: "Governança e processos",
+      description: "Como esse checklist é gerido, revisado e auditado.",
+      fields: [
+        { id: "owner_doc",     label: "Dono do documento",                type: "text", decisionOnly: true },
+        { id: "review_cycle",  label: "Ciclo de revisão",                 type: "text", hint: "Mensal / trimestral / por release" },
+        { id: "approvers",     label: "Aprovadores oficiais",             type: "list", decisionOnly: true },
+        { id: "escalation",    label: "Caminho de escalação",             type: "list", hint: "Se item bloqueia → escalar pra X em até Y horas" },
+        { id: "decision_log",  label: "Onde registrar decisões",          type: "text", hint: "Notion, planilha, este node..." },
+      ],
+    },
+    {
+      id: "quality", title: "Qualidade e critérios de aceite",
+      description: "Definition of Done por item — sem isso checklist vira teatro.",
+      fields: [
+        { id: "dod",          label: "Definition of Done global",          type: "list",  hint: "Critérios mínimos pra fechar checklist" },
+        { id: "evidence",     label: "Evidência exigida por item",         type: "kv",    hint: "item → screenshot / link / aprovação" },
+        { id: "qa_owner",     label: "QA / dupla checagem por",            type: "text",  decisionOnly: true },
+        { id: "metrics",      label: "Métricas de qualidade do processo", type: "kv",    hint: "métrica → meta (ex: rework <5%)" },
+      ],
+    },
+    {
+      id: "security", title: "Segurança, dados e compliance",
+      fields: [
+        { id: "data_handled", label: "Dados manipulados",         type: "list",  hint: "PII, financeiro, saúde, etc." },
+        { id: "access_ctrl",  label: "Controle de acesso",        type: "list",  hint: "Quem pode ler/editar/aprovar" },
+        { id: "compliance",   label: "Compliance aplicável",      type: "list",  hint: "LGPD, SOC2, ISO, etc." },
+        { id: "secrets",      label: "Onde ficam credenciais",    type: "text",  hint: "Vault, 1Password, etc." },
+        { id: "audit_trail",  label: "Trilha de auditoria",       type: "text",  hint: "Onde fica o log do que foi feito" },
+      ],
+    },
+    {
+      id: "items", title: "Itens do checklist",
+      description: "Lista executável — cada item granular, verificável e com dono.",
+      fields: [
+        { id: "preflight",    label: "Pré-requisitos (antes de começar)", type: "checklist" },
+        { id: "core",         label: "Itens centrais (execução)",         type: "checklist" },
+        { id: "validation",   label: "Validação / testes",                type: "checklist" },
+        { id: "signoff",      label: "Aprovações finais",                 type: "checklist", hint: "Sign-off de cliente, jurídico, etc." },
+      ],
+    },
+    {
+      id: "risks", title: "Riscos e plano B",
+      fields: [
+        { id: "blockers",  label: "Bloqueios conhecidos",         type: "list", hint: "O que costuma travar este checklist" },
+        { id: "mitigation",label: "Plano B por bloqueio",         type: "kv",   hint: "bloqueio → ação" },
+        { id: "rollback",  label: "Rollback se algo falhar",      type: "list" },
+      ],
+    },
+    {
+      id: "references", title: "Referências e anexos",
+      fields: [
+        { id: "docs",   label: "Documentos relacionados", type: "list",        hint: "Políticas, SOPs, contratos relevantes" },
+        { id: "files",  label: "Anexos (PDF, planilhas)", type: "attachments" },
+      ],
+    },
+    {
+      id: "review", title: "Histórico de execução",
+      fields: [
+        { id: "last_run",   label: "Última execução",     type: "text", hint: "Data + responsável + resultado" },
+        { id: "lessons",    label: "Lições aprendidas",   type: "list", hint: "Pra evoluir o checklist no próximo ciclo" },
+        { id: "changes",    label: "Mudanças aplicadas",  type: "list", hint: "Versão anterior → mudou X porque Y" },
+      ],
+    },
+  ],
+  quickActions: [
+    { id: "generate_tasks",     label: "Gerar tasks dos itens", primary: true },
+    { id: "export_pdf",         label: "Baixar checklist",      primary: true },
+    { id: "approve",            label: "Marcar concluído"                      },
+    { id: "regenerate_prefill", label: "Regenerar com IA"                      },
+  ],
+  sources: ["briefing","context","client","siblings"],
+  prefillPrompt:
+    "Você é PMO sênior montando checklist enterprise de governança. " +
+    "Use o briefing, o tipo de operação e o segmento do cliente pra calibrar quais itens entram. " +
+    "Cada item deve ser verificável (não 'fazer bem feito' — sim 'pixel disparou evento PageView'). " +
+    "RACI: cada linha com 1 R + 1 A único. C/I podem ter múltiplos. Se o cliente é regulado (saúde, " +
+    "financeiro, educação), inclua compliance específico. Em 'items', seja granular: preflight (5-10), " +
+    "core (10-20), validation (5-10), signoff (3-5). Não invente nomes de pessoas — use papéis (PM, " +
+    "Tech Lead, Cliente, Jurídico). Decisões humanas: dono, aprovadores, versão.",
+};
+
+const CONTATO: NodeBlueprint = {
+  kind: "contato",
+  purpose: "Stakeholder mapeado — papel, poder de decisão, canal preferido e ritual de comunicação.",
+  methodChecklist: [
+    { id: "identity",     label: "Identidade completa registrada",                required: true },
+    { id: "role_clear",   label: "Papel no projeto explícito (RACI)",             required: true },
+    { id: "decision",     label: "Poder de decisão classificado",                 required: true },
+    { id: "channel_pref", label: "Canal preferido + horário acordado",            required: true },
+    { id: "cadence",      label: "Cadência de comunicação definida",              required: true },
+    { id: "context_in",   label: "Contexto pessoal/profissional capturado",       required: false },
+    { id: "consent",      label: "LGPD: consentimento de dados registrado",       required: true },
+  ],
+  sections: [
+    {
+      id: "identity", title: "Identidade",
+      fields: [
+        { id: "full_name",   label: "Nome completo",          type: "text" },
+        { id: "preferred",   label: "Como prefere ser chamado(a)", type: "text" },
+        { id: "company",     label: "Empresa",                type: "text" },
+        { id: "title",       label: "Cargo / função formal",  type: "text" },
+        { id: "department",  label: "Departamento / time",    type: "text" },
+        { id: "location",    label: "Localização / fuso",     type: "text", hint: "Cidade + UTC" },
+        { id: "languages",   label: "Idiomas",                type: "list" },
+      ],
+    },
+    {
+      id: "role", title: "Papel no projeto (RACI)",
+      description: "Como esse stakeholder se posiciona em relação às entregas.",
+      fields: [
+        { id: "raci",        label: "Tipo (R / A / C / I)",   type: "text",  hint: "R=executa  A=aprova  C=consultado  I=informado" },
+        { id: "scope",       label: "Sobre o que decide / opina", type: "list", hint: "Áreas de influência específicas" },
+        { id: "authority",   label: "Nível de autoridade",    type: "text",  hint: "Decisor final / co-decisor / influenciador / executor" },
+        { id: "budget_power",label: "Poder orçamentário",     type: "text",  decisionOnly: true, hint: "Aprova / sugere / sem alçada" },
+        { id: "champion",    label: "Champion ou cético?",    type: "text",  hint: "Aliado, neutro, resistente — direciona abordagem" },
+      ],
+    },
+    {
+      id: "channels", title: "Canais e disponibilidade",
+      description: "Como falar — e quando NÃO falar.",
+      fields: [
+        { id: "email",       label: "E-mail",                 type: "text", decisionOnly: true },
+        { id: "phone",       label: "Telefone / WhatsApp",    type: "text", decisionOnly: true },
+        { id: "linkedin",    label: "LinkedIn",               type: "text", decisionOnly: true },
+        { id: "preferred",   label: "Canal preferido",        type: "text", hint: "WhatsApp / Slack / e-mail / call agendada" },
+        { id: "hours",       label: "Horário ideal de contato", type: "text", hint: "Ex: dias úteis 9h–18h" },
+        { id: "do_not",      label: "Não fazer",              type: "list", hint: "Não ligar fim de semana / não usar emoji / etc." },
+        { id: "response_sla",label: "SLA típico de resposta", type: "text", hint: "Horas / dias úteis" },
+      ],
+    },
+    {
+      id: "communication", title: "Ritual de comunicação",
+      description: "Cadência acordada — evita ruído e mantém alinhamento.",
+      fields: [
+        { id: "cadence",     label: "Frequência de updates",  type: "text", hint: "Diário / semanal / quinzenal" },
+        { id: "format",      label: "Formato dos updates",    type: "text", hint: "Email semanal / call de 30min / dashboard" },
+        { id: "reports_to",  label: "A quem reporta dentro do projeto", type: "text" },
+        { id: "escalation",  label: "Escalação (acima dele/dela)", type: "text", hint: "Se trava aqui, falar com X" },
+        { id: "delegates",   label: "Pode delegar para",      type: "list", hint: "Outros nomes que respondem por ele" },
+      ],
+    },
+    {
+      id: "context", title: "Contexto pessoal e profissional",
+      description: "Detalhes que ajudam a construir relacionamento — sem invadir.",
+      fields: [
+        { id: "background",  label: "Background profissional", type: "textarea", hint: "Trajetória, empresas anteriores, especialidades" },
+        { id: "motivations", label: "Motivações / o que o(a) move", type: "list", hint: "Crescer carreira, KPI específico, reconhecimento, etc." },
+        { id: "pains",       label: "Dores ou pressões atuais", type: "list",   hint: "O que tira o sono — ajuda a posicionar a oferta" },
+        { id: "wins",        label: "Vitórias recentes",       type: "list",    hint: "Pra reconhecer e construir rapport" },
+        { id: "interests",   label: "Interesses pessoais",     type: "list",    hint: "Hobbies, tópicos preferidos — small talk de qualidade" },
+      ],
+    },
+    {
+      id: "history", title: "Histórico de interações",
+      fields: [
+        { id: "first_contact", label: "Primeiro contato",     type: "text", hint: "Quando, como, contexto" },
+        { id: "key_moments",   label: "Marcos de relacionamento", type: "list", hint: "Reuniões importantes, decisões marcantes" },
+        { id: "objections",    label: "Objeções recorrentes", type: "list" },
+        { id: "wins_together", label: "Vitórias conjuntas",   type: "list" },
+      ],
+    },
+    {
+      id: "compliance", title: "LGPD e consentimento",
+      description: "Base legal e consentimento explícito pra contato.",
+      fields: [
+        { id: "legal_basis", label: "Base legal de tratamento", type: "text",     hint: "Execução de contrato / consentimento / interesse legítimo" },
+        { id: "consent",     label: "Consentimento de contato registrado",  type: "text", decisionOnly: true, hint: "Onde / quando / como" },
+        { id: "purposes",    label: "Finalidades autorizadas",              type: "list" },
+        { id: "retention",   label: "Política de retenção",                 type: "text" },
+        { id: "opt_out",     label: "Como solicitar opt-out",               type: "text" },
+      ],
+    },
+    {
+      id: "next", title: "Próximo passo",
+      fields: [
+        { id: "action",     label: "Próxima ação com este contato", type: "text",  decisionOnly: true },
+        { id: "owner",      label: "Dono da próxima ação",          type: "text",  decisionOnly: true },
+        { id: "deadline",   label: "Quando",                        type: "text",  decisionOnly: true },
+      ],
+    },
+  ],
+  quickActions: [
+    { id: "schedule_meeting",   label: "Agendar reunião",    primary: true },
+    { id: "generate_tasks",     label: "Gerar follow-ups",    primary: true },
+    { id: "export_pdf",         label: "Baixar perfil"                       },
+    { id: "regenerate_prefill", label: "Sugerir com IA"                      },
+  ],
+  sources: ["briefing","context","client","siblings"],
+  prefillPrompt:
+    "Você é chief of staff montando perfil de stakeholder. " +
+    "Use briefing + context_entries pra preencher: papel real, autoridade, canal preferido. " +
+    "Em RACI, escolha 1 letra principal — se for misto, coloque a dominante e explique no citation. " +
+    "Em 'context.motivations' e 'context.pains', SÓ liste se houver evidência no contexto — nunca chute traços de personalidade. " +
+    "Para LGPD: se não houver registro de consentimento explícito, marque base legal como 'a confirmar' " +
+    "e consent como vazio — decisão humana. Não invente e-mail, telefone ou LinkedIn. " +
+    "Tom: profissional, objetivo, sem julgamento ('cético' ≠ 'difícil').",
+};
+
 /**
  * NOTA: alguns kinds compartilham o mesmo blueprint base (ex: documento e diagnostico
  * são ambos `documento` no enum atual — diferenciamos via título do node).
