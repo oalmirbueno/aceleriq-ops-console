@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, Download, Users, Video, Clock } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { useCanvasNodeMetadata } from "@/hooks/useCanvasNodeMetadata";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 import type { NodePrefillPayload } from "./nodePrefillTypes";
 
@@ -112,11 +113,7 @@ export default function KickoffNodeDrawer({
   onGenerateTasks, onOpenBriefing,
 }: Props) {
   const blueprint = getNodeBlueprint("reuniao");
-
-  const prefill = useMemo<NodePrefillPayload | null>(() => {
-    const meta = node.metadata as Record<string, unknown> | null;
-    return (meta?.prefill as NodePrefillPayload | null) ?? null;
-  }, [node.metadata]);
+  const { prefill } = useCanvasNodeMetadata({ nodeId: node.id, open });
 
   const dateRaw     = getStringField(prefill, "meta", "date");
   const durationRaw = getStringField(prefill, "meta", "duration");

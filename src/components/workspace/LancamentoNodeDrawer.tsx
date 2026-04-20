@@ -15,6 +15,7 @@ import { getNodeBlueprint } from "./nodeBlueprints";
 import { Badge } from "@/components/ui/badge";
 import { Rocket, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCanvasNodeMetadata } from "@/hooks/useCanvasNodeMetadata";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 import type { NodePrefillPayload } from "./nodePrefillTypes";
 
@@ -101,11 +102,7 @@ export default function LancamentoNodeDrawer({
   onGenerateTasks, onGoLive, onCreateSnapshot,
 }: Props) {
   const blueprint = getNodeBlueprint("lancamento");
-
-  const prefill = useMemo<NodePrefillPayload | null>(() => {
-    const meta = node.metadata as Record<string, unknown> | null;
-    return (meta?.prefill as NodePrefillPayload | null) ?? null;
-  }, [node.metadata]);
+  const { prefill } = useCanvasNodeMetadata({ nodeId: node.id, open });
 
   const goLiveDate = useMemo(() => {
     const dateField = prefill?.sections?.scope?.fields?.date;

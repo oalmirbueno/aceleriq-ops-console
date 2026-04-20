@@ -15,6 +15,7 @@ import { getNodeBlueprint } from "./nodeBlueprints";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Globe, Sparkles, Search } from "lucide-react";
+import { useCanvasNodeMetadata } from "@/hooks/useCanvasNodeMetadata";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 import type { NodePrefillPayload } from "./nodePrefillTypes";
 
@@ -41,12 +42,7 @@ export default function SiteNodeDrawer({
   node, open, onOpenChange, workspaceId, clientId, onDelete, onGenerateTasks, onGoLive,
 }: Props) {
   const blueprint = getNodeBlueprint("site");
-
-  // Lê prefill direto do node (cache em metadata)
-  const prefill = useMemo<NodePrefillPayload | null>(() => {
-    const meta = node.metadata as Record<string, unknown> | null;
-    return (meta?.prefill as NodePrefillPayload | null) ?? null;
-  }, [node.metadata]);
+  const { prefill } = useCanvasNodeMetadata({ nodeId: node.id, open });
 
   // URL do site — primeiro tenta o campo "domain" da seção launch, depois data.url
   const siteUrl = useMemo(() => {

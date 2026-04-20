@@ -18,6 +18,7 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine,
 } from "recharts";
 import { cn } from "@/lib/utils";
+import { useCanvasNodeMetadata } from "@/hooks/useCanvasNodeMetadata";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 import type { NodePrefillPayload } from "./nodePrefillTypes";
 
@@ -71,11 +72,7 @@ export default function MetricaNodeDrawer({
   const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [horizon, setHorizon] = useState<Horizon>("90");
-
-  const prefill = useMemo<NodePrefillPayload | null>(() => {
-    const meta = node.metadata as Record<string, unknown> | null;
-    return (meta?.prefill as NodePrefillPayload | null) ?? null;
-  }, [node.metadata]);
+  const { prefill } = useCanvasNodeMetadata({ nodeId: node.id, open });
 
   // Identificador da métrica
   const kpiName = getStringField(prefill, "kpi", "name").trim();
