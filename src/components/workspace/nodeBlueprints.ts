@@ -1472,6 +1472,8 @@ export const NODE_BLUEPRINTS: NodeBlueprint[] = [
   KICKOFF, // shares kind 'reuniao'
   CHECKLIST,
   CONTATO,
+  AUTOMACAO,
+  IA_AGENT,
 ];
 
 /**
