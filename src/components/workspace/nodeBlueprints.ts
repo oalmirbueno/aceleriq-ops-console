@@ -1451,6 +1451,229 @@ const CONTATO: NodeBlueprint = {
     "Tom: profissional, objetivo, sem julgamento ('cético' ≠ 'difícil').",
 };
 
+const AUTOMACAO: NodeBlueprint = {
+  kind: "automacao",
+  purpose: "Automação operacional (Make / n8n / Zapier) — gatilho → ações → tratamento de erro, pronta pra implantar.",
+  methodChecklist: [
+    { id: "trigger",     label: "Trigger definido e testado",          required: true },
+    { id: "auth",        label: "Conexões autenticadas (apps/contas)", required: true },
+    { id: "happy_path",  label: "Happy path documentado passo a passo",required: true },
+    { id: "errors",      label: "Tratamento de erro + retry",          required: true },
+    { id: "data_map",    label: "Mapa de campos (input → output)",     required: true },
+    { id: "secrets",     label: "Secrets fora do flow (vault)",        required: true },
+    { id: "monitor",     label: "Monitoramento / alertas configurados",required: true },
+    { id: "handoff",     label: "Handoff documentado (quem mantém)",   required: true },
+  ],
+  sections: [
+    {
+      id: "platform", title: "Plataforma e ambiente",
+      fields: [
+        { id: "tool",        label: "Plataforma",       type: "text",  hint: "Make (Integromat), n8n self-hosted, n8n cloud, Zapier, Pipedream, Workato" },
+        { id: "scenario_url",label: "URL do cenário/workflow", type: "text", decisionOnly: true },
+        { id: "version",     label: "Versão do workflow", type: "text", hint: "v1.0 / v1.2-beta" },
+        { id: "environment", label: "Ambiente",         type: "text",  hint: "Sandbox / staging / produção" },
+        { id: "owner",       label: "Owner técnico",    type: "text",  decisionOnly: true },
+        { id: "schedule",    label: "Frequência de execução", type: "text", hint: "Em tempo real / a cada X min / cron" },
+      ],
+    },
+    {
+      id: "trigger", title: "Trigger / disparador",
+      description: "O que inicia a automação.",
+      fields: [
+        { id: "trigger_type",  label: "Tipo de trigger",  type: "text",  hint: "Webhook, agendado (cron), polling, evento de app (ex: novo lead Hubspot)" },
+        { id: "source_app",    label: "App de origem",    type: "text" },
+        { id: "trigger_event", label: "Evento exato",     type: "text",  hint: "Ex: 'Watch new rows' na planilha Y" },
+        { id: "filter",        label: "Filtros / condições de entrada", type: "list", hint: "Ex: status = 'novo' E origem = 'site'" },
+        { id: "sample_payload",label: "Sample payload (JSON exemplo)",  type: "textarea" },
+      ],
+    },
+    {
+      id: "flow", title: "Passos do flow",
+      description: "Sequência de módulos/nodes — cada step com ação clara.",
+      fields: [
+        { id: "steps",        label: "Passos em ordem (1 por linha)",  type: "list", hint: "1. HTTP GET /lead → 2. Filtra → 3. Cria deal Hubspot → 4. Notifica Slack" },
+        { id: "branches",     label: "Ramificações / routers",         type: "list", hint: "Se status=A → ramo X ; senão → ramo Y" },
+        { id: "transformations", label: "Transformações de dados",     type: "list", hint: "Formatar data, parse JSON, regex, lookup..." },
+      ],
+    },
+    {
+      id: "data", title: "Mapa de dados",
+      description: "Input → output — sem mapa, ninguém mantém.",
+      fields: [
+        { id: "field_map",    label: "Campos (origem → destino)",      type: "kv",   hint: "trigger.email → hubspot.contact.email" },
+        { id: "computed",     label: "Campos calculados",              type: "kv",   hint: "deal.amount → trigger.qty * price" },
+        { id: "validations",  label: "Validações antes de gravar",     type: "list" },
+      ],
+    },
+    {
+      id: "errors", title: "Erros e resiliência",
+      fields: [
+        { id: "error_handler",label: "Estratégia de erro",             type: "text",  hint: "Retry exponencial / dead letter / Slack alert / mark fail" },
+        { id: "retry_policy", label: "Política de retry",              type: "text",  hint: "3 tentativas em 1, 5, 15 min" },
+        { id: "fallback",     label: "Fallback / plano B",             type: "text" },
+        { id: "edge_cases",   label: "Edge cases mapeados",            type: "list",  hint: "API fora, payload vazio, duplicado, rate-limit" },
+      ],
+    },
+    {
+      id: "secrets", title: "Segurança e segredos",
+      fields: [
+        { id: "auth_apps",    label: "Apps autenticados",              type: "list",  hint: "Hubspot, Gmail, Slack, Notion..." },
+        { id: "vault_refs",   label: "Refs no vault (não cole keys aqui)", type: "list", hint: "vault://hubspot/private_app_token" },
+        { id: "scopes",       label: "Scopes mínimos por app",         type: "kv" },
+        { id: "pii_handling", label: "Tratamento de PII / LGPD",       type: "text",  hint: "Hash, mascarar, não logar payload" },
+      ],
+    },
+    {
+      id: "monitoring", title: "Monitoramento e KPIs",
+      fields: [
+        { id: "success_kpi",  label: "KPI de sucesso",                 type: "text",  hint: "% de execuções OK em 24h" },
+        { id: "alert_channel",label: "Canal de alerta",                type: "text",  hint: "#ops-alerts no Slack / e-mail / PagerDuty" },
+        { id: "dashboard",    label: "Dashboard de execução",          type: "text",  decisionOnly: true },
+        { id: "expected_volume", label: "Volume esperado",             type: "text",  hint: "100 execuções/dia" },
+      ],
+    },
+    {
+      id: "ops", title: "Operação e handoff",
+      fields: [
+        { id: "runbook",      label: "Runbook (passos quando quebrar)",type: "textarea" },
+        { id: "maintainers",  label: "Manutenedores",                  type: "list",  decisionOnly: true },
+        { id: "review_freq",  label: "Frequência de revisão",          type: "text",  hint: "Mensal / trimestral" },
+        { id: "files",        label: "Anexos (export JSON do flow, screenshots, vídeo)", type: "attachments" },
+      ],
+    },
+  ],
+  quickActions: [
+    { id: "generate_tasks",     label: "Gerar tasks de implementação", primary: true },
+    { id: "export_pdf",         label: "Exportar runbook" },
+    { id: "link_asset",         label: "Vincular cenário/JSON" },
+    { id: "approve",            label: "Aprovar para produção" },
+    { id: "regenerate_prefill", label: "Regenerar com IA" },
+  ],
+  sources: ["briefing","context","client","siblings"],
+  prefillPrompt:
+    "Você é engenheiro de automação sênior (Make + n8n + Zapier). " +
+    "Escolha a plataforma que faz mais sentido pelo contexto (volume, custo, manutenção, presença de devs). " +
+    "Quebre o flow em passos atômicos numerados — 1 ação por step. Sempre proponha tratamento de erro com retry exponencial + alerta. " +
+    "No mapa de dados use a notação 'origem.path → destino.path'. " +
+    "NUNCA escreva tokens, API keys ou senhas — referencie como 'vault://...'. " +
+    "Para URLs de cenário, owner e maintainers: origin='empty' (decisão humana). " +
+    "Sempre liste edge cases (API fora, payload vazio, duplicado, rate-limit) — automação sem isso quebra na 1ª semana.",
+};
+
+const IA_AGENT: NodeBlueprint = {
+  kind: "ia",
+  purpose: "Agente de IA — propósito, prompt, tools, guardrails e métricas, pronto pra subir em produção.",
+  methodChecklist: [
+    { id: "purpose",     label: "Propósito e usuário definidos",        required: true },
+    { id: "prompt",      label: "System prompt versionado",             required: true },
+    { id: "tools",       label: "Tools mapeadas com schema",            required: true },
+    { id: "guardrails",  label: "Guardrails (limites, recusas, PII)",   required: true },
+    { id: "evals",       label: "Conjunto de avaliação (≥10 casos)",    required: true },
+    { id: "fallback",    label: "Fallback humano / handoff",            required: true },
+    { id: "monitor",     label: "Logs + métricas de qualidade",         required: true },
+    { id: "cost",        label: "Custo / token budget controlado",      required: true },
+  ],
+  sections: [
+    {
+      id: "purpose", title: "Propósito e usuário",
+      fields: [
+        { id: "name",         label: "Nome do agente",         type: "text" },
+        { id: "one_liner",    label: "Pitch em 1 frase",       type: "text", hint: "O que ele faz pra quem, em até 15 palavras" },
+        { id: "user",         label: "Usuário-alvo",           type: "textarea", hint: "Quem conversa com o agente — perfil, contexto, jornada" },
+        { id: "use_cases",    label: "Casos de uso suportados",type: "list" },
+        { id: "out_of_scope", label: "Fora de escopo (recusar)",type: "list", hint: "Ex: dar conselho médico, falar de concorrente, prometer prazo" },
+        { id: "success_def",  label: "Definição de sucesso",   type: "text", hint: "Quando consideramos uma conversa boa?" },
+      ],
+    },
+    {
+      id: "model", title: "Modelo e plataforma",
+      fields: [
+        { id: "platform",     label: "Plataforma",             type: "text",  hint: "Lovable AI Gateway, OpenAI Assistants, Anthropic, Vertex, n8n AI Agent, Voiceflow, Make AI..." },
+        { id: "model",        label: "Modelo",                 type: "text",  hint: "google/gemini-3-flash-preview, gpt-5, claude-4.5-sonnet..." },
+        { id: "temperature",  label: "Temperature / params",   type: "kv",    hint: "temperature→0.3 ; top_p→0.9 ; max_tokens→1024" },
+        { id: "interface",    label: "Interface (canal de uso)", type: "text", hint: "Chat web, WhatsApp, Slack, voz, embed iframe" },
+        { id: "memory",       label: "Memória / contexto",     type: "text",  hint: "Stateless / janela X mensagens / vector store" },
+      ],
+    },
+    {
+      id: "prompt", title: "System prompt",
+      description: "O prompt principal — versionado e rastreável.",
+      fields: [
+        { id: "persona",      label: "Persona / tom",          type: "textarea", hint: "Quem o agente É — voz, atitude, limites de tom" },
+        { id: "system_prompt",label: "System prompt completo", type: "textarea", hint: "Texto literal que vai no role:system" },
+        { id: "few_shot",     label: "Few-shot examples (Q→R)",type: "kv" },
+        { id: "output_format",label: "Formato de saída",       type: "text",  hint: "Markdown / JSON com schema X / texto puro" },
+        { id: "version",      label: "Versão do prompt",       type: "text",  hint: "v1.0, atualizado em..." },
+      ],
+    },
+    {
+      id: "tools", title: "Tools / function calling",
+      description: "Funções que o agente pode chamar — com schema e quando usar.",
+      fields: [
+        { id: "tools_list",   label: "Tools (nome → o que faz)", type: "kv" },
+        { id: "tool_schemas", label: "Schemas das tools (JSON)", type: "textarea", hint: "JSON schema completo de cada tool" },
+        { id: "decision_rules", label: "Quando chamar cada tool", type: "list", hint: "Ex: usar buscar_cliente() se mensagem cita CNPJ ou e-mail" },
+        { id: "max_calls",    label: "Limite de tool calls / turno", type: "text", hint: "Ex: 5 — evita loop" },
+      ],
+    },
+    {
+      id: "guardrails", title: "Guardrails e segurança",
+      fields: [
+        { id: "refusals",     label: "O que recusar (com mensagem)", type: "kv", hint: "tema → resposta padrão" },
+        { id: "pii",          label: "Política de PII",        type: "text",  hint: "Não pedir CPF/cartão; mascarar nos logs" },
+        { id: "prompt_injection", label: "Defesa contra prompt injection", type: "text", hint: "Tag system, ignorar 'esqueça instruções acima'..." },
+        { id: "factuality",   label: "Política de fatos",      type: "text",  hint: "Citar fonte quando vier de tool; nunca inventar preço/prazo" },
+        { id: "tone_limits",  label: "Limites de tom",         type: "list",  hint: "Não brincar com luto; não promessa garantida; não opinião política" },
+      ],
+    },
+    {
+      id: "evals", title: "Avaliação e testes",
+      fields: [
+        { id: "test_cases",   label: "Casos de teste (input → resposta esperada)", type: "kv" },
+        { id: "edge_cases",   label: "Casos adversariais",     type: "list", hint: "Pergunta enviesada, fora de escopo, prompt injection" },
+        { id: "metrics",      label: "Métricas de qualidade",  type: "list", hint: "Resolução em 1 turno, CSAT, tool-call accuracy, %hand-off" },
+        { id: "rubric",       label: "Rubrica de avaliação",   type: "textarea", hint: "Critérios pra dar nota 1-5 em cada resposta" },
+      ],
+    },
+    {
+      id: "ops", title: "Operação, custo e handoff",
+      fields: [
+        { id: "logs",         label: "Logs e observabilidade", type: "text",  hint: "Onde inspecionar conversas (Langfuse, Arize, custom)" },
+        { id: "human_handoff",label: "Handoff humano",         type: "text",  hint: "Quando e como passar pra atendente" },
+        { id: "cost_budget",  label: "Budget de tokens / custo",type: "kv",   hint: "max_tokens_in→ ; max_tokens_out→ ; custo_estimado_msg→USD" },
+        { id: "kill_switch",  label: "Kill switch / desligamento", type: "text", decisionOnly: true },
+        { id: "owner",        label: "Owner do agente",        type: "text",  decisionOnly: true },
+      ],
+    },
+    {
+      id: "links", title: "Links e anexos",
+      fields: [
+        { id: "playground_url", label: "URL do playground / preview", type: "text", decisionOnly: true },
+        { id: "knowledge_url",  label: "Base de conhecimento (vector store)", type: "text", decisionOnly: true },
+        { id: "repo_url",       label: "Repositório / arquivos do agente", type: "text", decisionOnly: true },
+        { id: "files",          label: "Anexos (prompt.md, eval.csv, screenshots)", type: "attachments" },
+      ],
+    },
+  ],
+  quickActions: [
+    { id: "generate_tasks",     label: "Gerar tasks de build", primary: true },
+    { id: "export_pdf",         label: "Exportar prompt + spec" },
+    { id: "link_asset",         label: "Vincular base de conhecimento" },
+    { id: "approve",            label: "Aprovar para produção" },
+    { id: "regenerate_prefill", label: "Regenerar com IA" },
+  ],
+  sources: ["briefing","context","client","siblings"],
+  prefillPrompt:
+    "Você é um arquiteto de agentes de IA com experiência prática (LangChain, OpenAI Assistants, n8n AI Agent, Voiceflow). " +
+    "Comece pelo PROPÓSITO e USUÁRIO — sem isso o resto não importa. " +
+    "System prompt: escreva LITERAL, em português, com (1) persona, (2) o que faz, (3) o que NUNCA faz, (4) formato de saída, (5) como chamar tools. " +
+    "Tools: para cada uma, descreva 1 frase do que faz + quando usar. Se não houver evidência de quais tools existem, proponha 2-3 candidatas razoáveis e marque como auto. " +
+    "Guardrails são obrigatórios: SEMPRE liste recusas mínimas (PII, tópicos sensíveis, prompt injection). " +
+    "Evals: produza ao menos 5 casos de teste (3 happy path + 2 adversariais) com resposta esperada. " +
+    "Para URLs (playground, repo, knowledge base), owner, kill switch: origin='empty'. " +
+    "Modelo padrão sugerido: 'google/gemini-3-flash-preview' via Lovable AI Gateway, salvo se o contexto exigir voz/multimodal/custo específico.",
+};
+
 /**
  * NOTA: alguns kinds compartilham o mesmo blueprint base (ex: documento e diagnostico
  * são ambos `documento` no enum atual — diferenciamos via título do node).
