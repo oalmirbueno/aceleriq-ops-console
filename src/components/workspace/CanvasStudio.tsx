@@ -210,6 +210,15 @@ function CanvasStudioInner({
   type QuickAddState = { open: boolean; sourceId: string | null; dir: "right" | "bottom" | null };
   const [quickAddState, setQuickAddState] = useState<QuickAddState>({ open: false, sourceId: null, dir: null });
 
+  // Toggle MiniMap (persistido) — alguns usuários acham que polui
+  const [showMiniMap, setShowMiniMap] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("canvas:showMiniMap") !== "0";
+  });
+  useEffect(() => {
+    localStorage.setItem("canvas:showMiniMap", showMiniMap ? "1" : "0");
+  }, [showMiniMap]);
+
   /* DB → ReactFlow */
   useEffect(() => {
     const q = search.trim().toLowerCase();
