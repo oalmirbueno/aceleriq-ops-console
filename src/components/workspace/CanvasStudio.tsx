@@ -1026,6 +1026,7 @@ function CanvasStudioInner({
         open={generateDialogOpen}
         onOpenChange={setGenerateDialogOpen}
         clientId={clientId}
+        workspaceId={workspaceId}
         generating={busyAction === "base"}
         onConfirm={(tpl) => applyEsteiraTemplate(tpl)}
       />
