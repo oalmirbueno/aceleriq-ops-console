@@ -580,8 +580,10 @@ function CanvasStudioInner({
         <div className="flex items-center gap-2 min-w-0">
           <div className="h-2 w-2 rounded-full bg-primary shrink-0 animate-pulse" />
           <p className="text-sm font-semibold text-foreground truncate">Esteira de produção</p>
-          <span className="text-[11px] text-muted-foreground hidden sm:inline">
-            {summary.clients} cliente{summary.clients === 1 ? "" : "s"} · {summary.projects} nodes · {summary.edges} conexões
+          <span className="text-[11px] text-muted-foreground hidden sm:inline truncate">
+            {activeClientId
+              ? `${clientGroups.find((c) => c.id === activeClientId)?.title ?? "Cliente"} · ${scopedProjectNodes.length} nodes`
+              : `Todos · ${summary.clients} cliente${summary.clients === 1 ? "" : "s"} · ${summary.projects} nodes`}
           </span>
         </div>
         <div className="flex items-center gap-1">
