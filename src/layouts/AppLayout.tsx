@@ -3,9 +3,9 @@ import AppTopNav from "@/components/AppTopNav";
 
 export default function AppLayout() {
   return (
-    <div className="tech-grid-bg flex h-screen flex-col overflow-hidden">
+    <div className="tech-grid-bg min-h-screen flex flex-col">
       <AppTopNav />
-      <main className="relative flex flex-1 flex-col overflow-auto">
+      <main className="relative flex-1 pt-20">
         <Outlet />
       </main>
     </div>
