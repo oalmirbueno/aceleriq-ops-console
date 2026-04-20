@@ -19,12 +19,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ChevronDown, ChevronUp, GripVertical, Trash2, Link2, Plus, X,
-  ArrowDown, GitBranch, ExternalLink,
+  ArrowDown, GitBranch, ExternalLink, Zap, RefreshCw, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getFunnelBlock, type FunnelBlockKind, FUNNEL_BLOCKS,
 } from "./funnelBlocks";
+import { useLinkedStepMetrics, type LinkedMetricValue } from "@/hooks/useLinkedStepMetrics";
 
 export interface FunnelStepRow {
   id: string;
@@ -66,6 +67,8 @@ interface Props {
   isFirst: boolean;
   isLast: boolean;
   linkableNodes: LinkableNodeOption[];
+  /** Client id needed to fetch linked node's metric_snapshots */
+  clientId: string;
   onToggleExpand: () => void;
   onPatch: (patch: Partial<FunnelStepRow>) => void;
   onDelete: () => void;
@@ -76,7 +79,7 @@ interface Props {
 }
 
 export default function FunnelStepCard({
-  step, branches, allSteps, expanded, isFirst, isLast, linkableNodes,
+  step, branches, allSteps, expanded, isFirst, isLast, linkableNodes, clientId,
   onToggleExpand, onPatch, onDelete, onMove, onChangeKind,
   onAddBranch, onRemoveBranch,
 }: Props) {
