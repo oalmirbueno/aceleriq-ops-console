@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
-  ReactFlow, ReactFlowProvider, Background, Controls, MiniMap,
+  ReactFlow, ReactFlowProvider, Background, MiniMap,
   applyNodeChanges, applyEdgeChanges,
   type Node, type Edge, type NodeChange, type EdgeChange, type Connection,
-  type ReactFlowInstance, type Viewport,
+  type ReactFlowInstance, type Viewport, SelectionMode,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Settings2, Check } from "lucide-react";
@@ -222,15 +222,6 @@ function CanvasStudioInner({
     localStorage.setItem("canvas:showMiniMap", showMiniMap ? "1" : "0");
   }, [showMiniMap]);
 
-  // Toggle Controls (zoom in/out/fit) — atrapalham em telas pequenas
-  const [showControls, setShowControls] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return localStorage.getItem("canvas:showControls") !== "0";
-  });
-  useEffect(() => {
-    localStorage.setItem("canvas:showControls", showControls ? "1" : "0");
-  }, [showControls]);
-
   /* ─── Persist viewport (zoom + pan) por escopo cliente/workspace ────
    * Cada combinação (workspace, clienteAtivo) tem seu próprio viewport
    * salvo em localStorage. Restaurado ao trocar aba; salvo ao mover/zoom.
@@ -287,6 +278,27 @@ function CanvasStudioInner({
       } catch { /* quota — ignore */ }
     }, 250);
   }, [viewportScope]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTyping = !!target && (
+        target.tagName === "INPUT"
+        || target.tagName === "TEXTAREA"
+        || target.isContentEditable
+      );
+      if (isTyping) return;
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        setRfNodes((nodes) => nodes.map((node) => ({ ...node, selected: true })));
+        setRfEdges((edges) => edges.map((edge) => ({ ...edge, selected: true })));
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   /* DB → ReactFlow */
   useEffect(() => {
@@ -1008,20 +1020,23 @@ function CanvasStudioInner({
               fitViewOptions={{ padding: 0.4 }}
               minZoom={0.2}
               maxZoom={2}
-              panOnDrag
-              panOnScroll
-              panOnScrollSpeed={0.8}
-              zoomOnScroll={false}
+              panOnDrag={[1]}
+              panOnScroll={false}
+              panActivationKeyCode={["Shift"]}
+              zoomOnScroll
+              zoomActivationKeyCode={null}
               zoomOnPinch
               zoomOnDoubleClick={false}
               selectionOnDrag={false}
+              selectionKeyCode={["Shift"]}
+              multiSelectionKeyCode={["Meta", "Control"]}
+              selectionMode={SelectionMode.Partial}
               proOptions={{ hideAttribution: true }}
               className="bg-background canvas-flow"
               defaultEdgeOptions={{ type: "smoothstep", animated: true }}
             >
               <StageLanesBg height={STAGE_BAND_HEIGHT} offsetY={CONTENT_TOP - 12} />
               <Background gap={24} size={1} className="opacity-30" />
-              <Controls showInteractive={false} />
               <CanvasStageNavigator
                 counts={scopedProjectNodes.reduce<Record<string, number>>((acc, n) => {
                   const k = nodeStageOf(n);
@@ -1035,7 +1050,6 @@ function CanvasStudioInner({
                   return acc;
                 }, {})}
               />
-              {showControls && <Controls showInteractive={false} />}
               {showMiniMap && (
                 <MiniMap
                   nodeColor={() => "hsl(var(--primary))"}
@@ -1046,17 +1060,6 @@ function CanvasStudioInner({
               )}
               {/* Toggles cluster — sobreposto, canto inferior direito */}
               <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-md border border-border bg-card/95 backdrop-blur-sm shadow-md p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setShowControls((v) => !v)}
-                  className={`h-6 px-2 rounded text-[10px] font-medium transition-colors ${
-                    showControls ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
-                  }`}
-                  title={showControls ? "Ocultar zoom controls" : "Mostrar zoom controls"}
-                >
-                  Zoom
-                </button>
-                <div className="h-3 w-px bg-border/60" />
                 <button
                   type="button"
                   onClick={() => setShowMiniMap((v) => !v)}
@@ -1232,20 +1235,17 @@ export default function CanvasStudio(props: Props) {
 interface CanvasViewOptionsProps {
   showLanes: boolean;     onToggleLanes: () => void;
   showGrid: boolean;      onToggleGrid: () => void;
-  showControls: boolean;  onToggleControls: () => void;
   showMiniMap: boolean;   onToggleMiniMap: () => void;
 }
 
 function CanvasViewOptions({
   showLanes, onToggleLanes,
   showGrid, onToggleGrid,
-  showControls, onToggleControls,
   showMiniMap, onToggleMiniMap,
 }: CanvasViewOptionsProps) {
   const items = [
     { key: "lanes",    label: "Lanes do A.C.E.L.E.R.A", desc: "Faixas verticais por estágio", on: showLanes,    toggle: onToggleLanes },
     { key: "grid",     label: "Grade do fundo",         desc: "Pontilhado de referência",      on: showGrid,     toggle: onToggleGrid },
-    { key: "controls", label: "Controles de zoom",      desc: "Botões zoom in / out / fit",    on: showControls, toggle: onToggleControls },
     { key: "minimap",  label: "Minimapa",               desc: "Visão geral no canto",          on: showMiniMap,  toggle: onToggleMiniMap },
   ];
   const onCount = items.filter((i) => i.on).length;
