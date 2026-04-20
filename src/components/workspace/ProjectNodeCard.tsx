@@ -4,6 +4,7 @@ import { Plus, Link2, Paperclip, ListChecks } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getProjectTypeMeta } from "./canvasProjectTypes";
 import { getEsteiraStatus, mapLegacyStatus } from "./canvasEsteiraStatus";
+import ClientAvatar from "./ClientAvatar";
 
 export interface ProjectNodeData extends Record<string, unknown> {
   title: string;
@@ -16,6 +17,10 @@ export interface ProjectNodeData extends Record<string, unknown> {
   links?: number;
   checklistDone?: number;
   checklistTotal?: number;
+  /** Owner client (folder) — used for visual identification */
+  clientName?: string | null;
+  clientSeed?: string | null;
+  clientLogoUrl?: string | null;
   /** Callback to open quick-add at a relative direction */
   onQuickConnect?: (dir: "right" | "bottom") => void;
 }
@@ -43,17 +48,27 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
           selected ? "ring-2 ring-primary ring-offset-2 ring-offset-background scale-[1.02]" : "hover:shadow-lg hover:-translate-y-0.5"
         }`}
       >
-        {/* Top row: icon + label + linked indicator */}
+        {/* Top row: icon + label + client avatar + linked indicator */}
         <div className="flex items-center gap-1.5 mb-1.5">
-          <div className={`h-6 w-6 rounded-md ${bgClass} border ${colorClass.split(" ")[0]} flex items-center justify-center`}>
+          <div className={`h-6 w-6 rounded-md ${bgClass} border ${colorClass.split(" ")[0]} flex items-center justify-center shrink-0`}>
             <Icon className="h-3.5 w-3.5" />
           </div>
           <span className="text-[10px] uppercase tracking-wider opacity-80 font-semibold truncate">
             {meta?.shortLabel ?? d.kind}
           </span>
-          {d.hasLinkedEntity && (
-            <Link2 className="h-3 w-3 ml-auto text-primary" aria-label="Vinculado" />
-          )}
+          <div className="ml-auto flex items-center gap-1">
+            {d.hasLinkedEntity && (
+              <Link2 className="h-3 w-3 text-primary" aria-label="Vinculado" />
+            )}
+            {d.clientName && (
+              <ClientAvatar
+                name={d.clientName}
+                seed={d.clientSeed ?? d.clientName}
+                logoUrl={d.clientLogoUrl ?? null}
+                size="xs"
+              />
+            )}
+          </div>
         </div>
 
         {/* Title */}

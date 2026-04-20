@@ -80,6 +80,7 @@ function CanvasStudioInner({
   
   const [dbNodes, setDbNodes] = useState<CanvasNodeRow[]>([]);
   const [dbEdges, setDbEdges] = useState<CanvasEdgeRecord[]>([]);
+  const [clientLogos, setClientLogos] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(true);
   const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState<CanvasNodeRow | null>(null);
@@ -109,6 +110,31 @@ function CanvasStudioInner({
     ]);
     setDbNodes((nodesData ?? []) as CanvasNodeRow[]);
     setDbEdges((edgesData ?? []) as CanvasEdgeRecord[]);
+
+    // Fetch logos for all linked clients (tolerant if column doesn't exist)
+    const linkedIds = Array.from(
+      new Set(
+        ((nodesData ?? []) as CanvasNodeRow[])
+          .filter((n) => n.node_type === "client" && n.linked_entity_id)
+          .map((n) => n.linked_entity_id as string),
+      ),
+    );
+    if (linkedIds.length > 0) {
+      const { data: logos, error: logoErr } = await supabase
+        .from("clients")
+        .select("id, logo_url")
+        .in("id", linkedIds);
+      if (!logoErr && logos) {
+        const map: Record<string, string | null> = {};
+        (logos as Array<{ id: string; logo_url: string | null }>).forEach((c) => {
+          map[c.id] = c.logo_url ?? null;
+        });
+        setClientLogos(map);
+      }
+    } else {
+      setClientLogos({});
+    }
+
     setLoading(false);
   }, [workspaceId]);
 
@@ -143,9 +169,23 @@ function CanvasStudioInner({
       title: c.title,
       childCount: projectNodes.filter((n) => n.parent_node_id === c.id).length,
       linkedClientId: c.linked_entity_id,
+      logoUrl: c.linked_entity_id ? clientLogos[c.linked_entity_id] ?? null : null,
     })),
-    [clientGroups, projectNodes],
+    [clientGroups, projectNodes, clientLogos],
   );
+
+  /* Quick lookup: parent group id → { name, logoUrl, seed } */
+  const groupMeta = useMemo(() => {
+    const map: Record<string, { name: string; logoUrl: string | null; seed: string }> = {};
+    clientGroups.forEach((c) => {
+      map[c.id] = {
+        name: c.title,
+        logoUrl: c.linked_entity_id ? clientLogos[c.linked_entity_id] ?? null : null,
+        seed: c.linked_entity_id ?? c.id,
+      };
+    });
+    return map;
+  }, [clientGroups, clientLogos]);
 
   /* Project nodes visible based on active tab */
   const scopedProjectNodes = useMemo(() => {
@@ -181,23 +221,29 @@ function CanvasStudioInner({
 
     const visibleIds = new Set(visibleProjects.map((n) => n.id));
 
-    const projRfNodes: Node[] = visibleProjects.map((n): Node => ({
-      id: n.id,
-      type: "projectCard",
-      position: { x: Number(n.pos_x ?? 0), y: Number(n.pos_y ?? CONTENT_TOP) },
-      data: {
-        title: n.title,
-        kind: nodeKindOf(n),
-        status: n.status,
-        description: n.description,
-        hasLinkedEntity: !!n.linked_entity_id,
-        links: ((n.data as Record<string, unknown> | null)?.links as unknown[] | undefined)?.length ?? 0,
-        attachments: ((n.data as Record<string, unknown> | null)?.attachments as unknown[] | undefined)?.length ?? 0,
-        checklistTotal: ((n.data as Record<string, unknown> | null)?.checklist as Array<{ done?: boolean }> | undefined)?.length ?? 0,
-        checklistDone: ((n.data as Record<string, unknown> | null)?.checklist as Array<{ done?: boolean }> | undefined)?.filter((c) => c.done).length ?? 0,
-        onQuickConnect: (dir: "right" | "bottom") => quickConnectFromNode(n.id, dir),
-      } satisfies ProjectNodeData,
-    }));
+    const projRfNodes: Node[] = visibleProjects.map((n): Node => {
+      const owner = n.parent_node_id ? groupMeta[n.parent_node_id] : null;
+      return {
+        id: n.id,
+        type: "projectCard",
+        position: { x: Number(n.pos_x ?? 0), y: Number(n.pos_y ?? CONTENT_TOP) },
+        data: {
+          title: n.title,
+          kind: nodeKindOf(n),
+          status: n.status,
+          description: n.description,
+          hasLinkedEntity: !!n.linked_entity_id,
+          links: ((n.data as Record<string, unknown> | null)?.links as unknown[] | undefined)?.length ?? 0,
+          attachments: ((n.data as Record<string, unknown> | null)?.attachments as unknown[] | undefined)?.length ?? 0,
+          checklistTotal: ((n.data as Record<string, unknown> | null)?.checklist as Array<{ done?: boolean }> | undefined)?.length ?? 0,
+          checklistDone: ((n.data as Record<string, unknown> | null)?.checklist as Array<{ done?: boolean }> | undefined)?.filter((c) => c.done).length ?? 0,
+          clientName: owner?.name ?? null,
+          clientSeed: owner?.seed ?? null,
+          clientLogoUrl: owner?.logoUrl ?? null,
+          onQuickConnect: (dir: "right" | "bottom") => quickConnectFromNode(n.id, dir),
+        } satisfies ProjectNodeData,
+      };
+    });
 
     setRfNodes(projRfNodes);
 
@@ -213,7 +259,7 @@ function CanvasStudioInner({
           style: { stroke: "hsl(var(--primary))", strokeWidth: 1.5 },
         })),
     );
-  }, [projectNodes, dbEdges, search, typeFilter, statusFilter, activeClientId]);
+  }, [projectNodes, dbEdges, search, typeFilter, statusFilter, activeClientId, groupMeta]);
 
   /* ReactFlow handlers */
   const onNodesChange = useCallback((changes: NodeChange[]) => {

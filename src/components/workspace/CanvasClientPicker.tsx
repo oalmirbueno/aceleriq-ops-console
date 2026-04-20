@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, Building2, Plus, Loader2, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import CreateClientDialog from "@/components/CreateClientDialog";
+import ClientAvatar from "./ClientAvatar";
 
 interface ClientRow {
   id: string;
@@ -15,6 +16,7 @@ interface ClientRow {
   segment: string | null;
   plan_name: string | null;
   status: string | null;
+  logo_url?: string | null;
 }
 
 interface Props {
@@ -38,10 +40,19 @@ export default function CanvasClientPicker({
 
   const fetchClients = async () => {
     setLoading(true);
-    const { data } = await supabase
+    // logo_url may not exist yet on schemas that haven't run the migration —
+    // request it but tolerate failure by retrying without it.
+    let { data, error } = await supabase
       .from("clients")
-      .select("id, name, company_name, segment, plan_name, status")
+      .select("id, name, company_name, segment, plan_name, status, logo_url")
       .order("name", { ascending: true });
+    if (error) {
+      const fallback = await supabase
+        .from("clients")
+        .select("id, name, company_name, segment, plan_name, status")
+        .order("name", { ascending: true });
+      data = fallback.data as any;
+    }
     setClients((data ?? []) as ClientRow[]);
     setLoading(false);
   };
@@ -122,9 +133,12 @@ export default function CanvasClientPicker({
                           : "border-border hover:border-primary/50 hover:bg-primary/5"
                       }`}
                     >
-                      <div className="h-8 w-8 rounded-md bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
-                        <Building2 className="h-3.5 w-3.5 text-amber-400" />
-                      </div>
+                      <ClientAvatar
+                        name={c.name}
+                        seed={c.id}
+                        logoUrl={c.logo_url ?? null}
+                        size="md"
+                      />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-foreground truncate">{c.name}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
