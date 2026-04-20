@@ -156,3 +156,193 @@ export function readKindFromData(data: Record<string, unknown> | null | undefine
   if (typeof k === "string") return k as ProjectNodeKind;
   return null;
 }
+
+/* ─── Checklist templates por tipo de projeto ───
+ * Cada item vira um ChecklistItem padrão quando o node é criado.
+ * Pode ser editado/removido livremente depois.
+ */
+export const CHECKLIST_TEMPLATES: Partial<Record<ProjectNodeKind, string[]>> = {
+  briefing: [
+    "Coletar objetivo do cliente",
+    "Mapear público-alvo e dores",
+    "Levantar referências e concorrentes",
+    "Definir entregáveis e prazos",
+    "Validar briefing com o cliente",
+  ],
+  reuniao: [
+    "Definir pauta e objetivo",
+    "Enviar convite com link",
+    "Tomar notas e decisões",
+    "Compartilhar resumo pós-reunião",
+  ],
+  ideia: [
+    "Descrever a hipótese",
+    "Listar evidências a favor",
+    "Definir teste mínimo",
+    "Decidir: validar ou descartar",
+  ],
+  objetivo: [
+    "Escrever meta SMART",
+    "Definir métrica e baseline",
+    "Definir prazo",
+    "Definir owner",
+  ],
+  documento: [
+    "Estrutura / sumário",
+    "Conteúdo redigido",
+    "Revisão técnica",
+    "Aprovação final",
+  ],
+  funil: [
+    "Mapear etapas do funil",
+    "Definir oferta por etapa",
+    "Métrica de cada etapa",
+    "Pontos de automação",
+    "Validar com cliente",
+  ],
+  landing_page: [
+    "Wireframe / estrutura",
+    "Copy aprovada",
+    "Design das seções",
+    "Desenvolvimento / publicação",
+    "Pixel + analytics",
+    "QA mobile e desktop",
+    "Publicar e validar URL",
+  ],
+  site: [
+    "Arquitetura de páginas",
+    "Copy de cada página",
+    "Design system",
+    "Desenvolvimento",
+    "SEO básico (title, meta, sitemap)",
+    "QA cross-browser",
+    "Deploy e DNS",
+  ],
+  automacao: [
+    "Mapear gatilho e fluxo",
+    "Configurar integrações",
+    "Construir automação",
+    "Teste end-to-end",
+    "Documentar fluxo",
+    "Ativar em produção",
+  ],
+  ia: [
+    "Definir objetivo do agente",
+    "Escrever prompt / instruções",
+    "Conectar fontes de dados",
+    "Testar conversas-chave",
+    "Definir handoff humano",
+    "Publicar canal (web/whats)",
+  ],
+  integracao: [
+    "Documentar sistemas envolvidos",
+    "Validar credenciais / API keys",
+    "Implementar conexão",
+    "Teste de payload",
+    "Tratamento de erro",
+  ],
+  conteudo: [
+    "Pauta aprovada",
+    "Roteiro / texto",
+    "Revisão",
+    "Diagramação / mídia",
+    "Aprovação final",
+    "Agendar publicação",
+  ],
+  video: [
+    "Roteiro",
+    "Gravação",
+    "Edição",
+    "Revisão",
+    "Exportar formatos finais",
+  ],
+  imagem: [
+    "Briefing visual",
+    "Versão 1",
+    "Ajustes",
+    "Aprovação final",
+    "Exportar formatos",
+  ],
+  asset: [
+    "Conferir entrega vs. escopo",
+    "Subir para repositório oficial",
+    "Comunicar entrega ao cliente",
+  ],
+  lancamento: [
+    "Definir data e cronograma",
+    "Aquecimento (conteúdo prévio)",
+    "Pré-lançamento",
+    "Abertura de carrinho / oferta",
+    "Acompanhamento diário",
+    "Pós-lançamento e métricas",
+  ],
+  trafego: [
+    "Definir objetivo da campanha",
+    "Públicos e segmentações",
+    "Criativos (copy + arte)",
+    "Estruturar conjuntos / campanhas",
+    "Configurar pixels e conversões",
+    "Subir e validar entrega",
+    "Otimização semanal",
+  ],
+  email_mkt: [
+    "Definir objetivo da sequência",
+    "Mapear emails (assunto + ângulo)",
+    "Escrever copy de cada email",
+    "Configurar automação",
+    "Teste de envio e links",
+    "Agendar / ativar",
+  ],
+  social: [
+    "Definir formato e tema",
+    "Roteiro / copy",
+    "Criativo (arte/vídeo)",
+    "Aprovação",
+    "Agendar publicação",
+    "Engajamento pós-publicação",
+  ],
+  crm: [
+    "Mapear estágios do pipeline",
+    "Importar contatos",
+    "Configurar automações",
+    "Definir SLA por etapa",
+    "Treinar time",
+  ],
+  metrica: [
+    "Definir métrica e fórmula",
+    "Definir fonte de dados",
+    "Baseline atual",
+    "Meta",
+    "Cadência de revisão",
+  ],
+  before_after: [
+    "Coletar dado/evidência inicial",
+    "Coletar dado/evidência final",
+    "Selecionar mídias comparativas",
+    "Escrever narrativa do resultado",
+    "Aprovação para uso",
+  ],
+  case: [
+    "Resumo executivo",
+    "Contexto e desafio",
+    "Solução implementada",
+    "Resultados (números)",
+    "Mídias e prints",
+    "Aprovação do cliente para divulgar",
+  ],
+  contato: [
+    "Nome, papel, canal",
+    "Frequência de contato",
+    "Decisões de alçada",
+  ],
+  checklist: [],
+};
+
+export function getChecklistTemplate(kind: string): Array<{ id: string; text: string; done: boolean }> {
+  const items = CHECKLIST_TEMPLATES[kind as ProjectNodeKind] ?? [];
+  return items.map((text, i) => ({
+    id: `${Date.now().toString(36)}-${i}`,
+    text,
+    done: false,
+  }));
+}
