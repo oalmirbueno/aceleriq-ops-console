@@ -710,7 +710,7 @@ function CanvasStudioInner({
 
         {/* Right inspector — adapted: filters + list */}
         <CanvasInspectorAdapter
-          nodes={projectNodes}
+          nodes={scopedProjectNodes}
           edges={dbEdges.length}
           search={search}
           onSearch={setSearch}
