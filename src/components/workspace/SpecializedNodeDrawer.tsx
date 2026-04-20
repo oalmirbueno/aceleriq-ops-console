@@ -47,7 +47,7 @@ export default function SpecializedNodeDrawer({
 }: Props) {
   const kind = (node.node_type as ProjectNodeKind) ?? "documento";
   const typeMeta = getProjectTypeMeta(kind);
-  const stage = (node.metadata as Record<string, unknown> | null)?.stage as string | undefined;
+  const stage = (node.data as Record<string, unknown> | null)?.stage as string | undefined;
   const stageMeta = stage ? getStageMeta(stage) : null;
 
   const blueprint = useMemo(
