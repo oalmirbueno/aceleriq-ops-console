@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useReactFlow, useStore } from "@xyflow/react";
 import { ACELERA_STAGES, STAGE_COLUMN_WIDTH } from "./canvasProjectTypes";
 
