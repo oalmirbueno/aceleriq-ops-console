@@ -10,17 +10,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Save, Trash2, Link2, Plus, ExternalLink, GripVertical,
   FileText, ListChecks, BarChart3, MessageSquare, Paperclip,
-  Sparkles, Loader2, X,
+  Sparkles, Loader2, X, FolderInput, Check,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { ACELERA_STAGES, getProjectTypeMeta, getStageMeta, type AceleraStageKey, type ProjectNodeKind } from "./canvasProjectTypes";
 import { ESTEIRA_STATUSES, getEsteiraStatus, mapLegacyStatus, premiumStatusToDb } from "./canvasEsteiraStatus";
 import AttachmentUploader, { type AttachmentItem } from "./AttachmentUploader";
+import ClientAvatar from "./ClientAvatar";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
+
+export interface ClientFolderOption {
+  id: string;             // canvas_nodes.id of the client group
+  name: string;
+  linkedClientId: string | null;
+  logoUrl?: string | null;
+}
 
 interface Props {
   node: (CanvasNodeRecord & { parent_node_id?: string | null }) | null;
@@ -29,6 +38,10 @@ interface Props {
   workspaceId: string;
   onUpdated: () => Promise<void> | void;
   onDelete: (id: string) => Promise<void> | void;
+  /** Available client folders to move this node to */
+  clientFolders?: ClientFolderOption[];
+  /** Move the node to another client folder (or null to detach). */
+  onMoveToFolder?: (nodeId: string, targetFolderId: string | null) => Promise<void> | void;
 }
 
 type LinkItem = { label: string; url: string };
@@ -53,7 +66,10 @@ function uid() {
   return Math.random().toString(36).slice(2, 9);
 }
 
-export default function ProjectNodeDrawer({ node, open, onOpenChange, workspaceId, onUpdated, onDelete }: Props) {
+export default function ProjectNodeDrawer({
+  node, open, onOpenChange, workspaceId, onUpdated, onDelete,
+  clientFolders = [], onMoveToFolder,
+}: Props) {
   const [title, setTitle] = useState("");
   const [statusPremium, setStatusPremium] = useState("ideia");
   const [stage, setStage] = useState<AceleraStageKey>("producao");
