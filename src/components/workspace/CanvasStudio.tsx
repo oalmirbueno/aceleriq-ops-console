@@ -210,6 +210,15 @@ function CanvasStudioInner({
   type QuickAddState = { open: boolean; sourceId: string | null; dir: "right" | "bottom" | null };
   const [quickAddState, setQuickAddState] = useState<QuickAddState>({ open: false, sourceId: null, dir: null });
 
+  // Toggle MiniMap (persistido) — alguns usuários acham que polui
+  const [showMiniMap, setShowMiniMap] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("canvas:showMiniMap") !== "0";
+  });
+  useEffect(() => {
+    localStorage.setItem("canvas:showMiniMap", showMiniMap ? "1" : "0");
+  }, [showMiniMap]);
+
   /* DB → ReactFlow */
   useEffect(() => {
     const q = search.trim().toLowerCase();
@@ -941,13 +950,24 @@ function CanvasStudioInner({
             >
               <StageLanesBg height={STAGE_BAND_HEIGHT} offsetY={CONTENT_TOP - 12} />
               <Background gap={24} size={1} className="opacity-30" />
-              <Controls className="!bg-card !border-border" showInteractive={false} />
-              <MiniMap
-                className="!bg-card !border-border"
-                nodeColor={() => "hsl(var(--primary))"}
-                pannable
-                zoomable
-              />
+              <Controls showInteractive={false} />
+              {showMiniMap && (
+                <MiniMap
+                  nodeColor={() => "hsl(var(--primary))"}
+                  maskColor="hsl(var(--background) / 0.6)"
+                  pannable
+                  zoomable
+                />
+              )}
+              {/* Toggle MiniMap — sobreposto, canto inferior direito */}
+              <button
+                type="button"
+                onClick={() => setShowMiniMap((v) => !v)}
+                className="absolute bottom-3 right-3 z-10 h-7 px-2 rounded-md border border-border bg-card text-foreground text-[10px] font-medium hover:bg-muted shadow-md flex items-center gap-1"
+                title={showMiniMap ? "Ocultar minimapa" : "Mostrar minimapa"}
+              >
+                {showMiniMap ? "Ocultar minimapa" : "Mostrar minimapa"}
+              </button>
             </ReactFlow>
           )}
         </div>
