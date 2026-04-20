@@ -34,6 +34,8 @@ interface Props {
   onRenameClient?: (id: string, newTitle: string) => Promise<void> | void;
   onChangeLogo?: (id: string) => Promise<void> | void;
   onMoveToStart?: (id: string) => Promise<void> | void;
+  /** Persist a new order (array of tab ids in desired sequence). */
+  onReorder?: (orderedIds: string[]) => Promise<void> | void;
   showAllTab?: boolean;
 }
 
@@ -46,12 +48,16 @@ export default function CanvasClientTabs({
   onRenameClient,
   onChangeLogo,
   onMoveToStart,
+  onReorder,
   showAllTab = true,
 }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   useEffect(() => {
     if (editingId && inputRef.current) {
@@ -114,13 +120,17 @@ export default function CanvasClientTabs({
               const isEditing = editingId === t.id;
               const isFirst = idx === 0;
 
+              const isDragging = dragId === t.id;
+              const isOver = dragOverId === t.id && dragId !== null && dragId !== t.id;
+              const draggable = !!onReorder && !isEditing;
+
               const tabContent = (
                 <div
                   className={`shrink-0 group flex items-center gap-1.5 h-9 pl-1.5 pr-1 rounded-md border text-xs font-medium transition-all ${
                     active
                       ? "bg-card border-primary/50 text-foreground shadow-sm"
                       : "border-border bg-background/40 text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                  }`}
+                  } ${isDragging ? "opacity-40 scale-[0.97]" : ""} ${isOver ? "ring-2 ring-primary/60 ring-offset-1 ring-offset-background" : ""} ${draggable ? "cursor-grab active:cursor-grabbing" : ""}`}
                 >
                   {isEditing ? (
                     <div className="flex items-center gap-1.5 max-w-[260px]">
@@ -215,16 +225,55 @@ export default function CanvasClientTabs({
                 </div>
               );
 
+              // Build drag handlers shared by both wrappers
+              const dragProps = draggable
+                ? {
+                    draggable: true,
+                    onDragStart: (e: React.DragEvent<HTMLDivElement>) => {
+                      setDragId(t.id);
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", t.id);
+                    },
+                    onDragEnd: () => {
+                      setDragId(null);
+                      setDragOverId(null);
+                    },
+                    onDragOver: (e: React.DragEvent<HTMLDivElement>) => {
+                      if (!dragId || dragId === t.id) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (dragOverId !== t.id) setDragOverId(t.id);
+                    },
+                    onDragLeave: () => {
+                      if (dragOverId === t.id) setDragOverId(null);
+                    },
+                    onDrop: async (e: React.DragEvent<HTMLDivElement>) => {
+                      e.preventDefault();
+                      const sourceId = dragId;
+                      setDragId(null);
+                      setDragOverId(null);
+                      if (!sourceId || sourceId === t.id || !onReorder) return;
+                      const ids = tabs.map((x) => x.id);
+                      const from = ids.indexOf(sourceId);
+                      const to = ids.indexOf(t.id);
+                      if (from < 0 || to < 0 || from === to) return;
+                      const [moved] = ids.splice(from, 1);
+                      ids.splice(to, 0, moved);
+                      await onReorder(ids);
+                    },
+                  }
+                : {};
+
               // Wrap in context menu when any contextual action is available
               const hasMenu = !!(onRenameClient || onChangeLogo || onMoveToStart || onRemoveClient);
               if (!hasMenu || isEditing) {
-                return <div key={t.id}>{tabContent}</div>;
+                return <div key={t.id} {...dragProps}>{tabContent}</div>;
               }
 
               return (
                 <ContextMenu key={t.id}>
                   <ContextMenuTrigger asChild>
-                    <div onContextMenu={() => onSelect(t.id)}>{tabContent}</div>
+                    <div {...dragProps} onContextMenu={() => onSelect(t.id)}>{tabContent}</div>
                   </ContextMenuTrigger>
                   <ContextMenuContent className="w-52">
                     {onRenameClient && (

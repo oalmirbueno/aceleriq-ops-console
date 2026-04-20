@@ -828,6 +828,37 @@ function CanvasStudioInner({
           setActiveClientId(id);
           toast({ title: "Movido para o início" });
         }}
+        onReorder={async (orderedIds) => {
+          // Re-stripe pos_x in the requested sequence (step 400)
+          const STEP = 400;
+          const updates = orderedIds.map((id, i) => ({ id, pos_x: 80 + i * STEP }));
+
+          // Optimistic local update so the tabs reorder immediately
+          setDbNodes((prev) => {
+            const next = prev.slice();
+            updates.forEach((u) => {
+              const idx = next.findIndex((n) => n.id === u.id);
+              if (idx >= 0) next[idx] = { ...next[idx], pos_x: u.pos_x };
+            });
+            return next;
+          });
+
+          // Persist (parallel updates)
+          const stamp = new Date().toISOString();
+          const results = await Promise.all(
+            updates.map((u) =>
+              supabase
+                .from("canvas_nodes")
+                .update({ pos_x: u.pos_x, updated_at: stamp })
+                .eq("id", u.id),
+            ),
+          );
+          const failed = results.find((r) => r.error);
+          if (failed?.error) {
+            toast({ title: "Erro ao reordenar", description: failed.error.message, variant: "destructive" });
+            await fetchData();
+          }
+        }}
       />
 
       {/* Body: palette + canvas + inspector */}
