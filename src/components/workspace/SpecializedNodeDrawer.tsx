@@ -26,6 +26,7 @@ import NodeQuickActions from "./drawerPrimitives/NodeQuickActions";
 import NodePrefillStatus from "./drawerPrimitives/NodePrefillStatus";
 import AccessVaultDrawer from "./AccessVaultDrawer";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
+import type { PrefillFieldValue } from "./nodePrefillTypes";
 
 interface Props {
   node: CanvasNodeRecord & { parent_node_id?: string | null };
@@ -42,11 +43,32 @@ interface Props {
   onDelete?: (id: string) => Promise<void> | void;
   /** Slot opcional pra seções extras específicas do tipo (ex: BriefingConsolidatedView) */
   extraSlot?: React.ReactNode;
+  /**
+   * Slot opcional renderizado LOGO ABAIXO de um field específico de qualquer section.
+   * Usado por wrappers que querem decorar campos individuais (ex: IaAgentNodeDrawer
+   * injeta histórico de versões abaixo do system_prompt).
+   */
+  renderFieldExtra?: (
+    sectionId: string,
+    fieldId: string,
+    value: PrefillFieldValue | undefined,
+  ) => React.ReactNode;
+  /**
+   * Override programático de updateField — wrappers podem interceptar pra
+   * snapshotar prompt antes de aplicar mudanças. Recebe o updateField original
+   * e devolve a versão decorada.
+   */
+  wrapUpdateField?: (
+    original: (sectionId: string, fieldId: string, next: PrefillFieldValue) => void,
+  ) => (sectionId: string, fieldId: string, next: PrefillFieldValue) => void;
+  /** Callback chamado quando prefill carrega/atualiza — útil pra wrappers reagirem (ex: snapshot inicial). */
+  onPrefillChanged?: (prefill: ReturnType<typeof useNodePrefill>["prefill"]) => void;
 }
 
 export default function SpecializedNodeDrawer({
   node, open, onOpenChange, workspaceId, clientId, clientName,
   blueprintOverride, quickActionHandlers = {}, onDelete, extraSlot,
+  renderFieldExtra, wrapUpdateField, onPrefillChanged,
 }: Props) {
   const [vaultOpen, setVaultOpen] = useState(false);
   const kind = resolveProjectNodeKind({
@@ -65,6 +87,15 @@ export default function SpecializedNodeDrawer({
   const { prefill, status, error, generate, regenerate, updateField, updateMethod } = useNodePrefill({
     nodeId: node.id, workspaceId, clientId, blueprint, enabled: open,
   });
+
+  // Notifica wrapper sobre mudanças de prefill (ex: snapshot inicial do IA)
+  useEffect(() => { onPrefillChanged?.(prefill); }, [prefill, onPrefillChanged]);
+
+  // Aplica o wrap do updateField se o caller forneceu (ex: snapshot pré-edição)
+  const effectiveUpdateField = useMemo(
+    () => (wrapUpdateField ? wrapUpdateField(updateField) : updateField),
+    [updateField, wrapUpdateField],
+  );
 
   // Wires regenerate handler if blueprint expects it
   const handlers: typeof quickActionHandlers = {
@@ -175,10 +206,11 @@ export default function SpecializedNodeDrawer({
                   key={section.id}
                   section={section}
                   content={prefill?.sections[section.id]}
-                  onFieldChange={(fieldId, next) => updateField(section.id, fieldId, next)}
+                  onFieldChange={(fieldId, next) => effectiveUpdateField(section.id, fieldId, next)}
                   disabled={isGenerating}
                   workspaceId={workspaceId}
                   nodeId={node.id}
+                  renderFieldExtra={renderFieldExtra}
                 />
               ))}
             </div>

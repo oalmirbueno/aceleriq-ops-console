@@ -26,6 +26,16 @@ interface Props {
   /** Necessário para uploads (bucket scope). Quando ausente, o campo de anexo fica desabilitado. */
   workspaceId?: string;
   nodeId?: string;
+  /**
+   * Slot opcional renderizado LOGO ABAIXO de um field específico.
+   * Recebe (sectionId, fieldId, valor atual) e devolve JSX (ou null pra não renderizar).
+   * Usado pelo IaAgentNodeDrawer pra plugar o histórico de versões abaixo do system_prompt.
+   */
+  renderFieldExtra?: (
+    sectionId: string,
+    fieldId: string,
+    value: PrefillFieldValue | undefined,
+  ) => React.ReactNode;
 }
 
 const ORIGIN_META: Record<FieldOrigin, { label: string; cls: string; tip: string; Icon: typeof Bot }> = {
@@ -61,7 +71,9 @@ const ORIGIN_META: Record<FieldOrigin, { label: string; cls: string; tip: string
   },
 };
 
-export default function NodeSection({ section, content, onFieldChange, disabled, workspaceId, nodeId }: Props) {
+export default function NodeSection({
+  section, content, onFieldChange, disabled, workspaceId, nodeId, renderFieldExtra,
+}: Props) {
   return (
     <div className="rounded-lg border border-border bg-background/40 p-3.5 space-y-3">
       <div>
@@ -72,15 +84,17 @@ export default function NodeSection({ section, content, onFieldChange, disabled,
       </div>
       <div className="space-y-3">
         {section.fields.map((field) => (
-          <FieldEditor
-            key={field.id}
-            field={field}
-            value={content?.fields[field.id]}
-            onChange={(next) => onFieldChange(field.id, next)}
-            disabled={disabled}
-            workspaceId={workspaceId}
-            nodeId={nodeId}
-          />
+          <div key={field.id}>
+            <FieldEditor
+              field={field}
+              value={content?.fields[field.id]}
+              onChange={(next) => onFieldChange(field.id, next)}
+              disabled={disabled}
+              workspaceId={workspaceId}
+              nodeId={nodeId}
+            />
+            {renderFieldExtra?.(section.id, field.id, content?.fields[field.id])}
+          </div>
         ))}
       </div>
       {content?.ai_notes && (
