@@ -42,6 +42,7 @@ export default function BriefingNodeDrawer({
         onOpenChange={onOpenChange}
         workspaceId={workspaceId}
         clientId={clientId}
+        clientName={clientName}
         blueprintOverride={blueprint}
         quickActionHandlers={handlers}
         onDelete={onDelete}
