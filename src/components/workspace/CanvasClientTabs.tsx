@@ -1,0 +1,123 @@
+import { Button } from "@/components/ui/button";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Building2, Plus, X, Layers } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+export interface CanvasClientTab {
+  id: string;          // canvas_nodes.id (group node)
+  title: string;       // client name
+  childCount: number;
+  linkedClientId: string | null;
+}
+
+interface Props {
+  tabs: CanvasClientTab[];
+  activeId: string | null; // null = "Todos"
+  onSelect: (id: string | null) => void;
+  onAddClient: () => void;
+  onRemoveClient?: (id: string) => void;
+  showAllTab?: boolean;
+}
+
+export default function CanvasClientTabs({
+  tabs,
+  activeId,
+  onSelect,
+  onAddClient,
+  onRemoveClient,
+  showAllTab = true,
+}: Props) {
+  return (
+    <TooltipProvider delayDuration={200}>
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border bg-card/60 backdrop-blur-sm">
+        <ScrollArea className="flex-1">
+          <div className="flex items-center gap-1 min-w-0">
+            {showAllTab && (
+              <button
+                onClick={() => onSelect(null)}
+                className={`shrink-0 group flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-all ${
+                  activeId === null
+                    ? "bg-primary/15 border-primary/40 text-primary"
+                    : "border-border bg-background/40 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+              >
+                <Layers className="h-3.5 w-3.5" />
+                <span>Todos</span>
+                <span className="opacity-60 text-[10px]">
+                  ({tabs.length})
+                </span>
+              </button>
+            )}
+
+            {tabs.length > 0 && <div className="h-5 w-px bg-border mx-1 shrink-0" />}
+
+            {tabs.map((t) => {
+              const active = t.id === activeId;
+              return (
+                <div
+                  key={t.id}
+                  className={`shrink-0 group flex items-center gap-1.5 h-8 pl-2.5 pr-1 rounded-md border text-xs font-medium transition-all ${
+                    active
+                      ? "bg-amber-500/15 border-amber-500/40 text-amber-200"
+                      : "border-border bg-background/40 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  }`}
+                >
+                  <button
+                    onClick={() => onSelect(t.id)}
+                    className="flex items-center gap-1.5 max-w-[180px]"
+                    title={t.title}
+                  >
+                    <Building2 className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{t.title}</span>
+                    <span className="opacity-60 text-[10px] shrink-0">
+                      ({t.childCount})
+                    </span>
+                  </button>
+                  {onRemoveClient && active && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`Remover a pasta de "${t.title}" do canvas? Os nodes ficarão sem pasta.`)) {
+                              onRemoveClient(t.id);
+                            }
+                          }}
+                          className="h-5 w-5 rounded flex items-center justify-center opacity-60 hover:opacity-100 hover:bg-destructive/20 hover:text-destructive transition-colors"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">Remover pasta</TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <ScrollBar orientation="horizontal" className="h-1.5" />
+        </ScrollArea>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 shrink-0 text-xs"
+              onClick={onAddClient}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              <span className="hidden sm:inline">Cliente</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Adicionar pasta de cliente</TooltipContent>
+        </Tooltip>
+      </div>
+    </TooltipProvider>
+  );
+}

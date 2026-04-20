@@ -19,6 +19,7 @@ import ProjectNodeDrawer from "./ProjectNodeDrawer";
 import CanvasEsteiraPalette from "./CanvasEsteiraPalette";
 import CanvasInspector from "./CanvasInspector";
 import CanvasClientPicker from "./CanvasClientPicker";
+import CanvasClientTabs, { type CanvasClientTab } from "./CanvasClientTabs";
 import {
   ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH, STAGE_HEADER_HEIGHT,
   getProjectTypeMeta, getStageMeta, stageColumnX, getChecklistTemplate,
@@ -94,6 +95,9 @@ function CanvasStudioInner({
   const [paletteCollapsed, setPaletteCollapsed] = useState(false);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(true);
 
+  // Active client folder (null = "Todos")
+  const [activeClientId, setActiveClientId] = useState<string | null>(null);
+
   // Quick add menu (advanced)
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
@@ -120,6 +124,36 @@ function CanvasStudioInner({
     [dbNodes],
   );
 
+  /* Auto-select first client when data loads */
+  useEffect(() => {
+    if (loading) return;
+    if (activeClientId === null && clientGroups.length > 0) {
+      setActiveClientId(clientGroups[0].id);
+    }
+    // If active client was removed, fall back
+    if (activeClientId && !clientGroups.find((c) => c.id === activeClientId)) {
+      setActiveClientId(clientGroups[0]?.id ?? null);
+    }
+  }, [loading, clientGroups, activeClientId]);
+
+  /* Tabs metadata */
+  const clientTabs: CanvasClientTab[] = useMemo(
+    () => clientGroups.map((c) => ({
+      id: c.id,
+      title: c.title,
+      childCount: projectNodes.filter((n) => n.parent_node_id === c.id).length,
+      linkedClientId: c.linked_entity_id,
+    })),
+    [clientGroups, projectNodes],
+  );
+
+  /* Project nodes visible based on active tab */
+  const scopedProjectNodes = useMemo(() => {
+    if (activeClientId === null) return projectNodes;
+    return projectNodes.filter((n) => n.parent_node_id === activeClientId);
+  }, [projectNodes, activeClientId]);
+
+
   /* Quick connect helper */
   const quickConnectFromNode = (sourceId: string, dir: "right" | "bottom") => {
     setQuickAddState({ open: true, sourceId, dir });
@@ -132,36 +166,20 @@ function CanvasStudioInner({
   useEffect(() => {
     const q = search.trim().toLowerCase();
 
-    // Build per-client offsets (each client gets its own row of stage lanes stacked vertically)
-    // For MVP simplicity: all projects share the same horizontal lanes (no parent y-offset).
-    // Client groups are rendered as compact pills above the lanes (y < CONTENT_TOP).
+    // No more group nodes inside ReactFlow — pastas viraram abas no topo.
+    // Filtra projetos pelo cliente ativo (ou todos quando activeClientId === null).
+    const sourceProjects = activeClientId === null
+      ? projectNodes
+      : projectNodes.filter((n) => n.parent_node_id === activeClientId);
 
-    const clientRfNodes: Node[] = clientGroups.map((c, idx): Node => {
-      const x = idx * (CLIENT_BAR_GAP + 20) + 80;
-      return {
-        id: c.id,
-        type: "canvasGroup",
-        position: { x: Number(c.pos_x ?? x), y: Number(c.pos_y ?? CLIENT_BAR_Y) },
-        style: { width: CLIENT_BAR_GAP, height: CLIENT_BAR_HEIGHT, zIndex: 0 },
-        draggable: true,
-        data: {
-          title: c.title,
-          childCount: projectNodes.filter((n) => n.parent_node_id === c.id).length,
-        },
-      };
-    });
-
-    const visibleProjects = projectNodes.filter((n) => {
+    const visibleProjects = sourceProjects.filter((n) => {
       if (typeFilter && nodeKindOf(n) !== typeFilter && n.node_type !== typeFilter) return false;
       if (statusFilter && mapLegacyStatus(n.status) !== statusFilter) return false;
       if (q && !n.title.toLowerCase().includes(q)) return false;
       return true;
     });
 
-    const visibleIds = new Set([
-      ...clientGroups.map((c) => c.id),
-      ...visibleProjects.map((n) => n.id),
-    ]);
+    const visibleIds = new Set(visibleProjects.map((n) => n.id));
 
     const projRfNodes: Node[] = visibleProjects.map((n): Node => ({
       id: n.id,
@@ -181,7 +199,7 @@ function CanvasStudioInner({
       } satisfies ProjectNodeData,
     }));
 
-    setRfNodes([...clientRfNodes, ...projRfNodes]);
+    setRfNodes(projRfNodes);
 
     setRfEdges(
       dbEdges
@@ -195,7 +213,7 @@ function CanvasStudioInner({
           style: { stroke: "hsl(var(--primary))", strokeWidth: 1.5 },
         })),
     );
-  }, [clientGroups, projectNodes, dbEdges, search, typeFilter, statusFilter]);
+  }, [projectNodes, dbEdges, search, typeFilter, statusFilter, activeClientId]);
 
   /* ReactFlow handlers */
   const onNodesChange = useCallback((changes: NodeChange[]) => {
@@ -251,10 +269,29 @@ function CanvasStudioInner({
     setSelectedNode(found);
   }, [dbNodes]);
 
-  /* Pick parent (single-client convenience) */
+  /* Pick parent: prioriza cliente da aba ativa */
   const pickParentGroup = (): string | null => {
+    if (activeClientId) return activeClientId;
     if (clientGroups.length === 1) return clientGroups[0].id;
     return null;
+  };
+
+  /* Quando o usuário tenta criar um node sem cliente ativo e existem várias pastas,
+   * abre o seletor de cliente para evitar nodes "órfãos". */
+  const ensureActiveClient = (): boolean => {
+    if (clientGroups.length === 0) {
+      toast({
+        title: "Adicione um cliente primeiro",
+        description: "Cada esteira pertence a uma pasta de cliente.",
+      });
+      setClientPickerOpen(true);
+      return false;
+    }
+    if (!activeClientId) {
+      // Há clientes mas nenhuma aba selecionada — selecione automaticamente
+      setActiveClientId(clientGroups[0].id);
+    }
+    return true;
   };
 
   /* Add a project node at chosen kind+stage */
@@ -263,6 +300,8 @@ function CanvasStudioInner({
     stage: AceleraStageKey,
     opts: { sourceId?: string | null; dir?: "right" | "bottom" | null } = {},
   ) => {
+    // Must have a client folder selected
+    if (!ensureActiveClient()) return;
     const meta = getProjectTypeMeta(kind);
     if (!meta) return;
     const dbType = (() => {
@@ -375,18 +414,22 @@ function CanvasStudioInner({
       toast({ title: "Erro ao adicionar cliente", description: error.message, variant: "destructive" });
       return;
     }
-    if (data) setDbNodes((prev) => [...prev, data as CanvasNodeRow]);
-    toast({ title: "Cliente adicionado", description: `Pasta criada para ${c.name}` });
+    if (data) {
+      const created = data as CanvasNodeRow;
+      setDbNodes((prev) => [...prev, created]);
+      setActiveClientId(created.id);
+    }
+    toast({ title: "Pasta de cliente criada", description: `${c.name} agora tem esteira própria.` });
   };
 
   /* Estrutura base: cria pasta cliente + briefing + landing como exemplo de esteira */
   const handleGenerateBase = async () => {
     setBusyAction("base");
-    const hasClient = clientGroups.length > 0;
+    // Use cliente da aba ativa se houver
+    let clientNodeId: string | null = activeClientId
+      ?? (clientGroups[0]?.id ?? null);
 
-    let clientNodeId: string | null = hasClient ? clientGroups[0].id : null;
-
-    if (!hasClient) {
+    if (!clientNodeId) {
       const { data: clientNode, error: cErr } = await supabase
         .from("canvas_nodes")
         .insert({
@@ -409,6 +452,7 @@ function CanvasStudioInner({
       }
       clientNodeId = (clientNode as CanvasNodeRow).id;
       setDbNodes((prev) => [...prev, clientNode as CanvasNodeRow]);
+      setActiveClientId(clientNodeId);
     }
 
     // Briefing in entrada
@@ -451,12 +495,15 @@ function CanvasStudioInner({
     setBusyAction(null);
   };
 
-  /* Auto-layout: por etapa, empilha vertical */
+  /* Auto-layout: por etapa, empilha vertical (apenas nodes do cliente ativo) */
   const handleAutoLayout = async () => {
-    if (projectNodes.length === 0) return;
+    const targetNodes = activeClientId
+      ? projectNodes.filter((n) => n.parent_node_id === activeClientId)
+      : projectNodes;
+    if (targetNodes.length === 0) return;
     setBusyAction("layout");
     const byStage: Record<string, CanvasNodeRow[]> = {};
-    projectNodes.forEach((n) => {
+    targetNodes.forEach((n) => {
       const s = nodeStageOf(n);
       (byStage[s] ??= []).push(n);
     });
@@ -536,8 +583,10 @@ function CanvasStudioInner({
         <div className="flex items-center gap-2 min-w-0">
           <div className="h-2 w-2 rounded-full bg-primary shrink-0 animate-pulse" />
           <p className="text-sm font-semibold text-foreground truncate">Esteira de produção</p>
-          <span className="text-[11px] text-muted-foreground hidden sm:inline">
-            {summary.clients} cliente{summary.clients === 1 ? "" : "s"} · {summary.projects} nodes · {summary.edges} conexões
+          <span className="text-[11px] text-muted-foreground hidden sm:inline truncate">
+            {activeClientId
+              ? `${clientGroups.find((c) => c.id === activeClientId)?.title ?? "Cliente"} · ${scopedProjectNodes.length} nodes`
+              : `Todos · ${summary.clients} cliente${summary.clients === 1 ? "" : "s"} · ${summary.projects} nodes`}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -561,6 +610,18 @@ function CanvasStudioInner({
         </div>
       </div>
 
+      {/* Client tabs (folders) — sempre visíveis */}
+      <CanvasClientTabs
+        tabs={clientTabs}
+        activeId={activeClientId}
+        onSelect={setActiveClientId}
+        onAddClient={() => setClientPickerOpen(true)}
+        onRemoveClient={async (id) => {
+          await handleDeleteNode(id);
+          if (activeClientId === id) setActiveClientId(null);
+        }}
+      />
+
       {/* Body: palette + canvas + inspector */}
       <div className="flex flex-1 min-h-0">
         <CanvasEsteiraPalette
@@ -576,53 +637,85 @@ function CanvasStudioInner({
             <div className="h-full flex items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : dbNodes.length === 0 ? (
+          ) : clientGroups.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center">
-              <Sparkles className="h-10 w-10 text-muted-foreground" />
+              <Building2 className="h-10 w-10 text-muted-foreground" />
               <div>
-                <p className="text-base font-semibold text-foreground mb-1">Esteira vazia</p>
+                <p className="text-base font-semibold text-foreground mb-1">Nenhum cliente na esteira</p>
                 <p className="text-xs text-muted-foreground max-w-md">
-                  Adicione o cliente e use a paleta lateral para criar nodes em cada etapa do método ACELERA. Cada node é um projeto vivo (Briefing, Landing, Site, Automação, IA, Conteúdo…) com copy, links, checklist e métricas.
+                  Cada cliente tem sua própria esteira de produção, com histórico, contexto e nodes isolados.
+                  Comece adicionando uma pasta de cliente.
                 </p>
               </div>
               <div className="flex gap-2 mt-2 flex-wrap justify-center">
-                <Button size="sm" variant="outline" onClick={() => setClientPickerOpen(true)}>
+                <Button size="sm" onClick={() => setClientPickerOpen(true)}>
                   <Building2 className="h-3.5 w-3.5 mr-1" /> Adicionar cliente
                 </Button>
-                <Button size="sm" onClick={handleGenerateBase} disabled={busyAction === "base"}>
+                <Button size="sm" variant="outline" onClick={handleGenerateBase} disabled={busyAction === "base"}>
                   <Sparkles className="h-3.5 w-3.5 mr-1" /> Gerar esteira inicial
                 </Button>
               </div>
             </div>
+          ) : scopedProjectNodes.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center relative">
+              <Sparkles className="h-10 w-10 text-muted-foreground" />
+              <div>
+                <p className="text-base font-semibold text-foreground mb-1">
+                  Esteira de {clientGroups.find((c) => c.id === activeClientId)?.title ?? "todos os clientes"} vazia
+                </p>
+                <p className="text-xs text-muted-foreground max-w-md">
+                  Use a paleta lateral ou o botão abaixo para começar a esteira deste cliente.
+                  Cada etapa ACELERA tem seus próprios tipos de node.
+                </p>
+              </div>
+              <div className="flex gap-2 mt-2 flex-wrap justify-center">
+                <Button size="sm" onClick={() => setAdvancedOpen(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar primeiro node
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleGenerateBase} disabled={busyAction === "base"}>
+                  <Sparkles className="h-3.5 w-3.5 mr-1" /> Gerar Briefing → Landing
+                </Button>
+              </div>
+            </div>
           ) : (
-            <>
-              <ReactFlow
-                nodes={rfNodes}
-                edges={rfEdges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                onNodeClick={onNodeClick}
-                nodeTypes={nodeTypes}
-                fitView
-                fitViewOptions={{ padding: 0.3, maxZoom: 1 }}
-                proOptions={{ hideAttribution: true }}
-                className="bg-background"
-                defaultEdgeOptions={{ type: "smoothstep", animated: true }}
-              >
-                <StageLanesBg height={STAGE_BAND_HEIGHT} offsetY={CONTENT_TOP - 12} />
-                <Background gap={24} size={1} className="opacity-30" />
-                <Controls className="!bg-card !border-border" />
-                <MiniMap className="!bg-card !border-border" nodeColor={() => "hsl(var(--primary))"} pannable zoomable />
-              </ReactFlow>
-
-            </>
+            <ReactFlow
+              nodes={rfNodes}
+              edges={rfEdges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onNodeClick={onNodeClick}
+              nodeTypes={nodeTypes}
+              fitView
+              fitViewOptions={{ padding: 0.4 }}
+              minZoom={0.2}
+              maxZoom={2}
+              panOnDrag
+              panOnScroll={false}
+              zoomOnScroll
+              zoomOnPinch
+              zoomOnDoubleClick={false}
+              selectionOnDrag={false}
+              proOptions={{ hideAttribution: true }}
+              className="bg-background"
+              defaultEdgeOptions={{ type: "smoothstep", animated: true }}
+            >
+              <StageLanesBg height={STAGE_BAND_HEIGHT} offsetY={CONTENT_TOP - 12} />
+              <Background gap={24} size={1} className="opacity-30" />
+              <Controls className="!bg-card !border-border" showInteractive={false} />
+              <MiniMap
+                className="!bg-card !border-border"
+                nodeColor={() => "hsl(var(--primary))"}
+                pannable
+                zoomable
+              />
+            </ReactFlow>
           )}
         </div>
 
         {/* Right inspector — adapted: filters + list */}
         <CanvasInspectorAdapter
-          nodes={projectNodes}
+          nodes={scopedProjectNodes}
           edges={dbEdges.length}
           search={search}
           onSearch={setSearch}
