@@ -28,7 +28,10 @@ const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const AI_MODEL = "google/gemini-3-flash-preview";
 
 type FieldType = "text" | "textarea" | "list" | "kv" | "checklist" | "attachments";
-type PrefillSource = "briefing" | "context" | "metrics" | "fronts" | "client" | "assets" | "siblings" | "diagnostico_docs";
+type PrefillSource =
+  | "briefing" | "context" | "metrics" | "fronts" | "client" | "assets" | "siblings" | "diagnostico_docs"
+  // Auto-contexto universal:
+  | "dossier" | "tasks" | "timeline" | "workspace_assets";
 
 interface BlueprintField { id: string; label: string; type: FieldType; hint?: string; decisionOnly?: boolean }
 interface BlueprintSection { id: string; title: string; description?: string; fields: BlueprintField[] }
