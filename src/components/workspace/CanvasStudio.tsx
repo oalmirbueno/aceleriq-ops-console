@@ -5,9 +5,10 @@ import {
   type Node, type Edge, type NodeChange, type EdgeChange, type Connection,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search } from "lucide-react";
+import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Settings2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -211,23 +212,22 @@ function CanvasStudioInner({
   type QuickAddState = { open: boolean; sourceId: string | null; dir: "right" | "bottom" | null };
   const [quickAddState, setQuickAddState] = useState<QuickAddState>({ open: false, sourceId: null, dir: null });
 
-  // Toggle MiniMap (persistido) — alguns usuários acham que polui
-  const [showMiniMap, setShowMiniMap] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return localStorage.getItem("canvas:showMiniMap") !== "0";
-  });
-  useEffect(() => {
-    localStorage.setItem("canvas:showMiniMap", showMiniMap ? "1" : "0");
-  }, [showMiniMap]);
+  // Prefs visuais do canvas (persistidas em localStorage)
+  const usePref = (key: string, defaultOn: boolean) => {
+    const [v, setV] = useState<boolean>(() => {
+      if (typeof window === "undefined") return defaultOn;
+      const stored = localStorage.getItem(key);
+      if (stored === null) return defaultOn;
+      return stored !== "0";
+    });
+    useEffect(() => { localStorage.setItem(key, v ? "1" : "0"); }, [v, key]);
+    return [v, setV] as const;
+  };
 
-  // Toggle Controls (zoom in/out/fit) — atrapalham em telas pequenas
-  const [showControls, setShowControls] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return localStorage.getItem("canvas:showControls") !== "0";
-  });
-  useEffect(() => {
-    localStorage.setItem("canvas:showControls", showControls ? "1" : "0");
-  }, [showControls]);
+  const [showMiniMap, setShowMiniMap] = usePref("canvas:showMiniMap", true);
+  const [showControls, setShowControls] = usePref("canvas:showControls", true);
+  const [showLanes, setShowLanes] = usePref("canvas:showLanes", true);
+  const [showGrid, setShowGrid] = usePref("canvas:showGrid", true);
 
   /* DB → ReactFlow */
   useEffect(() => {
@@ -959,9 +959,8 @@ function CanvasStudioInner({
               className="bg-background canvas-flow"
               defaultEdgeOptions={{ type: "smoothstep", animated: true }}
             >
-              <StageLanesBg height={STAGE_BAND_HEIGHT} offsetY={CONTENT_TOP - 12} />
-              <Background gap={24} size={1} className="opacity-30" />
-              <Controls showInteractive={false} />
+              {showLanes && <StageLanesBg height={STAGE_BAND_HEIGHT} offsetY={CONTENT_TOP - 12} />}
+              {showGrid && <Background gap={24} size={1} className="opacity-30" />}
               <CanvasStageNavigator
                 counts={scopedProjectNodes.reduce<Record<string, number>>((acc, n) => {
                   const k = nodeStageOf(n);
@@ -978,29 +977,14 @@ function CanvasStudioInner({
                   zoomable
                 />
               )}
-              {/* Toggles cluster — sobreposto, canto inferior direito */}
-              <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-md border border-border bg-card/95 backdrop-blur-sm shadow-md p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setShowControls((v) => !v)}
-                  className={`h-6 px-2 rounded text-[10px] font-medium transition-colors ${
-                    showControls ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
-                  }`}
-                  title={showControls ? "Ocultar zoom controls" : "Mostrar zoom controls"}
-                >
-                  Zoom
-                </button>
-                <div className="h-3 w-px bg-border/60" />
-                <button
-                  type="button"
-                  onClick={() => setShowMiniMap((v) => !v)}
-                  className={`h-6 px-2 rounded text-[10px] font-medium transition-colors ${
-                    showMiniMap ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
-                  }`}
-                  title={showMiniMap ? "Ocultar minimapa" : "Mostrar minimapa"}
-                >
-                  Mapa
-                </button>
+              {/* Menu de opções visuais — engrenagem no canto inferior direito */}
+              <div className="absolute bottom-3 right-3 z-10">
+                <CanvasViewOptions
+                  showLanes={showLanes}       onToggleLanes={() => setShowLanes((v) => !v)}
+                  showGrid={showGrid}         onToggleGrid={() => setShowGrid((v) => !v)}
+                  showControls={showControls} onToggleControls={() => setShowControls((v) => !v)}
+                  showMiniMap={showMiniMap}   onToggleMiniMap={() => setShowMiniMap((v) => !v)}
+                />
               </div>
             </ReactFlow>
           )}
@@ -1156,5 +1140,92 @@ export default function CanvasStudio(props: Props) {
     <ReactFlowProvider>
       <CanvasStudioInner {...props} />
     </ReactFlowProvider>
+  );
+}
+
+/* ─── Canvas view options popover ─────────────────────────────────────────
+ * Engrenagem flutuante que agrupa as preferências visuais do canvas:
+ * lanes de estágio, grade do background, zoom controls e minimapa.
+ * Cada toggle é persistido no localStorage via usePref (ver CanvasStudioInner).
+ */
+interface CanvasViewOptionsProps {
+  showLanes: boolean;     onToggleLanes: () => void;
+  showGrid: boolean;      onToggleGrid: () => void;
+  showControls: boolean;  onToggleControls: () => void;
+  showMiniMap: boolean;   onToggleMiniMap: () => void;
+}
+
+function CanvasViewOptions({
+  showLanes, onToggleLanes,
+  showGrid, onToggleGrid,
+  showControls, onToggleControls,
+  showMiniMap, onToggleMiniMap,
+}: CanvasViewOptionsProps) {
+  const items: Array<{ key: string; label: string; desc: string; on: boolean; toggle: () => void }> = [
+    { key: "lanes",    label: "Lanes do A.C.E.L.E.R.A", desc: "Faixas verticais por estágio",    on: showLanes,    toggle: onToggleLanes },
+    { key: "grid",     label: "Grade do fundo",          desc: "Pontilhado de referência",       on: showGrid,     toggle: onToggleGrid },
+    { key: "controls", label: "Controles de zoom",       desc: "Botões zoom in / out / fit",     on: showControls, toggle: onToggleControls },
+    { key: "minimap",  label: "Minimapa",                desc: "Visão geral no canto",           on: showMiniMap,  toggle: onToggleMiniMap },
+  ];
+  const onCount = items.filter((i) => i.on).length;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label="Opções de visualização do canvas"
+          title="Opções de visualização"
+          className="flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-border bg-card/95 backdrop-blur-sm shadow-md text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+        >
+          <Settings2 className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Visualização</span>
+          <span className="text-[9px] tabular-nums opacity-70">{onCount}/{items.length}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="end"
+        sideOffset={8}
+        className="w-64 p-1.5"
+      >
+        <div className="px-2 pt-1.5 pb-1">
+          <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">
+            Opções do canvas
+          </p>
+        </div>
+        <div className="flex flex-col">
+          {items.map((it) => (
+            <button
+              key={it.key}
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={it.on}
+              onClick={it.toggle}
+              className="flex items-start gap-2 w-full text-left px-2 py-1.5 rounded-md hover:bg-muted/60 transition-colors"
+            >
+              <span
+                className={`mt-0.5 h-4 w-4 rounded-sm border flex items-center justify-center shrink-0 transition-colors ${
+                  it.on
+                    ? "bg-primary/20 border-primary text-primary"
+                    : "border-border text-transparent"
+                }`}
+                aria-hidden
+              >
+                <Check className="h-3 w-3" />
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-xs font-medium leading-tight text-foreground">
+                  {it.label}
+                </span>
+                <span className="block text-[10px] text-muted-foreground leading-tight">
+                  {it.desc}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
