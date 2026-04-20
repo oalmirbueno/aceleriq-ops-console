@@ -889,125 +889,293 @@ const ASSET: NodeBlueprint = {
 
 const LANCAMENTO: NodeBlueprint = {
   kind: "lancamento",
-  purpose: "Go-live coordenado — checklist + comunicação + monitoramento.",
+  purpose:
+    "Go-live coordenado — timeline T-7 → T+1 detalhada, checklist por fase, " +
+    "comunicação multi-canal, war-room ao vivo, plano B documentado e retro pós-launch.",
   methodChecklist: [
-    { id: "prelaunch", label: "Checklist pré-launch 100%",       required: true },
-    { id: "comms",     label: "Comunicação preparada",           required: true },
-    { id: "rollback",  label: "Plano de rollback documentado",   required: true },
-    { id: "monitor",   label: "Monitoramento ativo nas 1ªs 24h", required: true },
-    { id: "retro",     label: "Retro feita em até 7 dias",       required: false },
+    { id: "scope_locked",   label: "Escopo congelado em T-7 (sem novidades)",        required: true  },
+    { id: "owners_clear",   label: "Owner por fase da timeline definido",            required: true  },
+    { id: "prelaunch_done", label: "Checklist pré-launch 100% verde em T-1",         required: true  },
+    { id: "warmup_started", label: "Aquecimento de público/lista iniciado em T-7",   required: true  },
+    { id: "comms_scheduled",label: "Comunicação por canal agendada com horário",     required: true  },
+    { id: "warroom_ready",  label: "War-room marcada (canal, hora, presentes)",      required: true  },
+    { id: "rollback_doc",   label: "Plano de rollback documentado e testado",        required: true  },
+    { id: "monitor_live",   label: "Monitoramento ativo (dashboard + alertas)",      required: true  },
+    { id: "retro_done",     label: "Retro feita em até 7 dias com learnings",        required: false },
   ],
   sections: [
     {
       id: "scope", title: "O que está lançando",
+      description: "Define perímetro: o que vai e o que NÃO vai junto.",
       fields: [
-        { id: "what",       label: "Resumo do que vai ao ar",  type: "textarea" },
-        { id: "audience",   label: "Quem vai ver/usar",         type: "text" },
-        { id: "date",       label: "Data e horário do go-live", type: "text", decisionOnly: true },
+        { id: "what",        label: "O que vai ao ar (resumo)",       type: "textarea" },
+        { id: "out_of_scope",label: "Fora do escopo deste launch",    type: "list",     hint: "Pra evitar scope creep no dia D" },
+        { id: "audience",    label: "Público / segmento alvo",        type: "text" },
+        { id: "expected_volume", label: "Volume esperado",            type: "text",     hint: "Leads, vendas, sessões esperadas no D-day" },
+        { id: "go_live_at",  label: "Data e horário do go-live (T0)", type: "text",     decisionOnly: true, hint: "Inclua timezone — ex: 25/04 10:00 BRT" },
+        { id: "launch_owner",label: "Launch owner (uma pessoa só)",   type: "text",     decisionOnly: true },
       ],
     },
     {
-      id: "prelaunch", title: "Checklist pré-launch",
+      id: "timeline", title: "Timeline T-7 → T+1 (master schedule)",
+      description:
+        "Quem faz o quê em CADA dia. Use formato 'T-N | tarefa | owner | horário | status'. " +
+        "Tudo que não estiver aqui vai ser esquecido.",
       fields: [
-        { id: "items", label: "Itens obrigatórios", type: "checklist", hint: "Tracking, backup, redirects, copy, visual..." },
+        { id: "t_minus_7", label: "T-7 — escopo congelado, aquecimento e comms preparada", type: "list", hint: "Lock de escopo; teaser interno; lista de imprensa; aquecer pixel; brief afiliados" },
+        { id: "t_minus_5", label: "T-5 — criativos finais e QA",                            type: "list", hint: "Aprovação final de copy/visual; QA de tracking; staging review" },
+        { id: "t_minus_3", label: "T-3 — soft warmup público externo",                      type: "list", hint: "Stories de bastidor; e-mail teaser; ads de awareness no público quente" },
+        { id: "t_minus_2", label: "T-2 — agendamentos e checagem técnica",                  type: "list", hint: "Agendar posts/emails/ads; double-check redirects, SSL, DNS, fallback" },
+        { id: "t_minus_1", label: "T-1 — pré-launch checklist 100% e dry-run",              type: "list", hint: "Run final do checklist; dry-run do war-room; confirmar plantão; congelar deploys" },
+        { id: "t_zero",    label: "T0 — GO-LIVE (hora a hora)",                             type: "list", hint: "H-1 war-room aberta; H0 publicar; H+1 confirmar tracking; H+2 1ª revisão; H+6 ajuste; H+12 review noturno" },
+        { id: "t_plus_1",  label: "T+1 — estabilização e primeiro report",                  type: "list", hint: "Validar tracking 24h; resolver bugs; report inicial pro cliente; planejar otimização semana 1" },
       ],
     },
     {
-      id: "comms", title: "Plano de comunicação",
+      id: "warmup", title: "Aquecimento (T-7 → T-1)",
+      description: "Pré-aquecer público frio e quente — launch sem aquecimento é tiro no escuro.",
       fields: [
-        { id: "channels", label: "Canais a anunciar",   type: "list" },
-        { id: "messages", label: "Mensagens por canal", type: "kv", hint: "canal → texto" },
-        { id: "owner",    label: "Quem dispara cada um", type: "kv", decisionOnly: true },
+        { id: "audience_warmup", label: "Aquecimento de público pago",  type: "list",     hint: "Vídeos de awareness 5-15s rodando T-7 a T-2 pra Lookalikes; engajamento de stories; remarketing prep" },
+        { id: "list_warmup",     label: "Aquecimento de lista (email)", type: "list",     hint: "3-5 emails de pré-launch: storytelling → educação → escassez → abertura" },
+        { id: "organic_warmup",  label: "Aquecimento orgânico",         type: "list",     hint: "Conteúdo educativo no perfil; lives de bastidor; FAQ pública" },
+        { id: "partners_brief",  label: "Brief pra parceiros/afiliados", type: "textarea", hint: "Mensagem-base, datas, materiais, comissão, links UTM" },
       ],
     },
     {
-      id: "rollback", title: "Plano B",
+      id: "prelaunch", title: "Checklist pré-launch (T-1)",
+      description: "Tudo verde antes do go-live. Item vermelho = adia ou aborta.",
       fields: [
-        { id: "triggers", label: "Quando reverter (gatilhos)", type: "list" },
-        { id: "steps",    label: "Passos do rollback",         type: "list" },
+        { id: "tech",      label: "Técnico",       type: "checklist", hint: "DNS, SSL, redirects, backup, performance, 404 handling, fallback page" },
+        { id: "tracking",  label: "Tracking & analytics", type: "checklist", hint: "Pixels, conversões, UTM, dashboards ao vivo, alertas configurados" },
+        { id: "content",   label: "Conteúdo & copy",      type: "checklist", hint: "Copy final, visual aprovado, vídeos no servidor, legendas, alt-text" },
+        { id: "comms",     label: "Comunicação",          type: "checklist", hint: "Posts agendados, emails na fila, anúncios em revisão, ICs prontos" },
+        { id: "ops",       label: "Operação & suporte",   type: "checklist", hint: "Atendimento escalado, FAQ atualizado, scripts pra suporte, plantão definido" },
+        { id: "legal",     label: "Legal & compliance",   type: "checklist", hint: "Termos, privacidade, LGPD, claims revisados pelo jurídico se aplicável" },
       ],
     },
     {
-      id: "monitor", title: "Monitoramento",
+      id: "comms", title: "Plano de comunicação (multi-canal)",
+      description: "Por canal: mensagem, horário, owner, KPI.",
       fields: [
-        { id: "metrics",   label: "Métricas a acompanhar",  type: "list" },
-        { id: "thresholds",label: "Thresholds de alerta",   type: "kv", hint: "métrica → limite" },
+        { id: "channels_matrix", label: "Matriz canal × horário", type: "kv", hint: "Email blast→T0 09:00 | Stories→T0 10:00 | Ads boost→T0 10:15 | WhatsApp→T0 11:00" },
+        { id: "messages",        label: "Mensagem-chave por canal", type: "kv", hint: "canal → texto curto (160 chars)" },
+        { id: "owner_per_channel", label: "Owner por canal",       type: "kv", decisionOnly: true },
+        { id: "kpi_per_channel",   label: "KPI por canal",         type: "kv", hint: "Email → open >35%; Ads → CTR >2%; Stories → reply >50" },
+        { id: "press_kit_url",     label: "URL do press kit / materiais", type: "text", decisionOnly: true },
+      ],
+    },
+    {
+      id: "warroom", title: "War-room do go-live",
+      description: "Sala única coordenando o lançamento ao vivo. Sem war-room = caos distribuído.",
+      fields: [
+        { id: "channel",     label: "Canal da war-room",         type: "text",     decisionOnly: true, hint: "Slack #launch-x / Discord / Meet sempre aberto" },
+        { id: "schedule",    label: "Janela ativa",              type: "text",     hint: "Ex: T0-1h até T0+12h, plantão noturno depois" },
+        { id: "roles",       label: "Papéis presentes",          type: "kv",       hint: "Launch lead → ; Tech on-call → ; Atendimento → ; Mídia → ; Comms → ; Cliente → " },
+        { id: "checkpoints", label: "Checkpoints regulares",     type: "list",     hint: "H-30min status técnico; H0 GO; H+15 tracking; H+1 funil; H+3 ajuste; H+6 review; H+12 entrega plantão" },
+        { id: "decision_log", label: "Log de decisões",          type: "list",     decisionOnly: true, hint: "Toda decisão tomada no calor do launch — pra retro depois" },
+      ],
+    },
+    {
+      id: "rollback", title: "Plano B / rollback",
+      description: "Documente ANTES do launch — depois é tarde.",
+      fields: [
+        { id: "triggers",      label: "Quando reverter (gatilhos objetivos)", type: "list", hint: "Conversão <X% por 30min; erro 5xx >2%; CPL 3x acima do estimado; bug de pagamento" },
+        { id: "rollback_steps",label: "Passos do rollback",                    type: "list", hint: "Passo 1: pausar ads; 2: tirar página; 3: reverter DNS; 4: comunicar; 5: post-mortem" },
+        { id: "fallback",      label: "Fallback (versão segura)",              type: "text", hint: "URL/branch/release pra subir caso precise" },
+        { id: "comms_rollback",label: "Comunicação de rollback",               type: "textarea", hint: "Mensagem pronta pra cliente, lista, suporte — caso precise reverter" },
+      ],
+    },
+    {
+      id: "monitor", title: "Monitoramento (T0 → T+1)",
+      description: "Dashboards ao vivo + alertas automáticos. Métricas com threshold.",
+      fields: [
+        { id: "dashboards", label: "Dashboards ao vivo",     type: "list",        hint: "URL → o que acompanhar (vendas, CPL, latência, erro 5xx, CTR)" },
+        { id: "metrics",    label: "Métricas críticas",      type: "list" },
+        { id: "thresholds", label: "Thresholds de alerta",   type: "kv",          hint: "métrica → limite + canal de alerta" },
+        { id: "report_t0",  label: "Report T0+6h",           type: "textarea",    decisionOnly: true, hint: "Mini-report pra cliente: o que aconteceu nas 1ªs 6h" },
+        { id: "report_t_plus_1", label: "Report T+1 (24h)",  type: "textarea",    decisionOnly: true, hint: "Volume, conversão, CPL, anomalias, próximos passos" },
+      ],
+    },
+    {
+      id: "retro", title: "Retro pós-launch (até T+7)",
+      description: "Sem retro, todo learning vira anedota. Ritual obrigatório.",
+      fields: [
+        { id: "what_worked",  label: "O que funcionou",                   type: "list", decisionOnly: true },
+        { id: "what_failed",  label: "O que falhou (com causa-raiz)",     type: "list", decisionOnly: true },
+        { id: "surprises",    label: "Surpresas / contraintuitivos",       type: "list", decisionOnly: true },
+        { id: "playbook_updates", label: "Atualizações no playbook",       type: "list", decisionOnly: true, hint: "O que vira regra pros próximos launches" },
+      ],
+    },
+    {
+      id: "links", title: "Links e anexos",
+      fields: [
+        { id: "warroom_url",   label: "Link da war-room",        type: "text", decisionOnly: true },
+        { id: "dashboard_url", label: "Dashboard principal",     type: "text", decisionOnly: true },
+        { id: "press_kit_url", label: "Press kit",               type: "text", decisionOnly: true },
+        { id: "files",         label: "Anexos (briefing, scripts, materiais)", type: "attachments" },
       ],
     },
   ],
   quickActions: [
     { id: "go_live",        label: "Iniciar go-live", primary: true },
-    { id: "generate_tasks", label: "Gerar tasks de pré-launch" },
+    { id: "generate_tasks", label: "Gerar tasks da timeline T-7→T+1" },
     { id: "create_snapshot",label: "Snapshot pós-launch" },
+    { id: "schedule_meeting", label: "Agendar war-room" },
+    { id: "export_pdf",     label: "Exportar runbook" },
     { id: "regenerate_prefill", label: "Regenerar com IA" },
   ],
   sources: ["briefing","siblings","metrics"],
   prefillPrompt:
-    "Você é PM rodando launch. Checklist pré-launch deve cobrir: tracking, backup, redirects, " +
-    "copy revisada, visual aprovado, comunicação, monitoramento. " +
-    "Nunca invente data — marque como decisão humana.",
+    "Você é launch manager experiente coordenando go-live multi-canal. " +
+    "Timeline T-7 → T+1: preencha CADA dia com 3-6 itens concretos no formato 'tarefa | owner sugerido | horário'. " +
+    "Em T0, quebre por hora (H-1, H0, H+1, H+3, H+6, H+12). " +
+    "Aquecimento: separe pago (vídeos awareness pra Lookalike), lista (3-5 emails) e orgânico (stories, lives). " +
+    "Pré-launch checklist: 4-8 itens por categoria (técnico, tracking, conteúdo, comms, ops, legal). " +
+    "Comms: matriz canal × horário concreta com KPI por canal — não genérica. " +
+    "War-room: defina papéis explícitos (launch lead, tech on-call, atendimento, mídia, comms, cliente) e checkpoints regulares. " +
+    "Rollback: gatilhos OBJETIVOS (não 'se der ruim') — números e janelas. " +
+    "Para datas/horários, owners reais, URLs, decision_log, reports e seção retro: origin='empty' — humano preenche. " +
+    "Use o briefing pra escolher canais e tom; use métricas/snapshots pra calibrar volume esperado e thresholds.",
 };
 
 const CAMPANHA: NodeBlueprint = {
   kind: "trafego",
-  purpose: "Campanha de tráfego paga — público, criativo, oferta, mensuração.",
+  purpose:
+    "Campanha de tráfego pago — matriz criativos × públicos × ofertas, budget por canal, " +
+    "instrumentação completa (pixel/CAPI), guardrails de iBBA e cadência de otimização.",
   methodChecklist: [
-    { id: "audience", label: "Públicos definidos",            required: true },
-    { id: "creative", label: "Criativos aprovados",           required: true },
-    { id: "tracking", label: "Eventos de conversão validados", required: true },
-    { id: "budget",   label: "Budget alocado",                required: true },
-    { id: "review",   label: "Review semanal agendada",       required: true },
+    { id: "objective_clear", label: "Objetivo + KPI primário com meta numérica",          required: true  },
+    { id: "audience_matrix", label: "Matriz de públicos (frio + quente + LAL + custom)",  required: true  },
+    { id: "creative_matrix", label: "Matriz de criativos (3+ ângulos × 3+ formatos)",     required: true  },
+    { id: "offer_variants",  label: "Variantes de oferta/CTA testáveis",                  required: true  },
+    { id: "budget_split",    label: "Budget alocado por canal/fase com daily cap",        required: true  },
+    { id: "pixel_capi",      label: "Pixel + Conversions API (CAPI) instalados e batidos", required: true  },
+    { id: "events_validated", label: "Eventos de conversão validados em modo teste",      required: true  },
+    { id: "utm_taxonomy",    label: "Taxonomia UTM padronizada e documentada",            required: true  },
+    { id: "guardrails_set",  label: "Guardrails (CPA máx, frequência máx) definidos",     required: true  },
+    { id: "review_cadence",  label: "Cadência de otimização agendada (3x/semana mín.)",   required: true  },
+    { id: "scaling_rules",   label: "Regras de escala (CBO/ABO + critérios) escritas",    required: false },
   ],
   sections: [
     {
       id: "objective", title: "Objetivo da campanha",
+      description: "Sem KPI numérico, otimização vira achismo.",
       fields: [
-        { id: "goal",        label: "Objetivo (lead/venda/awareness)", type: "text" },
-        { id: "kpi",         label: "KPI principal + meta",            type: "text", hint: "CPL <R$X / ROAS >Y" },
-        { id: "horizon",     label: "Período da campanha",             type: "text", decisionOnly: true },
+        { id: "goal",            label: "Objetivo (awareness/leads/venda/retenção)", type: "text" },
+        { id: "primary_kpi",     label: "KPI primário + meta",           type: "text", hint: "CPL <R$45 / ROAS >2,5x / CPA <R$120" },
+        { id: "guardrail_kpis",  label: "KPIs guardrail",                type: "list", hint: "CTR mín, frequência máx, custo CPM, qualidade do lead" },
+        { id: "horizon",         label: "Período / fases da campanha",   type: "text", decisionOnly: true, hint: "Ex: Aquecimento 7d → Conversão 14d → Escala 14d" },
+        { id: "channels",        label: "Canais ativos",                 type: "list", hint: "Meta Ads, Google Ads, TikTok, LinkedIn, YouTube, Pinterest" },
       ],
     },
     {
-      id: "audiences", title: "Públicos",
+      id: "audiences", title: "Públicos (matriz fria → quente)",
+      description: "Estrutura padrão: 3 temperaturas × N variações por canal.",
       fields: [
-        { id: "primary",   label: "Público primário",     type: "textarea" },
-        { id: "lookalikes",label: "Lookalikes / similares", type: "list" },
-        { id: "exclusions", label: "Exclusões",           type: "list" },
+        { id: "cold",         label: "Frio (interesses + demographics)", type: "list", hint: "Interesses ⊕/⊖, idade, gênero, geo, devices" },
+        { id: "lookalikes",   label: "Lookalikes / Similar Audiences",   type: "list", hint: "1%, 2%, 5% baseados em compradores, leads qualificados, top 25% LTV" },
+        { id: "warm_engage",  label: "Quente — engajamento",             type: "list", hint: "Engajou IG/FB 30/90d; assistiu 50%+ vídeo; visitou perfil" },
+        { id: "warm_traffic", label: "Quente — tráfego site",            type: "list", hint: "All visitors 30/90d; pageview específico; tempo >X" },
+        { id: "hot_intent",   label: "Hot — intenção alta",              type: "list", hint: "Add-to-cart sem compra 7d; iniciou checkout; abandonou form" },
+        { id: "custom_lists", label: "Custom (listas e CRM)",            type: "list", hint: "Compradores 365d (excluir), leads não convertidos, base de email" },
+        { id: "exclusions",   label: "Exclusões obrigatórias",           type: "list", hint: "Compradores recentes, equipe interna, leads em atendimento" },
       ],
     },
     {
-      id: "creative", title: "Criativo",
+      id: "creatives", title: "Criativos (matriz ângulos × formatos)",
+      description:
+        "Ângulo = a história que o criativo conta. Formato = embalagem. " +
+        "Mínimo 3×3 = 9 criativos pra ler sinal estatístico.",
       fields: [
-        { id: "angles",   label: "Ângulos a testar (3-5)",  type: "list" },
-        { id: "formats",  label: "Formatos",                 type: "list", hint: "Static, vídeo, carrossel..." },
-        { id: "ctas",     label: "CTAs a testar",            type: "list" },
+        { id: "angles",       label: "Ângulos (histórias) — 3-5",            type: "list", hint: "Dor, desejo, prova social, autoridade, contraintuitivo, urgência, benefício direto" },
+        { id: "formats",      label: "Formatos por canal",                    type: "kv",   hint: "Meta → Reels 9:16, carrossel, static; Google → Search RSA, Display, YT 6s/15s" },
+        { id: "hooks",        label: "Hooks (3 primeiros segundos)",          type: "list", hint: "Pergunta direta, polêmica, mostrar resultado, mostrar dor" },
+        { id: "ctas",         label: "CTAs a testar",                         type: "list", hint: "Saiba mais, Quero garantir, Cadastre-se grátis, Falar no WhatsApp" },
+        { id: "matrix",       label: "Matriz criativa (ângulo × formato → status)", type: "kv", hint: "ang_dor×reels→produzir | ang_prova×carrossel→pronto | ang_autoridade×static→aprovação" },
+        { id: "iteration",    label: "Plano de renovação criativa",           type: "text", hint: "Trocar 30% dos criativos a cada 7-14 dias pra evitar fadiga" },
       ],
     },
     {
-      id: "budget", title: "Budget",
+      id: "offer", title: "Oferta e mensagem por temperatura",
+      description: "Oferta certa pro estágio errado mata campanha.",
       fields: [
-        { id: "total",      label: "Budget total",      type: "text", decisionOnly: true },
-        { id: "split",      label: "Distribuição por canal/público", type: "kv" },
+        { id: "offer_cold",  label: "Oferta para FRIO",   type: "textarea", hint: "Educar / iscas / lead magnet / desconto suave" },
+        { id: "offer_warm",  label: "Oferta para QUENTE", type: "textarea", hint: "Trial, demo, prova social pesada, comparativo" },
+        { id: "offer_hot",   label: "Oferta para HOT",    type: "textarea", hint: "Urgência, escassez, bônus, recuperação de carrinho" },
+        { id: "value_props", label: "Big idea / promessa central", type: "textarea", hint: "1 frase que define a campanha toda" },
       ],
     },
     {
-      id: "tracking", title: "Mensuração",
+      id: "budget", title: "Budget e estrutura de campanhas",
+      description:
+        "Estrutura recomendada: ABO no aquecimento (controle), CBO na escala (eficiência). " +
+        "Daily cap obriga teste de fatia honesta.",
       fields: [
-        { id: "events",       label: "Eventos rastreados",      type: "list" },
-        { id: "attribution",  label: "Modelo de atribuição",    type: "text" },
-        { id: "review_cad",   label: "Cadência de otimização",  type: "text" },
+        { id: "total",         label: "Budget total",                  type: "text", decisionOnly: true, hint: "Período inteiro" },
+        { id: "daily_cap",     label: "Daily cap por adset/campanha",  type: "text", decisionOnly: true, hint: "Ex: ABO R$80/adset; CBO R$300/campanha" },
+        { id: "split_channel", label: "Split por canal",               type: "kv",   hint: "Meta Ads: 60% | Google: 25% | TikTok: 10% | YouTube: 5%" },
+        { id: "split_phase",   label: "Split por fase",                type: "kv",   hint: "Aquecimento: 20% | Conversão: 50% | Escala: 30%" },
+        { id: "split_audience",label: "Split por temperatura",         type: "kv",   hint: "Frio 50% | Quente 30% | Hot 20%" },
+        { id: "structure",     label: "Estrutura (ABO/CBO/Advantage+)", type: "text", hint: "Aquecimento ABO; escala CBO ou Advantage+ Shopping" },
+      ],
+    },
+    {
+      id: "tracking", title: "Pixel, CAPI e instrumentação",
+      description:
+        "Sem pixel + CAPI batendo, otimização do algoritmo é cega. " +
+        "Browser-only morreu com iOS 14.5 — server-side é mandatório.",
+      fields: [
+        { id: "pixels",        label: "Pixels instalados",           type: "kv",       hint: "Meta Pixel ID → ; Google gtag → ; TikTok Pixel → ; LinkedIn Insight → ; GA4 → " },
+        { id: "capi",          label: "Conversions API / server-side", type: "kv",     hint: "Meta CAPI: ON via GTM SS / Stape / Zapier; Google Enhanced Conv: ON; TikTok Events API: ON" },
+        { id: "events",        label: "Eventos rastreados (mapeados)", type: "list",   hint: "PageView, ViewContent, Lead, InitiateCheckout, AddPaymentInfo, Purchase, custom_qualified_lead" },
+        { id: "deduplication", label: "Deduplicação (event_id)",      type: "text",    hint: "Mesmo event_id no browser e CAPI pra evitar dupla contagem" },
+        { id: "match_quality", label: "Event match quality alvo",     type: "text",    hint: "Meta EMQ ≥7 (envia email_hash, phone_hash, fbp, fbc, ip, user_agent)" },
+        { id: "consent",       label: "Consent mode (LGPD/GDPR)",     type: "text",    hint: "Consent banner integrado ao gtag/fbq antes de disparar eventos" },
+        { id: "test_mode",     label: "Validação em modo teste",      type: "checklist", hint: "Test events Meta verde; GA4 DebugView OK; tag assistant sem erros; CAPI status verde" },
+        { id: "attribution",   label: "Janela / modelo de atribuição", type: "text",   hint: "Meta 7d-click 1d-view; Google Data-Driven; comparar com modelo de marketing mix se houver" },
+        { id: "utm_taxonomy",  label: "Taxonomia UTM",                type: "kv",      hint: "source → meta/google/tiktok | medium → cpc/cpm | campaign → {objetivo}_{periodo} | content → {angulo}_{formato} | term → {publico}" },
+      ],
+    },
+    {
+      id: "guardrails", title: "Guardrails e regras de otimização",
+      description: "Definidos antes de subir — evita decisão emocional no calor da campanha.",
+      fields: [
+        { id: "kill_rules",    label: "Regras de matar criativo/adset", type: "list", hint: "CPA 2x meta após N conversões; CTR <0,8% com 3k impressions; freq >3,5 sem entrega" },
+        { id: "scale_rules",   label: "Regras de escala",               type: "list", hint: "Subir 20-30% a cada 48h se CPA <80% meta; duplicar pra LAL próximo se ROAS estável 7d" },
+        { id: "budget_shifts", label: "Realocação de budget",           type: "text", hint: "Toda 3ª/5ª: tirar de quem está acima da meta, colocar em quem está abaixo" },
+        { id: "review_cad",    label: "Cadência de otimização",         type: "text", hint: "Daily check 15min; análise profunda 3x/semana; review estratégica 1x/semana" },
+        { id: "anomaly_alerts", label: "Alertas automáticos",           type: "list", hint: "CPL +50% em 24h; impressões caem 80%; gasto sem conversão por X horas; ROAS <1" },
+      ],
+    },
+    {
+      id: "links", title: "Links e anexos",
+      fields: [
+        { id: "ad_account_url", label: "URL da Ads Manager",       type: "text", decisionOnly: true },
+        { id: "dashboard_url",  label: "Dashboard de mídia",       type: "text", decisionOnly: true, hint: "Looker Studio, Triple Whale, Hyros, planilha mestre" },
+        { id: "creative_drive", label: "Pasta de criativos",       type: "text", decisionOnly: true },
+        { id: "files",          label: "Briefings de criativo, prints, exports", type: "attachments" },
       ],
     },
   ],
   quickActions: [
     { id: "create_snapshot", label: "Snapshot inicial", primary: true },
-    { id: "generate_tasks",  label: "Gerar tasks de setup" },
+    { id: "generate_tasks",  label: "Gerar tasks de setup + criativos" },
+    { id: "link_asset",      label: "Vincular criativos" },
+    { id: "export_pdf",      label: "Exportar plano de mídia" },
     { id: "regenerate_prefill", label: "Regenerar com IA" },
   ],
   sources: ["briefing","siblings","metrics","fronts"],
   prefillPrompt:
-    "Você é mídia paga sênior. Use o objetivo do briefing pra escolher KPI. " +
-    "Sugira 3-5 ângulos criativos diferentes. Não chute budget — marque como decisão humana.",
+    "Você é head de mídia paga performance (Meta, Google, TikTok). Pensamento por matriz, não por lista. " +
+    "Use o objetivo do briefing pra escolher KPI primário com meta NUMÉRICA realista pro segmento — cite source. " +
+    "Públicos: gere matriz Frio×Quente×Hot com 2-4 variações cada, baseado no ICP do dossiê. " +
+    "Criativos: 3-5 ângulos coerentes com as dores do briefing × 3+ formatos por canal — preencha matriz status. " +
+    "Pixel + CAPI são obrigatórios — preencha sempre o checklist de validação ('Test events verde', 'EMQ ≥7'). " +
+    "Eventos: liste os 5-8 eventos canônicos do funil + 1-2 customs específicos do negócio. " +
+    "UTM: gere taxonomia padronizada com placeholders {} pra time copiar. " +
+    "Guardrails: regras com NÚMEROS (CPA 2x meta, CTR <0,8% com 3k impressions, freq >3,5). " +
+    "Para budget total/daily cap, IDs reais de pixel/conta, URLs de dashboard, datas e horizon: origin='empty'. " +
+    "Estrutura: recomende ABO no aquecimento e CBO/Advantage+ na escala — explique no citation por quê.",
 };
 
 const METRICA: NodeBlueprint = {
@@ -1200,34 +1368,6 @@ const IDEIA: NodeBlueprint = {
       ],
     },
     {
-      id: "experiment_design", title: "Desenho experimental (rigor)",
-      description:
-        "Defina parâmetros estatísticos antes de rodar — evita decisões em cima de ruído. " +
-        "MDE = Minimum Detectable Effect (menor lift que vale a pena detectar).",
-      fields: [
-        { id: "primary_metric",  label: "Métrica primária (OEC)",       type: "text",     hint: "Uma só. Ex: taxa de conversão checkout" },
-        { id: "guardrails",      label: "Métricas guardrail",           type: "list",     hint: "Não pioram: bounce, churn, ticket médio, NPS..." },
-        { id: "baseline",        label: "Baseline atual",               type: "text",     hint: "Ex: 3,2% conversão (média 30d)" },
-        { id: "mde",             label: "MDE — efeito mínimo detectável", type: "text",   hint: "Ex: lift relativo de 10% (3,2% → 3,52%)" },
-        { id: "alpha",           label: "α (significância)",            type: "text",     hint: "Padrão 0,05 — risco de falso positivo" },
-        { id: "power",           label: "Poder estatístico (1-β)",      type: "text",     hint: "Padrão 0,80 — chance de detectar efeito real" },
-        { id: "sample_size",     label: "Sample size por braço",        type: "text",     hint: "Calcule com Evan Miller / statsig calculator" },
-        { id: "duration_calc",   label: "Duração estimada",             type: "text",     hint: "sample_size × braços ÷ tráfego diário" },
-        { id: "split",           label: "Split de tráfego",             type: "text",     hint: "Ex: 50/50, 90/10 (canary)" },
-        { id: "stop_rules",      label: "Regras de parada",             type: "list",     hint: "Parar se guardrail cair X%, p<0,01 antes do prazo, etc." },
-      ],
-    },
-    {
-      id: "analysis_plan", title: "Plano de análise (pré-registrado)",
-      description: "Decidido ANTES da coleta — evita p-hacking e cherry picking.",
-      fields: [
-        { id: "test_method",     label: "Teste estatístico",            type: "text",     hint: "Z-test proporções / t-test / Mann-Whitney / Bayesian" },
-        { id: "segments",        label: "Segmentos pré-definidos",      type: "list",     hint: "Mobile/desktop, novo/recorrente, fonte de tráfego" },
-        { id: "exclusions",      label: "Critérios de exclusão",        type: "list",     hint: "Bots, sessões <5s, equipe interna, IPs internos" },
-        { id: "success_criteria", label: "Critério de sucesso",         type: "textarea", decisionOnly: true, hint: "Lift ≥ MDE com p<0,05 E nenhum guardrail piora >2%" },
-      ],
-    },
-    {
       id: "risks", title: "Riscos e suposições",
       fields: [
         { id: "assumptions", label: "Suposições críticas",   type: "list", hint: "Se falsa, a ideia cai" },
@@ -1263,11 +1403,7 @@ const IDEIA: NodeBlueprint = {
     "Use o briefing e contexto pra listar 3-5 evidências reais a favor/contra (sem inventar). " +
     "Em ICE, sugira números 1-10 com justificativa curta no citation. " +
     "Em 'test', proponha o experimento MAIS BARATO que decide a hipótese. " +
-    "Em 'experiment_design': calcule MDE realista a partir do baseline (lift relativo 5-20% típico), " +
-    "α=0,05 e power=0,80 padrão; sugira sample size aproximado (ex: '~12.500/braço para detectar 10% lift em 3% baseline'); " +
-    "liste 2-4 guardrails coerentes com a métrica primária. " +
-    "Em 'analysis_plan': escolha o teste correto pelo tipo da métrica (proporção → z-test; média → t-test ou Mann-Whitney). " +
-    "Para 'verdict', 'cost' e 'success_criteria', use origin=empty — são decisões humanas.",
+    "Para 'verdict' e 'cost', use origin=empty — são decisões humanas.",
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1732,350 +1868,174 @@ const IA_AGENT: NodeBlueprint = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// OTIMIZAÇÃO — blueprints especializados (compartilham kind, discriminados por título)
+// ATIVAÇÃO — CRM / Pipeline + automações de nutrição
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * EXPERIMENTO — kind 'documento' discriminado por título contendo
- * "experimento", "teste a/b", "split test". Drawer rigoroso com hipótese,
- * desenho estatístico (MDE/sample size/power), plano de análise pré-registrado,
- * resultados observados e decisão final (ship / kill / iterate).
+ * CRM — pipeline comercial + nutrição. Drawer cobre: estágios do pipeline com
+ * critérios de entrada/saída, definições de MQL/SQL, SLA por estágio, sequências
+ * de nutrição (email/WhatsApp), scoring, automações (HubSpot/RD/Pipedrive),
+ * playbook de SDR/closer e métricas operacionais.
  */
-const EXPERIMENTO: NodeBlueprint = {
-  kind: "documento",
+const CRM_PIPELINE: NodeBlueprint = {
+  kind: "crm",
   purpose:
-    "Experimento estruturado (A/B, multivariado, holdout) — desenho estatístico antes da coleta, " +
-    "decisão por evidência, não por opinião.",
+    "CRM operacional: pipeline com critérios objetivos por estágio, automações de nutrição, " +
+    "scoring, SLA e playbook — pra venda parar de depender de heroísmo.",
   methodChecklist: [
-    { id: "hyp_clear",      label: "Hipótese 'Se X, então Y, porque Z' escrita",                 required: true  },
-    { id: "oec_defined",    label: "Métrica primária (OEC) e guardrails definidos",              required: true  },
-    { id: "power_calc",     label: "MDE + α + power → sample size calculados",                   required: true  },
-    { id: "preregistered",  label: "Plano de análise pré-registrado (antes de coletar)",         required: true  },
-    { id: "qa_setup",       label: "QA do tracking (eventos, randomização, SRM check)",          required: true  },
-    { id: "stop_rules",     label: "Regras de parada e exclusões documentadas",                  required: true  },
-    { id: "decision_made",  label: "Decisão final tomada: ship / kill / iterate",                required: true  },
-    { id: "learnings_log",  label: "Aprendizados registrados no playbook",                       required: false },
+    { id: "platform_set",   label: "Plataforma definida e contas criadas",                      required: true  },
+    { id: "stages_defined", label: "Estágios do pipeline com critérios de entrada/saída",       required: true  },
+    { id: "mql_sql",        label: "Definições MQL e SQL escritas e validadas com vendas",      required: true  },
+    { id: "sla_set",        label: "SLA por estágio (tempo máximo) acordado",                   required: true  },
+    { id: "sources_mapped", label: "Origens de lead mapeadas e UTM padronizada",                required: true  },
+    { id: "nurture_built",  label: "Sequências de nutrição (email/WhatsApp) implementadas",     required: true  },
+    { id: "scoring_set",    label: "Lead scoring (perfil + engajamento) configurado",           required: true  },
+    { id: "automations_on", label: "Automações de movimentação e atribuição ativas",            required: true  },
+    { id: "dashboards",     label: "Dashboard com funil + conversões + tempo médio por estágio", required: true },
+    { id: "playbook",       label: "Playbook de SDR/closer escrito (roteiros, objeções)",       required: false },
+    { id: "compliance",     label: "Compliance LGPD: opt-in, descadastro, retenção",            required: true  },
   ],
   sections: [
     {
-      id: "context", title: "Contexto e hipótese",
-      description: "Por que esse experimento agora — e o que esperamos descobrir.",
+      id: "platform", title: "Plataforma e arquitetura",
+      description: "Onde mora o lead, o que conversa com o quê.",
       fields: [
-        { id: "hypothesis", label: "Hipótese (Se X, então Y, porque Z)", type: "textarea", hint: "Mecanismo causal explícito" },
-        { id: "rationale",  label: "Por que agora",                       type: "textarea", hint: "Sinal do dado, fala de cliente, oportunidade competitiva" },
-        { id: "scope",      label: "Escopo (página/fluxo/segmento)",      type: "text",     hint: "Ex: checkout mobile BR, novos usuários" },
-        { id: "owner",      label: "Owner do experimento",                type: "text",     decisionOnly: true },
+        { id: "crm_tool",        label: "CRM principal",                  type: "text",  hint: "HubSpot, RD Station, Pipedrive, Salesforce, ActiveCampaign" },
+        { id: "marketing_auto",  label: "Automação de marketing",         type: "text",  hint: "Pode ser o mesmo do CRM ou separado (Mailchimp, Klaviyo, MailerLite)" },
+        { id: "messaging",       label: "Mensageria (WhatsApp/SMS)",      type: "text",  hint: "Z-API, Twilio, Take Blip, oficial Meta WhatsApp Business API" },
+        { id: "data_sources",    label: "Origens de lead conectadas",     type: "list",  hint: "LP do site, LP do funil, ads lead form, formulário de contato, importação manual, indicação" },
+        { id: "integrations",    label: "Integrações ativas",             type: "list",  hint: "Site → CRM, Ads Lead Forms → CRM, Calendar, Slack, Asana, BI, billing" },
+        { id: "data_residency",  label: "Onde os dados ficam",            type: "text",  decisionOnly: true, hint: "Importante pra LGPD: região do CRM, backup, retenção" },
       ],
     },
     {
-      id: "design", title: "Desenho estatístico",
+      id: "pipeline", title: "Pipeline (estágios + critérios)",
       description:
-        "Defina TUDO antes de rodar. MDE = lift mínimo que importa pro negócio. " +
-        "Sample size: use Evan Miller, statsig, ou fórmula z-test 2-proporções.",
+        "Cada estágio precisa de critério OBJETIVO de entrada e saída. " +
+        "Sem isso, vendedores movem por feeling e o funil mente.",
       fields: [
-        { id: "primary_metric", label: "Métrica primária (OEC)",          type: "text",     hint: "Uma só. Ex: conversão checkout, ARPU 7d" },
-        { id: "metric_type",    label: "Tipo da métrica",                 type: "text",     hint: "Proporção / média contínua / contagem / razão" },
-        { id: "guardrails",     label: "Guardrails (não pioram)",         type: "list",     hint: "Bounce, latência, churn 30d, NPS, ticket médio" },
-        { id: "baseline",       label: "Baseline (média recente)",        type: "text",     hint: "Ex: 3,2% (média 30d, sem sazonalidade)" },
-        { id: "mde",            label: "MDE — efeito mínimo detectável",  type: "text",     hint: "Lift relativo. Ex: 10% (3,2% → 3,52%)" },
-        { id: "alpha",          label: "α (significância)",               type: "text",     hint: "Padrão 0,05 (95% confiança)" },
-        { id: "power",          label: "Poder (1-β)",                     type: "text",     hint: "Padrão 0,80 — chance de achar efeito real" },
-        { id: "sample_per_arm", label: "Sample size por braço",           type: "text",     hint: "Calcule com α, power, baseline, MDE" },
-        { id: "arms",           label: "Braços (controle + variantes)",   type: "list",     hint: "A: controle | B: copy nova | C: novo CTA" },
-        { id: "split",          label: "Split de tráfego",                type: "text",     hint: "50/50, 33/33/33, 90/10 (canary)" },
-        { id: "duration_calc",  label: "Duração estimada",                type: "text",     hint: "(sample × braços) ÷ tráfego diário, mín. 1 ciclo semanal" },
-        { id: "randomization",  label: "Unidade de randomização",         type: "text",     hint: "Visitor (cookie) / user_id / sessão" },
+        { id: "stages",         label: "Estágios do pipeline (ordem)",    type: "list",  hint: "Lead novo → MQL → SQL → Reunião agendada → Reunião realizada → Proposta → Negociação → Fechado ganho/perdido" },
+        { id: "entry_criteria", label: "Critério de ENTRADA por estágio", type: "kv",    hint: "MQL → preencheu form completo + abriu 2 emails | SQL → respondeu BANT positivo | Proposta → enviou doc formal" },
+        { id: "exit_criteria",  label: "Critério de SAÍDA por estágio",   type: "kv",    hint: "SQL → reunião marcada OU desqualificou | Proposta → cliente respondeu (sim/não/contraposta)" },
+        { id: "sla_per_stage",  label: "SLA por estágio (tempo máx)",     type: "kv",    hint: "Lead novo → contato em 5min | MQL → call em 24h | Proposta → follow-up 48h" },
+        { id: "owner_per_stage", label: "Owner por estágio",              type: "kv",    decisionOnly: true, hint: "Lead novo → SDR | SQL → AE | Proposta → AE+CS" },
+        { id: "loss_reasons",   label: "Motivos de perda padronizados",    type: "list", hint: "Preço, timing, autoridade, sem necessidade clara, foi pra concorrente, sumiu — taxonomia fechada" },
       ],
     },
     {
-      id: "analysis_plan", title: "Plano de análise pré-registrado",
-      description: "Decidido ANTES da coleta — assina embaixo, sem mexer depois.",
+      id: "qualification", title: "Qualificação (MQL/SQL/BANT)",
+      description: "Critérios escritos = vendas e marketing falando a mesma língua.",
       fields: [
-        { id: "test_method",      label: "Teste estatístico",             type: "text",     hint: "Z-test 2-prop / Welch t-test / Mann-Whitney / CUPED / Bayesian" },
-        { id: "segments",         label: "Segmentos pré-definidos",       type: "list",     hint: "Mobile/desktop, novo/recorrente, pago/orgânico" },
-        { id: "exclusions",       label: "Exclusões",                     type: "list",     hint: "Bots, equipe, sessões <5s, IPs internos, fraudes" },
-        { id: "stop_rules",       label: "Regras de parada antecipada",   type: "list",     hint: "Guardrail cai >5%; SRM detectado; bug crítico" },
-        { id: "success_criteria", label: "Critério de sucesso",           type: "textarea", decisionOnly: true, hint: "Lift ≥ MDE com p<α E zero guardrail piora >2% E mín. 1 ciclo semanal" },
+        { id: "mql_definition", label: "Definição de MQL (perfil + comportamento)",  type: "textarea", hint: "Cargo X em empresas Y faturando Z + 2 ações de engajamento (download + email aberto)" },
+        { id: "sql_definition", label: "Definição de SQL (interesse explícito)",     type: "textarea", hint: "MQL + agendou call OU pediu proposta OU respondeu BANT positivo" },
+        { id: "bant",           label: "BANT / SPIN / framework escolhido",          type: "kv",       hint: "B (Budget) → ; A (Authority) → ; N (Need) → ; T (Timeline) → " },
+        { id: "disqualifiers",  label: "Critérios de desqualificação",                type: "list",    hint: "Fora do ICP, sem budget mínimo, decisão >12m, concorrente direto, fora do Brasil" },
+        { id: "ideal_icp",      label: "ICP atualizado",                              type: "textarea", hint: "Resumo curto — full perfil mora no dossiê" },
       ],
     },
     {
-      id: "qa", title: "QA do setup",
-      description: "Antes de ligar pra 100% do tráfego — checagem de instrumentação.",
+      id: "scoring", title: "Lead scoring",
+      description: "Pontuação por perfil (firmográfico) + engajamento (comportamental).",
       fields: [
-        { id: "tracking_check", label: "Tracking validado",              type: "checklist", hint: "Evento de exposição dispara; conversão atribui ao braço; sem dupla contagem" },
-        { id: "srm_check",      label: "SRM (Sample Ratio Mismatch)",    type: "text",     hint: "χ² do split observado vs esperado, p>0,01" },
-        { id: "aa_test",        label: "A/A test rodado (opcional)",      type: "text",     hint: "Se sim, p deveria ser uniforme (~5% falso-positivo)" },
-        { id: "feature_flag",   label: "Feature flag / experiment ID",    type: "text",     decisionOnly: true, hint: "GrowthBook, Statsig, LaunchDarkly, Optimizely..." },
+        { id: "profile_points", label: "Pontos por perfil",                type: "kv",  hint: "Cargo C-level: +20 | Setor X: +15 | Empresa 50+ funcionários: +10 | E-mail corporativo: +5" },
+        { id: "behavior_points", label: "Pontos por comportamento",        type: "kv",  hint: "Visitou pricing: +15 | Baixou material: +10 | Email aberto: +2 | Clicou ad: +5 | Demo agendada: +30" },
+        { id: "negative_points", label: "Pontos negativos",                 type: "kv", hint: "Email gratuito: -10 | Sem cargo: -5 | 90 dias sem engajar: -20 | Concorrente: -100" },
+        { id: "thresholds",      label: "Thresholds → estágio",            type: "kv",  hint: "0-30 → Lead | 31-60 → MQL | 61+ → SQL ready" },
+        { id: "decay",           label: "Decaimento temporal",              type: "text", hint: "Score perde 10% a cada 30 dias sem engajamento" },
       ],
     },
     {
-      id: "results", title: "Resultados observados",
-      description: "Preencher só DEPOIS do teste — números reais.",
+      id: "nurture", title: "Sequências de nutrição",
+      description:
+        "Por temperatura e fase do funil. Cada sequência: gatilho, intervalo, conteúdo, exit-criteria.",
       fields: [
-        { id: "actual_sample",   label: "Sample real coletado por braço", type: "text",     decisionOnly: true },
-        { id: "metric_results",  label: "Resultado da métrica primária",  type: "kv",       decisionOnly: true, hint: "controle→3,2% | variante→3,7% | lift→+15,6% | p→0,021" },
-        { id: "guardrail_results", label: "Guardrails observados",       type: "kv",       decisionOnly: true, hint: "bounce→+0,3% (ok) | latência→+12ms (ok)" },
-        { id: "segment_findings", label: "Heterogeneidade por segmento",  type: "list",     decisionOnly: true, hint: "Onde funcionou mais/menos" },
-        { id: "ci",              label: "Intervalo de confiança",         type: "text",     decisionOnly: true, hint: "Lift: +15,6% [+2,1%, +29,1%]" },
+        { id: "welcome_seq",     label: "Boas-vindas (D0 → D+7)",          type: "list",     hint: "D0 confirmação + entrega isca | D1 storytelling marca | D3 caso de cliente | D5 educacional | D7 oferta soft" },
+        { id: "mql_to_sql_seq",  label: "Aceleração MQL→SQL (D0 → D+14)",  type: "list",     hint: "D0 case + CTA call | D2 objeção #1 quebrada | D5 prova social | D8 demo gratuita | D12 escassez | D14 break-up" },
+        { id: "post_demo_seq",   label: "Pós-demo (D0 → D+10)",            type: "list",     hint: "D0 thank you + recap | D1 material complementar | D3 ROI calculator | D5 case similar | D7 proposta | D10 follow-up" },
+        { id: "lost_recover_seq", label: "Recuperação de perdidos (90/180/365d)", type: "list", hint: "90d feature nova | 180d case do segmento | 365d 'voltei' + oferta especial" },
+        { id: "abandoned_seq",   label: "Carrinho/checkout abandonado",     type: "list",     hint: "+1h lembrete suave | +24h ajuda + FAQ | +48h prova social | +72h desconto/escassez" },
+        { id: "channels_per_seq", label: "Canais por sequência",            type: "kv",       hint: "Welcome → email; MQL→SQL → email + WhatsApp D5; Pós-demo → email + ligação D3; Recuperação → email + Ads custom audience" },
+        { id: "exit_criteria",   label: "Exit criteria das sequências",     type: "list",     hint: "Agendou call → sai; pediu descadastro → sai; abriu zero em 30d → muda pra cold list; respondeu → SDR assume" },
       ],
     },
     {
-      id: "decision", title: "Decisão e aprendizados",
-      description: "Um experimento sem decisão e aprendizado é desperdício.",
+      id: "automations", title: "Automações de pipeline",
+      description:
+        "Tarefas repetitivas viram regra. Vendedor foca em conversa, não em mover card.",
       fields: [
-        { id: "verdict",     label: "Decisão",          type: "text",     decisionOnly: true, hint: "ship / kill / iterate / inconclusivo (rodar mais)" },
-        { id: "rationale",   label: "Justificativa",    type: "textarea", decisionOnly: true },
-        { id: "rollout",     label: "Plano de rollout", type: "textarea", decisionOnly: true, hint: "Se ship: % gradual, monitoramento, rollback trigger" },
-        { id: "learnings",   label: "Aprendizados pro playbook", type: "list",  hint: "Generalize: o que esse teste ensina pra próximos?" },
-        { id: "next_tests",  label: "Próximos testes derivados", type: "list" },
+        { id: "lead_routing",     label: "Roteamento de leads (round-robin / por território / por scoring)", type: "textarea", hint: "Lead novo → atribui ao SDR de plantão por round-robin; SQL >70 → vai pro AE sênior; região X → time Y" },
+        { id: "auto_movements",   label: "Movimentação automática entre estágios",     type: "list",     hint: "Reunião marcada no Calendly → move pra 'Reunião agendada' | Proposta enviada (HubSpot doc) → move pra 'Proposta'" },
+        { id: "auto_tasks",       label: "Tarefas automáticas pro vendedor",           type: "list",     hint: "Lead há 24h sem contato → task 'Ligar agora' | Proposta há 48h sem resposta → task 'Follow-up'" },
+        { id: "internal_alerts",  label: "Alertas internos (Slack/Teams)",             type: "kv",       hint: "Lead score >80 → #vendas-quentes; SLA estourado → DM gerente; Negócio R$50k+ → #deals-grandes" },
+        { id: "notification_rules", label: "Notificações pro lead",                    type: "list",     hint: "Confirmação de inscrição; lembrete de reunião 24h e 1h antes; pós-call agradecimento; pós-proposta resumo" },
+        { id: "data_enrichment",  label: "Enriquecimento de dados",                     type: "text",    hint: "Clearbit, Apollo, Hunter, ZoomInfo — preencher cargo/empresa/setor automaticamente" },
+      ],
+    },
+    {
+      id: "playbook", title: "Playbook de SDR / Closer",
+      description: "Roteiros e respostas escritas — onboarding novo vendedor em dias, não meses.",
+      fields: [
+        { id: "first_touch_script", label: "Script de 1º contato",          type: "textarea", hint: "Abertura + qualificação rápida (BANT em 3 perguntas) + CTA pra agenda" },
+        { id: "discovery_script",   label: "Script de discovery (call qualif.)", type: "textarea", hint: "Perguntas SPIN/BANT estruturadas, escuta ativa, próximos passos claros" },
+        { id: "demo_script",        label: "Roteiro de demo",                type: "textarea", hint: "Estrutura: dor → solução → prova → próximos passos. Tempo: 30-45min" },
+        { id: "objections",         label: "Objeções + respostas",           type: "kv",       hint: "Caro → ; Vou pensar → ; Já uso X → ; Mando email → ; Sem orçamento agora → " },
+        { id: "follow_up_cadence",  label: "Cadência de follow-up",          type: "list",     hint: "8 toques em 14 dias: D0 ligação + email; D2 ligação; D4 LinkedIn + email; D7 email valor; D10 ligação; D14 break-up" },
+        { id: "qualifying_qs",      label: "Perguntas-chave de qualificação", type: "list",    hint: "Por que agora? Como resolvem hoje? Quem decide? Budget aprovado? Timeline?" },
+      ],
+    },
+    {
+      id: "metrics", title: "Métricas e governança",
+      description: "O que medir semanalmente pra otimizar — sem isso, é gestão por vibe.",
+      fields: [
+        { id: "core_metrics",   label: "Métricas-core do funil",            type: "list",  hint: "Leads/mês, MQL %, SQL %, no-show %, win rate, ticket médio, ciclo médio (dias), CAC, LTV" },
+        { id: "stage_conversion", label: "Conversão alvo por estágio",      type: "kv",    hint: "Lead→MQL 20% | MQL→SQL 30% | SQL→Reunião 60% | Reunião→Proposta 50% | Proposta→Ganho 30%" },
+        { id: "velocity",       label: "Velocity por estágio (dias alvo)",  type: "kv",    hint: "Lead→MQL: 2d | MQL→SQL: 5d | SQL→Reunião: 7d | Proposta→Decisão: 14d" },
+        { id: "review_cad",     label: "Cadência de gestão",                type: "text",  hint: "Daily 15min com SDRs | Weekly 1h pipeline review | Monthly business review" },
+        { id: "dashboards",     label: "Dashboards configurados",           type: "list",  decisionOnly: true, hint: "Funil ao vivo, leads por origem, performance por vendedor, motivos de perda, previsão" },
+      ],
+    },
+    {
+      id: "compliance", title: "Compliance e LGPD",
+      description: "Não é detalhe — multa por LGPD inviabiliza operação inteira.",
+      fields: [
+        { id: "consent",          label: "Captação de consentimento",        type: "checklist", hint: "Form com finalidade clara; checkbox separado pra marketing; armazenar timestamp + IP do consentimento" },
+        { id: "unsubscribe",      label: "Mecanismo de descadastro",         type: "checklist", hint: "Link em todo email; opt-out WhatsApp em 1 mensagem; reflete no CRM em <24h; preferences center" },
+        { id: "data_retention",   label: "Política de retenção",             type: "text",     hint: "Lead inativo 24m → anonimizar; cliente perdido 60m → arquivar; backup criptografado" },
+        { id: "data_request",     label: "Atendimento a titulares",          type: "text",     hint: "Canal pra solicitar acesso/correção/exclusão; SLA de 15 dias; responsável definido" },
+        { id: "dpo",              label: "DPO / responsável LGPD",           type: "text",     decisionOnly: true },
       ],
     },
     {
       id: "links", title: "Links e anexos",
       fields: [
-        { id: "calculator_url", label: "Calculadora de sample size",  type: "text",        decisionOnly: true, hint: "Print do Evan Miller / statsig" },
-        { id: "dashboard_url",  label: "Dashboard de monitoramento",  type: "text",        decisionOnly: true },
-        { id: "files",          label: "Print, planilha, doc",        type: "attachments" },
+        { id: "crm_url",         label: "URL do CRM",                       type: "text", decisionOnly: true },
+        { id: "automation_url",  label: "URL da automação de marketing",    type: "text", decisionOnly: true },
+        { id: "dashboard_url",   label: "Dashboard de pipeline",            type: "text", decisionOnly: true },
+        { id: "playbook_url",    label: "Playbook compartilhado (Notion/Drive)", type: "text", decisionOnly: true },
+        { id: "files",           label: "Anexos (scripts, fluxogramas, exports)", type: "attachments" },
       ],
     },
   ],
   quickActions: [
-    { id: "generate_tasks",     label: "Gerar tasks de execução", primary: true },
-    { id: "create_snapshot",    label: "Snapshot de resultado" },
-    { id: "export_pdf",         label: "Exportar relatório" },
-    { id: "approve",            label: "Marcar decisão" },
-    { id: "regenerate_prefill", label: "Sugerir com IA" },
-  ],
-  sources: ["briefing","context","metrics","siblings"],
-  prefillPrompt:
-    "Você é um experimentation lead (Booking, Microsoft, Netflix-style). Rigor estatístico é inegociável. " +
-    "Hipótese: reescreva no formato 'Se X, então Y, porque Z' com mecanismo causal claro. " +
-    "Métrica primária: UMA só, alinhada ao OEC do negócio. Guardrails: 2-4 métricas que não podem piorar. " +
-    "Baseline: tire do dossiê/métricas reais do workspace; cite a fonte. Se não houver, marque empty. " +
-    "MDE: proponha um lift relativo defensável (5-20% típico) — explique no citation o trade-off custo×detecção. " +
-    "α=0,05, power=0,80 como padrão; ajuste só se houver razão. " +
-    "Sample size por braço: estime com fórmula 2-proporções e cite a aproximação. " +
-    "Duração: combine com tráfego diário do baseline; mín. 1 ciclo semanal pra cobrir sazonalidade. " +
-    "Plano de análise: escolha o teste pelo tipo da métrica (proporção→z-test; média→Welch; cauda longa→Mann-Whitney). " +
-    "Liste exclusões e regras de parada COERENTES com o contexto. " +
-    "QA do setup: sempre incluir validação de tracking e SRM check. " +
-    "Para 'results', 'verdict', 'rationale', 'rollout', URLs e feature flag: origin='empty' — vêm depois.",
-};
-
-/**
- * ANALISE_FUNIL — kind 'metrica' discriminado por "análise de funil",
- * "funnel analysis", "leak". Drawer pra mapear taxas etapa-a-etapa,
- * identificar leak points por impacto e priorizar correções.
- */
-const ANALISE_FUNIL: NodeBlueprint = {
-  kind: "metrica",
-  purpose:
-    "Análise quantitativa do funil — onde está vazando, quanto vale tampar cada vazamento, " +
-    "e o que testar primeiro para impactar o resultado final.",
-  methodChecklist: [
-    { id: "scope",         label: "Escopo do funil definido (qual jornada, segmento, período)", required: true  },
-    { id: "stages_data",   label: "Volumes e taxas etapa-a-etapa coletados",                    required: true  },
-    { id: "benchmarks",    label: "Benchmarks comparados (interno e setor)",                    required: true  },
-    { id: "leaks_ranked",  label: "Leak points priorizados por impacto × esforço",              required: true  },
-    { id: "root_cause",    label: "Causa-raiz hipotetizada para top 3 leaks",                   required: true  },
-    { id: "actions_plan",  label: "Plano de ação ligado a experimentos",                        required: true  },
-    { id: "review_cad",    label: "Cadência de revisão definida",                               required: false },
-  ],
-  sections: [
-    {
-      id: "scope", title: "Escopo da análise",
-      description: "Sem escopo claro, a análise vira pescaria.",
-      fields: [
-        { id: "funnel_name",  label: "Funil analisado",        type: "text",     hint: "Aquisição → Lead → SQL → Venda; ou Visita → Add-cart → Checkout" },
-        { id: "segment",      label: "Segmento",               type: "text",     hint: "Todos / mobile BR / pago / cohort jan-25" },
-        { id: "period",       label: "Período de análise",     type: "text",     hint: "Últimos 30d? Comparativo com 30d anteriores?" },
-        { id: "data_source",  label: "Fonte dos dados",        type: "text",     hint: "GA4, Mixpanel, Meta Ads, planilha do cliente, CRM" },
-        { id: "data_caveats", label: "Limitações conhecidas",  type: "list",     hint: "Sem tracking server-side, perda mobile, atribuição last-click" },
-      ],
-    },
-    {
-      id: "stages", title: "Funil etapa-a-etapa",
-      description: "Volumes absolutos + taxa de conversão entre etapas + benchmark.",
-      fields: [
-        { id: "volumes",       label: "Volume por etapa",          type: "kv",   hint: "visitas→10.000 | leads→820 | reuniões→210 | vendas→34" },
-        { id: "step_rates",    label: "Conversão etapa→etapa",     type: "kv",   hint: "visita→lead: 8,2% | lead→reunião: 25,6% | reunião→venda: 16,2%" },
-        { id: "overall_rate",  label: "Conversão fim-a-fim",       type: "text", hint: "Ex: 0,34% (34/10.000)" },
-        { id: "benchmark",     label: "Benchmark (interno + setor)", type: "kv", hint: "lead→reunião setor: 30-40% | nosso melhor mês: 32%" },
-      ],
-    },
-    {
-      id: "leaks", title: "Leak points (vazamentos)",
-      description:
-        "Para cada vazamento sério: tamanho do leak, valor estimado se fechar 50%, e fricção observada. " +
-        "Priorize por impacto financeiro × esforço de correção.",
-      fields: [
-        { id: "leak_list",      label: "Vazamentos identificados",  type: "list",     hint: "Etapa X→Y: taxa Z% vs benchmark W% (gap N pp)" },
-        { id: "leak_impact",    label: "Impacto financeiro estimado", type: "kv",     hint: "leak1→R$ 18k/mês recuperáveis | leak2→R$ 6k/mês" },
-        { id: "friction_evidence", label: "Evidência de fricção",   type: "list",     hint: "Heatmap, session replay, pesquisa qualitativa, suporte" },
-        { id: "ranked_leaks",   label: "Ranking final (impacto × esforço)", type: "list", hint: "1. checkout mobile | 2. confirmação email | 3. follow-up SDR" },
-      ],
-    },
-    {
-      id: "root_cause", title: "Causa-raiz e hipóteses",
-      description: "Para os top 2-3 leaks: por que vaza? Diferente de 'o que vaza'.",
-      fields: [
-        { id: "leak_1_cause", label: "Leak #1 — causa-raiz hipotetizada", type: "textarea", hint: "Quanto mais específico, melhor" },
-        { id: "leak_2_cause", label: "Leak #2 — causa-raiz hipotetizada", type: "textarea" },
-        { id: "leak_3_cause", label: "Leak #3 — causa-raiz hipotetizada", type: "textarea" },
-        { id: "validation",   label: "Como validar a causa antes de testar a solução", type: "list", hint: "5 entrevistas, 1h de session replay, query SQL específica" },
-      ],
-    },
-    {
-      id: "actions", title: "Plano de ação",
-      description: "Cada leak top vira 1 experimento ou 1 entrega — link explícito.",
-      fields: [
-        { id: "experiments",  label: "Experimentos sugeridos",     type: "list",     hint: "1 por leak: 'Testar copy do botão X (leak #1)'" },
-        { id: "deliveries",   label: "Entregas sem teste (no-brainer)", type: "list", hint: "Bug fixes óbvios, copy errado, link quebrado" },
-        { id: "expected_lift", label: "Lift esperado se tudo der certo", type: "text", decisionOnly: true, hint: "Ex: conversão fim-a-fim 0,34% → 0,52% (+53%)" },
-        { id: "owner",        label: "Owner do plano",             type: "text",     decisionOnly: true },
-      ],
-    },
-    {
-      id: "review", title: "Cadência e governança",
-      fields: [
-        { id: "review_cadence", label: "Cadência de revisão",       type: "text",  hint: "Semanal, quinzenal, mensal" },
-        { id: "dashboard_url",  label: "Dashboard ao vivo",         type: "text",  decisionOnly: true },
-        { id: "next_review",    label: "Próxima revisão",           type: "text",  decisionOnly: true },
-      ],
-    },
-    {
-      id: "links", title: "Anexos e fontes",
-      fields: [
-        { id: "files", label: "Prints, planilhas, exports", type: "attachments" },
-      ],
-    },
-  ],
-  quickActions: [
-    { id: "generate_tasks",     label: "Gerar experimentos", primary: true },
-    { id: "create_snapshot",    label: "Snapshot dos números" },
-    { id: "export_pdf",         label: "Exportar relatório" },
+    { id: "generate_tasks",     label: "Gerar tasks de implementação", primary: true },
+    { id: "create_snapshot",    label: "Snapshot do funil" },
+    { id: "link_asset",         label: "Vincular sequências/templates" },
+    { id: "export_pdf",         label: "Exportar manual de operação" },
     { id: "regenerate_prefill", label: "Regenerar com IA" },
   ],
-  sources: ["briefing","context","metrics","fronts","siblings"],
+  sources: ["briefing","context","client","metrics","fronts","siblings"],
   prefillPrompt:
-    "Você é growth analyst sênior. Analise o funil com OBJETIVIDADE: dados primeiro, narrativa depois. " +
-    "Use métricas do workspace (snapshots) sempre que existirem — cite source no citation. " +
-    "Em 'volumes' e 'step_rates', se NÃO houver dados reais, marque origin='empty' e deixe o esqueleto pronto pro operador preencher (NÃO invente número). " +
-    "Em benchmark: cite faixa setorial conhecida (ex: 'B2B SaaS: lead→demo 25-40%') quando aplicável. " +
-    "Em leaks: priorize por GAP vs benchmark × VOLUME na etapa (impacto financeiro real). " +
-    "Causa-raiz: hipóteses específicas (não 'UX ruim' — diga 'CTA invisível em mobile <375px'). " +
-    "Para 'expected_lift', 'owner', URLs e datas: origin='empty'. " +
-    "Cada leak top deve gerar 1 experimento sugerido em 'actions' — pra encaixar com o blueprint EXPERIMENTO.",
-};
-
-/**
- * PLANO_ITERACAO — kind 'checklist' discriminado por "iteração", "sprint",
- * "plano de otimização", "backlog de teste". Drawer estilo growth-team
- * weekly: backlog priorizado (ICE/RICE), sprint atual, learnings, métricas norte.
- */
-const PLANO_ITERACAO: NodeBlueprint = {
-  kind: "checklist",
-  purpose:
-    "Plano de iteração contínua baseado em dados — backlog priorizado, sprint definida, " +
-    "learnings versionados e métricas norte sob cadência.",
-  methodChecklist: [
-    { id: "north_star",    label: "Métrica norte definida (1 só)",                          required: true  },
-    { id: "current_state", label: "Foto atual da métrica norte registrada",                 required: true  },
-    { id: "backlog_score", label: "Backlog priorizado por ICE ou RICE",                     required: true  },
-    { id: "sprint_set",    label: "Sprint atual com 3-5 itens, cada um com owner",          required: true  },
-    { id: "criteria_dod",  label: "Definition of Done por item",                            required: true  },
-    { id: "learnings_log", label: "Learnings das últimas iterações registrados",            required: true  },
-    { id: "rituals",       label: "Rituais (planning / review / retro) agendados",          required: false },
-  ],
-  sections: [
-    {
-      id: "north_star", title: "Métrica norte e estado atual",
-      description: "Sem norte não há iteração — só agitação.",
-      fields: [
-        { id: "metric",       label: "Métrica norte",          type: "text",     hint: "Receita recorrente, conversão fim-a-fim, ARPU, NPS, CAC payback" },
-        { id: "current",      label: "Valor atual",            type: "text",     hint: "Foto de hoje" },
-        { id: "target",       label: "Meta do trimestre",      type: "text",     decisionOnly: true },
-        { id: "trend",        label: "Tendência últimas 4 sem", type: "text",    hint: "Crescendo / estável / caindo" },
-        { id: "secondary",    label: "Métricas secundárias",   type: "list",     hint: "Acompanham o norte sem virar foco" },
-      ],
-    },
-    {
-      id: "backlog", title: "Backlog priorizado",
-      description:
-        "Cada item: hipótese curta + score (ICE: Impacto×Confiança×Esforço, ou RICE: Reach×Impact×Confidence÷Effort). " +
-        "Backlog vivo — re-priorize toda iteração.",
-      fields: [
-        { id: "scoring_model", label: "Modelo de priorização", type: "text",     hint: "ICE / RICE / WSJF / Kano" },
-        { id: "items",         label: "Itens do backlog (ordenados)", type: "list", hint: "1. [9.0] Testar copy hero LP — origem leak #1 | 2. [7.5] Email de carrinho abandonado..." },
-        { id: "parking_lot",   label: "Parking lot (rejeitados/adiados)", type: "list", hint: "Por que ficaram fora — pra não reaparecerem do nada" },
-      ],
-    },
-    {
-      id: "sprint", title: "Sprint atual",
-      description: "3-5 itens. Mais que isso, ninguém entrega. Owner explícito.",
-      fields: [
-        { id: "sprint_name",  label: "Nome / período da sprint",  type: "text",     hint: "Sprint 12 — 22-Abr a 03-Mai" },
-        { id: "sprint_goal",  label: "Goal da sprint (1 frase)",  type: "textarea", hint: "Mover métrica norte X em Y% via Z" },
-        { id: "sprint_items", label: "Itens em execução",         type: "list",     hint: "Item — owner — DoD — link experimento" },
-        { id: "dependencies", label: "Dependências/bloqueios",    type: "list",     hint: "Acessos, aprovações cliente, fornecedor" },
-        { id: "capacity",     label: "Capacidade da equipe",      type: "text",     hint: "Ex: 3 pessoas × 60% growth = 1,8 FTE" },
-      ],
-    },
-    {
-      id: "rituals", title: "Rituais",
-      description: "Cadência fixa. Cancelou ritual = perdeu o ritmo.",
-      fields: [
-        { id: "planning",  label: "Planning",       type: "text", hint: "Quando, quanto tempo, quem participa, output esperado" },
-        { id: "review",    label: "Review / Show",  type: "text", hint: "Apresenta resultados de experimentos da sprint" },
-        { id: "retro",     label: "Retro",          type: "text", hint: "O que melhorar no PROCESSO (não nos resultados)" },
-        { id: "standup",   label: "Standup",        type: "text", hint: "Diário/3x semana, 15min, async ok" },
-      ],
-    },
-    {
-      id: "learnings", title: "Learnings acumulados",
-      description: "Memória da operação — evita repetir teste já feito ou erro já cometido.",
-      fields: [
-        { id: "won",       label: "O que vingou",                type: "list", hint: "Generalize: copy de prova social funciona em LP de B2B" },
-        { id: "lost",      label: "O que falhou",                type: "list", hint: "Inclui POR QUE falhou — sem isso é só lista de cadáver" },
-        { id: "surprises", label: "Surpresas / contraintuitivos", type: "list" },
-        { id: "rules",     label: "Regras pro playbook",         type: "list", hint: "Coisas que viram padrão pra próximos clientes/projetos" },
-      ],
-    },
-    {
-      id: "results", title: "Resultados da última iteração",
-      description: "Foto pra fechar o ciclo — input pra próxima sprint.",
-      fields: [
-        { id: "shipped",       label: "Itens entregues",          type: "list", decisionOnly: true },
-        { id: "metric_delta",  label: "Delta da métrica norte",   type: "text", decisionOnly: true, hint: "Ex: 0,34% → 0,41% (+20,6%)" },
-        { id: "experiment_results", label: "Resumo dos experimentos rodados", type: "list", decisionOnly: true, hint: "Linka pros nodes EXPERIMENTO" },
-        { id: "carryover",     label: "Carryover pra próxima sprint", type: "list", decisionOnly: true },
-      ],
-    },
-    {
-      id: "links", title: "Links e anexos",
-      fields: [
-        { id: "board_url",    label: "Board (Notion/Linear/Trello)", type: "text", decisionOnly: true },
-        { id: "dashboard_url", label: "Dashboard da métrica norte",  type: "text", decisionOnly: true },
-        { id: "files",        label: "Anexos da iteração",         type: "attachments" },
-      ],
-    },
-  ],
-  quickActions: [
-    { id: "generate_tasks",     label: "Criar tasks da sprint", primary: true },
-    { id: "create_snapshot",    label: "Snapshot da métrica norte" },
-    { id: "export_pdf",         label: "Exportar plano" },
-    { id: "regenerate_prefill", label: "Regenerar com IA" },
-  ],
-  sources: ["briefing","context","metrics","fronts","siblings"],
-  prefillPrompt:
-    "Você é growth lead operando o ciclo experimentation → learnings → backlog. " +
-    "Métrica norte: escolha UMA alinhada ao objetivo de negócio do dossiê. Cite fonte. " +
-    "Backlog: gere 6-12 itens priorizados, cada um com hipótese curta + score ICE (1-10 cada eixo) ou RICE — explique no citation. " +
-    "Use leak points de análises de funil existentes (siblings) como insumo principal. " +
-    "Sprint atual: proponha 3-5 itens do TOPO do backlog, com goal coeso (não pulverize). " +
-    "Rituais: defina cadência realista pra time pequeno (planning quinzenal, review na entrega, retro mensal). " +
-    "Learnings: extraia do contexto/timeline o que já foi testado e o que aprendemos. " +
-    "Para 'target', 'capacity', URLs, owners e SEÇÃO INTEIRA 'results': origin='empty' — vêm da execução humana.",
+    "Você é RevOps sênior desenhando CRM operacional do zero pra B2B/D2C. " +
+    "Plataforma: se o briefing menciona, use; senão sugira HubSpot pra B2B com volume médio, RD Station pra Brasil/B2B SMB, ActiveCampaign pra D2C/infoproduto. " +
+    "Pipeline: gere 6-8 estágios coerentes com o ciclo de venda do dossiê, com critérios de entrada/saída CONCRETOS (não 'lead interessado' — algo binário). " +
+    "MQL/SQL: definições escritas em 1 frase cada, alinhadas ao ICP do dossiê. " +
+    "Lead scoring: pontue cargos/setores/comportamentos coerentes com o ICP — explique no citation. " +
+    "Nutrição: 4-6 sequências (welcome, MQL→SQL, pós-demo, recuperação, abandonado) com 5-8 toques cada e exit-criteria explícitos. " +
+    "Automações: roteamento, movimentação, tarefas e alertas — concretas, não genéricas. " +
+    "Playbook: scripts curtos mas executáveis; objeções tiradas das dores reais do briefing. " +
+    "Métricas: benchmarks realistas pro segmento (cite quando souber faixa típica). " +
+    "Compliance LGPD: SEMPRE preencher checklist de consentimento e descadastro — não é opcional. " +
+    "Para URLs reais (CRM, dashboard, playbook), DPO, owners por estágio, dashboards específicos: origin='empty'.",
 };
 
 /**
@@ -2101,9 +2061,7 @@ export const NODE_BLUEPRINTS: NodeBlueprint[] = [
   CONTATO,
   AUTOMACAO,
   IA_AGENT,
-  EXPERIMENTO,        // shares kind 'documento' — discriminado por título
-  ANALISE_FUNIL,      // shares kind 'metrica'  — discriminado por título
-  PLANO_ITERACAO,     // shares kind 'checklist' — discriminado por título
+  CRM_PIPELINE,
 ];
 
 /**
@@ -2118,25 +2076,7 @@ export function getNodeBlueprint(
   // Discriminadores especiais — diagnostico vs documento, kickoff vs reuniao
   if (kind === "documento" && discriminator?.title) {
     const t = discriminator.title.toLowerCase();
-    if (
-      t.includes("experimento") || t.includes("teste a/b") || t.includes("a/b test") ||
-      t.includes("ab test") || t.includes("split test")
-    ) return EXPERIMENTO;
     if (t.includes("diagn")) return DIAGNOSTICO;
-  }
-  if (kind === "metrica" && discriminator?.title) {
-    const t = discriminator.title.toLowerCase();
-    if (
-      t.includes("análise de funil") || t.includes("analise de funil") ||
-      t.includes("funnel analysis") || t.includes("leak") || t.includes("fuga")
-    ) return ANALISE_FUNIL;
-  }
-  if (kind === "checklist" && discriminator?.title) {
-    const t = discriminator.title.toLowerCase();
-    if (
-      t.includes("iteração") || t.includes("iteracao") || t.includes("sprint") ||
-      t.includes("plano de otim") || t.includes("backlog de teste")
-    ) return PLANO_ITERACAO;
   }
   if (kind === "reuniao" && discriminator?.title) {
     const t = discriminator.title.toLowerCase();
