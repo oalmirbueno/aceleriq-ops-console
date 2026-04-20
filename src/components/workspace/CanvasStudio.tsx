@@ -95,6 +95,9 @@ function CanvasStudioInner({
   const [paletteCollapsed, setPaletteCollapsed] = useState(false);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(true);
 
+  // Active client folder (null = "Todos")
+  const [activeClientId, setActiveClientId] = useState<string | null>(null);
+
   // Quick add menu (advanced)
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
