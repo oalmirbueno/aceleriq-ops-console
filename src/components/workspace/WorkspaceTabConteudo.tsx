@@ -327,7 +327,16 @@ export default function WorkspaceTabConteudo({ workspaceId, clientId, onTimeline
           onOpenChange={(o) => { if (!o) setSelectedNode(null); }}
           node={selectedNode as never}
           workspaceId={workspaceId}
-          clientId={clientId}
+          clientFolders={
+            selectedNode.parent_node_id
+              ? [{ id: selectedNode.parent_node_id, name: "Cliente", linkedClientId: clientId }]
+              : [{ id: "__virtual__", name: "Cliente", linkedClientId: clientId }]
+          }
+          onDelete={async (id: string) => {
+            await supabase.from("canvas_nodes").delete().eq("id", id);
+            await fetchData();
+            setSelectedNode(null);
+          }}
           onUpdated={async () => {
             await fetchData();
             await onTimelineRefresh?.();
