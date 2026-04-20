@@ -44,6 +44,8 @@ export default function CanvasClientTabs({
   onAddClient,
   onRemoveClient,
   onRenameClient,
+  onChangeLogo,
+  onMoveToStart,
   showAllTab = true,
 }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
