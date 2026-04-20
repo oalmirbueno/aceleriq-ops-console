@@ -5,8 +5,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, Loader2, Check } from "lucide-react";
 import { ESTEIRA_TEMPLATES, type EsteiraTemplate, getEsteiraTemplateForPlan } from "./esteiraTemplates";
-import { getStageMeta, getProjectTypeMeta } from "./canvasProjectTypes";
 import { supabase } from "@/integrations/supabase/client";
+import EsteiraTemplatePreview from "./EsteiraTemplatePreview";
 
 interface Props {
   open: boolean;
