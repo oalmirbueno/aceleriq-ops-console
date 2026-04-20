@@ -969,6 +969,7 @@ function CanvasStudioInner({
                   return acc;
                 }, {})}
               />
+              {showControls && <Controls showInteractive={false} />}
               {showMiniMap && (
                 <MiniMap
                   nodeColor={() => "hsl(var(--primary))"}
@@ -977,15 +978,30 @@ function CanvasStudioInner({
                   zoomable
                 />
               )}
-              {/* Toggle MiniMap — sobreposto, canto inferior direito */}
-              <button
-                type="button"
-                onClick={() => setShowMiniMap((v) => !v)}
-                className="absolute bottom-3 right-3 z-10 h-7 px-2 rounded-md border border-border bg-card text-foreground text-[10px] font-medium hover:bg-muted shadow-md flex items-center gap-1"
-                title={showMiniMap ? "Ocultar minimapa" : "Mostrar minimapa"}
-              >
-                {showMiniMap ? "Ocultar minimapa" : "Mostrar minimapa"}
-              </button>
+              {/* Toggles cluster — sobreposto, canto inferior direito */}
+              <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-md border border-border bg-card/95 backdrop-blur-sm shadow-md p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setShowControls((v) => !v)}
+                  className={`h-6 px-2 rounded text-[10px] font-medium transition-colors ${
+                    showControls ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
+                  }`}
+                  title={showControls ? "Ocultar zoom controls" : "Mostrar zoom controls"}
+                >
+                  Zoom
+                </button>
+                <div className="h-3 w-px bg-border/60" />
+                <button
+                  type="button"
+                  onClick={() => setShowMiniMap((v) => !v)}
+                  className={`h-6 px-2 rounded text-[10px] font-medium transition-colors ${
+                    showMiniMap ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
+                  }`}
+                  title={showMiniMap ? "Ocultar minimapa" : "Mostrar minimapa"}
+                >
+                  Mapa
+                </button>
+              </div>
             </ReactFlow>
           )}
         </div>
