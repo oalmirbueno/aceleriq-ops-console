@@ -38,6 +38,7 @@ import FunnelStepCard, {
   type FunnelStepRow, type FunnelBranchRow, type LinkableNodeOption,
 } from "./FunnelStepCard";
 import FunnelConeView from "./FunnelConeView";
+import FunnelBranchDiagram from "./FunnelBranchDiagram";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 
 interface FunnelRow {
@@ -523,6 +524,13 @@ export default function FunnelEditorDrawer({
                 {/* Visão clássica em cone — proporcional ao volume */}
                 <FunnelConeView
                   steps={steps}
+                  highlightId={expandedId}
+                  onPickStep={(id) => setExpandedId((cur) => (cur === id ? null : id))}
+                />
+                {/* Mapa de ramificações — só aparece se houver branches OU pra dar contexto da sequência */}
+                <FunnelBranchDiagram
+                  steps={steps}
+                  branches={branches}
                   highlightId={expandedId}
                   onPickStep={(id) => setExpandedId((cur) => (cur === id ? null : id))}
                 />
