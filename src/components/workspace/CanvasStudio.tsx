@@ -940,18 +940,26 @@ function CanvasStudioInner({
               minZoom={0.2}
               maxZoom={2}
               panOnDrag
-              panOnScroll={false}
-              zoomOnScroll
+              panOnScroll
+              panOnScrollSpeed={0.8}
+              zoomOnScroll={false}
               zoomOnPinch
               zoomOnDoubleClick={false}
               selectionOnDrag={false}
               proOptions={{ hideAttribution: true }}
-              className="bg-background"
+              className="bg-background canvas-flow"
               defaultEdgeOptions={{ type: "smoothstep", animated: true }}
             >
               <StageLanesBg height={STAGE_BAND_HEIGHT} offsetY={CONTENT_TOP - 12} />
               <Background gap={24} size={1} className="opacity-30" />
               <Controls showInteractive={false} />
+              <CanvasStageNavigator
+                counts={scopedProjectNodes.reduce<Record<string, number>>((acc, n) => {
+                  const k = nodeStageOf(n);
+                  acc[k] = (acc[k] ?? 0) + 1;
+                  return acc;
+                }, {})}
+              />
               {showMiniMap && (
                 <MiniMap
                   nodeColor={() => "hsl(var(--primary))"}
