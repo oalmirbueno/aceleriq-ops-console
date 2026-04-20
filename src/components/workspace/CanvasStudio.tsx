@@ -1026,7 +1026,7 @@ function CanvasStudioInner({
               minZoom={0.2}
               maxZoom={2}
               translateExtent={CANVAS_TRANSLATE_EXTENT}
-              panOnDrag={[2]}
+              panOnDrag={[0, 1, 2]}
               panOnScroll={false}
               zoomOnScroll
               zoomOnPinch
