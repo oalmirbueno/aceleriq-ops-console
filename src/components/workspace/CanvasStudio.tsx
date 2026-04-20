@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
-  ReactFlow, ReactFlowProvider, Background, Controls, MiniMap,
+  ReactFlow, ReactFlowProvider, Background, MiniMap,
   applyNodeChanges, applyEdgeChanges,
   type Node, type Edge, type NodeChange, type EdgeChange, type Connection,
-  type ReactFlowInstance, type Viewport,
+  type ReactFlowInstance, type Viewport, SelectionMode,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Settings2, Check } from "lucide-react";
@@ -97,6 +97,7 @@ function CanvasStudioInner({
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   const [paletteCollapsed, setPaletteCollapsed] = useState(false);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(true);
@@ -221,15 +222,6 @@ function CanvasStudioInner({
   useEffect(() => {
     localStorage.setItem("canvas:showMiniMap", showMiniMap ? "1" : "0");
   }, [showMiniMap]);
-
-  // Toggle Controls (zoom in/out/fit) — atrapalham em telas pequenas
-  const [showControls, setShowControls] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return localStorage.getItem("canvas:showControls") !== "0";
-  });
-  useEffect(() => {
-    localStorage.setItem("canvas:showControls", showControls ? "1" : "0");
-  }, [showControls]);
 
   /* ─── Persist viewport (zoom + pan) por escopo cliente/workspace ────
    * Cada combinação (workspace, clienteAtivo) tem seu próprio viewport
