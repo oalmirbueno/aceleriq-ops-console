@@ -165,6 +165,23 @@ function FieldEditor({
         />
       )}
 
+      {field.type === "attachments" && (
+        workspaceId && nodeId ? (
+          <AttachmentUploader
+            workspaceId={workspaceId}
+            nodeId={nodeId}
+            attachments={Array.isArray(value?.value) && typeof value?.value[0] === "object" && (value!.value as Array<Record<string, unknown>>)[0]?.url !== undefined
+              ? (value!.value as unknown as AttachmentItem[])
+              : []}
+            onChange={(next) => onChange({ value: next as unknown as PrefillFieldValue["value"], origin: "edited", citation: value?.citation })}
+          />
+        ) : (
+          <p className="text-[10px] text-muted-foreground italic flex items-center gap-1">
+            <Paperclip className="h-3 w-3" /> Anexos disponíveis após salvar o node.
+          </p>
+        )
+      )}
+
       {value?.citation && origin === "auto" && (
         <p className="text-[9px] text-muted-foreground italic truncate">ref: {value.citation}</p>
       )}
