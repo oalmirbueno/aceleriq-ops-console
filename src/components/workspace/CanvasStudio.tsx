@@ -959,9 +959,8 @@ function CanvasStudioInner({
               className="bg-background canvas-flow"
               defaultEdgeOptions={{ type: "smoothstep", animated: true }}
             >
-              <StageLanesBg height={STAGE_BAND_HEIGHT} offsetY={CONTENT_TOP - 12} />
-              <Background gap={24} size={1} className="opacity-30" />
-              <Controls showInteractive={false} />
+              {showLanes && <StageLanesBg height={STAGE_BAND_HEIGHT} offsetY={CONTENT_TOP - 12} />}
+              {showGrid && <Background gap={24} size={1} className="opacity-30" />}
               <CanvasStageNavigator
                 counts={scopedProjectNodes.reduce<Record<string, number>>((acc, n) => {
                   const k = nodeStageOf(n);
@@ -978,29 +977,14 @@ function CanvasStudioInner({
                   zoomable
                 />
               )}
-              {/* Toggles cluster — sobreposto, canto inferior direito */}
-              <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-md border border-border bg-card/95 backdrop-blur-sm shadow-md p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setShowControls((v) => !v)}
-                  className={`h-6 px-2 rounded text-[10px] font-medium transition-colors ${
-                    showControls ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
-                  }`}
-                  title={showControls ? "Ocultar zoom controls" : "Mostrar zoom controls"}
-                >
-                  Zoom
-                </button>
-                <div className="h-3 w-px bg-border/60" />
-                <button
-                  type="button"
-                  onClick={() => setShowMiniMap((v) => !v)}
-                  className={`h-6 px-2 rounded text-[10px] font-medium transition-colors ${
-                    showMiniMap ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
-                  }`}
-                  title={showMiniMap ? "Ocultar minimapa" : "Mostrar minimapa"}
-                >
-                  Mapa
-                </button>
+              {/* Menu de opções visuais — engrenagem no canto inferior direito */}
+              <div className="absolute bottom-3 right-3 z-10">
+                <CanvasViewOptions
+                  showLanes={showLanes}       onToggleLanes={() => setShowLanes((v) => !v)}
+                  showGrid={showGrid}         onToggleGrid={() => setShowGrid((v) => !v)}
+                  showControls={showControls} onToggleControls={() => setShowControls((v) => !v)}
+                  showMiniMap={showMiniMap}   onToggleMiniMap={() => setShowMiniMap((v) => !v)}
+                />
               </div>
             </ReactFlow>
           )}
