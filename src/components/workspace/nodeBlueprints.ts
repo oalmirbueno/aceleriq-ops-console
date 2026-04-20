@@ -577,21 +577,36 @@ const SITE: NodeBlueprint = {
 
 const LANDING: NodeBlueprint = {
   kind: "landing_page",
-  purpose: "Landing focada em 1 conversão única — sem distrações.",
+  purpose: "Landing focada em 1 conversão única — copy de resposta direta com base de conversão completa.",
   methodChecklist: [
     { id: "single_goal",  label: "1 objetivo único definido",       required: true },
     { id: "above_fold",   label: "Promessa+CTA acima da dobra",     required: true },
     { id: "proof",        label: "Prova social posicionada",        required: true },
     { id: "objections",   label: "Objeções respondidas",            required: true },
     { id: "tracking",     label: "Eventos de conversão tracked",    required: true },
+    { id: "ab_plan",      label: "Plano de teste A/B definido",     required: false },
+    { id: "speed",        label: "LCP<2.5s validado",               required: true },
   ],
   sections: [
     {
-      id: "goal", title: "Objetivo único",
+      id: "goal", title: "Objetivo único e contexto de tráfego",
       fields: [
         { id: "conversion", label: "Conversão alvo",       type: "text", hint: "Ex: agendar demo / baixar e-book" },
         { id: "audience",   label: "Quem é o visitante",   type: "textarea" },
         { id: "source",     label: "De onde vem o tráfego", type: "text" },
+        { id: "match",      label: "Message-match (anúncio → headline)", type: "text", hint: "A landing tem que continuar a frase do anúncio" },
+        { id: "stage",      label: "Momento de consciência",  type: "text", hint: "Inconsciente / problema / solução / produto / mais consciente (Schwartz)" },
+        { id: "goal_metric", label: "Métrica-meta",            type: "kv",   hint: "CTR_hero→% ; conv_total→% ; CPL→R$" },
+      ],
+    },
+    {
+      id: "promise", title: "Big Idea / promessa central",
+      description: "Core promise antes de escrever qualquer headline.",
+      fields: [
+        { id: "big_idea",      label: "Big Idea (1 frase)",   type: "text", hint: "O insight novo/contra-intuitivo que sustenta a oferta" },
+        { id: "transformation",label: "Transformação prometida", type: "textarea", hint: "De [estado atual] → para [estado desejado] em [prazo]" },
+        { id: "mechanism",     label: "Mecanismo único",       type: "text",  hint: "Por que SÓ você entrega isso" },
+        { id: "guarantee",     label: "Garantia / risco-zero", type: "text" },
       ],
     },
     {
@@ -599,7 +614,10 @@ const LANDING: NodeBlueprint = {
       fields: [
         { id: "headline",    label: "Headline (promessa)",    type: "text",  hint: "Específica, mensurável, urgente" },
         { id: "subheadline", label: "Subheadline (clareza)",  type: "text" },
+        { id: "headline_alts", label: "3 variações de headline (A/B)", type: "list" },
         { id: "cta_primary", label: "CTA principal",          type: "text",  hint: "Verbo + benefício" },
+        { id: "cta_alts",    label: "Variações de CTA",       type: "list" },
+        { id: "microtrust",  label: "Microcopy de confiança", type: "text",  hint: "Ex: 'Sem cartão de crédito' / '+1.200 clientes'" },
         { id: "hero_visual", label: "Visual hero",            type: "text",  hint: "Mockup / vídeo / ilustração" },
       ],
     },
@@ -607,41 +625,84 @@ const LANDING: NodeBlueprint = {
       id: "body", title: "Corpo da página (em blocos)",
       fields: [
         { id: "blocks", label: "Blocos em ordem", type: "list", hint: "Ex: benefícios → como funciona → prova → FAQ → CTA" },
-        { id: "value_props", label: "Propostas de valor (3)", type: "list" },
+        { id: "pains",       label: "Dores que a página agita", type: "list" },
+        { id: "value_props", label: "Propostas de valor (3-5, benefício+feature+prova)", type: "list" },
         { id: "how_it_works", label: "Como funciona (passos)", type: "list" },
+        { id: "for_who",     label: "Pra quem é / pra quem não é", type: "kv", hint: "para→ ; não para→" },
+        { id: "bonuses",     label: "Bônus / extras",         type: "list" },
+      ],
+    },
+    {
+      id: "offer", title: "Oferta",
+      description: "Stack de valor + ancoragem + escassez.",
+      fields: [
+        { id: "price",       label: "Preço (real ou simbólico)", type: "text" },
+        { id: "anchor",      label: "Ancoragem de preço",        type: "text",  hint: "De R$X por R$Y / equivalente a Z" },
+        { id: "stack",       label: "Stack de valor",            type: "list",  hint: "Item + valor percebido" },
+        { id: "urgency",     label: "Urgência / escassez",       type: "text",  hint: "Vagas, prazo, lote — apenas se real" },
+        { id: "payment",     label: "Condições de pagamento",    type: "text" },
       ],
     },
     {
       id: "proof", title: "Prova social",
       fields: [
         { id: "testimonials", label: "Depoimentos a usar",    type: "list" },
+        { id: "case_studies", label: "Cases / before-after",   type: "list" },
         { id: "logos",        label: "Logos de clientes",      type: "list" },
         { id: "numbers",      label: "Números (X clientes, Y anos)", type: "kv" },
+        { id: "press",        label: "Mídia / certificações",  type: "list" },
       ],
     },
     {
       id: "objections", title: "Objeções e FAQ",
       fields: [
+        { id: "top_objections", label: "Top 5 objeções a derrubar", type: "list" },
         { id: "faq", label: "FAQ (pergunta → resposta)", type: "kv" },
+        { id: "risk_reversal", label: "Risk reversal (garantia, devolução)", type: "text" },
       ],
     },
     {
-      id: "tracking", title: "Tracking",
+      id: "tracking", title: "Tracking e instrumentação",
       fields: [
         { id: "events",   label: "Eventos a disparar",    type: "list" },
+        { id: "pixels",   label: "Pixels / tags",         type: "kv",   hint: "GA4, Meta, GTM, LinkedIn..." },
+        { id: "utm_plan", label: "Plano de UTMs",         type: "kv",   hint: "source→ ; medium→ ; campaign→" },
         { id: "thanks",   label: "Página de obrigado",    type: "text" },
+        { id: "post_conv",label: "Pós-conversão (e-mail, WhatsApp, redirect)", type: "list" },
+      ],
+    },
+    {
+      id: "ab", title: "Plano de teste A/B",
+      fields: [
+        { id: "hypothesis", label: "Hipóteses a testar (em ordem)", type: "list", hint: "Headline → CTA → ordem dos blocos → preço" },
+        { id: "min_volume", label: "Volume mínimo para significância", type: "text", hint: "Ex: 1.000 visitas/variação" },
+        { id: "kpi",        label: "KPI de decisão",      type: "text",  hint: "Conversão / CPL / receita" },
+      ],
+    },
+    {
+      id: "references", title: "Referências e assets",
+      fields: [
+        { id: "swipe_files", label: "Swipe files (URLs de inspiração)", type: "list" },
+        { id: "files",       label: "Anexos (wireframe, vídeo, mockups)", type: "attachments" },
       ],
     },
   ],
   quickActions: [
-    { id: "generate_tasks", label: "Gerar tasks", primary: true },
+    { id: "generate_tasks", label: "Gerar tasks de produção", primary: true },
     { id: "go_live",        label: "Pré-launch",  primary: true },
+    { id: "export_pdf",     label: "Exportar copy doc" },
+    { id: "link_asset",     label: "Vincular assets" },
     { id: "regenerate_prefill", label: "Regenerar com IA" },
   ],
   sources: ["briefing","context","siblings","assets"],
   prefillPrompt:
-    "Você é copywriter de resposta direta (Cialdini + Halbert). Headline específica, mensurável, com benefício. " +
-    "CTA com verbo de ação. Use depoimentos reais se houver no contexto — nunca invente.",
+    "Você é copywriter de resposta direta (Halbert + Eugene Schwartz + Hormozi). " +
+    "Calibre o tom pelo nível de consciência (Schwartz). Headline específica, mensurável, com benefício e — quando couber — dispositivo de curiosidade. " +
+    "Big Idea: 1 frase contra-intuitiva, não chavão. Mecanismo único é o motivo de SÓ a marca entregar a transformação. " +
+    "Stack de valor: cada item com valor percebido em R$ (Hormozi). Urgência só se real — nunca invente lote/vaga. " +
+    "Variações A/B: produza 3 headlines distintas em ângulo (dor / desejo / curiosidade), não em sinônimos. " +
+    "Use depoimentos reais se houver no contexto — NUNCA invente. Para preço, garantia e datas, marque decisionOnly como vazio se não houver fonte. " +
+    "FAQ: gere as 5 objeções mais prováveis pra esse público com resposta curta + prova.",
 };
 
 const CONTEUDO: NodeBlueprint = {
