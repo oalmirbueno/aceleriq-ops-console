@@ -20,6 +20,8 @@ import CanvasEsteiraPalette from "./CanvasEsteiraPalette";
 import CanvasInspector from "./CanvasInspector";
 import CanvasClientPicker from "./CanvasClientPicker";
 import CanvasClientTabs, { type CanvasClientTab } from "./CanvasClientTabs";
+import GenerateEsteiraDialog from "./GenerateEsteiraDialog";
+import type { EsteiraTemplate } from "./esteiraTemplates";
 import {
   ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH, STAGE_HEADER_HEIGHT,
   getProjectTypeMeta, getStageMeta, stageColumnX, getChecklistTemplate,
