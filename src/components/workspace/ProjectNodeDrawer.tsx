@@ -14,6 +14,7 @@ import LegacyProjectNodeDrawer, { type ClientFolderOption } from "./LegacyProjec
 import BriefingNodeDrawer from "./BriefingNodeDrawer";
 import SpecializedNodeDrawer from "./SpecializedNodeDrawer";
 import AccessVaultDrawer from "./AccessVaultDrawer";
+import FunnelEditorDrawer from "./FunnelEditorDrawer";
 import { hasBlueprint } from "./nodeBlueprints";
 import type { ProjectNodeKind } from "./canvasProjectTypes";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
