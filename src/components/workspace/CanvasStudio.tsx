@@ -80,6 +80,7 @@ function CanvasStudioInner({
   
   const [dbNodes, setDbNodes] = useState<CanvasNodeRow[]>([]);
   const [dbEdges, setDbEdges] = useState<CanvasEdgeRecord[]>([]);
+  const [clientLogos, setClientLogos] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(true);
   const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState<CanvasNodeRow | null>(null);
@@ -109,6 +110,31 @@ function CanvasStudioInner({
     ]);
     setDbNodes((nodesData ?? []) as CanvasNodeRow[]);
     setDbEdges((edgesData ?? []) as CanvasEdgeRecord[]);
+
+    // Fetch logos for all linked clients (tolerant if column doesn't exist)
+    const linkedIds = Array.from(
+      new Set(
+        ((nodesData ?? []) as CanvasNodeRow[])
+          .filter((n) => n.node_type === "client" && n.linked_entity_id)
+          .map((n) => n.linked_entity_id as string),
+      ),
+    );
+    if (linkedIds.length > 0) {
+      const { data: logos, error: logoErr } = await supabase
+        .from("clients")
+        .select("id, logo_url")
+        .in("id", linkedIds);
+      if (!logoErr && logos) {
+        const map: Record<string, string | null> = {};
+        (logos as Array<{ id: string; logo_url: string | null }>).forEach((c) => {
+          map[c.id] = c.logo_url ?? null;
+        });
+        setClientLogos(map);
+      }
+    } else {
+      setClientLogos({});
+    }
+
     setLoading(false);
   }, [workspaceId]);
 
