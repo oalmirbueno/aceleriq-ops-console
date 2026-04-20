@@ -211,3 +211,57 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ─── React Flow — dark theme overrides ────────────────────────────── */
+/* Sem isso, Controls e MiniMap vêm com fundo branco padrão e ficam ilegíveis no tema escuro. */
+.react-flow__controls {
+  background: hsl(var(--card)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px hsl(0 0% 0% / 0.4);
+  overflow: hidden;
+}
+.react-flow__controls-button {
+  background: hsl(var(--card)) !important;
+  border: none !important;
+  border-bottom: 1px solid hsl(var(--border)) !important;
+  color: hsl(var(--foreground)) !important;
+  width: 28px;
+  height: 28px;
+}
+.react-flow__controls-button:hover {
+  background: hsl(var(--muted)) !important;
+}
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+.react-flow__controls-button svg {
+  fill: hsl(var(--foreground)) !important;
+  max-width: 14px;
+  max-height: 14px;
+}
+
+.react-flow__minimap {
+  background: hsl(var(--card)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.react-flow__minimap-mask {
+  fill: hsl(var(--background) / 0.6) !important;
+  stroke: hsl(var(--primary) / 0.5) !important;
+  stroke-width: 2;
+}
+
+.react-flow__attribution {
+  background: transparent !important;
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.react-flow__edge-path {
+  stroke: hsl(var(--border));
+}
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:focus .react-flow__edge-path {
+  stroke: hsl(var(--primary));
+}
