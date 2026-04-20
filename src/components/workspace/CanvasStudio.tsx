@@ -269,10 +269,29 @@ function CanvasStudioInner({
     setSelectedNode(found);
   }, [dbNodes]);
 
-  /* Pick parent (single-client convenience) */
+  /* Pick parent: prioriza cliente da aba ativa */
   const pickParentGroup = (): string | null => {
+    if (activeClientId) return activeClientId;
     if (clientGroups.length === 1) return clientGroups[0].id;
     return null;
+  };
+
+  /* Quando o usuário tenta criar um node sem cliente ativo e existem várias pastas,
+   * abre o seletor de cliente para evitar nodes "órfãos". */
+  const ensureActiveClient = (): boolean => {
+    if (clientGroups.length === 0) {
+      toast({
+        title: "Adicione um cliente primeiro",
+        description: "Cada esteira pertence a uma pasta de cliente.",
+      });
+      setClientPickerOpen(true);
+      return false;
+    }
+    if (!activeClientId) {
+      // Há clientes mas nenhuma aba selecionada — selecione automaticamente
+      setActiveClientId(clientGroups[0].id);
+    }
+    return true;
   };
 
   /* Add a project node at chosen kind+stage */
