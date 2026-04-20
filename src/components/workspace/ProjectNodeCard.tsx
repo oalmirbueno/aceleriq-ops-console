@@ -5,6 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { getProjectTypeMeta } from "./canvasProjectTypes";
 import { getEsteiraStatus, mapLegacyStatus } from "./canvasEsteiraStatus";
 import ClientAvatar from "./ClientAvatar";
+import AttachmentPreview from "./AttachmentPreview";
+
+export interface ProjectNodeCoverAttachment {
+  url: string;
+  type?: string;
+  label?: string;
+}
 
 export interface ProjectNodeData extends Record<string, unknown> {
   title: string;
@@ -17,6 +24,8 @@ export interface ProjectNodeData extends Record<string, unknown> {
   links?: number;
   checklistDone?: number;
   checklistTotal?: number;
+  /** First previewable attachment, used as visual cover */
+  coverAttachment?: ProjectNodeCoverAttachment | null;
   /** Owner client (folder) — used for visual identification */
   clientName?: string | null;
   clientSeed?: string | null;
