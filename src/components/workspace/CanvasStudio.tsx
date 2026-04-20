@@ -259,7 +259,7 @@ function CanvasStudioInner({
           style: { stroke: "hsl(var(--primary))", strokeWidth: 1.5 },
         })),
     );
-  }, [projectNodes, dbEdges, search, typeFilter, statusFilter, activeClientId]);
+  }, [projectNodes, dbEdges, search, typeFilter, statusFilter, activeClientId, groupMeta]);
 
   /* ReactFlow handlers */
   const onNodesChange = useCallback((changes: NodeChange[]) => {
