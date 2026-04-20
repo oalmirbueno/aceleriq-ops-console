@@ -7,7 +7,7 @@ import {
   PenTool, Megaphone, Mail, Database, Lightbulb, Calendar, Paperclip,
   BarChart3, Trophy, Sparkles, Building2, FolderKanban, ListChecks,
   PackageCheck, type LucideIcon, Image as ImageIcon, Video, Phone,
-  Target, Rocket,
+  Target, Rocket, KeyRound,
 } from "lucide-react";
 
 export type AceleraStageKey =
@@ -58,7 +58,7 @@ export function stageFromX(x: number, offsetX = 0): AceleraStageKey {
 /* ─── Project / deliverable types (RICH catalog) ─── */
 
 export type ProjectNodeKind =
-  | "briefing" | "ideia" | "reuniao" | "documento"
+  | "briefing" | "ideia" | "reuniao" | "documento" | "acessos"
   | "landing_page" | "site" | "funil"
   | "automacao" | "ia" | "integracao"
   | "conteudo" | "trafego" | "email_mkt" | "social"
@@ -86,6 +86,7 @@ export const PROJECT_TYPES: ProjectNodeTypeMeta[] = [
   { kind: "reuniao",      label: "Reunião / Call",      shortLabel: "Reunião",      icon: Phone,           color: "border-amber-500/40 text-amber-400",   bg: "bg-amber-500/10",   defaultStage: "entrada",        sections: ["overview","notes","attachments"],                                titleTemplate: "Reunião" },
   { kind: "ideia",        label: "Ideia / Hipótese",    shortLabel: "Ideia",        icon: Lightbulb,       color: "border-yellow-500/40 text-yellow-400", bg: "bg-yellow-500/10",  defaultStage: "entrada",        sections: ["overview","notes","links"],                                      titleTemplate: "Ideia" },
   { kind: "objetivo",     label: "Objetivo / Meta",     shortLabel: "Objetivo",     icon: Target,          color: "border-amber-500/40 text-amber-400",   bg: "bg-amber-500/10",   defaultStage: "entrada",        sections: ["overview","metrics","notes"],                                    titleTemplate: "Objetivo" },
+  { kind: "acessos",      label: "Acessos & Senhas",    shortLabel: "Acessos",      icon: KeyRound,        color: "border-amber-500/40 text-amber-400",   bg: "bg-amber-500/10",   defaultStage: "entrada",        sections: ["overview","notes"],                                              titleTemplate: "Acessos do cliente" },
 
   // Diagnóstico / Estrutura
   { kind: "documento",    label: "Documento",           shortLabel: "Doc",          icon: FileText,        color: "border-sky-500/40 text-sky-400",       bg: "bg-sky-500/10",     defaultStage: "diagnostico",    sections: ["overview","links","attachments","notes"],                        titleTemplate: "Documento" },
@@ -125,7 +126,7 @@ export function getProjectTypeMeta(kind: string): ProjectNodeTypeMeta | null {
 
 /** Group catalog into bands for the palette */
 export const PROJECT_TYPE_GROUPS: Array<{ stage: AceleraStageKey; types: ProjectNodeKind[] }> = [
-  { stage: "entrada",        types: ["briefing","reuniao","ideia","objetivo"] },
+  { stage: "entrada",        types: ["briefing","reuniao","ideia","objetivo","acessos"] },
   { stage: "diagnostico",    types: ["documento","contato"] },
   { stage: "estrutura_base", types: ["checklist"] },
   { stage: "planejamento",   types: ["funil"] },
@@ -336,6 +337,14 @@ export const CHECKLIST_TEMPLATES: Partial<Record<ProjectNodeKind, string[]>> = {
     "Decisões de alçada",
   ],
   checklist: [],
+  acessos: [
+    "Coletar acessos das plataformas de mídia (Meta, Google Ads, GA4)",
+    "Coletar acessos de hospedagem e DNS",
+    "Coletar acessos do CMS / site",
+    "Coletar acessos de redes sociais e e-mail corporativo",
+    "Validar 2FA e papéis de cada acesso",
+    "Marcar credenciais sensíveis (revelação só admin)",
+  ],
 };
 
 export function getChecklistTemplate(kind: string): Array<{ id: string; text: string; done: boolean }> {
