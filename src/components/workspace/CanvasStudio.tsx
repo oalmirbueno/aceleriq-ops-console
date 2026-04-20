@@ -425,11 +425,11 @@ function CanvasStudioInner({
   /* Estrutura base: cria pasta cliente + briefing + landing como exemplo de esteira */
   const handleGenerateBase = async () => {
     setBusyAction("base");
-    const hasClient = clientGroups.length > 0;
+    // Use cliente da aba ativa se houver
+    let clientNodeId: string | null = activeClientId
+      ?? (clientGroups[0]?.id ?? null);
 
-    let clientNodeId: string | null = hasClient ? clientGroups[0].id : null;
-
-    if (!hasClient) {
+    if (!clientNodeId) {
       const { data: clientNode, error: cErr } = await supabase
         .from("canvas_nodes")
         .insert({
@@ -452,6 +452,7 @@ function CanvasStudioInner({
       }
       clientNodeId = (clientNode as CanvasNodeRow).id;
       setDbNodes((prev) => [...prev, clientNode as CanvasNodeRow]);
+      setActiveClientId(clientNodeId);
     }
 
     // Briefing in entrada
