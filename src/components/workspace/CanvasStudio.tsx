@@ -1048,8 +1048,10 @@ function CanvasStudioInner({
                   maskColor="hsl(var(--background) / 0.6)"
                   pannable
                   zoomable
+                  style={{ width: 260, height: 170 }}
                 />
               )}
+              <CanvasHorizontalScroller />
               {/* Toggles cluster — sobreposto, canto inferior direito */}
               <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-md border border-border bg-card/95 backdrop-blur-sm shadow-md p-0.5">
                 <button
