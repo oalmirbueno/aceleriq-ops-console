@@ -142,7 +142,10 @@ function CanvasStudioInner({
 
   /* Derive groups (clients) and per-stage lanes */
   const clientGroups = useMemo(
-    () => dbNodes.filter((n) => n.node_type === "client"),
+    () => dbNodes
+      .filter((n) => n.node_type === "client")
+      .slice()
+      .sort((a, b) => Number(a.pos_x ?? 0) - Number(b.pos_x ?? 0)),
     [dbNodes],
   );
   const projectNodes = useMemo(
