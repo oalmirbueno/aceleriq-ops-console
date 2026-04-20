@@ -35,21 +35,19 @@ interface Args {
 
 /** Aproxima cor Tailwind do typeMeta para tupla RGB pro header do PDF.  */
 function accentForKind(kind: ProjectNodeKind): [number, number, number] {
-  // Mapeia paletas comuns dos types pra RGB aproximada (ver canvasProjectTypes)
   const map: Partial<Record<ProjectNodeKind, [number, number, number]>> = {
-    briefing: [56, 189, 248],
-    diagnostico: [168, 85, 247],
-    objetivo: [34, 197, 94],
-    documento: [148, 163, 184],
+    briefing: [251, 191, 36],
+    reuniao: [251, 191, 36],
+    objetivo: [251, 191, 36],
+    documento: [56, 189, 248],
     site: [167, 139, 250],
     landing_page: [139, 92, 246],
-    conteudo: [251, 191, 36],
-    asset: [244, 114, 182],
+    conteudo: [167, 139, 250],
+    asset: [52, 211, 153],
     lancamento: [236, 72, 153],
-    trafego: [248, 113, 113],
+    trafego: [236, 72, 153],
     metrica: [251, 146, 60],
-    reuniao: [251, 191, 36],
-    funil: [56, 189, 248],
+    funil: [129, 140, 248],
   };
   return map[kind] ?? [20, 184, 90];
 }
