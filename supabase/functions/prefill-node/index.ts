@@ -145,10 +145,12 @@ serve(async (req) => {
     }
 
     if (blueprint.sources.includes("fronts")) {
-      const { data: fronts } = await supabase.from("fronts")
-        .select("name, status, description, priority")
-        .eq("client_id", clientId)
+      const { data: fronts, error: frontsErr } = await supabase
+        .from("operational_fronts")
+        .select("name, bucket_status, description")
+        .eq("workspace_id", workspaceId)
         .limit(10);
+      if (frontsErr) console.warn("fronts source failed:", frontsErr.message);
       if (fronts && fronts.length > 0) { ctx.fronts = fronts; sourcesUsed.push("fronts"); }
     }
 
