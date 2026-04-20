@@ -231,6 +231,63 @@ function CanvasStudioInner({
     localStorage.setItem("canvas:showControls", showControls ? "1" : "0");
   }, [showControls]);
 
+  /* ─── Persist viewport (zoom + pan) por escopo cliente/workspace ────
+   * Cada combinação (workspace, clienteAtivo) tem seu próprio viewport
+   * salvo em localStorage. Restaurado ao trocar aba; salvo ao mover/zoom.
+   * Fallback: fitView quando não há viewport salvo (primeira visita).
+   */
+  const viewportScope = `canvas:viewport:${workspaceId}:${activeClientId ?? "all"}`;
+  const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
+  const restoredScopesRef = useRef<Set<string>>(new Set());
+  const saveTimerRef = useRef<number | null>(null);
+
+  const readSavedViewport = useCallback((scope: string): Viewport | null => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem(scope);
+      if (!raw) return null;
+      const v = JSON.parse(raw) as Partial<Viewport>;
+      if (typeof v.x === "number" && typeof v.y === "number" && typeof v.zoom === "number") {
+        return { x: v.x, y: v.y, zoom: v.zoom };
+      }
+    } catch { /* ignore */ }
+    return null;
+  }, []);
+
+  const handleRfInit = useCallback((inst: ReactFlowInstance) => {
+    rfInstanceRef.current = inst;
+    const saved = readSavedViewport(viewportScope);
+    if (saved) {
+      inst.setViewport(saved, { duration: 0 });
+      restoredScopesRef.current.add(viewportScope);
+    } else {
+      // primeira visita nesse escopo — deixa o fitView default agir
+      inst.fitView({ padding: 0.4, duration: 0 });
+      restoredScopesRef.current.add(viewportScope);
+    }
+  }, [viewportScope, readSavedViewport]);
+
+  // Restaura quando muda de aba (cliente) sem desmontar o ReactFlow
+  useEffect(() => {
+    const inst = rfInstanceRef.current;
+    if (!inst) return;
+    if (restoredScopesRef.current.has(viewportScope)) return;
+    const saved = readSavedViewport(viewportScope);
+    if (saved) inst.setViewport(saved, { duration: 250 });
+    else inst.fitView({ padding: 0.4, duration: 250 });
+    restoredScopesRef.current.add(viewportScope);
+  }, [viewportScope, readSavedViewport]);
+
+  // Persiste com debounce no fim de cada pan/zoom
+  const handleMoveEnd = useCallback((_e: unknown, vp: Viewport) => {
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
+      try {
+        localStorage.setItem(viewportScope, JSON.stringify({ x: vp.x, y: vp.y, zoom: vp.zoom }));
+      } catch { /* quota — ignore */ }
+    }, 250);
+  }, [viewportScope]);
+
   /* DB → ReactFlow */
   useEffect(() => {
     const q = search.trim().toLowerCase();
