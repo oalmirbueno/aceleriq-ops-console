@@ -3,7 +3,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Search, Link2, Filter } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Search, Link2, Filter, ChevronRight, ChevronLeft, PanelRight } from "lucide-react";
 import {
   CANVAS_NODE_TYPES, CANVAS_STATUS_OPTIONS,
   getCanvasTypeConfig, getCanvasStatusConfig,
@@ -21,6 +22,8 @@ interface Props {
   onStatusFilter: (v: string | null) => void;
   onPick: (n: CanvasNodeRecord) => void;
   selectedId: string | null;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
 export default function CanvasInspector({
