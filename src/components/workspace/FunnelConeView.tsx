@@ -112,14 +112,14 @@ export default function FunnelConeView({ steps, highlightId, onPickStep }: Props
   const allSynthetic = slices.every((s) => s.synthetic);
 
   return (
-    <div className="rounded-lg border border-border bg-gradient-to-b from-indigo-500/5 via-background/40 to-background/0 p-3">
+    <div className="rounded-lg border border-border bg-gradient-to-b from-primary/5 via-background/40 to-background/0 p-3">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
             Funil — visão proporcional
           </span>
           {allSynthetic && (
-            <span className="text-[9px] text-amber-400/80 italic">
+            <span className="text-[9px] text-muted-foreground italic">
               (estimativa — preencha volumes pra ver real)
             </span>
           )}
