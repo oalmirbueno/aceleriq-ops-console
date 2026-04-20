@@ -887,6 +887,94 @@ const KICKOFF: NodeBlueprint = {
     "Pré-leitura curta e relevante. Decisões esperadas explícitas. Não invente data — decisão humana.",
 };
 
+const IDEIA: NodeBlueprint = {
+  kind: "ideia",
+  purpose: "Hipótese ou ideia em estado bruto — formaliza, prioriza e define teste mínimo.",
+  methodChecklist: [
+    { id: "frame",       label: "Hipótese escrita no formato 'se X, então Y, porque Z'", required: true },
+    { id: "evidence",    label: "Evidências a favor e contra listadas",                  required: true },
+    { id: "score",       label: "Pontuada (impacto × confiança × esforço)",              required: true },
+    { id: "test",        label: "Teste mínimo definido (custo + critério)",              required: true },
+    { id: "decision",    label: "Decisão tomada: validar / matar / arquivar",            required: true },
+  ],
+  sections: [
+    {
+      id: "hypothesis", title: "Hipótese",
+      description: "Formato: 'Se [mudança], então [efeito esperado], porque [mecanismo].'",
+      fields: [
+        { id: "statement",  label: "Hipótese (1 frase)",     type: "textarea", hint: "Se X, então Y, porque Z" },
+        { id: "origin",     label: "De onde veio essa ideia", type: "text",    hint: "Briefing, conversa, dado, intuição..." },
+        { id: "category",   label: "Categoria",              type: "text",    hint: "Aquisição, ativação, retenção, receita, referência" },
+      ],
+    },
+    {
+      id: "evidence", title: "Evidências",
+      description: "O que sustenta ou contradiz a hipótese hoje.",
+      fields: [
+        { id: "for",      label: "A favor",     type: "list", hint: "Dados, falas de cliente, benchmark" },
+        { id: "against",  label: "Contra",       type: "list" },
+        { id: "missing",  label: "O que falta saber", type: "list", hint: "Perguntas em aberto" },
+      ],
+    },
+    {
+      id: "scoring", title: "Pontuação ICE",
+      description: "Impacto × Confiança × Esforço (1-10 cada). Use pra priorizar.",
+      fields: [
+        { id: "impact",     label: "Impacto (1-10)",     type: "text", hint: "Quanto move o ponteiro se der certo" },
+        { id: "confidence", label: "Confiança (1-10)",   type: "text", hint: "Quão certo de que vai funcionar" },
+        { id: "effort",     label: "Esforço (1-10)",     type: "text", hint: "10 = fácil; 1 = muito difícil" },
+        { id: "score",      label: "Score final (I × C × E / 100)", type: "text", decisionOnly: true },
+      ],
+    },
+    {
+      id: "test", title: "Teste mínimo",
+      description: "Como validar barato antes de investir pesado.",
+      fields: [
+        { id: "design",    label: "Como testar",           type: "textarea", hint: "Experimento, MVP, fake door, smoke test..." },
+        { id: "metric",    label: "Métrica de sucesso",    type: "text",     hint: "Ex: ≥ 5% conversão em 100 visitas" },
+        { id: "duration",  label: "Duração do teste",      type: "text" },
+        { id: "cost",      label: "Custo estimado",        type: "text", decisionOnly: true },
+      ],
+    },
+    {
+      id: "risks", title: "Riscos e suposições",
+      fields: [
+        { id: "assumptions", label: "Suposições críticas",   type: "list", hint: "Se falsa, a ideia cai" },
+        { id: "risks",       label: "Riscos do teste em si", type: "list", hint: "Reputação, custo, tempo do time" },
+      ],
+    },
+    {
+      id: "decision", title: "Decisão",
+      description: "Sair daqui com uma decisão clara — não deixar limbo.",
+      fields: [
+        { id: "verdict",   label: "Veredito",        type: "text",     decisionOnly: true, hint: "validar / matar / arquivar / pivotar" },
+        { id: "rationale", label: "Justificativa",   type: "textarea" },
+        { id: "owner",     label: "Dono do próximo passo", type: "text", decisionOnly: true },
+      ],
+    },
+    {
+      id: "supporting", title: "Materiais de apoio",
+      fields: [
+        { id: "files", label: "Referências, prints, planilhas", type: "attachments" },
+      ],
+    },
+  ],
+  quickActions: [
+    { id: "generate_tasks",     label: "Gerar tasks do teste", primary: true },
+    { id: "approve",            label: "Marcar decisão"                       },
+    { id: "export_pdf",         label: "Baixar PDF"                           },
+    { id: "regenerate_prefill", label: "Sugerir com IA"                       },
+  ],
+  sources: ["briefing","context","siblings"],
+  prefillPrompt:
+    "Você é product manager experiente avaliando ideias. Reescreva a ideia no formato " +
+    "'Se X, então Y, porque Z' — mecanismo causal explícito. " +
+    "Use o briefing e contexto pra listar 3-5 evidências reais a favor/contra (sem inventar). " +
+    "Em ICE, sugira números 1-10 com justificativa curta no citation. " +
+    "Em 'test', proponha o experimento MAIS BARATO que decide a hipótese. " +
+    "Para 'verdict' e 'cost', use origin=empty — são decisões humanas.",
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Registry
 // ═══════════════════════════════════════════════════════════════════════════
