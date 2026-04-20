@@ -80,11 +80,6 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
           </div>
         </div>
 
-        {/* Title */}
-        <p className="text-sm font-semibold text-foreground leading-tight line-clamp-2 mb-1">
-          {d.title}
-        </p>
-
         {/* Cover thumbnail (first previewable attachment) */}
         {d.coverAttachment?.url && (
           <div
