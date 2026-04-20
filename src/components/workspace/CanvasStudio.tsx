@@ -26,7 +26,7 @@ import {
 } from "./canvasProjectTypes";
 import { mapLegacyStatus, premiumStatusToDb } from "./canvasEsteiraStatus";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
-import { Search } from "lucide-react";
+
 
 interface CanvasEdgeRecord {
   id: string;
@@ -76,7 +76,7 @@ function CanvasStudioInner({
   workspaceId, clientId, clientName,
   fullscreen, onToggleFullscreen, onTimelineRefresh,
 }: Props) {
-  const rf = useReactFlow();
+  
   const [dbNodes, setDbNodes] = useState<CanvasNodeRow[]>([]);
   const [dbEdges, setDbEdges] = useState<CanvasEdgeRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -616,15 +616,6 @@ function CanvasStudioInner({
                 <MiniMap className="!bg-card !border-border" nodeColor={() => "hsl(var(--primary))"} pannable zoomable />
               </ReactFlow>
 
-              {/* Quick-add inline popover after clicking + on a node */}
-              <Popover open={quickAddState.open} onOpenChange={(v) => !v && setQuickAddState({ open: false, sourceId: null, dir: null })}>
-                <PopoverTrigger asChild>
-                  <span className="sr-only" aria-hidden />
-                </PopoverTrigger>
-                <PopoverContent className="w-72 p-0" side="bottom" align="center">
-                  <QuickAddInline onPick={quickAddFromNode} />
-                </PopoverContent>
-              </Popover>
             </>
           )}
         </div>
@@ -646,15 +637,30 @@ function CanvasStudioInner({
         />
       </div>
 
-      {/* Advanced add popover */}
-      <Popover open={advancedOpen} onOpenChange={setAdvancedOpen}>
-        <PopoverTrigger asChild>
-          <span aria-hidden className="sr-only" />
-        </PopoverTrigger>
-        <PopoverContent className="w-80 p-0" align="start">
-          <QuickAddInline onPick={advancedAdd} />
-        </PopoverContent>
-      </Popover>
+      {/* Quick add modal — used by inline + and Advanced button */}
+      <Dialog
+        open={advancedOpen || quickAddState.open}
+        onOpenChange={(v) => {
+          if (!v) {
+            setAdvancedOpen(false);
+            setQuickAddState({ open: false, sourceId: null, dir: null });
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden">
+          <DialogHeader className="px-4 pt-4 pb-2 border-b border-border">
+            <DialogTitle className="text-base">
+              {quickAddState.sourceId ? "Conectar próximo node" : "Adicionar node"}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {quickAddState.sourceId
+                ? "Escolha o tipo do próximo passo da esteira."
+                : "Escolha o tipo de projeto/entregável."}
+            </DialogDescription>
+          </DialogHeader>
+          <QuickAddInline onPick={quickAddState.sourceId ? quickAddFromNode : advancedAdd} />
+        </DialogContent>
+      </Dialog>
 
       <CanvasClientPicker
         open={clientPickerOpen}
