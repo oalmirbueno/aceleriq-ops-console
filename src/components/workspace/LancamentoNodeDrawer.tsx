@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Rocket, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCanvasNodeMetadata } from "@/hooks/useCanvasNodeMetadata";
+import { useNodeQuickActions } from "@/hooks/useNodeQuickActions";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 import type { NodePrefillPayload } from "./nodePrefillTypes";
 
@@ -25,10 +26,9 @@ interface Props {
   onOpenChange: (v: boolean) => void;
   workspaceId: string;
   clientId: string;
+  clientName?: string;
   onDelete?: (id: string) => Promise<void> | void;
-  onGenerateTasks?: () => void;
   onGoLive?: () => void;
-  onCreateSnapshot?: () => void;
 }
 
 interface ChecklistItem { id: string; text: string; done: boolean }
@@ -98,11 +98,13 @@ function bucketize(items: ChecklistItem[]): Record<string, ChecklistItem[]> {
 }
 
 export default function LancamentoNodeDrawer({
-  node, open, onOpenChange, workspaceId, clientId, onDelete,
-  onGenerateTasks, onGoLive, onCreateSnapshot,
+  node, open, onOpenChange, workspaceId, clientId, clientName, onDelete, onGoLive,
 }: Props) {
   const blueprint = getNodeBlueprint("lancamento");
   const { prefill } = useCanvasNodeMetadata({ nodeId: node.id, open });
+  const { handlers: baseHandlers, dialogs } = useNodeQuickActions({
+    node, open, workspaceId, clientId, clientName,
+  });
 
   const goLiveDate = useMemo(() => {
     const dateField = prefill?.sections?.scope?.fields?.date;
@@ -132,9 +134,8 @@ export default function LancamentoNodeDrawer({
   if (!blueprint) return null;
 
   const handlers = {
-    ...(onGenerateTasks  && { generate_tasks: onGenerateTasks }),
-    ...(onGoLive         && { go_live: onGoLive }),
-    ...(onCreateSnapshot && { create_snapshot: onCreateSnapshot }),
+    ...baseHandlers,
+    ...(onGoLive && { go_live: onGoLive }),
   };
 
   const extraSlot = (
@@ -244,16 +245,19 @@ export default function LancamentoNodeDrawer({
   );
 
   return (
-    <SpecializedNodeDrawer
-      node={node}
-      open={open}
-      onOpenChange={onOpenChange}
-      workspaceId={workspaceId}
-      clientId={clientId}
-      blueprintOverride={blueprint}
-      quickActionHandlers={handlers}
-      onDelete={onDelete}
-      extraSlot={extraSlot}
-    />
+    <>
+      <SpecializedNodeDrawer
+        node={node}
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        clientId={clientId}
+        blueprintOverride={blueprint}
+        quickActionHandlers={handlers}
+        onDelete={onDelete}
+        extraSlot={extraSlot}
+      />
+      {dialogs}
+    </>
   );
 }

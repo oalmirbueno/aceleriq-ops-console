@@ -19,6 +19,7 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { useCanvasNodeMetadata } from "@/hooks/useCanvasNodeMetadata";
+import { useNodeQuickActions } from "@/hooks/useNodeQuickActions";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 import type { NodePrefillPayload } from "./nodePrefillTypes";
 
@@ -28,8 +29,8 @@ interface Props {
   onOpenChange: (v: boolean) => void;
   workspaceId: string;
   clientId: string;
+  clientName?: string;
   onDelete?: (id: string) => Promise<void> | void;
-  onCreateSnapshot?: () => void;
   onCreateFront?: () => void;
 }
 
@@ -66,13 +67,16 @@ function parseTargetNumber(raw: string): number | null {
 }
 
 export default function MetricaNodeDrawer({
-  node, open, onOpenChange, workspaceId, clientId, onDelete, onCreateSnapshot, onCreateFront,
+  node, open, onOpenChange, workspaceId, clientId, clientName, onDelete, onCreateFront,
 }: Props) {
   const blueprint = getNodeBlueprint("metrica");
   const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [horizon, setHorizon] = useState<Horizon>("90");
   const { prefill } = useCanvasNodeMetadata({ nodeId: node.id, open });
+  const { handlers: baseHandlers, dialogs } = useNodeQuickActions({
+    node, open, workspaceId, clientId, clientName,
+  });
 
   // Identificador da métrica
   const kpiName = getStringField(prefill, "kpi", "name").trim();
@@ -147,8 +151,8 @@ export default function MetricaNodeDrawer({
   if (!blueprint) return null;
 
   const handlers = {
-    ...(onCreateSnapshot && { create_snapshot: onCreateSnapshot }),
-    ...(onCreateFront    && { create_front: onCreateFront }),
+    ...baseHandlers,
+    ...(onCreateFront && { create_front: onCreateFront }),
   };
 
   const extraSlot = (
@@ -224,11 +228,9 @@ export default function MetricaNodeDrawer({
             <p className="text-[11px] text-muted-foreground">
               Sem snapshots {dataMetricKey || kpiName ? "pra essa métrica" : "ainda"}.
             </p>
-            {onCreateSnapshot && (
-              <Button size="sm" variant="outline" onClick={onCreateSnapshot} className="h-7 text-[11px]">
-                Criar primeiro snapshot
-              </Button>
-            )}
+            <Button size="sm" variant="outline" onClick={() => baseHandlers.create_snapshot?.()} className="h-7 text-[11px]">
+              Criar primeiro snapshot
+            </Button>
           </div>
         ) : (
           <div className="h-40">
@@ -271,16 +273,19 @@ export default function MetricaNodeDrawer({
   );
 
   return (
-    <SpecializedNodeDrawer
-      node={node}
-      open={open}
-      onOpenChange={onOpenChange}
-      workspaceId={workspaceId}
-      clientId={clientId}
-      blueprintOverride={blueprint}
-      quickActionHandlers={handlers}
-      onDelete={onDelete}
-      extraSlot={extraSlot}
-    />
+    <>
+      <SpecializedNodeDrawer
+        node={node}
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        clientId={clientId}
+        blueprintOverride={blueprint}
+        quickActionHandlers={handlers}
+        onDelete={onDelete}
+        extraSlot={extraSlot}
+      />
+      {dialogs}
+    </>
   );
 }

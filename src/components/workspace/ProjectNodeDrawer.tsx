@@ -19,11 +19,44 @@ import SiteNodeDrawer from "./SiteNodeDrawer";
 import LancamentoNodeDrawer from "./LancamentoNodeDrawer";
 import MetricaNodeDrawer from "./MetricaNodeDrawer";
 import KickoffNodeDrawer from "./KickoffNodeDrawer";
+import { useNodeQuickActions } from "@/hooks/useNodeQuickActions";
 import { hasBlueprint } from "./nodeBlueprints";
 import type { ProjectNodeKind } from "./canvasProjectTypes";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 
 export type { ClientFolderOption };
+
+/** Wrapper genérico: SpecializedNodeDrawer + handlers padrão (tasks/pdf/snapshot) */
+function SpecializedGenericDrawer(args: {
+  node: CanvasNodeRecord & { parent_node_id?: string | null };
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  workspaceId: string;
+  clientId: string;
+  clientName?: string;
+  onDelete?: (id: string) => Promise<void> | void;
+  onUpdated?: () => Promise<void> | void;
+}) {
+  const { handlers, dialogs } = useNodeQuickActions({
+    node: args.node, open: args.open,
+    workspaceId: args.workspaceId, clientId: args.clientId,
+    clientName: args.clientName, onChanged: args.onUpdated,
+  });
+  return (
+    <>
+      <SpecializedNodeDrawer
+        node={args.node}
+        open={args.open}
+        onOpenChange={args.onOpenChange}
+        workspaceId={args.workspaceId}
+        clientId={args.clientId}
+        quickActionHandlers={handlers}
+        onDelete={args.onDelete}
+      />
+      {dialogs}
+    </>
+  );
+}
 
 interface Props {
   node: (CanvasNodeRecord & { parent_node_id?: string | null }) | null;
@@ -149,16 +182,18 @@ export default function ProjectNodeDrawer(props: Props) {
     );
   }
 
-  // Outros tipos com blueprint → drawer especializado
+  // Outros tipos com blueprint → drawer especializado com handlers genéricos
   if (clientId && hasBlueprint(kind)) {
     return (
-      <SpecializedNodeDrawer
+      <SpecializedGenericDrawer
         node={node}
         open={props.open}
         onOpenChange={props.onOpenChange}
         workspaceId={props.workspaceId}
         clientId={clientId}
+        clientName={clientName}
         onDelete={props.onDelete}
+        onUpdated={props.onUpdated}
       />
     );
   }
