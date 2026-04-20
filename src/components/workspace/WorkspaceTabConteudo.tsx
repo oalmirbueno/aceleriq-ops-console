@@ -325,7 +325,11 @@ export default function WorkspaceTabConteudo({ workspaceId, clientId, onTimeline
         <ProjectNodeDrawer
           open={true}
           onOpenChange={(o) => { if (!o) setSelectedNode(null); }}
-          node={selectedNode as never}
+          node={
+            (selectedNode.parent_node_id
+              ? selectedNode
+              : { ...selectedNode, parent_node_id: "__virtual__" }) as never
+          }
           workspaceId={workspaceId}
           clientFolders={
             selectedNode.parent_node_id
