@@ -2,9 +2,10 @@ import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Upload, ExternalLink, X, Loader2, Paperclip, FileIcon } from "lucide-react";
+import { Upload, ExternalLink, X, Loader2, Paperclip } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import AttachmentPreview from "./AttachmentPreview";
 
 export interface AttachmentItem {
   label: string;
