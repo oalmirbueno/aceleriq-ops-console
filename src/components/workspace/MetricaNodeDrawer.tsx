@@ -228,11 +228,9 @@ export default function MetricaNodeDrawer({
             <p className="text-[11px] text-muted-foreground">
               Sem snapshots {dataMetricKey || kpiName ? "pra essa métrica" : "ainda"}.
             </p>
-            {onCreateSnapshot && (
-              <Button size="sm" variant="outline" onClick={onCreateSnapshot} className="h-7 text-[11px]">
-                Criar primeiro snapshot
-              </Button>
-            )}
+            <Button size="sm" variant="outline" onClick={() => baseHandlers.create_snapshot?.()} className="h-7 text-[11px]">
+              Criar primeiro snapshot
+            </Button>
           </div>
         ) : (
           <div className="h-40">
@@ -275,16 +273,19 @@ export default function MetricaNodeDrawer({
   );
 
   return (
-    <SpecializedNodeDrawer
-      node={node}
-      open={open}
-      onOpenChange={onOpenChange}
-      workspaceId={workspaceId}
-      clientId={clientId}
-      blueprintOverride={blueprint}
-      quickActionHandlers={handlers}
-      onDelete={onDelete}
-      extraSlot={extraSlot}
-    />
+    <>
+      <SpecializedNodeDrawer
+        node={node}
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        clientId={clientId}
+        blueprintOverride={blueprint}
+        quickActionHandlers={handlers}
+        onDelete={onDelete}
+        extraSlot={extraSlot}
+      />
+      {dialogs}
+    </>
   );
 }

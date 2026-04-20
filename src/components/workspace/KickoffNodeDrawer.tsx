@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar, Download, Users, Video, Clock } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useCanvasNodeMetadata } from "@/hooks/useCanvasNodeMetadata";
+import { useNodeQuickActions } from "@/hooks/useNodeQuickActions";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 import type { NodePrefillPayload } from "./nodePrefillTypes";
 
@@ -26,7 +27,6 @@ interface Props {
   clientId: string;
   clientName?: string;
   onDelete?: (id: string) => Promise<void> | void;
-  onGenerateTasks?: () => void;
   onOpenBriefing?: () => void;
 }
 
@@ -110,10 +110,13 @@ function buildICS(opts: {
 
 export default function KickoffNodeDrawer({
   node, open, onOpenChange, workspaceId, clientId, clientName, onDelete,
-  onGenerateTasks, onOpenBriefing,
+  onOpenBriefing,
 }: Props) {
   const blueprint = getNodeBlueprint("reuniao");
   const { prefill } = useCanvasNodeMetadata({ nodeId: node.id, open });
+  const { handlers: baseHandlers, dialogs } = useNodeQuickActions({
+    node, open, workspaceId, clientId, clientName,
+  });
 
   const dateRaw     = getStringField(prefill, "meta", "date");
   const durationRaw = getStringField(prefill, "meta", "duration");
