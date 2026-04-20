@@ -709,9 +709,9 @@ function CanvasStudioInner({
             {busyAction === "layout" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LayoutGrid className="h-3.5 w-3.5" />}
             <span className="hidden md:inline ml-1 text-xs">Reorganizar</span>
           </Button>
-          <Button size="sm" variant="outline" className="h-8" onClick={handleGenerateBase} disabled={busyAction === "base"}>
+          <Button size="sm" variant="outline" className="h-8" onClick={() => setGenerateDialogOpen(true)} disabled={busyAction === "base"}>
             {busyAction === "base" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            <span className="hidden md:inline ml-1 text-xs">Esteira inicial</span>
+            <span className="hidden md:inline ml-1 text-xs">Gerar esteira</span>
           </Button>
           <div className="h-5 w-px bg-border mx-1" />
           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onToggleFullscreen} aria-label="Alternar tela cheia">
@@ -790,8 +790,8 @@ function CanvasStudioInner({
                 <Button size="sm" onClick={() => setClientPickerOpen(true)}>
                   <Building2 className="h-3.5 w-3.5 mr-1" /> Adicionar cliente
                 </Button>
-                <Button size="sm" variant="outline" onClick={handleGenerateBase} disabled={busyAction === "base"}>
-                  <Sparkles className="h-3.5 w-3.5 mr-1" /> Gerar esteira inicial
+                <Button size="sm" variant="outline" onClick={() => setGenerateDialogOpen(true)} disabled={busyAction === "base"}>
+                  <Sparkles className="h-3.5 w-3.5 mr-1" /> Gerar esteira por plano
                 </Button>
               </div>
             </div>
@@ -811,8 +811,8 @@ function CanvasStudioInner({
                 <Button size="sm" onClick={() => setAdvancedOpen(true)}>
                   <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar primeiro node
                 </Button>
-                <Button size="sm" variant="outline" onClick={handleGenerateBase} disabled={busyAction === "base"}>
-                  <Sparkles className="h-3.5 w-3.5 mr-1" /> Gerar Briefing → Landing
+                <Button size="sm" variant="outline" onClick={() => setGenerateDialogOpen(true)} disabled={busyAction === "base"}>
+                  <Sparkles className="h-3.5 w-3.5 mr-1" /> Gerar esteira do plano
                 </Button>
               </div>
             </div>
