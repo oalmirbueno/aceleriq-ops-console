@@ -180,6 +180,16 @@ export default function SpecializedNodeDrawer({
           </div>
         </ScrollArea>
       </SheetContent>
+
+      {/* ─── AccessVaultDrawer empilhado por cima — consulta de credenciais sem sair do node ─── */}
+      <AccessVaultDrawer
+        node={node}
+        open={vaultOpen}
+        onOpenChange={setVaultOpen}
+        workspaceId={workspaceId}
+        clientId={clientId}
+        clientName={clientName ?? "Cliente"}
+      />
     </Sheet>
   );
 }
