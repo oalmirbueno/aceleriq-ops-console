@@ -889,125 +889,293 @@ const ASSET: NodeBlueprint = {
 
 const LANCAMENTO: NodeBlueprint = {
   kind: "lancamento",
-  purpose: "Go-live coordenado — checklist + comunicação + monitoramento.",
+  purpose:
+    "Go-live coordenado — timeline T-7 → T+1 detalhada, checklist por fase, " +
+    "comunicação multi-canal, war-room ao vivo, plano B documentado e retro pós-launch.",
   methodChecklist: [
-    { id: "prelaunch", label: "Checklist pré-launch 100%",       required: true },
-    { id: "comms",     label: "Comunicação preparada",           required: true },
-    { id: "rollback",  label: "Plano de rollback documentado",   required: true },
-    { id: "monitor",   label: "Monitoramento ativo nas 1ªs 24h", required: true },
-    { id: "retro",     label: "Retro feita em até 7 dias",       required: false },
+    { id: "scope_locked",   label: "Escopo congelado em T-7 (sem novidades)",        required: true  },
+    { id: "owners_clear",   label: "Owner por fase da timeline definido",            required: true  },
+    { id: "prelaunch_done", label: "Checklist pré-launch 100% verde em T-1",         required: true  },
+    { id: "warmup_started", label: "Aquecimento de público/lista iniciado em T-7",   required: true  },
+    { id: "comms_scheduled",label: "Comunicação por canal agendada com horário",     required: true  },
+    { id: "warroom_ready",  label: "War-room marcada (canal, hora, presentes)",      required: true  },
+    { id: "rollback_doc",   label: "Plano de rollback documentado e testado",        required: true  },
+    { id: "monitor_live",   label: "Monitoramento ativo (dashboard + alertas)",      required: true  },
+    { id: "retro_done",     label: "Retro feita em até 7 dias com learnings",        required: false },
   ],
   sections: [
     {
       id: "scope", title: "O que está lançando",
+      description: "Define perímetro: o que vai e o que NÃO vai junto.",
       fields: [
-        { id: "what",       label: "Resumo do que vai ao ar",  type: "textarea" },
-        { id: "audience",   label: "Quem vai ver/usar",         type: "text" },
-        { id: "date",       label: "Data e horário do go-live", type: "text", decisionOnly: true },
+        { id: "what",        label: "O que vai ao ar (resumo)",       type: "textarea" },
+        { id: "out_of_scope",label: "Fora do escopo deste launch",    type: "list",     hint: "Pra evitar scope creep no dia D" },
+        { id: "audience",    label: "Público / segmento alvo",        type: "text" },
+        { id: "expected_volume", label: "Volume esperado",            type: "text",     hint: "Leads, vendas, sessões esperadas no D-day" },
+        { id: "go_live_at",  label: "Data e horário do go-live (T0)", type: "text",     decisionOnly: true, hint: "Inclua timezone — ex: 25/04 10:00 BRT" },
+        { id: "launch_owner",label: "Launch owner (uma pessoa só)",   type: "text",     decisionOnly: true },
       ],
     },
     {
-      id: "prelaunch", title: "Checklist pré-launch",
+      id: "timeline", title: "Timeline T-7 → T+1 (master schedule)",
+      description:
+        "Quem faz o quê em CADA dia. Use formato 'T-N | tarefa | owner | horário | status'. " +
+        "Tudo que não estiver aqui vai ser esquecido.",
       fields: [
-        { id: "items", label: "Itens obrigatórios", type: "checklist", hint: "Tracking, backup, redirects, copy, visual..." },
+        { id: "t_minus_7", label: "T-7 — escopo congelado, aquecimento e comms preparada", type: "list", hint: "Lock de escopo; teaser interno; lista de imprensa; aquecer pixel; brief afiliados" },
+        { id: "t_minus_5", label: "T-5 — criativos finais e QA",                            type: "list", hint: "Aprovação final de copy/visual; QA de tracking; staging review" },
+        { id: "t_minus_3", label: "T-3 — soft warmup público externo",                      type: "list", hint: "Stories de bastidor; e-mail teaser; ads de awareness no público quente" },
+        { id: "t_minus_2", label: "T-2 — agendamentos e checagem técnica",                  type: "list", hint: "Agendar posts/emails/ads; double-check redirects, SSL, DNS, fallback" },
+        { id: "t_minus_1", label: "T-1 — pré-launch checklist 100% e dry-run",              type: "list", hint: "Run final do checklist; dry-run do war-room; confirmar plantão; congelar deploys" },
+        { id: "t_zero",    label: "T0 — GO-LIVE (hora a hora)",                             type: "list", hint: "H-1 war-room aberta; H0 publicar; H+1 confirmar tracking; H+2 1ª revisão; H+6 ajuste; H+12 review noturno" },
+        { id: "t_plus_1",  label: "T+1 — estabilização e primeiro report",                  type: "list", hint: "Validar tracking 24h; resolver bugs; report inicial pro cliente; planejar otimização semana 1" },
       ],
     },
     {
-      id: "comms", title: "Plano de comunicação",
+      id: "warmup", title: "Aquecimento (T-7 → T-1)",
+      description: "Pré-aquecer público frio e quente — launch sem aquecimento é tiro no escuro.",
       fields: [
-        { id: "channels", label: "Canais a anunciar",   type: "list" },
-        { id: "messages", label: "Mensagens por canal", type: "kv", hint: "canal → texto" },
-        { id: "owner",    label: "Quem dispara cada um", type: "kv", decisionOnly: true },
+        { id: "audience_warmup", label: "Aquecimento de público pago",  type: "list",     hint: "Vídeos de awareness 5-15s rodando T-7 a T-2 pra Lookalikes; engajamento de stories; remarketing prep" },
+        { id: "list_warmup",     label: "Aquecimento de lista (email)", type: "list",     hint: "3-5 emails de pré-launch: storytelling → educação → escassez → abertura" },
+        { id: "organic_warmup",  label: "Aquecimento orgânico",         type: "list",     hint: "Conteúdo educativo no perfil; lives de bastidor; FAQ pública" },
+        { id: "partners_brief",  label: "Brief pra parceiros/afiliados", type: "textarea", hint: "Mensagem-base, datas, materiais, comissão, links UTM" },
       ],
     },
     {
-      id: "rollback", title: "Plano B",
+      id: "prelaunch", title: "Checklist pré-launch (T-1)",
+      description: "Tudo verde antes do go-live. Item vermelho = adia ou aborta.",
       fields: [
-        { id: "triggers", label: "Quando reverter (gatilhos)", type: "list" },
-        { id: "steps",    label: "Passos do rollback",         type: "list" },
+        { id: "tech",      label: "Técnico",       type: "checklist", hint: "DNS, SSL, redirects, backup, performance, 404 handling, fallback page" },
+        { id: "tracking",  label: "Tracking & analytics", type: "checklist", hint: "Pixels, conversões, UTM, dashboards ao vivo, alertas configurados" },
+        { id: "content",   label: "Conteúdo & copy",      type: "checklist", hint: "Copy final, visual aprovado, vídeos no servidor, legendas, alt-text" },
+        { id: "comms",     label: "Comunicação",          type: "checklist", hint: "Posts agendados, emails na fila, anúncios em revisão, ICs prontos" },
+        { id: "ops",       label: "Operação & suporte",   type: "checklist", hint: "Atendimento escalado, FAQ atualizado, scripts pra suporte, plantão definido" },
+        { id: "legal",     label: "Legal & compliance",   type: "checklist", hint: "Termos, privacidade, LGPD, claims revisados pelo jurídico se aplicável" },
       ],
     },
     {
-      id: "monitor", title: "Monitoramento",
+      id: "comms", title: "Plano de comunicação (multi-canal)",
+      description: "Por canal: mensagem, horário, owner, KPI.",
       fields: [
-        { id: "metrics",   label: "Métricas a acompanhar",  type: "list" },
-        { id: "thresholds",label: "Thresholds de alerta",   type: "kv", hint: "métrica → limite" },
+        { id: "channels_matrix", label: "Matriz canal × horário", type: "kv", hint: "Email blast→T0 09:00 | Stories→T0 10:00 | Ads boost→T0 10:15 | WhatsApp→T0 11:00" },
+        { id: "messages",        label: "Mensagem-chave por canal", type: "kv", hint: "canal → texto curto (160 chars)" },
+        { id: "owner_per_channel", label: "Owner por canal",       type: "kv", decisionOnly: true },
+        { id: "kpi_per_channel",   label: "KPI por canal",         type: "kv", hint: "Email → open >35%; Ads → CTR >2%; Stories → reply >50" },
+        { id: "press_kit_url",     label: "URL do press kit / materiais", type: "text", decisionOnly: true },
+      ],
+    },
+    {
+      id: "warroom", title: "War-room do go-live",
+      description: "Sala única coordenando o lançamento ao vivo. Sem war-room = caos distribuído.",
+      fields: [
+        { id: "channel",     label: "Canal da war-room",         type: "text",     decisionOnly: true, hint: "Slack #launch-x / Discord / Meet sempre aberto" },
+        { id: "schedule",    label: "Janela ativa",              type: "text",     hint: "Ex: T0-1h até T0+12h, plantão noturno depois" },
+        { id: "roles",       label: "Papéis presentes",          type: "kv",       hint: "Launch lead → ; Tech on-call → ; Atendimento → ; Mídia → ; Comms → ; Cliente → " },
+        { id: "checkpoints", label: "Checkpoints regulares",     type: "list",     hint: "H-30min status técnico; H0 GO; H+15 tracking; H+1 funil; H+3 ajuste; H+6 review; H+12 entrega plantão" },
+        { id: "decision_log", label: "Log de decisões",          type: "list",     decisionOnly: true, hint: "Toda decisão tomada no calor do launch — pra retro depois" },
+      ],
+    },
+    {
+      id: "rollback", title: "Plano B / rollback",
+      description: "Documente ANTES do launch — depois é tarde.",
+      fields: [
+        { id: "triggers",      label: "Quando reverter (gatilhos objetivos)", type: "list", hint: "Conversão <X% por 30min; erro 5xx >2%; CPL 3x acima do estimado; bug de pagamento" },
+        { id: "rollback_steps",label: "Passos do rollback",                    type: "list", hint: "Passo 1: pausar ads; 2: tirar página; 3: reverter DNS; 4: comunicar; 5: post-mortem" },
+        { id: "fallback",      label: "Fallback (versão segura)",              type: "text", hint: "URL/branch/release pra subir caso precise" },
+        { id: "comms_rollback",label: "Comunicação de rollback",               type: "textarea", hint: "Mensagem pronta pra cliente, lista, suporte — caso precise reverter" },
+      ],
+    },
+    {
+      id: "monitor", title: "Monitoramento (T0 → T+1)",
+      description: "Dashboards ao vivo + alertas automáticos. Métricas com threshold.",
+      fields: [
+        { id: "dashboards", label: "Dashboards ao vivo",     type: "list",        hint: "URL → o que acompanhar (vendas, CPL, latência, erro 5xx, CTR)" },
+        { id: "metrics",    label: "Métricas críticas",      type: "list" },
+        { id: "thresholds", label: "Thresholds de alerta",   type: "kv",          hint: "métrica → limite + canal de alerta" },
+        { id: "report_t0",  label: "Report T0+6h",           type: "textarea",    decisionOnly: true, hint: "Mini-report pra cliente: o que aconteceu nas 1ªs 6h" },
+        { id: "report_t_plus_1", label: "Report T+1 (24h)",  type: "textarea",    decisionOnly: true, hint: "Volume, conversão, CPL, anomalias, próximos passos" },
+      ],
+    },
+    {
+      id: "retro", title: "Retro pós-launch (até T+7)",
+      description: "Sem retro, todo learning vira anedota. Ritual obrigatório.",
+      fields: [
+        { id: "what_worked",  label: "O que funcionou",                   type: "list", decisionOnly: true },
+        { id: "what_failed",  label: "O que falhou (com causa-raiz)",     type: "list", decisionOnly: true },
+        { id: "surprises",    label: "Surpresas / contraintuitivos",       type: "list", decisionOnly: true },
+        { id: "playbook_updates", label: "Atualizações no playbook",       type: "list", decisionOnly: true, hint: "O que vira regra pros próximos launches" },
+      ],
+    },
+    {
+      id: "links", title: "Links e anexos",
+      fields: [
+        { id: "warroom_url",   label: "Link da war-room",        type: "text", decisionOnly: true },
+        { id: "dashboard_url", label: "Dashboard principal",     type: "text", decisionOnly: true },
+        { id: "press_kit_url", label: "Press kit",               type: "text", decisionOnly: true },
+        { id: "files",         label: "Anexos (briefing, scripts, materiais)", type: "attachments" },
       ],
     },
   ],
   quickActions: [
     { id: "go_live",        label: "Iniciar go-live", primary: true },
-    { id: "generate_tasks", label: "Gerar tasks de pré-launch" },
+    { id: "generate_tasks", label: "Gerar tasks da timeline T-7→T+1" },
     { id: "create_snapshot",label: "Snapshot pós-launch" },
+    { id: "schedule_meeting", label: "Agendar war-room" },
+    { id: "export_pdf",     label: "Exportar runbook" },
     { id: "regenerate_prefill", label: "Regenerar com IA" },
   ],
   sources: ["briefing","siblings","metrics"],
   prefillPrompt:
-    "Você é PM rodando launch. Checklist pré-launch deve cobrir: tracking, backup, redirects, " +
-    "copy revisada, visual aprovado, comunicação, monitoramento. " +
-    "Nunca invente data — marque como decisão humana.",
+    "Você é launch manager experiente coordenando go-live multi-canal. " +
+    "Timeline T-7 → T+1: preencha CADA dia com 3-6 itens concretos no formato 'tarefa | owner sugerido | horário'. " +
+    "Em T0, quebre por hora (H-1, H0, H+1, H+3, H+6, H+12). " +
+    "Aquecimento: separe pago (vídeos awareness pra Lookalike), lista (3-5 emails) e orgânico (stories, lives). " +
+    "Pré-launch checklist: 4-8 itens por categoria (técnico, tracking, conteúdo, comms, ops, legal). " +
+    "Comms: matriz canal × horário concreta com KPI por canal — não genérica. " +
+    "War-room: defina papéis explícitos (launch lead, tech on-call, atendimento, mídia, comms, cliente) e checkpoints regulares. " +
+    "Rollback: gatilhos OBJETIVOS (não 'se der ruim') — números e janelas. " +
+    "Para datas/horários, owners reais, URLs, decision_log, reports e seção retro: origin='empty' — humano preenche. " +
+    "Use o briefing pra escolher canais e tom; use métricas/snapshots pra calibrar volume esperado e thresholds.",
 };
 
 const CAMPANHA: NodeBlueprint = {
   kind: "trafego",
-  purpose: "Campanha de tráfego paga — público, criativo, oferta, mensuração.",
+  purpose:
+    "Campanha de tráfego pago — matriz criativos × públicos × ofertas, budget por canal, " +
+    "instrumentação completa (pixel/CAPI), guardrails de iBBA e cadência de otimização.",
   methodChecklist: [
-    { id: "audience", label: "Públicos definidos",            required: true },
-    { id: "creative", label: "Criativos aprovados",           required: true },
-    { id: "tracking", label: "Eventos de conversão validados", required: true },
-    { id: "budget",   label: "Budget alocado",                required: true },
-    { id: "review",   label: "Review semanal agendada",       required: true },
+    { id: "objective_clear", label: "Objetivo + KPI primário com meta numérica",          required: true  },
+    { id: "audience_matrix", label: "Matriz de públicos (frio + quente + LAL + custom)",  required: true  },
+    { id: "creative_matrix", label: "Matriz de criativos (3+ ângulos × 3+ formatos)",     required: true  },
+    { id: "offer_variants",  label: "Variantes de oferta/CTA testáveis",                  required: true  },
+    { id: "budget_split",    label: "Budget alocado por canal/fase com daily cap",        required: true  },
+    { id: "pixel_capi",      label: "Pixel + Conversions API (CAPI) instalados e batidos", required: true  },
+    { id: "events_validated", label: "Eventos de conversão validados em modo teste",      required: true  },
+    { id: "utm_taxonomy",    label: "Taxonomia UTM padronizada e documentada",            required: true  },
+    { id: "guardrails_set",  label: "Guardrails (CPA máx, frequência máx) definidos",     required: true  },
+    { id: "review_cadence",  label: "Cadência de otimização agendada (3x/semana mín.)",   required: true  },
+    { id: "scaling_rules",   label: "Regras de escala (CBO/ABO + critérios) escritas",    required: false },
   ],
   sections: [
     {
       id: "objective", title: "Objetivo da campanha",
+      description: "Sem KPI numérico, otimização vira achismo.",
       fields: [
-        { id: "goal",        label: "Objetivo (lead/venda/awareness)", type: "text" },
-        { id: "kpi",         label: "KPI principal + meta",            type: "text", hint: "CPL <R$X / ROAS >Y" },
-        { id: "horizon",     label: "Período da campanha",             type: "text", decisionOnly: true },
+        { id: "goal",            label: "Objetivo (awareness/leads/venda/retenção)", type: "text" },
+        { id: "primary_kpi",     label: "KPI primário + meta",           type: "text", hint: "CPL <R$45 / ROAS >2,5x / CPA <R$120" },
+        { id: "guardrail_kpis",  label: "KPIs guardrail",                type: "list", hint: "CTR mín, frequência máx, custo CPM, qualidade do lead" },
+        { id: "horizon",         label: "Período / fases da campanha",   type: "text", decisionOnly: true, hint: "Ex: Aquecimento 7d → Conversão 14d → Escala 14d" },
+        { id: "channels",        label: "Canais ativos",                 type: "list", hint: "Meta Ads, Google Ads, TikTok, LinkedIn, YouTube, Pinterest" },
       ],
     },
     {
-      id: "audiences", title: "Públicos",
+      id: "audiences", title: "Públicos (matriz fria → quente)",
+      description: "Estrutura padrão: 3 temperaturas × N variações por canal.",
       fields: [
-        { id: "primary",   label: "Público primário",     type: "textarea" },
-        { id: "lookalikes",label: "Lookalikes / similares", type: "list" },
-        { id: "exclusions", label: "Exclusões",           type: "list" },
+        { id: "cold",         label: "Frio (interesses + demographics)", type: "list", hint: "Interesses ⊕/⊖, idade, gênero, geo, devices" },
+        { id: "lookalikes",   label: "Lookalikes / Similar Audiences",   type: "list", hint: "1%, 2%, 5% baseados em compradores, leads qualificados, top 25% LTV" },
+        { id: "warm_engage",  label: "Quente — engajamento",             type: "list", hint: "Engajou IG/FB 30/90d; assistiu 50%+ vídeo; visitou perfil" },
+        { id: "warm_traffic", label: "Quente — tráfego site",            type: "list", hint: "All visitors 30/90d; pageview específico; tempo >X" },
+        { id: "hot_intent",   label: "Hot — intenção alta",              type: "list", hint: "Add-to-cart sem compra 7d; iniciou checkout; abandonou form" },
+        { id: "custom_lists", label: "Custom (listas e CRM)",            type: "list", hint: "Compradores 365d (excluir), leads não convertidos, base de email" },
+        { id: "exclusions",   label: "Exclusões obrigatórias",           type: "list", hint: "Compradores recentes, equipe interna, leads em atendimento" },
       ],
     },
     {
-      id: "creative", title: "Criativo",
+      id: "creatives", title: "Criativos (matriz ângulos × formatos)",
+      description:
+        "Ângulo = a história que o criativo conta. Formato = embalagem. " +
+        "Mínimo 3×3 = 9 criativos pra ler sinal estatístico.",
       fields: [
-        { id: "angles",   label: "Ângulos a testar (3-5)",  type: "list" },
-        { id: "formats",  label: "Formatos",                 type: "list", hint: "Static, vídeo, carrossel..." },
-        { id: "ctas",     label: "CTAs a testar",            type: "list" },
+        { id: "angles",       label: "Ângulos (histórias) — 3-5",            type: "list", hint: "Dor, desejo, prova social, autoridade, contraintuitivo, urgência, benefício direto" },
+        { id: "formats",      label: "Formatos por canal",                    type: "kv",   hint: "Meta → Reels 9:16, carrossel, static; Google → Search RSA, Display, YT 6s/15s" },
+        { id: "hooks",        label: "Hooks (3 primeiros segundos)",          type: "list", hint: "Pergunta direta, polêmica, mostrar resultado, mostrar dor" },
+        { id: "ctas",         label: "CTAs a testar",                         type: "list", hint: "Saiba mais, Quero garantir, Cadastre-se grátis, Falar no WhatsApp" },
+        { id: "matrix",       label: "Matriz criativa (ângulo × formato → status)", type: "kv", hint: "ang_dor×reels→produzir | ang_prova×carrossel→pronto | ang_autoridade×static→aprovação" },
+        { id: "iteration",    label: "Plano de renovação criativa",           type: "text", hint: "Trocar 30% dos criativos a cada 7-14 dias pra evitar fadiga" },
       ],
     },
     {
-      id: "budget", title: "Budget",
+      id: "offer", title: "Oferta e mensagem por temperatura",
+      description: "Oferta certa pro estágio errado mata campanha.",
       fields: [
-        { id: "total",      label: "Budget total",      type: "text", decisionOnly: true },
-        { id: "split",      label: "Distribuição por canal/público", type: "kv" },
+        { id: "offer_cold",  label: "Oferta para FRIO",   type: "textarea", hint: "Educar / iscas / lead magnet / desconto suave" },
+        { id: "offer_warm",  label: "Oferta para QUENTE", type: "textarea", hint: "Trial, demo, prova social pesada, comparativo" },
+        { id: "offer_hot",   label: "Oferta para HOT",    type: "textarea", hint: "Urgência, escassez, bônus, recuperação de carrinho" },
+        { id: "value_props", label: "Big idea / promessa central", type: "textarea", hint: "1 frase que define a campanha toda" },
       ],
     },
     {
-      id: "tracking", title: "Mensuração",
+      id: "budget", title: "Budget e estrutura de campanhas",
+      description:
+        "Estrutura recomendada: ABO no aquecimento (controle), CBO na escala (eficiência). " +
+        "Daily cap obriga teste de fatia honesta.",
       fields: [
-        { id: "events",       label: "Eventos rastreados",      type: "list" },
-        { id: "attribution",  label: "Modelo de atribuição",    type: "text" },
-        { id: "review_cad",   label: "Cadência de otimização",  type: "text" },
+        { id: "total",         label: "Budget total",                  type: "text", decisionOnly: true, hint: "Período inteiro" },
+        { id: "daily_cap",     label: "Daily cap por adset/campanha",  type: "text", decisionOnly: true, hint: "Ex: ABO R$80/adset; CBO R$300/campanha" },
+        { id: "split_channel", label: "Split por canal",               type: "kv",   hint: "Meta Ads: 60% | Google: 25% | TikTok: 10% | YouTube: 5%" },
+        { id: "split_phase",   label: "Split por fase",                type: "kv",   hint: "Aquecimento: 20% | Conversão: 50% | Escala: 30%" },
+        { id: "split_audience",label: "Split por temperatura",         type: "kv",   hint: "Frio 50% | Quente 30% | Hot 20%" },
+        { id: "structure",     label: "Estrutura (ABO/CBO/Advantage+)", type: "text", hint: "Aquecimento ABO; escala CBO ou Advantage+ Shopping" },
+      ],
+    },
+    {
+      id: "tracking", title: "Pixel, CAPI e instrumentação",
+      description:
+        "Sem pixel + CAPI batendo, otimização do algoritmo é cega. " +
+        "Browser-only morreu com iOS 14.5 — server-side é mandatório.",
+      fields: [
+        { id: "pixels",        label: "Pixels instalados",           type: "kv",       hint: "Meta Pixel ID → ; Google gtag → ; TikTok Pixel → ; LinkedIn Insight → ; GA4 → " },
+        { id: "capi",          label: "Conversions API / server-side", type: "kv",     hint: "Meta CAPI: ON via GTM SS / Stape / Zapier; Google Enhanced Conv: ON; TikTok Events API: ON" },
+        { id: "events",        label: "Eventos rastreados (mapeados)", type: "list",   hint: "PageView, ViewContent, Lead, InitiateCheckout, AddPaymentInfo, Purchase, custom_qualified_lead" },
+        { id: "deduplication", label: "Deduplicação (event_id)",      type: "text",    hint: "Mesmo event_id no browser e CAPI pra evitar dupla contagem" },
+        { id: "match_quality", label: "Event match quality alvo",     type: "text",    hint: "Meta EMQ ≥7 (envia email_hash, phone_hash, fbp, fbc, ip, user_agent)" },
+        { id: "consent",       label: "Consent mode (LGPD/GDPR)",     type: "text",    hint: "Consent banner integrado ao gtag/fbq antes de disparar eventos" },
+        { id: "test_mode",     label: "Validação em modo teste",      type: "checklist", hint: "Test events Meta verde; GA4 DebugView OK; tag assistant sem erros; CAPI status verde" },
+        { id: "attribution",   label: "Janela / modelo de atribuição", type: "text",   hint: "Meta 7d-click 1d-view; Google Data-Driven; comparar com modelo de marketing mix se houver" },
+        { id: "utm_taxonomy",  label: "Taxonomia UTM",                type: "kv",      hint: "source → meta/google/tiktok | medium → cpc/cpm | campaign → {objetivo}_{periodo} | content → {angulo}_{formato} | term → {publico}" },
+      ],
+    },
+    {
+      id: "guardrails", title: "Guardrails e regras de otimização",
+      description: "Definidos antes de subir — evita decisão emocional no calor da campanha.",
+      fields: [
+        { id: "kill_rules",    label: "Regras de matar criativo/adset", type: "list", hint: "CPA 2x meta após N conversões; CTR <0,8% com 3k impressions; freq >3,5 sem entrega" },
+        { id: "scale_rules",   label: "Regras de escala",               type: "list", hint: "Subir 20-30% a cada 48h se CPA <80% meta; duplicar pra LAL próximo se ROAS estável 7d" },
+        { id: "budget_shifts", label: "Realocação de budget",           type: "text", hint: "Toda 3ª/5ª: tirar de quem está acima da meta, colocar em quem está abaixo" },
+        { id: "review_cad",    label: "Cadência de otimização",         type: "text", hint: "Daily check 15min; análise profunda 3x/semana; review estratégica 1x/semana" },
+        { id: "anomaly_alerts", label: "Alertas automáticos",           type: "list", hint: "CPL +50% em 24h; impressões caem 80%; gasto sem conversão por X horas; ROAS <1" },
+      ],
+    },
+    {
+      id: "links", title: "Links e anexos",
+      fields: [
+        { id: "ad_account_url", label: "URL da Ads Manager",       type: "text", decisionOnly: true },
+        { id: "dashboard_url",  label: "Dashboard de mídia",       type: "text", decisionOnly: true, hint: "Looker Studio, Triple Whale, Hyros, planilha mestre" },
+        { id: "creative_drive", label: "Pasta de criativos",       type: "text", decisionOnly: true },
+        { id: "files",          label: "Briefings de criativo, prints, exports", type: "attachments" },
       ],
     },
   ],
   quickActions: [
     { id: "create_snapshot", label: "Snapshot inicial", primary: true },
-    { id: "generate_tasks",  label: "Gerar tasks de setup" },
+    { id: "generate_tasks",  label: "Gerar tasks de setup + criativos" },
+    { id: "link_asset",      label: "Vincular criativos" },
+    { id: "export_pdf",      label: "Exportar plano de mídia" },
     { id: "regenerate_prefill", label: "Regenerar com IA" },
   ],
   sources: ["briefing","siblings","metrics","fronts"],
   prefillPrompt:
-    "Você é mídia paga sênior. Use o objetivo do briefing pra escolher KPI. " +
-    "Sugira 3-5 ângulos criativos diferentes. Não chute budget — marque como decisão humana.",
+    "Você é head de mídia paga performance (Meta, Google, TikTok). Pensamento por matriz, não por lista. " +
+    "Use o objetivo do briefing pra escolher KPI primário com meta NUMÉRICA realista pro segmento — cite source. " +
+    "Públicos: gere matriz Frio×Quente×Hot com 2-4 variações cada, baseado no ICP do dossiê. " +
+    "Criativos: 3-5 ângulos coerentes com as dores do briefing × 3+ formatos por canal — preencha matriz status. " +
+    "Pixel + CAPI são obrigatórios — preencha sempre o checklist de validação ('Test events verde', 'EMQ ≥7'). " +
+    "Eventos: liste os 5-8 eventos canônicos do funil + 1-2 customs específicos do negócio. " +
+    "UTM: gere taxonomia padronizada com placeholders {} pra time copiar. " +
+    "Guardrails: regras com NÚMEROS (CPA 2x meta, CTR <0,8% com 3k impressions, freq >3,5). " +
+    "Para budget total/daily cap, IDs reais de pixel/conta, URLs de dashboard, datas e horizon: origin='empty'. " +
+    "Estrutura: recomende ABO no aquecimento e CBO/Advantage+ na escala — explique no citation por quê.",
 };
 
 const METRICA: NodeBlueprint = {
