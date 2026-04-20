@@ -220,6 +220,15 @@ function CanvasStudioInner({
     localStorage.setItem("canvas:showMiniMap", showMiniMap ? "1" : "0");
   }, [showMiniMap]);
 
+  // Toggle Controls (zoom in/out/fit) — atrapalham em telas pequenas
+  const [showControls, setShowControls] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("canvas:showControls") !== "0";
+  });
+  useEffect(() => {
+    localStorage.setItem("canvas:showControls", showControls ? "1" : "0");
+  }, [showControls]);
+
   /* DB → ReactFlow */
   useEffect(() => {
     const q = search.trim().toLowerCase();
