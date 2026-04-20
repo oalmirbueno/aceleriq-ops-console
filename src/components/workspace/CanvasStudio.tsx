@@ -147,7 +147,10 @@ function CanvasStudioInner({
 
   /* Derive groups (clients) and per-stage lanes */
   const clientGroups = useMemo(
-    () => dbNodes.filter((n) => n.node_type === "client"),
+    () => dbNodes
+      .filter((n) => n.node_type === "client")
+      .slice()
+      .sort((a, b) => Number(a.pos_x ?? 0) - Number(b.pos_x ?? 0)),
     [dbNodes],
   );
   const projectNodes = useMemo(
@@ -768,6 +771,62 @@ function CanvasStudioInner({
             }
           }
           toast({ title: "Renomeado", description: newTitle });
+        }}
+        onChangeLogo={async (id) => {
+          const target = clientGroups.find((c) => c.id === id);
+          if (!target?.linked_entity_id) {
+            toast({
+              title: "Pasta sem cliente vinculado",
+              description: "Vincule um cliente para personalizar o logo.",
+              variant: "destructive",
+            });
+            return;
+          }
+          const currentLogo = clientLogos[target.linked_entity_id] ?? "";
+          const next = window.prompt(
+            `URL do logo para "${target.title}" (deixe em branco para remover):`,
+            currentLogo,
+          );
+          if (next === null) return; // cancelled
+          const trimmed = next.trim();
+          const newUrl = trimmed === "" ? null : trimmed;
+          if (newUrl && !/^https?:\/\//i.test(newUrl)) {
+            toast({ title: "URL inválida", description: "Use http(s)://...", variant: "destructive" });
+            return;
+          }
+          // Optimistic
+          setClientLogos((prev) => ({ ...prev, [target.linked_entity_id as string]: newUrl }));
+          const { error } = await supabase
+            .from("clients")
+            .update({ logo_url: newUrl })
+            .eq("id", target.linked_entity_id);
+          if (error) {
+            toast({ title: "Erro ao trocar logo", description: error.message, variant: "destructive" });
+            await fetchData();
+            return;
+          }
+          toast({ title: newUrl ? "Logo atualizado" : "Logo removido" });
+        }}
+        onMoveToStart={async (id) => {
+          // Lowest pos_x among current client groups, then place this one before it
+          const currentMin = clientGroups.reduce(
+            (min, c) => Math.min(min, Number(c.pos_x ?? 0)),
+            Number.POSITIVE_INFINITY,
+          );
+          const newX = Number.isFinite(currentMin) ? currentMin - 400 : 80;
+          // Optimistic
+          setDbNodes((prev) => prev.map((n) => (n.id === id ? { ...n, pos_x: newX } : n)));
+          const { error } = await supabase
+            .from("canvas_nodes")
+            .update({ pos_x: newX, updated_at: new Date().toISOString() })
+            .eq("id", id);
+          if (error) {
+            toast({ title: "Erro ao reordenar", description: error.message, variant: "destructive" });
+            await fetchData();
+            return;
+          }
+          setActiveClientId(id);
+          toast({ title: "Movido para o início" });
         }}
       />
 
