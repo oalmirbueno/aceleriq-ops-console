@@ -1,0 +1,158 @@
+/**
+ * Esteira ACELERA — node types operacionais (projetos, entregáveis, recursos)
+ * Cada tipo tem template de drawer (campos esperados em data jsonb).
+ */
+import {
+  FileText, MessageSquare, Globe, LayoutDashboard, Workflow, Bot,
+  PenTool, Megaphone, Mail, Database, Lightbulb, Calendar, Paperclip,
+  BarChart3, Trophy, Sparkles, Building2, FolderKanban, ListChecks,
+  PackageCheck, type LucideIcon, Image as ImageIcon, Video, Phone,
+  Target, Rocket,
+} from "lucide-react";
+
+export type AceleraStageKey =
+  | "entrada" | "diagnostico" | "estrutura_base" | "planejamento"
+  | "producao" | "ativacao" | "otimizacao" | "expansao";
+
+export interface AceleraStageMeta {
+  key: AceleraStageKey;
+  letter: string;
+  label: string;
+  short: string;
+  color: string;     // text + border tone
+  bg: string;        // background tint for column
+  badge: string;     // badge classes
+}
+
+export const ACELERA_STAGES: AceleraStageMeta[] = [
+  { key: "entrada",        letter: "A", label: "Abertura Estratégica",         short: "Entrada",      color: "text-amber-400 border-amber-500/40",   bg: "bg-amber-500/5",   badge: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
+  { key: "diagnostico",    letter: "C", label: "Diagnóstico Estrutural",       short: "Diagnóstico",  color: "text-sky-400 border-sky-500/40",       bg: "bg-sky-500/5",     badge: "bg-sky-500/15 text-sky-300 border-sky-500/30" },
+  { key: "estrutura_base", letter: "E", label: "Arquitetura Base",             short: "Estrutura",    color: "text-cyan-400 border-cyan-500/40",     bg: "bg-cyan-500/5",    badge: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30" },
+  { key: "planejamento",   letter: "L", label: "Plano Diretor",                short: "Planejamento", color: "text-indigo-400 border-indigo-500/40", bg: "bg-indigo-500/5",  badge: "bg-indigo-500/15 text-indigo-300 border-indigo-500/30" },
+  { key: "producao",       letter: "E", label: "Implantação e Construção",     short: "Produção",     color: "text-violet-400 border-violet-500/40", bg: "bg-violet-500/5",  badge: "bg-violet-500/15 text-violet-300 border-violet-500/30" },
+  { key: "ativacao",       letter: "R", label: "Ativação Assistida",           short: "Ativação",     color: "text-pink-400 border-pink-500/40",     bg: "bg-pink-500/5",    badge: "bg-pink-500/15 text-pink-300 border-pink-500/30" },
+  { key: "otimizacao",     letter: "A", label: "Otimização por Evidência",     short: "Otimização",   color: "text-orange-400 border-orange-500/40", bg: "bg-orange-500/5",  badge: "bg-orange-500/15 text-orange-300 border-orange-500/30" },
+  { key: "expansao",       letter: "+", label: "Escala e Alavancagem",         short: "Expansão",     color: "text-primary border-primary/40",       bg: "bg-primary/5",     badge: "bg-primary/15 text-primary border-primary/30" },
+];
+
+export const STAGE_COLUMN_WIDTH = 320;
+export const STAGE_HEADER_HEIGHT = 48;
+export const STAGE_CONTENT_TOP = 60; // y offset where node area starts inside stage column
+export const NODE_VERTICAL_GAP = 130;
+
+export function getStageMeta(key: string): AceleraStageMeta {
+  return ACELERA_STAGES.find((s) => s.key === key) ?? ACELERA_STAGES[0];
+}
+
+export function stageColumnX(key: string, offsetX = 0): number {
+  const idx = ACELERA_STAGES.findIndex((s) => s.key === key);
+  return offsetX + Math.max(0, idx) * STAGE_COLUMN_WIDTH;
+}
+
+export function stageFromX(x: number, offsetX = 0): AceleraStageKey {
+  const rel = Math.max(0, x - offsetX);
+  const idx = Math.min(ACELERA_STAGES.length - 1, Math.floor(rel / STAGE_COLUMN_WIDTH));
+  return ACELERA_STAGES[idx].key;
+}
+
+/* ─── Project / deliverable types (RICH catalog) ─── */
+
+export type ProjectNodeKind =
+  | "briefing" | "ideia" | "reuniao" | "documento"
+  | "landing_page" | "site" | "funil"
+  | "automacao" | "ia" | "integracao"
+  | "conteudo" | "trafego" | "email_mkt" | "social"
+  | "crm" | "checklist" | "asset" | "metrica"
+  | "before_after" | "case" | "video" | "imagem"
+  | "contato" | "objetivo" | "lancamento";
+
+export interface ProjectNodeTypeMeta {
+  kind: ProjectNodeKind;
+  label: string;
+  shortLabel: string;
+  icon: LucideIcon;
+  color: string; // border + text accent
+  bg: string;    // soft background
+  defaultStage: AceleraStageKey;
+  /** Sections rendered in the rich drawer */
+  sections: Array<"overview" | "links" | "copy" | "checklist" | "attachments" | "notes" | "metrics">;
+  /** Suggested initial title prefix */
+  titleTemplate: string;
+}
+
+export const PROJECT_TYPES: ProjectNodeTypeMeta[] = [
+  // Entrada
+  { kind: "briefing",     label: "Briefing",            shortLabel: "Briefing",     icon: FileText,        color: "border-amber-500/40 text-amber-400",   bg: "bg-amber-500/10",   defaultStage: "entrada",        sections: ["overview","links","notes","attachments"],                       titleTemplate: "Briefing" },
+  { kind: "reuniao",      label: "Reunião / Call",      shortLabel: "Reunião",      icon: Phone,           color: "border-amber-500/40 text-amber-400",   bg: "bg-amber-500/10",   defaultStage: "entrada",        sections: ["overview","notes","attachments"],                                titleTemplate: "Reunião" },
+  { kind: "ideia",        label: "Ideia / Hipótese",    shortLabel: "Ideia",        icon: Lightbulb,       color: "border-yellow-500/40 text-yellow-400", bg: "bg-yellow-500/10",  defaultStage: "entrada",        sections: ["overview","notes","links"],                                      titleTemplate: "Ideia" },
+  { kind: "objetivo",     label: "Objetivo / Meta",     shortLabel: "Objetivo",     icon: Target,          color: "border-amber-500/40 text-amber-400",   bg: "bg-amber-500/10",   defaultStage: "entrada",        sections: ["overview","metrics","notes"],                                    titleTemplate: "Objetivo" },
+
+  // Diagnóstico / Estrutura
+  { kind: "documento",    label: "Documento",           shortLabel: "Doc",          icon: FileText,        color: "border-sky-500/40 text-sky-400",       bg: "bg-sky-500/10",     defaultStage: "diagnostico",    sections: ["overview","links","attachments","notes"],                        titleTemplate: "Documento" },
+  { kind: "checklist",    label: "Checklist",           shortLabel: "Checklist",    icon: ListChecks,      color: "border-cyan-500/40 text-cyan-400",     bg: "bg-cyan-500/10",    defaultStage: "estrutura_base", sections: ["overview","checklist","notes"],                                  titleTemplate: "Checklist" },
+  { kind: "contato",      label: "Contato / Stakeholder", shortLabel: "Contato",    icon: MessageSquare,   color: "border-cyan-500/40 text-cyan-400",     bg: "bg-cyan-500/10",    defaultStage: "estrutura_base", sections: ["overview","links","notes"],                                      titleTemplate: "Contato" },
+
+  // Planejamento
+  { kind: "funil",        label: "Funil",               shortLabel: "Funil",        icon: Workflow,        color: "border-indigo-500/40 text-indigo-400", bg: "bg-indigo-500/10",  defaultStage: "planejamento",   sections: ["overview","links","copy","checklist","notes"],                   titleTemplate: "Funil" },
+
+  // Produção (entregáveis principais)
+  { kind: "landing_page", label: "Landing Page",        shortLabel: "Landing",      icon: LayoutDashboard, color: "border-violet-500/40 text-violet-400", bg: "bg-violet-500/10",  defaultStage: "producao",       sections: ["overview","links","copy","checklist","attachments","notes"],     titleTemplate: "Landing Page" },
+  { kind: "site",         label: "Site",                shortLabel: "Site",         icon: Globe,           color: "border-violet-500/40 text-violet-400", bg: "bg-violet-500/10",  defaultStage: "producao",       sections: ["overview","links","copy","checklist","attachments","notes"],     titleTemplate: "Site" },
+  { kind: "automacao",    label: "Automação",           shortLabel: "Automação",    icon: Workflow,        color: "border-violet-500/40 text-violet-400", bg: "bg-violet-500/10",  defaultStage: "producao",       sections: ["overview","links","checklist","notes","attachments"],            titleTemplate: "Automação" },
+  { kind: "ia",           label: "Agente IA",           shortLabel: "IA",           icon: Bot,             color: "border-emerald-500/40 text-emerald-400", bg: "bg-emerald-500/10", defaultStage: "producao",     sections: ["overview","links","checklist","notes","attachments"],            titleTemplate: "Agente IA" },
+  { kind: "integracao",   label: "Integração",          shortLabel: "Integração",   icon: Database,        color: "border-violet-500/40 text-violet-400", bg: "bg-violet-500/10",  defaultStage: "producao",       sections: ["overview","links","notes"],                                      titleTemplate: "Integração" },
+  { kind: "conteudo",     label: "Conteúdo",            shortLabel: "Conteúdo",     icon: PenTool,         color: "border-violet-500/40 text-violet-400", bg: "bg-violet-500/10",  defaultStage: "producao",       sections: ["overview","copy","attachments","notes"],                         titleTemplate: "Conteúdo" },
+  { kind: "video",        label: "Vídeo",               shortLabel: "Vídeo",        icon: Video,           color: "border-violet-500/40 text-violet-400", bg: "bg-violet-500/10",  defaultStage: "producao",       sections: ["overview","links","attachments","notes"],                        titleTemplate: "Vídeo" },
+  { kind: "imagem",       label: "Imagem / Criativo",   shortLabel: "Imagem",       icon: ImageIcon,       color: "border-violet-500/40 text-violet-400", bg: "bg-violet-500/10",  defaultStage: "producao",       sections: ["overview","attachments","notes"],                                titleTemplate: "Imagem" },
+  { kind: "asset",        label: "Asset entregue",      shortLabel: "Asset",        icon: PackageCheck,    color: "border-emerald-500/40 text-emerald-400", bg: "bg-emerald-500/10", defaultStage: "producao",     sections: ["overview","links","attachments","notes"],                        titleTemplate: "Asset" },
+
+  // Ativação / Otimização
+  { kind: "lancamento",   label: "Lançamento",          shortLabel: "Lançamento",   icon: Rocket,          color: "border-pink-500/40 text-pink-400",     bg: "bg-pink-500/10",    defaultStage: "ativacao",       sections: ["overview","links","checklist","notes"],                          titleTemplate: "Lançamento" },
+  { kind: "trafego",      label: "Tráfego pago",        shortLabel: "Tráfego",      icon: Megaphone,       color: "border-pink-500/40 text-pink-400",     bg: "bg-pink-500/10",    defaultStage: "ativacao",       sections: ["overview","links","copy","metrics","notes"],                     titleTemplate: "Campanha de tráfego" },
+  { kind: "email_mkt",    label: "Email Marketing",     shortLabel: "Email",        icon: Mail,            color: "border-pink-500/40 text-pink-400",     bg: "bg-pink-500/10",    defaultStage: "ativacao",       sections: ["overview","copy","links","metrics","notes"],                     titleTemplate: "Sequência de email" },
+  { kind: "social",       label: "Redes sociais",       shortLabel: "Social",       icon: Megaphone,       color: "border-pink-500/40 text-pink-400",     bg: "bg-pink-500/10",    defaultStage: "ativacao",       sections: ["overview","copy","attachments","metrics","notes"],               titleTemplate: "Conteúdo social" },
+  { kind: "crm",          label: "CRM / Pipeline",      shortLabel: "CRM",          icon: FolderKanban,    color: "border-orange-500/40 text-orange-400", bg: "bg-orange-500/10",  defaultStage: "otimizacao",     sections: ["overview","links","metrics","notes"],                            titleTemplate: "CRM" },
+  { kind: "metrica",      label: "Métrica",             shortLabel: "Métrica",      icon: BarChart3,       color: "border-orange-500/40 text-orange-400", bg: "bg-orange-500/10",  defaultStage: "otimizacao",     sections: ["overview","metrics","notes"],                                    titleTemplate: "Métrica" },
+
+  // Expansão / prova
+  { kind: "before_after", label: "Before / After",      shortLabel: "Before/After", icon: Sparkles,        color: "border-primary/50 text-primary",       bg: "bg-primary/10",     defaultStage: "expansao",       sections: ["overview","attachments","metrics","notes"],                      titleTemplate: "Before/After" },
+  { kind: "case",         label: "Case",                shortLabel: "Case",         icon: Trophy,          color: "border-primary/50 text-primary",       bg: "bg-primary/10",     defaultStage: "expansao",       sections: ["overview","links","attachments","notes","metrics"],              titleTemplate: "Case" },
+];
+
+export function getProjectTypeMeta(kind: string): ProjectNodeTypeMeta | null {
+  return PROJECT_TYPES.find((p) => p.kind === kind) ?? null;
+}
+
+/** Group catalog into bands for the palette */
+export const PROJECT_TYPE_GROUPS: Array<{ stage: AceleraStageKey; types: ProjectNodeKind[] }> = [
+  { stage: "entrada",        types: ["briefing","reuniao","ideia","objetivo"] },
+  { stage: "diagnostico",    types: ["documento","contato"] },
+  { stage: "estrutura_base", types: ["checklist"] },
+  { stage: "planejamento",   types: ["funil"] },
+  { stage: "producao",       types: ["landing_page","site","automacao","ia","integracao","conteudo","video","imagem","asset"] },
+  { stage: "ativacao",       types: ["lancamento","trafego","email_mkt","social"] },
+  { stage: "otimizacao",     types: ["crm","metrica"] },
+  { stage: "expansao",       types: ["before_after","case"] },
+];
+
+/** Map ProjectNodeKind → DB node_type enum value (existing canvas_nodes.node_type uses CanvasNodeType) */
+export function projectKindToDbNodeType(kind: ProjectNodeKind): string {
+  switch (kind) {
+    case "asset": return "asset";
+    case "metrica": return "metric";
+    case "before_after": return "before_after";
+    case "case": return "case";
+    case "briefing":
+    case "documento":
+    case "contato": return "context";
+    case "checklist": return "task";
+    default: return "front"; // generic deliverable / project front
+  }
+}
+
+/** Reverse lookup helper from stored data.kind */
+export function readKindFromData(data: Record<string, unknown> | null | undefined): ProjectNodeKind | null {
+  const k = (data ?? {})["kind"];
+  if (typeof k === "string") return k as ProjectNodeKind;
+  return null;
+}
