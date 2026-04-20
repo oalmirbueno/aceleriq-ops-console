@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { slugify } from "@/lib/slugify";
 import { toast } from "@/hooks/use-toast";
+import { Upload, X, ImageIcon } from "lucide-react";
+import ClientAvatar from "@/components/workspace/ClientAvatar";
 
 interface Props {
   open: boolean;
@@ -23,6 +25,9 @@ const PLANS = ["starter", "growth", "enterprise"];
 export default function CreateClientDialog({ open, onOpenChange, onCreated }: Props) {
   const [loading, setLoading] = useState(false);
   const [createWorkspace, setCreateWorkspace] = useState(true);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     name: "",
     company_name: "",
@@ -32,6 +37,44 @@ export default function CreateClientDialog({ open, onOpenChange, onCreated }: Pr
   });
 
   const set = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
+
+  const handleLogoSelect = (file: File | null) => {
+    if (!file) {
+      setLogoFile(null);
+      setLogoPreview(null);
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Arquivo inválido", description: "Selecione uma imagem.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "Imagem muito grande", description: "Limite 2MB.", variant: "destructive" });
+      return;
+    }
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
+  };
+
+  const uploadLogo = async (clientId: string): Promise<string | null> => {
+    if (!logoFile) return null;
+    const ext = logoFile.name.split(".").pop()?.toLowerCase() || "png";
+    const path = `${clientId}/logo-${Date.now()}.${ext}`;
+    const { error: upErr } = await supabase.storage
+      .from("client-logos")
+      .upload(path, logoFile, { upsert: true, contentType: logoFile.type });
+    if (upErr) {
+      console.error("logo upload failed", upErr);
+      toast({
+        title: "Logo não enviado",
+        description: "Cliente foi criado, mas o logo falhou. Verifique o bucket 'client-logos'.",
+        variant: "destructive",
+      });
+      return null;
+    }
+    const { data: pub } = supabase.storage.from("client-logos").getPublicUrl(path);
+    return pub?.publicUrl ?? null;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +99,18 @@ export default function CreateClientDialog({ open, onOpenChange, onCreated }: Pr
         .single();
 
       if (cErr) throw cErr;
+
+      // Upload logo (best-effort) and persist URL
+      if (client && logoFile) {
+        const url = await uploadLogo(client.id);
+        if (url) {
+          const { error: uErr } = await supabase
+            .from("clients")
+            .update({ logo_url: url } as any)
+            .eq("id", client.id);
+          if (uErr) console.warn("logo_url update failed (column missing?)", uErr);
+        }
+      }
 
       if (createWorkspace && client) {
         const { data: ws, error: wErr } = await supabase
@@ -86,6 +141,8 @@ export default function CreateClientDialog({ open, onOpenChange, onCreated }: Pr
 
       toast({ title: "Cliente criado", description: form.name });
       setForm({ name: "", company_name: "", segment: "", plan_name: "growth", executive_summary: "" });
+      setLogoFile(null);
+      setLogoPreview(null);
       onOpenChange(false);
       onCreated();
     } catch (err: any) {
@@ -105,9 +162,58 @@ export default function CreateClientDialog({ open, onOpenChange, onCreated }: Pr
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label>Nome *</Label>
-            <Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Nome do cliente" required />
+          {/* Logo + Nome side by side */}
+          <div className="flex items-start gap-3">
+            <div className="flex flex-col items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="relative group"
+                aria-label="Upload de logo"
+              >
+                {logoPreview ? (
+                  <div className="relative h-14 w-14 rounded-md overflow-hidden border-2 border-border hover:border-primary transition-colors">
+                    <img src={logoPreview} alt="Preview do logo" className="h-full w-full object-cover" />
+                    <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <Upload className="h-4 w-4 text-foreground" />
+                    </div>
+                  </div>
+                ) : form.name ? (
+                  <div className="relative">
+                    <ClientAvatar name={form.name} seed={form.name} size="lg" className="h-14 w-14 text-base" />
+                    <div className="absolute inset-0 rounded-md bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center border-2 border-dashed border-primary">
+                      <Upload className="h-4 w-4 text-foreground" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-14 w-14 rounded-md border-2 border-dashed border-border hover:border-primary transition-colors flex items-center justify-center bg-muted/30">
+                    <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                )}
+              </button>
+              {logoPreview && (
+                <button
+                  type="button"
+                  onClick={() => handleLogoSelect(null)}
+                  className="text-[10px] text-muted-foreground hover:text-destructive flex items-center gap-0.5"
+                >
+                  <X className="h-2.5 w-2.5" /> remover
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleLogoSelect(e.target.files?.[0] ?? null)}
+              />
+            </div>
+
+            <div className="flex-1 space-y-1.5">
+              <Label>Nome *</Label>
+              <Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Nome do cliente" required />
+              <p className="text-[10px] text-muted-foreground">Logo opcional · max 2MB</p>
+            </div>
           </div>
 
           <div className="space-y-1.5">
