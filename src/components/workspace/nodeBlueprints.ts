@@ -104,6 +104,8 @@ const BRIEFING: NodeBlueprint = {
     { id: "review_basics",   label: "Revisar dados básicos do cliente",         required: true  },
     { id: "validate_goals",  label: "Validar objetivos com o cliente",          required: true  },
     { id: "confirm_limits",  label: "Confirmar restrições (orçamento, prazo)",  required: true  },
+    { id: "map_positioning", label: "Mapear posicionamento e mercado",          required: true  },
+    { id: "collect_refs",    label: "Coletar referências e materiais (PDF/links)", required: false },
     { id: "seal_brief",      label: "Selar briefing — não pode mais mudar",     required: true  },
     { id: "share_summary",   label: "Compartilhar resumo executivo",            required: false },
   ],
@@ -115,6 +117,18 @@ const BRIEFING: NodeBlueprint = {
         { id: "who",      label: "Quem é o cliente",          type: "textarea", hint: "Empresa, fundadores, posicionamento" },
         { id: "offer",    label: "Oferta principal",          type: "textarea", hint: "Produto/serviço + ticket médio" },
         { id: "stage",    label: "Estágio atual do negócio",  type: "text",     hint: "Validação / tração / escala" },
+        { id: "history",  label: "Histórico relevante",       type: "textarea", hint: "Marcos, pivôs, números de tração" },
+      ],
+    },
+    {
+      id: "positioning", title: "Posicionamento e mercado",
+      description: "Como o cliente se posiciona vs alternativas — base pra copy e diferenciação.",
+      fields: [
+        { id: "category",     label: "Categoria de mercado",        type: "text",     hint: "Em qual prateleira a oferta vive" },
+        { id: "positioning",  label: "Frase de posicionamento",     type: "textarea", hint: "Para [persona], que sofre [dor], oferecemos [solução] ao contrário de [alternativa]" },
+        { id: "competitors",  label: "Concorrentes diretos (3-5)",  type: "list" },
+        { id: "alternatives", label: "Alternativas indiretas",      type: "list",     hint: "Não-consumo, planilha, agência X..." },
+        { id: "tone",         label: "Tom de voz",                  type: "text",     hint: "Próximo / técnico / provocador / etc." },
       ],
     },
     {
@@ -124,6 +138,7 @@ const BRIEFING: NodeBlueprint = {
         { id: "north_star",   label: "Objetivo norte (1 frase)",  type: "text",     hint: "Ex: Triplicar leads qualificados em 90 dias" },
         { id: "kpis",         label: "KPIs primários",            type: "list",     hint: "3-5 métricas mensuráveis" },
         { id: "horizon",      label: "Horizonte de avaliação",    type: "text",     hint: "30/60/90 dias" },
+        { id: "success",      label: "Como saberemos que deu certo", type: "textarea", hint: "Critério explícito de vitória" },
       ],
     },
     {
@@ -132,6 +147,7 @@ const BRIEFING: NodeBlueprint = {
         { id: "primary",   label: "Persona primária",   type: "textarea", hint: "Cargo, dor, gatilho de compra" },
         { id: "secondary", label: "Persona secundária", type: "textarea" },
         { id: "objections",label: "Objeções comuns",    type: "list" },
+        { id: "channels",  label: "Onde essa persona está", type: "list", hint: "IG, LinkedIn, evento X..." },
       ],
     },
     {
@@ -139,6 +155,15 @@ const BRIEFING: NodeBlueprint = {
       fields: [
         { id: "uvp",      label: "UVP (proposta de valor única)", type: "textarea" },
         { id: "proofs",   label: "Provas sociais disponíveis",    type: "list", hint: "Cases, depoimentos, números" },
+        { id: "moats",    label: "Vantagens estruturais (moats)", type: "list", hint: "Tecnologia, rede, marca, dados" },
+      ],
+    },
+    {
+      id: "references", title: "Referências e inspirações",
+      description: "Marcas/sites/peças que o cliente quer (ou NÃO quer) parecer.",
+      fields: [
+        { id: "love",   label: "Referências positivas (com link)", type: "list", hint: "Link + por que gosta" },
+        { id: "hate",   label: "Referências negativas",            type: "list", hint: "O que evitar" },
       ],
     },
     {
@@ -147,12 +172,21 @@ const BRIEFING: NodeBlueprint = {
         { id: "budget",   label: "Orçamento aprovado",  type: "text",     decisionOnly: true },
         { id: "deadline", label: "Prazo final inegociável", type: "text", decisionOnly: true },
         { id: "vetoes",   label: "Vetos / não-pode",    type: "list",     hint: "Tom, palavras, concorrentes a evitar" },
+        { id: "legal",    label: "Restrições legais/compliance", type: "list", hint: "LGPD, ANVISA, CVM, etc." },
+      ],
+    },
+    {
+      id: "materials", title: "Materiais do cliente (anexos)",
+      description: "PDFs, decks, planilhas e referências enviadas pelo cliente.",
+      fields: [
+        { id: "files", label: "Documentos anexados", type: "attachments", hint: "Briefings, decks, manuais de marca, planilhas" },
       ],
     },
     {
       id: "next_steps", title: "Próximos passos",
       fields: [
         { id: "actions", label: "Ações imediatas",  type: "list", hint: "Quem faz o quê nos próximos 7 dias" },
+        { id: "owner",   label: "Dono do briefing", type: "text", decisionOnly: true },
       ],
     },
   ],
@@ -166,6 +200,8 @@ const BRIEFING: NodeBlueprint = {
   prefillPrompt:
     "Você é o diretor estratégico que transforma briefings brutos em documentos executáveis. " +
     "Use o briefing consolidado e os contextos importados pra preencher CADA campo com a melhor síntese possível. " +
+    "Para 'positioning', escreva no formato: 'Para [persona], que sofre [dor], oferecemos [solução] ao contrário de [alternativa]'. " +
+    "Para 'references', sugira 3-5 marcas/peças COM justificativa curta — se não houver no contexto, marque empty. " +
     "Tom: direto, profissional, sem floreio. Quando faltar informação, marque o campo como vazio — não invente fatos sobre orçamento ou prazo.",
 };
 
@@ -233,6 +269,8 @@ const OBJETIVO: NodeBlueprint = {
     { id: "owner",        label: "Cada meta tem dono",                   required: true },
     { id: "baseline",     label: "Baseline registrado",                  required: true },
     { id: "review_cad",   label: "Cadência de review definida",          required: true },
+    { id: "risks",        label: "Riscos e dependências mapeados",       required: true },
+    { id: "leading",      label: "Indicador antecedente definido",       required: false },
   ],
   sections: [
     {
@@ -240,6 +278,7 @@ const OBJETIVO: NodeBlueprint = {
       fields: [
         { id: "statement", label: "1 frase que define vitória", type: "text" },
         { id: "horizon",   label: "Horizonte (90/180/365 dias)", type: "text" },
+        { id: "why_now",   label: "Por que esse objetivo agora", type: "textarea", hint: "Contexto que justifica priorizar isso" },
       ],
     },
     {
@@ -255,6 +294,23 @@ const OBJETIVO: NodeBlueprint = {
       fields: [
         { id: "kpis",      label: "KPIs primários",   type: "kv", hint: "métrica → meta" },
         { id: "baseline",  label: "Baseline atual",   type: "kv", hint: "métrica → valor hoje" },
+        { id: "leading",   label: "Indicadores antecedentes (leading)", type: "kv", hint: "Métricas que prevêem o resultado" },
+      ],
+    },
+    {
+      id: "hypothesis", title: "Hipóteses que sustentam o objetivo",
+      description: "Se essas hipóteses forem falsas, o objetivo cai. Liste explicitamente.",
+      fields: [
+        { id: "assumptions", label: "Premissas que precisam ser verdade", type: "list" },
+        { id: "to_validate", label: "O que validar primeiro",            type: "list", hint: "Testes baratos antes de investir pesado" },
+      ],
+    },
+    {
+      id: "risks", title: "Riscos e dependências",
+      fields: [
+        { id: "risks",        label: "Riscos por probabilidade × impacto", type: "list", hint: "Ex: alta × alta — pixel quebrado" },
+        { id: "dependencies", label: "Dependências externas",              type: "list", hint: "Aprovações, integrações, fornecedores" },
+        { id: "mitigation",   label: "Mitigações planejadas",              type: "kv",   hint: "risco → ação" },
       ],
     },
     {
@@ -262,6 +318,13 @@ const OBJETIVO: NodeBlueprint = {
       fields: [
         { id: "owners",  label: "Dono por objetivo",  type: "list", decisionOnly: true },
         { id: "cadence", label: "Frequência de review", type: "text", hint: "Semanal / quinzenal / mensal" },
+        { id: "ritual",  label: "Ritual de review (formato)", type: "textarea", hint: "Quem participa, agenda, decisões" },
+      ],
+    },
+    {
+      id: "supporting", title: "Documentos de suporte",
+      fields: [
+        { id: "files", label: "OKRs, planilhas, contratos", type: "attachments" },
       ],
     },
   ],
@@ -275,6 +338,8 @@ const OBJETIVO: NodeBlueprint = {
   prefillPrompt:
     "Você é coach de OKRs. Toda meta deve ser SMART: Specific, Measurable, Achievable, Relevant, Time-bound. " +
     "Use o briefing pra entender direção e métricas existentes pra calibrar baseline. " +
+    "Sempre liste hipóteses explícitas — premissas que, se falsas, derrubam o objetivo. " +
+    "Em 'risks', use o formato 'probabilidade × impacto — descrição'. " +
     "Se não houver baseline, marque 'a medir' — não chute.",
 };
 
@@ -743,7 +808,9 @@ const KICKOFF: NodeBlueprint = {
     { id: "agenda",      label: "Agenda enviada com 24h",       required: true },
     { id: "participants",label: "Participantes confirmados",    required: true },
     { id: "preread",     label: "Pré-leitura compartilhada",    required: true },
+    { id: "recording",   label: "Gravação + transcrição salva", required: false },
     { id: "minutes",     label: "Ata documentada e enviada",    required: true },
+    { id: "decisions",   label: "Decisões registradas com dono", required: true },
     { id: "followups",   label: "Follow-ups com dono e prazo",  required: true },
   ],
   sections: [
@@ -753,12 +820,15 @@ const KICKOFF: NodeBlueprint = {
         { id: "date",     label: "Data e horário",     type: "text", decisionOnly: true },
         { id: "duration", label: "Duração prevista",   type: "text" },
         { id: "channel",  label: "Canal (Meet/Zoom)",  type: "text", decisionOnly: true },
+        { id: "link",     label: "Link da call",       type: "text", decisionOnly: true },
+        { id: "recording_url", label: "Link da gravação", type: "text", decisionOnly: true },
       ],
     },
     {
       id: "agenda", title: "Agenda",
       fields: [
         { id: "items", label: "Tópicos em ordem (com tempo)", type: "list", hint: "Ex: Apresentações (5min), Briefing (15min)..." },
+        { id: "objective", label: "Objetivo único da reunião", type: "text", hint: "1 frase do que precisa sair daqui" },
       ],
     },
     {
@@ -766,24 +836,39 @@ const KICKOFF: NodeBlueprint = {
       fields: [
         { id: "client", label: "Time do cliente", type: "list", hint: "Nome — papel" },
         { id: "agency", label: "Time interno",    type: "list" },
+        { id: "decision_maker", label: "Quem decide na sala", type: "text", decisionOnly: true },
       ],
     },
     {
       id: "decisions", title: "Decisões esperadas",
       fields: [
         { id: "expected", label: "O que precisa ser decidido nesta reunião", type: "list" },
+        { id: "made",     label: "Decisões efetivamente tomadas",            type: "list", hint: "Preencher após a call" },
+        { id: "pending",  label: "Decisões que ficaram em aberto",           type: "list" },
       ],
     },
     {
       id: "preread", title: "Pré-leitura",
       fields: [
         { id: "docs", label: "Documentos a ler antes", type: "list" },
+        { id: "files", label: "Anexos enviados ao cliente", type: "attachments" },
+      ],
+    },
+    {
+      id: "minutes", title: "Ata da reunião",
+      description: "Resumo executivo do que foi conversado — base pra próximos passos.",
+      fields: [
+        { id: "summary",       label: "Resumo executivo (3-5 linhas)", type: "textarea" },
+        { id: "highlights",    label: "Pontos-chave discutidos",       type: "list" },
+        { id: "blockers",      label: "Bloqueios identificados",       type: "list" },
+        { id: "transcript_ref",label: "Link/referência da transcrição", type: "text", decisionOnly: true },
       ],
     },
     {
       id: "followups", title: "Pós-reunião",
       fields: [
         { id: "actions", label: "Ações com dono + prazo", type: "list" },
+        { id: "next_meeting", label: "Próxima reunião agendada", type: "text", decisionOnly: true },
       ],
     },
   ],
@@ -791,11 +876,14 @@ const KICKOFF: NodeBlueprint = {
     { id: "schedule_meeting", label: "Exportar .ics",     primary: true },
     { id: "generate_tasks",   label: "Tasks de follow-up", primary: true },
     { id: "open_briefing",    label: "Ver briefing"                    },
+    { id: "export_pdf",       label: "Baixar ata"                      },
     { id: "regenerate_prefill",label: "Regenerar com IA"               },
   ],
   sources: ["briefing","client","siblings"],
   prefillPrompt:
     "Você é chief of staff montando kickoff. Agenda com tempos concretos por bloco. " +
+    "Se houver transcrição/contexto da reunião, extraia decisões tomadas vs pendentes — não confunda. " +
+    "Resumo executivo deve responder: o que foi decidido, quem está fazendo o quê, qual o próximo marco. " +
     "Pré-leitura curta e relevante. Decisões esperadas explícitas. Não invente data — decisão humana.",
 };
 
