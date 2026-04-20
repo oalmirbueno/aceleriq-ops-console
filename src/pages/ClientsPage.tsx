@@ -191,7 +191,7 @@ export default function ClientsPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>Etapa</TableHead>
                   <TableHead>Plano</TableHead>
-                  <TableHead className="w-10" />
+                  <TableHead className="w-24 text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
