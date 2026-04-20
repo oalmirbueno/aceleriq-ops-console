@@ -15,6 +15,10 @@ import BriefingNodeDrawer from "./BriefingNodeDrawer";
 import SpecializedNodeDrawer from "./SpecializedNodeDrawer";
 import AccessVaultDrawer from "./AccessVaultDrawer";
 import FunnelEditorDrawer from "./FunnelEditorDrawer";
+import SiteNodeDrawer from "./SiteNodeDrawer";
+import LancamentoNodeDrawer from "./LancamentoNodeDrawer";
+import MetricaNodeDrawer from "./MetricaNodeDrawer";
+import KickoffNodeDrawer from "./KickoffNodeDrawer";
 import { hasBlueprint } from "./nodeBlueprints";
 import type { ProjectNodeKind } from "./canvasProjectTypes";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
@@ -77,6 +81,63 @@ export default function ProjectNodeDrawer(props: Props) {
   if (kind === "briefing" && clientId) {
     return (
       <BriefingNodeDrawer
+        node={node}
+        open={props.open}
+        onOpenChange={props.onOpenChange}
+        workspaceId={props.workspaceId}
+        clientId={clientId}
+        clientName={clientName}
+        onDelete={props.onDelete}
+      />
+    );
+  }
+
+  // Site: preview hero + meta + botão SiteBolt
+  if (kind === "site" && clientId) {
+    return (
+      <SiteNodeDrawer
+        node={node}
+        open={props.open}
+        onOpenChange={props.onOpenChange}
+        workspaceId={props.workspaceId}
+        clientId={clientId}
+        onDelete={props.onDelete}
+      />
+    );
+  }
+
+  // Lançamento: timeline pré-launch (T-7 → T+1)
+  if (kind === "lancamento" && clientId) {
+    return (
+      <LancamentoNodeDrawer
+        node={node}
+        open={props.open}
+        onOpenChange={props.onOpenChange}
+        workspaceId={props.workspaceId}
+        clientId={clientId}
+        onDelete={props.onDelete}
+      />
+    );
+  }
+
+  // Métrica: gráfico de snapshots históricos
+  if (kind === "metrica" && clientId) {
+    return (
+      <MetricaNodeDrawer
+        node={node}
+        open={props.open}
+        onOpenChange={props.onOpenChange}
+        workspaceId={props.workspaceId}
+        clientId={clientId}
+        onDelete={props.onDelete}
+      />
+    );
+  }
+
+  // Kickoff / reunião: card resumo + export .ics local
+  if (kind === "reuniao" && clientId) {
+    return (
+      <KickoffNodeDrawer
         node={node}
         open={props.open}
         onOpenChange={props.onOpenChange}
