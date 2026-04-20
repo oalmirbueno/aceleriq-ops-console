@@ -902,6 +902,14 @@ function CanvasStudioInner({
         hasOtherClients={summary.clients > 0}
       />
 
+      <GenerateEsteiraDialog
+        open={generateDialogOpen}
+        onOpenChange={setGenerateDialogOpen}
+        clientId={clientId}
+        generating={busyAction === "base"}
+        onConfirm={(tpl) => applyEsteiraTemplate(tpl)}
+      />
+
       <ProjectNodeDrawer
         node={selectedNode}
         open={!!selectedNode}
