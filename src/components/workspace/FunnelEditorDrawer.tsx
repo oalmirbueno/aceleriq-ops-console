@@ -441,6 +441,40 @@ export default function FunnelEditorDrawer({
               {branches.length} ramificaç{branches.length !== 1 ? "ões" : "ão"}
             </Badge>
           </div>
+
+          {/* KPIs agregados (receita / spend / CAC / ROI) */}
+          {(kpis.revenue != null || kpis.spend != null || kpis.cac != null || kpis.roi != null) && (
+            <div className="flex items-center gap-2 text-[10px] flex-wrap pt-1 border-t border-border">
+              {kpis.revenue != null && (
+                <Badge variant="outline" className="border-primary/30 text-primary tabular-nums">
+                  Receita: R$ {kpis.revenue.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}
+                </Badge>
+              )}
+              {kpis.spend != null && (
+                <Badge variant="outline" className="border-border text-muted-foreground tabular-nums">
+                  Spend: R$ {kpis.spend.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}
+                </Badge>
+              )}
+              {kpis.cac != null && (
+                <Badge variant="outline" className="border-border text-muted-foreground tabular-nums">
+                  CAC: R$ {kpis.cac.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}
+                </Badge>
+              )}
+              {kpis.roi != null && (
+                <Badge variant="outline" className={cn(
+                  "tabular-nums",
+                  kpis.roi >= 0 ? "border-primary/30 text-primary" : "border-destructive/30 text-destructive",
+                )}>
+                  ROI: {(kpis.roi * 100).toFixed(0)}%
+                </Badge>
+              )}
+              {kpis.ticketAvg != null && (
+                <Badge variant="outline" className="border-border text-muted-foreground tabular-nums">
+                  Ticket médio: R$ {kpis.ticketAvg.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}
+                </Badge>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ─── Pipeline ─── */}
