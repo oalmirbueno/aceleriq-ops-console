@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, X, Bot, User, Pencil, AlertCircle, Sparkles, Paperclip } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import AttachmentUploader, { type AttachmentItem } from "../AttachmentUploader";
 import type { NodeSection as NodeSectionType, SectionField } from "../nodeBlueprints";
 import type { PrefillSectionContent, PrefillFieldValue, FieldOrigin } from "../nodePrefillTypes";
@@ -27,12 +28,37 @@ interface Props {
   nodeId?: string;
 }
 
-const ORIGIN_META: Record<FieldOrigin, { label: string; cls: string; Icon: typeof Bot }> = {
-  auto:     { label: "IA",        cls: "border-border text-muted-foreground bg-muted/10",   Icon: Bot },
-  client:   { label: "Cliente",   cls: "border-border text-muted-foreground bg-muted/10", Icon: User },
-  edited:   { label: "Editado",   cls: "border-border text-muted-foreground bg-muted/10",      Icon: Pencil },
-  empty:    { label: "A definir", cls: "border-border text-muted-foreground bg-muted/30",         Icon: AlertCircle },
-  fallback: { label: "Manual",    cls: "border-border text-muted-foreground bg-muted/10",         Icon: Sparkles },
+const ORIGIN_META: Record<FieldOrigin, { label: string; cls: string; tip: string; Icon: typeof Bot }> = {
+  auto:     {
+    label: "IA",
+    cls: "border-primary/40 text-primary bg-primary/10",
+    tip: "Rascunhado pela IA a partir do auto-contexto do workspace.",
+    Icon: Bot,
+  },
+  client:   {
+    label: "Cliente",
+    cls: "border-foreground/30 text-foreground bg-foreground/5",
+    tip: "Veio direto do cliente (briefing público preenchido).",
+    Icon: User,
+  },
+  edited:   {
+    label: "Editado",
+    cls: "border-border text-foreground/80 bg-muted/30",
+    tip: "Editado por você — sobrescreve o rascunho da IA.",
+    Icon: Pencil,
+  },
+  empty:    {
+    label: "A definir",
+    cls: "border-dashed border-border text-muted-foreground bg-transparent",
+    tip: "Decisão humana ou IA não encontrou evidência no contexto.",
+    Icon: AlertCircle,
+  },
+  fallback: {
+    label: "Manual",
+    cls: "border-border text-muted-foreground bg-muted/10",
+    tip: "Preenchido manualmente — IA estava indisponível.",
+    Icon: Sparkles,
+  },
 };
 
 export default function NodeSection({ section, content, onFieldChange, disabled, workspaceId, nodeId }: Props) {
@@ -108,10 +134,28 @@ function FieldEditor({
             </span>
           )}
         </Label>
-        <Badge variant="outline" className={`text-[9px] ${meta.cls} flex items-center gap-1 px-1.5 py-0 shrink-0`}>
-          <Icon className="h-2.5 w-2.5" />
-          {meta.label}
-        </Badge>
+        <TooltipProvider delayDuration={150}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge
+                variant="outline"
+                className={`text-[9px] ${meta.cls} flex items-center gap-1 px-1.5 py-0 shrink-0 cursor-help`}
+              >
+                <Icon className="h-2.5 w-2.5" />
+                {meta.label}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent side="left" align="start" className="max-w-[260px] text-[11px] leading-snug">
+              <p className="font-medium mb-1">{meta.label}</p>
+              <p className="text-muted-foreground">{meta.tip}</p>
+              {value?.citation && (
+                <p className="mt-1.5 pt-1.5 border-t border-border text-foreground/80">
+                  <span className="font-mono text-[10px] text-muted-foreground">fonte:</span> {value.citation}
+                </p>
+              )}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       {field.type === "text" && (
@@ -182,8 +226,10 @@ function FieldEditor({
         )
       )}
 
-      {value?.citation && origin === "auto" && (
-        <p className="text-[9px] text-muted-foreground italic truncate">ref: {value.citation}</p>
+      {value?.citation && (origin === "auto" || origin === "client") && (
+        <p className="text-[9px] text-muted-foreground italic truncate">
+          <span className="opacity-70">fonte:</span> {value.citation}
+        </p>
       )}
     </div>
   );
