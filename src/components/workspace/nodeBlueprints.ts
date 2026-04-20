@@ -2038,6 +2038,378 @@ const CRM_PIPELINE: NodeBlueprint = {
     "Para URLs reais (CRM, dashboard, playbook), DPO, owners por estágio, dashboards específicos: origin='empty'.",
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// EXPANSÃO — Case enterprise (PASTA), Before/After comparável e Playbook replicável
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * CASE_PASTA — case enterprise estruturado pelo framework PASTA:
+ *   Problema → Ação → Solução → Tração → Aprendizado.
+ * Substitui o fallback legado pra casos da etapa Expansão.
+ */
+const CASE_PASTA: NodeBlueprint = {
+  kind: "case",
+  purpose:
+    "Case enterprise estruturado em PASTA — Problema, Ação, Solução, Tração e Aprendizado — pronto pra venda, RP e captação.",
+  methodChecklist: [
+    { id: "consent",        label: "Consentimento de uso da marca/dados assinado",        required: true  },
+    { id: "problem",        label: "Problema descrito com dor mensurável",                required: true  },
+    { id: "action",         label: "Ação narrada em ordem cronológica clara",             required: true  },
+    { id: "solution",       label: "Solução tangibilizada (entregáveis + decisões)",      required: true  },
+    { id: "traction",       label: "Tração com números antes/depois auditáveis",          required: true  },
+    { id: "learning",       label: "Aprendizado replicável escrito",                      required: true  },
+    { id: "quote",          label: "Depoimento do decisor capturado",                     required: true  },
+    { id: "media_assets",   label: "Capa + carrossel + vídeo curto produzidos",           required: false },
+    { id: "distribution",   label: "Plano de distribuição (site, deck, RP, social)",      required: false },
+    { id: "approval",       label: "Aprovação final do cliente registrada",               required: true  },
+  ],
+  sections: [
+    {
+      id: "identity", title: "Identificação do case",
+      description: "Quem é o cliente do case e em que vertical/segmento ele compete.",
+      fields: [
+        { id: "company",       label: "Cliente / empresa",            type: "text" },
+        { id: "industry",      label: "Setor / vertical",             type: "text" },
+        { id: "size",          label: "Porte (faturamento, time)",    type: "text",     hint: "Ex: 80 colaboradores, R$ 30Mi/ano" },
+        { id: "decision_maker",label: "Decisor entrevistado (cargo)", type: "text",     decisionOnly: true },
+        { id: "period",        label: "Período do case",              type: "text",     hint: "Ex: Mar/2024 → Set/2024 (6 meses)" },
+        { id: "headline",      label: "Manchete do case (1 linha)",   type: "text",     hint: "Resultado + tempo + verbo forte. Ex: 'Triplicou MRR em 90 dias com funil reescrito'" },
+        { id: "tags",          label: "Tags de uso interno",          type: "list",     hint: "vertical, oferta, canal — pra filtrar no CRM" },
+      ],
+    },
+    {
+      id: "p_problem", title: "P — Problema",
+      description: "A dor real de negócio antes da intervenção. Sem números, não é problema — é desconforto.",
+      fields: [
+        { id: "context",        label: "Contexto de negócio",                  type: "textarea", hint: "Momento da empresa, pressão competitiva, gatilho que abriu o projeto" },
+        { id: "pain_points",    label: "Dores específicas (com número)",       type: "list",     hint: "Ex: CAC subiu 40% em 6m; conversão LP travada em 1,2%" },
+        { id: "cost_of_inaction", label: "Custo de não-fazer",                 type: "textarea", hint: "Quanto deixariam de ganhar / perder se mantivessem o status quo" },
+        { id: "failed_attempts",label: "Tentativas anteriores que falharam",   type: "list",     hint: "Agência X, ferramenta Y, time interno — e por que não funcionou" },
+        { id: "stakes",         label: "O que estava em jogo",                 type: "text",     hint: "Rodada, meta de board, expansão geográfica, sobrevivência" },
+      ],
+    },
+    {
+      id: "a_acao", title: "A — Ação",
+      description: "O que foi feito, em que ordem, com quem. Cronologia honesta — incluindo o que mudou no meio.",
+      fields: [
+        { id: "diagnostic",     label: "Diagnóstico inicial (1-2 frases)",     type: "textarea" },
+        { id: "hypothesis",     label: "Hipótese central testada",             type: "textarea", hint: "Se [X], então [Y] porque [Z]" },
+        { id: "phases",         label: "Fases do projeto (cronologia)",        type: "list",     hint: "Fase 1 (sem 1-2): diagnóstico → Fase 2 (sem 3-6): construção → ..." },
+        { id: "team",           label: "Time alocado (nosso + cliente)",       type: "kv",       hint: "Lead estratégico→ ; Trafego→ ; Cliente owner→" },
+        { id: "pivots",         label: "Pivôs durante a execução",             type: "list",     hint: "O que mudou de plano e por quê — mostra maturidade" },
+        { id: "tools",          label: "Stack/ferramentas usadas",             type: "list" },
+      ],
+    },
+    {
+      id: "s_solucao", title: "S — Solução",
+      description: "O que foi entregue concretamente — não 'estratégia de marketing', mas peças, sistemas, decisões.",
+      fields: [
+        { id: "deliverables",   label: "Entregáveis (por categoria)",          type: "kv",       hint: "Funil→ ; LPs→ ; Automações→ ; Conteúdo→ ; Tráfego→" },
+        { id: "key_decisions",  label: "Decisões estratégicas-chave (3-5)",    type: "list",     hint: "Reposicionamento, mudança de canal, novo segmento — o que mudou de fato" },
+        { id: "differentials",  label: "O que tornou nossa abordagem única",   type: "textarea", hint: "Vs agência genérica/freelancer/in-house — sem genérico" },
+        { id: "architecture",   label: "Arquitetura final (sistemas+dados)",   type: "textarea", hint: "Como tudo se conecta — descreva como você desenharia em whiteboard" },
+        { id: "before_after_link", label: "Node Before/After vinculado",       type: "text",     decisionOnly: true, hint: "Cole o ID/link do node before_after que sustenta esse case" },
+      ],
+    },
+    {
+      id: "t_tracao", title: "T — Tração",
+      description: "Números antes vs depois, com janela e fonte. Sem fonte = não vai pro deck do cliente.",
+      fields: [
+        { id: "primary_kpi",    label: "KPI primário (com baseline → resultado)", type: "text",  hint: "Ex: Conversão checkout: 1,2% → 4,8% (+300%, jan→jun)" },
+        { id: "secondary_kpis", label: "KPIs secundários",                     type: "list",     hint: "1 por linha, no formato 'métrica: antes → depois (Δ%)'" },
+        { id: "business_outcome",label:"Impacto de negócio (R$ ou estratégico)",type: "textarea", hint: "Receita gerada, ARR, LTV, payback, fundraising desbloqueado" },
+        { id: "time_to_result", label: "Tempo até primeiro resultado material",type: "text",     hint: "Ex: Semana 6: primeiro pico de leads qualificados" },
+        { id: "evidence_sources",label:"Fontes que provam os números",         type: "list",     hint: "GA4 dashboard, print do CRM, fatura Stripe, painel do cliente — link/screenshot" },
+        { id: "comparable_baseline",label:"Baseline comparável usado",         type: "text",     hint: "Mesmo mês ano anterior / média 90 dias pré / cohort matched — explicite" },
+      ],
+    },
+    {
+      id: "a_aprendizado", title: "A — Aprendizado",
+      description: "O que esse case ensinou — pra cliente, pra nós, e pra próximos projetos da mesma vertical.",
+      fields: [
+        { id: "what_worked",    label: "O que funcionou (e por quê)",          type: "list" },
+        { id: "what_failed",    label: "O que NÃO funcionou (honesto)",        type: "list",     hint: "Mostra senioridade — não esconda" },
+        { id: "counterintuitive",label:"Insight contraintuitivo do projeto",   type: "textarea", hint: "O que era senso comum e o case provou errado" },
+        { id: "replicable",     label: "O que é replicável pra outros clientes",type: "list",    hint: "Vai virar bloco de playbook — vincule abaixo" },
+        { id: "non_replicable", label: "O que NÃO replicar (específico desse cliente)", type: "list" },
+        { id: "playbook_link",  label: "Playbook gerado a partir desse case",  type: "text",     decisionOnly: true, hint: "Cole o link do node 'Playbook' criado" },
+      ],
+    },
+    {
+      id: "voice", title: "Voz do cliente",
+      description: "Depoimento literal do decisor — sem editar pra parecer marketing.",
+      fields: [
+        { id: "quote_long",     label: "Depoimento longo (3-5 frases)",        type: "textarea", decisionOnly: true },
+        { id: "quote_short",    label: "Quote curto (1 frase forte)",          type: "text",     decisionOnly: true, hint: "Pra capa, deck e LP" },
+        { id: "quote_author",   label: "Autor (nome, cargo, empresa)",         type: "text",     decisionOnly: true },
+        { id: "video_url",      label: "Link do depoimento em vídeo",          type: "text",     decisionOnly: true },
+      ],
+    },
+    {
+      id: "distribution", title: "Distribuição e ativação",
+      description: "Onde esse case vai trabalhar pra você.",
+      fields: [
+        { id: "channels",       label: "Canais de ativação",                   type: "list",     hint: "Site/cases, deck comercial, RP, post, podcast, evento, ad social proof" },
+        { id: "sales_use",      label: "Como o time comercial deve usar",      type: "textarea", hint: "Em qual estágio do pipeline / contra qual objeção" },
+        { id: "press_angles",   label: "Ângulos pra RP / mídia espontânea",    type: "list" },
+        { id: "media_assets",   label: "Assets produzidos (capa, vídeo, deck)",type: "attachments" },
+        { id: "publish_at",     label: "Data de publicação oficial",           type: "text",     decisionOnly: true },
+      ],
+    },
+    {
+      id: "compliance", title: "Direitos e compliance",
+      fields: [
+        { id: "consent_doc",    label: "Documento de consentimento",           type: "attachments", hint: "Termo assinado de uso da marca, dados e depoimento" },
+        { id: "nda_scope",      label: "Itens sob NDA (não publicar)",         type: "list",     decisionOnly: true },
+        { id: "review_cycle",   label: "Ciclo de revisão acordado",            type: "text",     decisionOnly: true, hint: "Ex: revisão anual em janeiro" },
+      ],
+    },
+  ],
+  quickActions: [
+    { id: "export_pdf",         label: "Gerar deck PASTA do case", primary: true },
+    { id: "generate_tasks",     label: "Gerar tasks de produção do case" },
+    { id: "link_asset",         label: "Vincular Before/After + assets" },
+    { id: "approve",            label: "Marcar case como publicável" },
+    { id: "regenerate_prefill", label: "Regenerar com IA" },
+  ],
+  sources: ["briefing","metrics","fronts","client","context","assets","siblings"],
+  prefillPrompt:
+    "Você é editor de cases enterprise — escreve pra deck de venda e mídia, não pra blog. " +
+    "Estrutura PASTA é OBRIGATÓRIA: Problema (com dor mensurável), Ação (cronológica), Solução (entregáveis concretos), Tração (números com fonte), Aprendizado (honesto). " +
+    "Headline: resultado + tempo + verbo forte; nada genérico tipo 'transformamos a operação'. " +
+    "Problema: SEMPRE com número de dor (CAC, conversão, churn) — se o briefing não tiver, marque origin='hint' e peça preenchimento. " +
+    "Ação: cronologia em fases temporais reais; inclua pivôs (não esconda mudanças de plano — mostra senioridade). " +
+    "Solução: liste entregáveis por categoria (Funil/LP/Automação/Conteúdo/Tráfego), com decisões estratégicas-chave separadas. " +
+    "Tração: cada KPI no formato 'antes → depois (Δ%)'; baseline comparável SEMPRE explicitado; sem fonte = origin='empty'. " +
+    "Aprendizado: separe 'o que funcionou', 'o que falhou' e 'replicável vs específico desse cliente' — replicável vira insumo de playbook. " +
+    "Voz do cliente, NDA, datas, links de mídia: NUNCA inventar — origin='empty' e marcar pra captura humana. " +
+    "Use métricas reais do dossiê e snapshots — cite a fonte exata em citation.",
+};
+
+/**
+ * BEFORE_AFTER — comparativo rigoroso de métrica antes/depois com janela
+ * pareada e baseline auditável. Existe pra sustentar Cases e materiais de venda.
+ */
+const BEFORE_AFTER: NodeBlueprint = {
+  kind: "before_after",
+  purpose:
+    "Comparativo antes/depois de uma ou mais métricas — com janela pareada, baseline e fonte auditável. Sustenta Cases.",
+  methodChecklist: [
+    { id: "metric_defined",  label: "Métrica definida com unidade clara",                     required: true  },
+    { id: "window_paired",   label: "Janela 'antes' pareada com janela 'depois'",             required: true  },
+    { id: "baseline_method", label: "Método de baseline declarado (mesmo mês ano-1 / cohort / pré-pós)", required: true },
+    { id: "source_link",     label: "Fonte da medição (link/print) anexada",                  required: true  },
+    { id: "intervention",    label: "Intervenção que causou a mudança escrita",               required: true  },
+    { id: "confounders",     label: "Confounders/limitações listados",                        required: true  },
+    { id: "visual",          label: "Visual de comparação produzido (gráfico/print)",         required: false },
+    { id: "approved",        label: "Aprovado pelo cliente pra divulgação",                   required: true  },
+  ],
+  sections: [
+    {
+      id: "scope", title: "Escopo do comparativo",
+      description: "Sobre o quê estamos comparando — uma única afirmação clara.",
+      fields: [
+        { id: "claim",          label: "Afirmação principal (1 frase)",        type: "text",     hint: "Ex: 'Conversão da LP de checkout subiu 4× após reescrita do hero'" },
+        { id: "scope_object",   label: "Objeto medido",                        type: "text",     hint: "LP X / Funil Y / Campanha Z / Conta inteira" },
+        { id: "intervention",   label: "Intervenção aplicada",                 type: "textarea", hint: "O que mudou — seja específico (reescrita do hero, novo público, oferta nova)" },
+        { id: "intervention_date",label:"Data da intervenção (corte temporal)",type: "text",     decisionOnly: true, hint: "Define onde 'antes' termina e 'depois' começa" },
+      ],
+    },
+    {
+      id: "metrics", title: "Métricas comparadas",
+      description: "Uma linha por métrica. Mesma definição operacional dos dois lados — senão não compara.",
+      fields: [
+        { id: "primary_metric", label: "Métrica primária (nome + unidade)",    type: "text",     hint: "Ex: Conversão LP→Checkout (%); CAC (R$); MQL/sem (#)" },
+        { id: "primary_before", label: "Valor antes (com janela)",             type: "text",     hint: "Ex: 1,2% (média jan-fev/2024, n=8.412 sessões)" },
+        { id: "primary_after",  label: "Valor depois (com janela)",            type: "text",     hint: "Ex: 4,8% (média mai-jun/2024, n=11.203 sessões)" },
+        { id: "primary_delta",  label: "Delta calculado (Δ absoluto e %)",     type: "text",     hint: "Ex: +3,6 p.p. / +300%" },
+        { id: "secondary_metrics",label:"Métricas secundárias (uma por linha)",type: "list",     hint: "Formato: 'nome: antes → depois (Δ); janela; n='" },
+        { id: "guardrail_metrics",label:"Guardrails (não pioraram)",           type: "list",     hint: "Métricas que precisavam ficar estáveis pra mudança contar (ex: AOV, NPS, churn)" },
+      ],
+    },
+    {
+      id: "method", title: "Método de comparação",
+      description: "Como você garantiu que está comparando coisas comparáveis.",
+      fields: [
+        { id: "baseline_method",label: "Tipo de baseline",                     type: "text",     hint: "pre-post simples / mesmo período ano-1 / cohort matched / controle paralelo" },
+        { id: "window_before",  label: "Janela ANTES (datas + duração)",       type: "text",     hint: "Ex: 01/03/2024 → 30/04/2024 (60 dias)" },
+        { id: "window_after",   label: "Janela DEPOIS (datas + duração)",      type: "text",     hint: "Mesma duração — janelas pareadas" },
+        { id: "sample_size",    label: "Tamanho da amostra (antes / depois)",  type: "text",     hint: "Ex: n_antes=8.412 sessões; n_depois=11.203" },
+        { id: "significance",   label: "Significância estatística (se aplicável)", type: "text", hint: "p-valor, IC 95%, ou 'não testado — observacional'" },
+        { id: "confounders",    label: "Confounders e limitações",             type: "list",     hint: "Sazonalidade, mudança de tráfego, lançamento concorrente, mudança de pixel" },
+        { id: "data_sources",   label: "Fontes de dados (com link)",           type: "list",     hint: "GA4, Meta Ads Manager, Stripe, CRM — 1 por linha com URL" },
+      ],
+    },
+    {
+      id: "narrative", title: "Narrativa do antes/depois",
+      fields: [
+        { id: "before_state",   label: "Como era ANTES (1 parágrafo)",         type: "textarea", hint: "Estado descritivo, não só o número" },
+        { id: "after_state",    label: "Como ficou DEPOIS",                    type: "textarea" },
+        { id: "what_changed",   label: "O que mudou que causou o resultado",   type: "textarea", hint: "Conecte intervenção → mecanismo → resultado" },
+        { id: "honest_caveat",  label: "Ressalva honesta",                     type: "textarea", hint: "O que não dá pra concluir — protege a credibilidade do case" },
+      ],
+    },
+    {
+      id: "visuals", title: "Visuais comparativos",
+      description: "Material pra usar em LP, deck, social. Sempre com mesma escala dos dois lados.",
+      fields: [
+        { id: "chart_url",      label: "Link do gráfico antes/depois",         type: "text",     decisionOnly: true },
+        { id: "screenshot_before",label:"Print do estado ANTES (LP, dashboard, peça)", type: "attachments" },
+        { id: "screenshot_after",label: "Print do estado DEPOIS",              type: "attachments" },
+        { id: "video_walkthrough",label:"Vídeo curto comparando (loom/reels)", type: "text",     decisionOnly: true },
+      ],
+    },
+    {
+      id: "usage", title: "Uso e aprovações",
+      fields: [
+        { id: "linked_case",    label: "Case que esse before/after sustenta",  type: "text",     decisionOnly: true, hint: "ID/link do node Case PASTA" },
+        { id: "publish_consent",label: "Consentimento de publicação",          type: "text",     decisionOnly: true, hint: "Quem autorizou e em que canal" },
+        { id: "use_channels",   label: "Canais onde será usado",               type: "list",     hint: "LP, deck, social, ads, RP, propostas comerciais" },
+        { id: "expiry",         label: "Validade do dado (revalidar quando)",  type: "text",     decisionOnly: true, hint: "Ex: revalidar em 6 meses pra não envelhecer" },
+      ],
+    },
+  ],
+  quickActions: [
+    { id: "create_snapshot",    label: "Criar metric_snapshot vinculado", primary: true },
+    { id: "export_pdf",         label: "Exportar one-pager antes/depois" },
+    { id: "link_asset",         label: "Vincular ao Case e à LP" },
+    { id: "approve",            label: "Marcar como aprovado pra uso" },
+    { id: "regenerate_prefill", label: "Regenerar com IA" },
+  ],
+  sources: ["metrics","briefing","fronts","client","context","siblings"],
+  prefillPrompt:
+    "Você é analista sênior montando comparativo antes/depois pra sustentar case enterprise. " +
+    "REGRA INEGOCIÁVEL: janela 'antes' e janela 'depois' precisam ter mesma duração e estarem pareadas (mesmo dia da semana / mesma sazonalidade quando possível). " +
+    "Métrica primária: nome + unidade explícitos; valores SEMPRE com janela (datas) e n (amostra). " +
+    "Use os metric_snapshots reais do workspace — se não tiver, marque origin='empty' e descreva exatamente o que precisa ser medido. " +
+    "Delta: calcule absoluto E percentual; se baseline=0 ou amostra<30, sinalize na ressalva. " +
+    "Baseline method: pre-post simples só se não houver alternativa; prefira mesmo-período-ano-anterior ou cohort matched. " +
+    "Confounders: SEMPRE listar pelo menos 2-3 (sazonalidade, mudança de tráfego, evento externo) — case sem ressalva é case que cai. " +
+    "Guardrails: cite métricas que precisavam ficar estáveis pra mudança contar (ex: subir conversão sem matar AOV). " +
+    "Ressalva honesta: campo obrigatório — escreva 1-2 limitações reais. " +
+    "Visuais, links, aprovações: origin='empty' — ação humana.",
+};
+
+/**
+ * PLAYBOOK — manual replicável extraído de um case que vingou.
+ * Discriminado por título contendo "playbook" dentro do kind 'documento'.
+ */
+const PLAYBOOK: NodeBlueprint = {
+  kind: "documento",
+  purpose:
+    "Playbook replicável — destila o que funcionou em um case real em método executável por outro time/cliente.",
+  methodChecklist: [
+    { id: "source_case",    label: "Case-fonte identificado e vinculado",                     required: true  },
+    { id: "premise",        label: "Premissas e pré-requisitos escritos",                     required: true  },
+    { id: "icp_fit",        label: "ICP/cenário onde o playbook funciona definido",           required: true  },
+    { id: "anti_fit",       label: "Cenários onde NÃO usar (anti-fit) escritos",              required: true  },
+    { id: "steps_runnable", label: "Passos descritos no nível 'um operador júnior consegue'", required: true  },
+    { id: "templates",      label: "Templates/assets reaproveitáveis anexados",               required: true  },
+    { id: "metrics_target", label: "Métricas-alvo e benchmarks definidos",                    required: true  },
+    { id: "tested_2",       label: "Replicado com sucesso em ≥1 outro contexto",              required: false },
+    { id: "owner",          label: "Owner do playbook nomeado (manutenção)",                  required: true  },
+    { id: "review_cadence", label: "Cadência de revisão definida (ex: trimestral)",           required: false },
+  ],
+  sections: [
+    {
+      id: "origin", title: "Origem e tese",
+      description: "De onde esse playbook nasceu e qual hipótese ele empacota.",
+      fields: [
+        { id: "name",            label: "Nome do playbook",                    type: "text",     hint: "Verbo + objeto. Ex: 'Reativar base fria com sequência de 7 dias'" },
+        { id: "version",         label: "Versão",                              type: "text",     hint: "v1.0 / v1.2 — incrementar a cada iteração" },
+        { id: "source_case",     label: "Case-fonte (link/ID)",                type: "text",     decisionOnly: true },
+        { id: "thesis",          label: "Tese central (1 frase)",              type: "textarea", hint: "Se [contexto], faça [ação] que entrega [resultado] em [janela]" },
+        { id: "evidence",        label: "Evidência que sustenta a tese",       type: "list",     hint: "Métricas do case-fonte; replicações anteriores se houver" },
+        { id: "confidence",      label: "Nível de confiança",                  type: "text",     hint: "Hipótese (1 case) / Padrão (2-3 cases) / Sistema (5+ cases)" },
+      ],
+    },
+    {
+      id: "fit", title: "Quando usar (e quando NÃO usar)",
+      description: "ICP do playbook — porque playbook fora do contexto vira receita pronta que não funciona.",
+      fields: [
+        { id: "ideal_context",   label: "Contexto ideal de aplicação",         type: "textarea", hint: "Estágio do negócio, vertical, ticket, canal dominante" },
+        { id: "prerequisites",   label: "Pré-requisitos técnicos/operacionais",type: "list",     hint: "Pixel instalado, base mínima de leads, ferramenta X, time de Y pessoas" },
+        { id: "anti_fit",        label: "Quando NÃO usar (anti-fit)",          type: "list",     hint: "Sinais de que esse playbook vai dar errado nesse cliente" },
+        { id: "alternatives",    label: "Playbooks alternativos pra esses casos", type: "list" },
+      ],
+    },
+    {
+      id: "steps", title: "Passo a passo executável",
+      description: "Detalhe suficiente pra alguém júnior rodar sem te perguntar nada. Cada passo: o quê + como + entregável.",
+      fields: [
+        { id: "phases",          label: "Fases (alto nível)",                  type: "list",     hint: "1 linha por fase com objetivo + duração estimada" },
+        { id: "steps_detailed",  label: "Passos numerados (detalhe)",          type: "list",     hint: "Formato: 'P1. [ação] — como: [...] — entregável: [...] — owner: [...]'" },
+        { id: "decision_points", label: "Pontos de decisão (if/else)",         type: "list",     hint: "Se métrica X < Y, faça Z; senão pule pra passo W" },
+        { id: "dependencies",    label: "Dependências entre passos",           type: "kv",       hint: "P3 depende de→P2 ; P5 só roda após→pixel validado" },
+        { id: "duration_total",  label: "Duração total esperada",              type: "text",     hint: "Ex: 14 dias úteis (5 setup + 9 execução)" },
+      ],
+    },
+    {
+      id: "templates", title: "Templates e assets reaproveitáveis",
+      description: "Tudo que evita o operador começar do zero.",
+      fields: [
+        { id: "copy_templates",  label: "Templates de copy",                   type: "list",     hint: "Email, anúncio, LP, sequência — link/snippet" },
+        { id: "design_templates",label: "Templates de design",                 type: "list",     hint: "Figma, Canva, brand kit — links" },
+        { id: "automation_templates",label:"Templates de automação",           type: "list",     hint: "Workflows n8n/Make exportados, fluxos de email" },
+        { id: "checklists",      label: "Checklists operacionais",             type: "list" },
+        { id: "files",           label: "Anexos (briefings, exemplos, vídeos)",type: "attachments" },
+      ],
+    },
+    {
+      id: "metrics", title: "Métricas e benchmarks",
+      description: "Como saber se o playbook está performando dentro do esperado.",
+      fields: [
+        { id: "primary_kpi",     label: "KPI primário do playbook",            type: "text" },
+        { id: "expected_range",  label: "Faixa esperada (P25 / mediana / P75)",type: "text",     hint: "Ex: conversão 3-8% (mediana 5%); CAC R$80-180" },
+        { id: "leading_indicators",label:"Indicadores antecedentes",           type: "list",     hint: "O que olhar nos primeiros 3-5 dias pra prever o resultado" },
+        { id: "kill_criteria",   label: "Critério de matar a execução",        type: "textarea", hint: "Se passar X dias e métrica Y abaixo de Z, pare e revise — não insista" },
+        { id: "review_cadence",  label: "Cadência de leitura de métrica",      type: "text",     hint: "Ex: diária na 1ª semana, semanal depois" },
+      ],
+    },
+    {
+      id: "scaling", title: "Escala e replicação",
+      description: "Como esse playbook escala — pra mais clientes, mais equipes, mais canais.",
+      fields: [
+        { id: "replications",    label: "Onde já foi replicado (com resultado)", type: "list",   hint: "Cliente X (resultado), cliente Y (resultado) — atualiza ao reusar" },
+        { id: "variations",      label: "Variações testadas",                  type: "list",     hint: "Versões A/B desse playbook que funcionaram em sub-segmentos" },
+        { id: "scaling_levers",  label: "Alavancas pra escalar",               type: "list",     hint: "Aumentar budget? Adicionar canal? Automatizar passo X?" },
+        { id: "bottlenecks",     label: "Gargalos que aparecem ao escalar",    type: "list",     hint: "Ex: revisão manual vira gargalo após 5 contas simultâneas" },
+        { id: "automation_roadmap",label:"Roadmap de automação dos passos manuais", type: "list" },
+      ],
+    },
+    {
+      id: "governance", title: "Governança do playbook",
+      fields: [
+        { id: "owner",           label: "Owner / mantenedor",                  type: "text",     decisionOnly: true },
+        { id: "contributors",    label: "Contribuidores",                      type: "list",     decisionOnly: true },
+        { id: "review_cycle",    label: "Ciclo de revisão",                    type: "text",     decisionOnly: true, hint: "Ex: revisar a cada trimestre ou após 5 novas execuções" },
+        { id: "changelog",       label: "Changelog (versão → o que mudou)",    type: "list",     hint: "v1.1: adicionei kill criteria; v1.2: novo template de email pós-conversão" },
+        { id: "deprecation",     label: "Critério de aposentadoria",           type: "textarea", hint: "Quando esse playbook deve sair de uso (mercado mudou, métrica caiu, etc)" },
+      ],
+    },
+  ],
+  quickActions: [
+    { id: "export_pdf",         label: "Exportar playbook (PDF)", primary: true },
+    { id: "generate_tasks",     label: "Gerar tasks de execução do playbook" },
+    { id: "link_asset",         label: "Vincular templates e assets" },
+    { id: "approve",            label: "Marcar versão como estável" },
+    { id: "regenerate_prefill", label: "Regenerar com IA" },
+  ],
+  sources: ["briefing","metrics","fronts","client","context","assets","siblings"],
+  prefillPrompt:
+    "Você é Head of Operations destilando um case real em playbook replicável. " +
+    "Tese central: SEMPRE no formato 'Se [contexto], faça [ação] que entrega [resultado] em [janela]'. " +
+    "Confiança: 1 case = Hipótese; 2-3 = Padrão; 5+ = Sistema. Não inflar. " +
+    "Anti-fit é OBRIGATÓRIO — playbook sem 'quando NÃO usar' vira receita genérica que falha em produção. " +
+    "Passos: descrever no nível 'júnior roda sozinho' — cada passo com ação + como + entregável + owner. " +
+    "Decision points (if/else) explícitos — playbook real tem ramificações, não é linha reta. " +
+    "Templates: liste só o que existe ou pode ser extraído do case-fonte; o resto origin='empty'. " +
+    "Métricas: faixa esperada com P25/mediana/P75 quando o histórico permitir; senão deixe origin='empty' e marque pra calibrar após 3 execuções. " +
+    "Kill criteria: SEMPRE preencher — playbook sem critério de parar leva o time a insistir em coisa morta. " +
+    "Replicações e variações: começar vazio se for 1ª versão (origin='empty') — campo será atualizado a cada reuso. " +
+    "Owner e ciclo de revisão: decisão humana — origin='empty'.",
+};
+
 /**
  * NOTA: alguns kinds compartilham o mesmo blueprint base (ex: documento e diagnostico
  * são ambos `documento` no enum atual — diferenciamos via título do node).
@@ -2062,6 +2434,9 @@ export const NODE_BLUEPRINTS: NodeBlueprint[] = [
   AUTOMACAO,
   IA_AGENT,
   CRM_PIPELINE,
+  CASE_PASTA,
+  BEFORE_AFTER,
+  PLAYBOOK, // shares kind 'documento' — discriminado por título
 ];
 
 /**
@@ -2077,6 +2452,9 @@ export function getNodeBlueprint(
   if (kind === "documento" && discriminator?.title) {
     const t = discriminator.title.toLowerCase();
     if (t.includes("diagn")) return DIAGNOSTICO;
+    if (t.includes("playbook") || t.includes("play book") || t.includes("manual de operação") || t.includes("manual de operacao")) {
+      return PLAYBOOK;
+    }
   }
   if (kind === "reuniao" && discriminator?.title) {
     const t = discriminator.title.toLowerCase();
