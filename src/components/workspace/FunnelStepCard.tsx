@@ -266,6 +266,11 @@ export default function FunnelStepCard({
             </div>
           )}
 
+          {/* Oferta da etapa — só pra páginas monetizáveis */}
+          {meta.hasOffer && (
+            <OfferEditor step={step} onPatch={onPatch} />
+          )}
+
           {/* Checklist de produção */}
           <div className="space-y-1.5 rounded-md border border-border/60 bg-background/40 p-2.5">
             <div className="flex items-center justify-between">
