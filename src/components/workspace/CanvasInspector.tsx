@@ -30,6 +30,7 @@ export default function CanvasInspector({
   nodes, edges, search, onSearch,
   typeFilter, onTypeFilter, statusFilter, onStatusFilter,
   onPick, selectedId,
+  collapsed, onToggleCollapse,
 }: Props) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -49,12 +50,45 @@ export default function CanvasInspector({
 
   const linkedCount = nodes.filter((n) => n.linked_entity_id).length;
 
+  if (collapsed) {
+    return (
+      <TooltipProvider delayDuration={200}>
+        <aside className="w-7 shrink-0 border-l border-border bg-card/40 backdrop-blur-sm flex items-start justify-center pt-3">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={onToggleCollapse}
+                className="h-7 w-7 rounded-md hover:bg-muted/60 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Mostrar inspector"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left" className="text-xs">Mostrar inspector</TooltipContent>
+          </Tooltip>
+        </aside>
+      </TooltipProvider>
+    );
+  }
+
   return (
     <aside className="w-72 shrink-0 border-l border-border bg-card/40 backdrop-blur-sm flex flex-col">
       <div className="p-3 border-b border-border space-y-2">
         <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Inspector</p>
-          <Badge variant="outline" className="text-[10px]">{filtered.length}/{nodes.length}</Badge>
+          <div className="flex items-center gap-1.5">
+            <PanelRight className="h-3 w-3 text-muted-foreground" />
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Inspector</p>
+          </div>
+          <div className="flex items-center gap-1">
+            <Badge variant="outline" className="text-[10px]">{filtered.length}/{nodes.length}</Badge>
+            <button
+              onClick={onToggleCollapse}
+              className="h-5 w-5 rounded hover:bg-muted/60 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Recolher inspector"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
         <div className="grid grid-cols-3 gap-1.5 text-center">
           <div className="rounded-md bg-muted/40 p-2">
