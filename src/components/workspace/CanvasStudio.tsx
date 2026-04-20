@@ -1020,11 +1020,12 @@ function CanvasStudioInner({
               fitViewOptions={{ padding: 0.4 }}
               minZoom={0.2}
               maxZoom={2}
-              panOnDrag={[1]}
-              panOnScroll={false}
-              panActivationKeyCode={["Shift"]}
-              zoomOnScroll
-              zoomActivationKeyCode={null}
+              panOnDrag={[0, 1]}
+              panOnScroll
+              panOnScrollSpeed={0.8}
+              panActivationKeyCode={null}
+              zoomOnScroll={false}
+              zoomActivationKeyCode={["Meta", "Control"]}
               zoomOnPinch
               zoomOnDoubleClick={false}
               selectionOnDrag={false}
