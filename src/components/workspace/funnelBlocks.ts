@@ -12,6 +12,7 @@ import {
   GitBranch, FlaskConical, Tag, Clock,
   type LucideIcon,
 } from "lucide-react";
+import { Zap, Webhook, Database, Workflow } from "lucide-react";
 
 export type FunnelBlockKind =
   // tráfego
@@ -21,15 +22,23 @@ export type FunnelBlockKind =
   // comunicação
   | "comm_email_sequence" | "comm_whatsapp" | "comm_sms" | "comm_push"
   // lógica
-  | "logic_decision" | "logic_split_test" | "logic_tag" | "logic_delay";
+  | "logic_decision" | "logic_split_test" | "logic_tag" | "logic_delay"
+  // automação técnica (integração com sistemas externos)
+  | "auto_workflow" | "auto_webhook" | "auto_crm_event" | "auto_pixel_event";
 
-export type FunnelBlockFamily = "traffic" | "page" | "comm" | "logic";
+export type FunnelBlockFamily = "traffic" | "page" | "comm" | "logic" | "auto";
 
 export interface ConfigField {
   id: string;
   label: string;
   type: "text" | "url" | "number" | "textarea";
   placeholder?: string;
+}
+
+export interface OfferTemplate {
+  /** Permite definir oferta/promessa/preço/prova por etapa.
+   *  Persistido em step.config sob a chave `offer_*`. */
+  hasOffer: boolean;
 }
 
 export interface FunnelBlockMeta {
@@ -48,6 +57,11 @@ export interface FunnelBlockMeta {
   familyTint: string;
   /** Pode ramificar (logic_decision, logic_split_test) */
   canBranch?: boolean;
+  /** Bloco aceita uma oferta direta (promessa+preço+prova) ao usuário.
+   *  True para pages monetizáveis (checkout/upsell/downsell/landing/vsl). */
+  hasOffer?: boolean;
+  /** Bloco é uma integração técnica/automação — requer ferramenta + trigger + ação. */
+  isAutomation?: boolean;
   /** Métricas-chave esperadas pra esse bloco */
   metricKeys: string[];
   /** Campos de config (jsonb config) */
@@ -61,6 +75,7 @@ export const FAMILY_META: Record<FunnelBlockFamily, { label: string; color: stri
   page:    { label: "Páginas",     color: "text-foreground/60",      bg: "bg-transparent",     border: "border-border" },
   comm:    { label: "Comunicação", color: "text-foreground/60",      bg: "bg-transparent",     border: "border-border" },
   logic:   { label: "Lógica",      color: "text-foreground/60",      bg: "bg-transparent",     border: "border-border" },
+  auto:    { label: "Automação",   color: "text-foreground/60",      bg: "bg-transparent",     border: "border-border" },
 };
 
 export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
