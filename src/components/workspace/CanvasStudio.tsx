@@ -495,12 +495,15 @@ function CanvasStudioInner({
     setBusyAction(null);
   };
 
-  /* Auto-layout: por etapa, empilha vertical */
+  /* Auto-layout: por etapa, empilha vertical (apenas nodes do cliente ativo) */
   const handleAutoLayout = async () => {
-    if (projectNodes.length === 0) return;
+    const targetNodes = activeClientId
+      ? projectNodes.filter((n) => n.parent_node_id === activeClientId)
+      : projectNodes;
+    if (targetNodes.length === 0) return;
     setBusyAction("layout");
     const byStage: Record<string, CanvasNodeRow[]> = {};
-    projectNodes.forEach((n) => {
+    targetNodes.forEach((n) => {
       const s = nodeStageOf(n);
       (byStage[s] ??= []).push(n);
     });
