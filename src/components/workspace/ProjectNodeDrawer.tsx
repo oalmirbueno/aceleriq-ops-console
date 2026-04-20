@@ -14,6 +14,7 @@ import LegacyProjectNodeDrawer, { type ClientFolderOption } from "./LegacyProjec
 import BriefingNodeDrawer from "./BriefingNodeDrawer";
 import SpecializedNodeDrawer from "./SpecializedNodeDrawer";
 import AccessVaultDrawer from "./AccessVaultDrawer";
+import FunnelEditorDrawer from "./FunnelEditorDrawer";
 import { hasBlueprint } from "./nodeBlueprints";
 import type { ProjectNodeKind } from "./canvasProjectTypes";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
@@ -46,6 +47,21 @@ export default function ProjectNodeDrawer(props: Props) {
   if (kind === "acessos" && clientId) {
     return (
       <AccessVaultDrawer
+        node={node}
+        open={props.open}
+        onOpenChange={props.onOpenChange}
+        workspaceId={props.workspaceId}
+        clientId={clientId}
+        clientName={clientName}
+        onDelete={props.onDelete}
+      />
+    );
+  }
+
+  // Funil: editor visual completo (pipeline + ramificações)
+  if (kind === "funil" && clientId) {
+    return (
+      <FunnelEditorDrawer
         node={node}
         open={props.open}
         onOpenChange={props.onOpenChange}
