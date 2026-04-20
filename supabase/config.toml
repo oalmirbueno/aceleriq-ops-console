@@ -1,0 +1,25 @@
+project_id = "grxljyocuadywcksfyvu"
+
+[functions.ai-invoke]
+verify_jwt = true
+
+[functions.consolidate-briefing]
+verify_jwt = true
+
+[functions.credential-vault]
+verify_jwt = true
+
+[functions.issue-briefing-token]
+verify_jwt = true
+
+[functions.parse-briefing]
+verify_jwt = true
+
+[functions.prefill-node]
+verify_jwt = true
+
+[functions.public-briefing]
+verify_jwt = false
+
+[functions.generate-esteira-ai]
+verify_jwt = true
