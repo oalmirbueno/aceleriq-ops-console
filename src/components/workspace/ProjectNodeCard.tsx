@@ -5,6 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { getProjectTypeMeta } from "./canvasProjectTypes";
 import { getEsteiraStatus, mapLegacyStatus } from "./canvasEsteiraStatus";
 import ClientAvatar from "./ClientAvatar";
+import AttachmentPreview from "./AttachmentPreview";
+
+export interface ProjectNodeCoverAttachment {
+  url: string;
+  type?: string;
+  label?: string;
+}
 
 export interface ProjectNodeData extends Record<string, unknown> {
   title: string;
@@ -17,6 +24,8 @@ export interface ProjectNodeData extends Record<string, unknown> {
   links?: number;
   checklistDone?: number;
   checklistTotal?: number;
+  /** First previewable attachment, used as visual cover */
+  coverAttachment?: ProjectNodeCoverAttachment | null;
   /** Owner client (folder) — used for visual identification */
   clientName?: string | null;
   clientSeed?: string | null;
@@ -70,6 +79,24 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
             )}
           </div>
         </div>
+
+        {/* Cover thumbnail (first previewable attachment) */}
+        {d.coverAttachment?.url && (
+          <div
+            className="relative mb-2 rounded-md overflow-hidden border border-border/60 bg-muted/40 h-24 w-full"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="absolute inset-0 [&>div]:!h-full [&>div]:!w-full [&>button]:!h-full [&>button]:!w-full [&>button]:!rounded-md [&_img]:!object-cover [&_canvas]:!object-contain">
+              <AttachmentPreview
+                url={d.coverAttachment.url}
+                type={d.coverAttachment.type}
+                label={d.coverAttachment.label}
+                className="!h-full !w-full !rounded-md"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Title */}
         <p className="text-sm font-semibold text-foreground leading-tight line-clamp-2 mb-1">

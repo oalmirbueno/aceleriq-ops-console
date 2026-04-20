@@ -228,6 +228,15 @@ function CanvasStudioInner({
 
     const projRfNodes: Node[] = visibleProjects.map((n): Node => {
       const owner = n.parent_node_id ? groupMeta[n.parent_node_id] : null;
+      const dataObj = (n.data as Record<string, unknown> | null) ?? {};
+      const attachmentList = (dataObj.attachments as Array<{ url?: string; type?: string; label?: string }> | undefined) ?? [];
+      const PREVIEWABLE = new Set(["image","jpg","jpeg","png","webp","gif","svg","pdf","video","mp4","mov","webm"]);
+      const coverRaw = attachmentList.find((a) => a?.url && PREVIEWABLE.has((a.type ?? "").toLowerCase()))
+        ?? attachmentList.find((a) => a?.url);
+      const cover = coverRaw?.url
+        ? { url: coverRaw.url, type: coverRaw.type, label: coverRaw.label }
+        : null;
+
       return {
         id: n.id,
         type: "projectCard",
@@ -238,10 +247,11 @@ function CanvasStudioInner({
           status: n.status,
           description: n.description,
           hasLinkedEntity: !!n.linked_entity_id,
-          links: ((n.data as Record<string, unknown> | null)?.links as unknown[] | undefined)?.length ?? 0,
-          attachments: ((n.data as Record<string, unknown> | null)?.attachments as unknown[] | undefined)?.length ?? 0,
-          checklistTotal: ((n.data as Record<string, unknown> | null)?.checklist as Array<{ done?: boolean }> | undefined)?.length ?? 0,
-          checklistDone: ((n.data as Record<string, unknown> | null)?.checklist as Array<{ done?: boolean }> | undefined)?.filter((c) => c.done).length ?? 0,
+          links: (dataObj.links as unknown[] | undefined)?.length ?? 0,
+          attachments: attachmentList.length,
+          checklistTotal: (dataObj.checklist as Array<{ done?: boolean }> | undefined)?.length ?? 0,
+          checklistDone: (dataObj.checklist as Array<{ done?: boolean }> | undefined)?.filter((c) => c.done).length ?? 0,
+          coverAttachment: cover,
           clientName: owner?.name ?? null,
           clientSeed: owner?.seed ?? null,
           clientLogoUrl: owner?.logoUrl ?? null,
