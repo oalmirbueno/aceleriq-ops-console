@@ -212,23 +212,22 @@ function CanvasStudioInner({
   type QuickAddState = { open: boolean; sourceId: string | null; dir: "right" | "bottom" | null };
   const [quickAddState, setQuickAddState] = useState<QuickAddState>({ open: false, sourceId: null, dir: null });
 
-  // Toggle MiniMap (persistido) — alguns usuários acham que polui
-  const [showMiniMap, setShowMiniMap] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return localStorage.getItem("canvas:showMiniMap") !== "0";
-  });
-  useEffect(() => {
-    localStorage.setItem("canvas:showMiniMap", showMiniMap ? "1" : "0");
-  }, [showMiniMap]);
+  // Prefs visuais do canvas (persistidas em localStorage)
+  const usePref = (key: string, defaultOn: boolean) => {
+    const [v, setV] = useState<boolean>(() => {
+      if (typeof window === "undefined") return defaultOn;
+      const stored = localStorage.getItem(key);
+      if (stored === null) return defaultOn;
+      return stored !== "0";
+    });
+    useEffect(() => { localStorage.setItem(key, v ? "1" : "0"); }, [v, key]);
+    return [v, setV] as const;
+  };
 
-  // Toggle Controls (zoom in/out/fit) — atrapalham em telas pequenas
-  const [showControls, setShowControls] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return localStorage.getItem("canvas:showControls") !== "0";
-  });
-  useEffect(() => {
-    localStorage.setItem("canvas:showControls", showControls ? "1" : "0");
-  }, [showControls]);
+  const [showMiniMap, setShowMiniMap] = usePref("canvas:showMiniMap", true);
+  const [showControls, setShowControls] = usePref("canvas:showControls", true);
+  const [showLanes, setShowLanes] = usePref("canvas:showLanes", true);
+  const [showGrid, setShowGrid] = usePref("canvas:showGrid", true);
 
   /* DB → ReactFlow */
   useEffect(() => {
