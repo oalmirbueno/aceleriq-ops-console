@@ -114,30 +114,8 @@ export default function GenerateEsteiraDialog({
                     </Badge>
                   </div>
 
-                  {/* Compact preview: stages with kind chips */}
-                  <div className="flex flex-wrap gap-1">
-                    {tpl.nodes.slice(0, 8).map((n) => {
-                      const stage = getStageMeta(n.stage);
-                      const meta = getProjectTypeMeta(n.kind);
-                      const Icon = meta?.icon;
-                      return (
-                        <span
-                          key={n.ref}
-                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] border ${stage.badge}`}
-                          title={`${stage.short} · ${meta?.label ?? n.kind}`}
-                        >
-                          {Icon && <Icon className="h-2.5 w-2.5" />}
-                          <span className="font-medium">{stage.letter}</span>
-                          <span className="opacity-80">{meta?.shortLabel ?? n.kind}</span>
-                        </span>
-                      );
-                    })}
-                    {tpl.nodes.length > 8 && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] border border-border text-muted-foreground">
-                        +{tpl.nodes.length - 8}
-                      </span>
-                    )}
-                  </div>
+                  {/* Mini-diagram preview: nodes positioned by stage with arrows */}
+                  <EsteiraTemplatePreview template={tpl} active={active} />
                 </button>
               );
             })}
