@@ -299,31 +299,12 @@ export default function ProjectNodeDrawer({ node, open, onOpenChange, workspaceI
               </TabsContent>
 
               <TabsContent value="attachments" className="m-0 space-y-2">
-                {attachments.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-4">Nenhum anexo. Cole URLs de arquivos, designs, PDFs…</p>
-                )}
-                {attachments.map((a, i) => (
-                  <div key={i} className="rounded-md border border-border p-2 space-y-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <Input value={a.label} onChange={(e) => updateAttach(i, { label: e.target.value })} placeholder="Nome do anexo" className="h-8 text-xs flex-1" />
-                      <Input value={a.type ?? ""} onChange={(e) => updateAttach(i, { type: e.target.value })} placeholder="Tipo (pdf, fig…)" className="h-8 text-xs w-28" />
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => removeAttach(i)}>
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Input value={a.url} onChange={(e) => updateAttach(i, { url: e.target.value })} placeholder="URL do arquivo" className="h-8 text-xs flex-1" />
-                      {a.url && (
-                        <Button size="icon" variant="ghost" className="h-8 w-8" asChild>
-                          <a href={a.url} target="_blank" rel="noreferrer"><ExternalLink className="h-3.5 w-3.5" /></a>
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                <Button size="sm" variant="outline" onClick={addAttach} className="w-full">
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar anexo
-                </Button>
+                <AttachmentUploader
+                  workspaceId={workspaceId}
+                  nodeId={node.id}
+                  attachments={attachments}
+                  onChange={setAttachments}
+                />
               </TabsContent>
 
               <TabsContent value="metrics" className="m-0 space-y-2">
