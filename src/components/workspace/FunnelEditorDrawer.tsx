@@ -353,6 +353,30 @@ export default function FunnelEditorDrawer({
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 text-[11px] border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50"
+                onClick={generateTasksFromChecklists}
+                disabled={generatingTasks || pendingChecklist.length === 0}
+                title={
+                  pendingChecklist.length === 0
+                    ? "Nenhum item de checklist pendente"
+                    : `Gerar ${pendingChecklist.length} task${pendingChecklist.length > 1 ? "s" : ""}`
+                }
+              >
+                {generatingTasks ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <ListTodo className="h-3 w-3" />
+                )}
+                Gerar tarefas
+                {pendingChecklist.length > 0 && (
+                  <Badge variant="outline" className="h-4 px-1 text-[9px] border-emerald-500/40 text-emerald-400">
+                    {pendingChecklist.length}
+                  </Badge>
+                )}
+              </Button>
               {onDelete && (
                 <Button size="icon" variant="ghost" className="h-7 w-7 text-rose-400"
                   onClick={() => { onDelete(node.id); onOpenChange(false); }}>
