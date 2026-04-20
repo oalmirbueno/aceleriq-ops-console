@@ -66,6 +66,10 @@ export type ProjectNodeKind =
   | "before_after" | "case" | "video" | "imagem"
   | "contato" | "objetivo" | "lancamento";
 
+export type NodeFamily =
+  | "entry" | "structure" | "plan" | "build"
+  | "tech" | "content" | "launch" | "growth" | "proof";
+
 export interface ProjectNodeTypeMeta {
   kind: ProjectNodeKind;
   label: string;
@@ -73,6 +77,7 @@ export interface ProjectNodeTypeMeta {
   icon: LucideIcon;
   color: string; // border + text accent
   bg: string;    // soft background
+  family: NodeFamily;
   defaultStage: AceleraStageKey;
   /** Sections rendered in the rich drawer */
   sections: Array<"overview" | "links" | "copy" | "checklist" | "attachments" | "notes" | "metrics">;
