@@ -10,7 +10,7 @@
  * Cada tipo pode ter um wrapper específico que adiciona seções customizadas
  * extras (ex: BriefingNodeDrawer mostra também o BriefingConsolidatedView).
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
