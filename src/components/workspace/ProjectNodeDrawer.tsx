@@ -139,10 +139,7 @@ export default function ProjectNodeDrawer({ node, open, onOpenChange, workspaceI
   const updateCheck = (id: string, patch: Partial<ChecklistItem>) => setChecklist((l) => l.map((x) => x.id === id ? { ...x, ...patch } : x));
   const removeCheck = (id: string) => setChecklist((l) => l.filter((x) => x.id !== id));
 
-  /* ─── Attachments ─── */
-  const addAttach = () => setAttachments((l) => [...l, { label: "", url: "", type: "" }]);
-  const updateAttach = (i: number, patch: Partial<AttachmentItem>) => setAttachments((l) => l.map((x, idx) => idx === i ? { ...x, ...patch } : x));
-  const removeAttach = (i: number) => setAttachments((l) => l.filter((_, idx) => idx !== i));
+  /* ─── Attachments handled by AttachmentUploader ─── */
 
   /* ─── Metrics ─── */
   const addMetric = () => setMetrics((l) => [...l, { label: "", value: "" }]);
