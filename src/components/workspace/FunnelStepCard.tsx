@@ -21,6 +21,7 @@ import {
   ChevronDown, ChevronUp, GripVertical, Trash2, Link2, Plus, X,
   ArrowDown, GitBranch, ExternalLink, Zap, RefreshCw, Loader2,
 } from "lucide-react";
+import { Tag, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getFunnelBlock, type FunnelBlockKind, FUNNEL_BLOCKS,
@@ -263,6 +264,16 @@ export default function FunnelStepCard({
                 />
               )}
             </div>
+          )}
+
+          {/* Oferta da etapa — só pra páginas monetizáveis */}
+          {meta.hasOffer && (
+            <OfferEditor step={step} onPatch={onPatch} />
+          )}
+
+          {/* Banner de automação — quando o bloco é técnico (workflow/webhook/CRM/pixel) */}
+          {meta.isAutomation && (
+            <AutomationHint step={step} />
           )}
 
           {/* Checklist de produção */}
@@ -590,6 +601,145 @@ function LinkedMetricsPanel({
           Nenhum snapshot encontrado pra esse node. Crie snapshots em <span className="text-foreground/80">Métricas</span> ou faça override.
         </p>
       )}
+    </div>
+  );
+}
+
+// ─── Offer editor ─────────────────────────────────────────────────────────
+/**
+ * Edita a oferta entregue ao usuário nessa etapa: promessa, preço, ângulo,
+ * prova social e bônus. Persiste em step.config sob chaves `offer_*`,
+ * reaproveitando o jsonb existente sem nova migração.
+ */
+function OfferEditor({
+  step, onPatch,
+}: {
+  step: FunnelStepRow;
+  onPatch: (patch: Partial<FunnelStepRow>) => void;
+}) {
+  const cfg = step.config ?? {};
+  const set = (k: string, v: string | number | null) =>
+    onPatch({ config: { ...cfg, [k]: v } });
+  const get = (k: string) => String(cfg[k] ?? "");
+
+  const filled = [
+    get("offer_promise"), get("offer_angle"), get("offer_price"),
+    get("offer_proof"), get("offer_bonuses"), get("offer_guarantee"),
+  ].filter((v) => v.trim().length > 0).length;
+
+  return (
+    <div className="space-y-2 rounded-md border border-primary/20 bg-primary/[0.04] p-2.5">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-primary flex items-center gap-1">
+          <Tag className="h-3 w-3" /> Oferta entregue nesta etapa
+        </p>
+        <Badge variant="outline" className="text-[9px] border-primary/30 text-primary tabular-nums">
+          {filled}/6 campos
+        </Badge>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-[10px] text-muted-foreground">Promessa central</Label>
+        <Textarea
+          value={get("offer_promise")}
+          onChange={(e) => set("offer_promise", e.target.value)}
+          rows={2}
+          className="text-xs resize-y"
+          placeholder="O que o usuário ganha — em 1 frase específica e mensurável"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Ângulo / gatilho</Label>
+          <Input
+            value={get("offer_angle")}
+            onChange={(e) => set("offer_angle", e.target.value)}
+            className="h-7 text-xs"
+            placeholder="Escassez / autoridade / desejo / etc."
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Preço (R$)</Label>
+          <Input
+            type="number"
+            value={get("offer_price")}
+            onChange={(e) => set("offer_price", e.target.value ? Number(e.target.value) : null)}
+            className="h-7 text-xs tabular-nums"
+            placeholder="0 = gratuito"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <Label className="text-[10px] text-muted-foreground">Prova social a usar</Label>
+        <Textarea
+          value={get("offer_proof")}
+          onChange={(e) => set("offer_proof", e.target.value)}
+          rows={2}
+          className="text-xs resize-y"
+          placeholder="Depoimentos, números, cases — específico desta etapa"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Bônus / sweetener</Label>
+          <Textarea
+            value={get("offer_bonuses")}
+            onChange={(e) => set("offer_bonuses", e.target.value)}
+            rows={2}
+            className="text-xs resize-y"
+            placeholder="O que vai junto pra reduzir fricção"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Garantia</Label>
+          <Textarea
+            value={get("offer_guarantee")}
+            onChange={(e) => set("offer_guarantee", e.target.value)}
+            rows={2}
+            className="text-xs resize-y"
+            placeholder="Reembolso 7d / satisfação / risco zero..."
+          />
+        </div>
+      </div>
+
+      <p className="text-[9px] text-muted-foreground/70 italic flex items-start gap-1 leading-snug">
+        <Sparkles className="h-2.5 w-2.5 mt-0.5 text-primary/60 shrink-0" />
+        Estes dados alimentam copy, snapshots e cálculo de receita esperada do funil.
+      </p>
+    </div>
+  );
+}
+
+// ─── Automation hint ──────────────────────────────────────────────────────
+/**
+ * Banner pequeno em blocos de automação — destaca trigger/ferramenta
+ * e lembra que o config principal já foi preenchido nos campos do bloco.
+ */
+function AutomationHint({ step }: { step: FunnelStepRow }) {
+  const cfg = step.config ?? {};
+  const tool = String(cfg.tool ?? cfg.platform ?? cfg.crm ?? "—");
+  const trigger = String(cfg.trigger ?? cfg.event_name ?? cfg.endpoint ?? "—");
+  return (
+    <div className="rounded-md border border-warning/30 bg-warning/[0.05] p-2.5 space-y-1">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-warning flex items-center gap-1">
+        <Zap className="h-3 w-3" /> Bloco de automação
+      </p>
+      <p className="text-[10px] text-muted-foreground leading-snug">
+        Este bloco representa uma <span className="text-foreground/80">integração técnica</span>.
+        Configure o gatilho e a ação no painel acima — não conta na conversão linear,
+        mas é executado quando o usuário passa por aqui.
+      </p>
+      <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+        <Badge variant="outline" className="text-[9px] border-border text-muted-foreground">
+          ferramenta: {tool}
+        </Badge>
+        <Badge variant="outline" className="text-[9px] border-border text-muted-foreground truncate max-w-[180px]">
+          trigger: {trigger}
+        </Badge>
+      </div>
     </div>
   );
 }
