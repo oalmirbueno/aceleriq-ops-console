@@ -102,7 +102,70 @@ function trapPath(cx: number, innerW: number, slice: Slice, nextSlice: Slice | u
   return `M ${cx - wTop / 2} ${yTop} L ${cx + wTop / 2} ${yTop} L ${cx + wBot / 2} ${yBot} L ${cx - wBot / 2} ${yBot} Z`;
 }
 
-export default function FunnelConeView({ steps, highlightId, onPickStep }: Props) {
+/* ─── PNG export ─── */
+async function exportSvgAsPng(svg: SVGSVGElement, filename: string, scale = 2) {
+  const clone = svg.cloneNode(true) as SVGSVGElement;
+  // Resolve CSS variables → inline computed colors so the rasterized PNG is faithful
+  const sourceEls = svg.querySelectorAll<SVGElement>("*");
+  const cloneEls = clone.querySelectorAll<SVGElement>("*");
+  sourceEls.forEach((el, i) => {
+    const target = cloneEls[i];
+    if (!target) return;
+    const cs = getComputedStyle(el);
+    const fill = cs.fill;
+    const stroke = cs.stroke;
+    const opacity = cs.opacity;
+    if (fill && fill !== "none") target.setAttribute("fill", fill);
+    if (stroke && stroke !== "none") target.setAttribute("stroke", stroke);
+    if (opacity && opacity !== "1") target.setAttribute("opacity", opacity);
+  });
+
+  const vb = svg.viewBox.baseVal;
+  const w = vb && vb.width ? vb.width : svg.clientWidth || 640;
+  const h = vb && vb.height ? vb.height : svg.clientHeight || 400;
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  clone.setAttribute("width", String(w));
+  clone.setAttribute("height", String(h));
+
+  const xml = new XMLSerializer().serializeToString(clone);
+  const svgBlob = new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n${xml}`], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(svgBlob);
+
+  try {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = (e) => reject(e);
+      img.src = url;
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(w * scale);
+    canvas.height = Math.ceil(h * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("canvas 2d context unavailable");
+    // Background → match card token (dark) so the PNG isn't transparent on white slides
+    const bg = getComputedStyle(svg).getPropertyValue("background-color");
+    ctx.fillStyle = bg && bg !== "rgba(0, 0, 0, 0)" ? bg : "#0d0d0d";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    const pngUrl = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = pngUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+export default function FunnelConeView({ steps, highlightId, onPickStep, exportName }: Props) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [exporting, setExporting] = useState(false);
   const slices = useMemo(() => computeSlices(steps, "actual"), [steps]);
   const ghostSlices = useMemo(() => computeSlices(steps, "expected"), [steps]);
   const [showGhost, setShowGhost] = useState(false);
