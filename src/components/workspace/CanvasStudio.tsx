@@ -468,78 +468,137 @@ function CanvasStudioInner({
     toast({ title: "Pasta de cliente criada", description: `${c.name} agora tem esteira própria.` });
   };
 
-  /* Estrutura base: cria pasta cliente + briefing + landing como exemplo de esteira */
-  const handleGenerateBase = async () => {
+  /** Aplica um EsteiraTemplate completo: cria o cliente (se preciso), cria todos os
+   *  nodes nas suas colunas/etapas, empilhando por etapa, e gera as edges. */
+  const applyEsteiraTemplate = useCallback(async (tpl: EsteiraTemplate) => {
     setBusyAction("base");
-    // Use cliente da aba ativa se houver
-    let clientNodeId: string | null = activeClientId
-      ?? (clientGroups[0]?.id ?? null);
-
-    if (!clientNodeId) {
-      const { data: clientNode, error: cErr } = await supabase
-        .from("canvas_nodes")
-        .insert({
-          workspace_id: workspaceId,
-          client_id: clientId,
-          node_type: "client",
-          title: clientName,
-          status: "active",
-          pos_x: 80,
-          pos_y: CLIENT_BAR_Y,
-          linked_entity_type: "clients",
-          linked_entity_id: clientId,
-        })
-        .select()
-        .single();
-      if (cErr) {
-        toast({ title: "Erro ao gerar base", description: cErr.message, variant: "destructive" });
-        setBusyAction(null);
-        return;
+    try {
+      // 1) Garante o cliente (folder)
+      let clientNodeId: string | null = activeClientId ?? (clientGroups[0]?.id ?? null);
+      if (!clientNodeId) {
+        const { data: clientNode, error: cErr } = await supabase
+          .from("canvas_nodes")
+          .insert({
+            workspace_id: workspaceId,
+            client_id: clientId,
+            node_type: "client",
+            title: clientName,
+            status: "active",
+            pos_x: 80,
+            pos_y: CLIENT_BAR_Y,
+            linked_entity_type: "clients",
+            linked_entity_id: clientId,
+          })
+          .select()
+          .single();
+        if (cErr) {
+          toast({ title: "Erro ao gerar esteira", description: cErr.message, variant: "destructive" });
+          return;
+        }
+        clientNodeId = (clientNode as CanvasNodeRow).id;
+        setDbNodes((prev) => [...prev, clientNode as CanvasNodeRow]);
+        setActiveClientId(clientNodeId);
       }
-      clientNodeId = (clientNode as CanvasNodeRow).id;
-      setDbNodes((prev) => [...prev, clientNode as CanvasNodeRow]);
-      setActiveClientId(clientNodeId);
-    }
 
-    // Briefing in entrada
-    const { data: bri } = await supabase.from("canvas_nodes").insert({
-      workspace_id: workspaceId,
-      client_id: clientId,
-      node_type: "context",
-      title: "Briefing inicial",
-      status: "draft",
-      pos_x: stageColumnX("entrada") + NODE_X_OFFSET,
-      pos_y: CONTENT_TOP + 16,
-      parent_node_id: clientNodeId,
-      data: { kind: "briefing", stage: "entrada" } as Record<string, unknown>,
-    }).select().single();
-
-    // Landing page in producao
-    const { data: lp } = await supabase.from("canvas_nodes").insert({
-      workspace_id: workspaceId,
-      client_id: clientId,
-      node_type: "front",
-      title: "Landing Page",
-      status: "draft",
-      pos_x: stageColumnX("producao") + NODE_X_OFFSET,
-      pos_y: CONTENT_TOP + 16,
-      parent_node_id: clientNodeId,
-      data: { kind: "landing_page", stage: "producao" } as Record<string, unknown>,
-    }).select().single();
-
-    if (bri && lp) {
-      await supabase.from("canvas_edges").insert({
-        workspace_id: workspaceId,
-        source_node_id: (bri as CanvasNodeRow).id,
-        target_node_id: (lp as CanvasNodeRow).id,
-        edge_type: "next",
+      // 2) Calcula posições por etapa, empilhando após nodes existentes do mesmo cliente
+      const startYByStage: Record<string, number> = {};
+      ACELERA_STAGES.forEach((s) => {
+        const existing = projectNodes.filter(
+          (n) => n.parent_node_id === clientNodeId && nodeStageOf(n) === s.key,
+        );
+        const maxY = existing.length === 0
+          ? CONTENT_TOP + 16
+          : Math.max(...existing.map((n) => Number(n.pos_y ?? CONTENT_TOP))) + NODE_VERTICAL;
+        startYByStage[s.key] = maxY;
       });
-    }
 
-    toast({ title: "Esteira inicial criada", description: "Briefing → Landing Page" });
-    await fetchData();
-    setBusyAction(null);
-  };
+      // 3) Insere nodes em ordem; mantém map ref → row para wirar edges
+      const refToId: Record<string, string> = {};
+      const newRows: CanvasNodeRow[] = [];
+
+      for (const tn of tpl.nodes) {
+        const meta = getProjectTypeMeta(tn.kind);
+        const dbType = (() => {
+          switch (tn.kind) {
+            case "asset": return "asset";
+            case "metrica": return "metric";
+            case "before_after": return "before_after";
+            case "case": return "case";
+            case "briefing":
+            case "documento":
+            case "contato": return "context";
+            case "checklist": return "task";
+            default: return "front";
+          }
+        })();
+        const pos_x = stageColumnX(tn.stage) + NODE_X_OFFSET;
+        const pos_y = startYByStage[tn.stage] ?? CONTENT_TOP + 16;
+        startYByStage[tn.stage] = pos_y + NODE_VERTICAL;
+
+        const { data: row, error } = await supabase
+          .from("canvas_nodes")
+          .insert({
+            workspace_id: workspaceId,
+            client_id: clientId,
+            node_type: dbType,
+            title: tn.title || meta?.titleTemplate || tn.kind,
+            status: "draft",
+            description: tn.description ?? null,
+            pos_x,
+            pos_y,
+            parent_node_id: clientNodeId,
+            data: {
+              kind: tn.kind,
+              stage: tn.stage,
+              checklist: getChecklistTemplate(tn.kind),
+            } as Record<string, unknown>,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          toast({ title: `Falha ao criar "${tn.title}"`, description: error.message, variant: "destructive" });
+          continue;
+        }
+        if (row) {
+          refToId[tn.ref] = (row as CanvasNodeRow).id;
+          newRows.push(row as CanvasNodeRow);
+        }
+      }
+
+      // 4) Insere edges baseadas no template
+      const edgePayload = tpl.edges
+        .map((e) => {
+          const source = refToId[e.fromRef];
+          const target = refToId[e.toRef];
+          if (!source || !target) return null;
+          return {
+            workspace_id: workspaceId,
+            source_node_id: source,
+            target_node_id: target,
+            edge_type: "next",
+            label: e.label ?? null,
+          };
+        })
+        .filter(Boolean) as Array<Record<string, unknown>>;
+
+      if (edgePayload.length > 0) {
+        await supabase.from("canvas_edges").insert(edgePayload);
+      }
+
+      toast({
+        title: `Esteira "${tpl.label}" criada`,
+        description: `${newRows.length} nodes · ${edgePayload.length} conexões`,
+      });
+      setGenerateDialogOpen(false);
+      await fetchData();
+    } finally {
+      setBusyAction(null);
+    }
+  }, [
+    activeClientId, clientGroups, projectNodes, workspaceId, clientId, clientName, fetchData,
+  ]);
+
 
   /* Auto-layout: por etapa, empilha vertical (apenas nodes do cliente ativo) */
   const handleAutoLayout = async () => {
