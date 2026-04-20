@@ -22,6 +22,7 @@ import { ACELERA_STAGES, getProjectTypeMeta, getStageMeta, type AceleraStageKey,
 import { ESTEIRA_STATUSES, getEsteiraStatus, mapLegacyStatus, premiumStatusToDb } from "./canvasEsteiraStatus";
 import AttachmentUploader, { type AttachmentItem } from "./AttachmentUploader";
 import ClientAvatar from "./ClientAvatar";
+import BriefingConsolidatedView from "./BriefingConsolidatedView";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 
 export interface ClientFolderOption {
