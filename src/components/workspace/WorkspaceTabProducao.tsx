@@ -383,7 +383,7 @@ export default function WorkspaceTabProducao({ workspaceId, clientId, planName }
 
                   {/* Blocked banner */}
                   {f.execution_status === "blocked" && f.blocked_reason && (
-                    <div className="flex items-center gap-1.5 text-[10px] text-red-400">
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                       <AlertTriangle className="h-3 w-3" />
                       <span className="truncate">{f.blocked_reason}</span>
                     </div>

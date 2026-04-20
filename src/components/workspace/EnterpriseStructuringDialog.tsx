@@ -224,12 +224,12 @@ export default function EnterpriseStructuringDialog({ open, onOpenChange, worksp
                 return (
                   <Card
                     key={b.key}
-                    className={`cursor-pointer transition-colors ${filled ? "border-emerald-500/20 hover:border-emerald-500/40" : "border-border/30 hover:border-border/60"}`}
+                    className={`cursor-pointer transition-colors ${filled ? "border-border hover:border-border" : "border-border/30 hover:border-border/60"}`}
                     onClick={() => goToBlock(idx)}
                   >
                     <CardContent className="p-3 flex items-start gap-2">
-                      <div className={`h-4 w-4 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${filled ? "bg-emerald-500/20" : "bg-muted"}`}>
-                        {filled ? <Check className="h-2.5 w-2.5 text-emerald-400" /> : <span className="text-[9px] text-muted-foreground">{idx + 1}</span>}
+                      <div className={`h-4 w-4 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${filled ? "bg-muted/10" : "bg-muted"}`}>
+                        {filled ? <Check className="h-2.5 w-2.5 text-muted-foreground" /> : <span className="text-[9px] text-muted-foreground">{idx + 1}</span>}
                       </div>
                       <div className="flex-1 min-w-0">
                         <span className="text-xs font-medium text-foreground">{b.label}</span>
@@ -247,7 +247,7 @@ export default function EnterpriseStructuringDialog({ open, onOpenChange, worksp
 
             <div className="flex items-center gap-3 text-xs text-muted-foreground border rounded-md p-3 bg-muted/20">
               <span>{filledCount} de {totalBlocks} blocos preenchidos</span>
-              <Badge variant="outline" className="text-[9px] bg-amber-500/10 text-amber-400 border-amber-500/20">
+              <Badge variant="outline" className="text-[9px] bg-muted/10 text-muted-foreground border-border">
                 Pendente de revisão
               </Badge>
             </div>

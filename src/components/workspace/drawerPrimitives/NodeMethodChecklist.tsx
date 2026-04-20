@@ -37,7 +37,7 @@ export default function NodeMethodChecklist({ items, state, onToggle, disabled }
           variant="outline"
           className={`text-[10px] ${
             allRequiredDone
-              ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10"
+              ? "border-border text-muted-foreground bg-muted/10"
               : "border-border text-muted-foreground"
           }`}
         >
@@ -65,7 +65,7 @@ export default function NodeMethodChecklist({ items, state, onToggle, disabled }
               >
                 {item.label}
                 {item.required && (
-                  <span className="ml-1 text-[9px] text-amber-400 font-mono">*</span>
+                  <span className="ml-1 text-[9px] text-muted-foreground font-mono">*</span>
                 )}
               </label>
             </li>

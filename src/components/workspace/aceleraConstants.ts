@@ -85,11 +85,11 @@ export const SCOPE_LABELS: Record<ScopeClassification, string> = {
 };
 
 export const SCOPE_COLORS: Record<ScopeClassification, string> = {
-  in_plan: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  conditional: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-  addon: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  standalone: "bg-violet-500/15 text-violet-400 border-violet-500/30",
-  extra_cost: "bg-red-500/15 text-red-400 border-red-500/30",
+  in_plan: "bg-muted/10 text-muted-foreground border-border",
+  conditional: "bg-muted/10 text-muted-foreground border-border",
+  addon: "bg-muted/10 text-muted-foreground border-border",
+  standalone: "bg-muted/10 text-muted-foreground border-border",
+  extra_cost: "bg-muted/10 text-muted-foreground border-border",
 };
 
 export function getScopeLabel(scope: ScopeClassification): string {

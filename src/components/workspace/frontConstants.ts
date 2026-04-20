@@ -23,20 +23,20 @@ export const EXECUTION_STATUS_OPTIONS: Array<{ value: ExecutionStatus; label: st
 ];
 
 export const BUCKET_COLORS: Record<BucketStatus, string> = {
-  active: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  conditional: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-  future: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  active: "bg-muted/10 text-muted-foreground border-border",
+  conditional: "bg-muted/10 text-muted-foreground border-border",
+  future: "bg-muted/10 text-muted-foreground border-border",
   out_of_scope: "bg-muted text-muted-foreground border-border",
 };
 
 export const EXECUTION_COLORS: Record<ExecutionStatus, string> = {
   not_started: "text-muted-foreground",
-  in_progress: "text-blue-400",
-  blocked: "text-red-400",
-  paused: "text-amber-400",
-  in_validation: "text-violet-400",
-  done: "text-emerald-400",
-  reopened: "text-orange-400",
+  in_progress: "text-muted-foreground",
+  blocked: "text-muted-foreground",
+  paused: "text-muted-foreground",
+  in_validation: "text-muted-foreground",
+  done: "text-muted-foreground",
+  reopened: "text-muted-foreground",
 };
 
 export function getBucketLabel(s: BucketStatus | string): string {

@@ -78,11 +78,11 @@ export default function SiteNodeDrawer({
   const extraSlot = (
     <div className="space-y-3">
       {/* ─── Bloco SiteBolt ─── */}
-      <div className="rounded-lg border border-violet-500/30 bg-violet-500/5 p-3">
+      <div className="rounded-lg border border-border bg-muted/10 p-3">
         <div className="flex items-start justify-between gap-3 mb-2">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="h-7 w-7 rounded-md bg-violet-500/15 border border-violet-500/30 flex items-center justify-center shrink-0">
-              <Globe className="h-3.5 w-3.5 text-violet-400" />
+            <div className="h-7 w-7 rounded-md bg-muted/10 border border-border flex items-center justify-center shrink-0">
+              <Globe className="h-3.5 w-3.5 text-muted-foreground" />
             </div>
             <div className="min-w-0">
               <p className="text-xs font-semibold text-foreground">SiteBolt — Editor visual</p>
@@ -138,21 +138,21 @@ export default function SiteNodeDrawer({
           </div>
           <div className="space-y-0.5 max-w-md">
             {siteUrl && (
-              <p className="text-[10px] text-emerald-400/80 truncate">{siteUrl.replace(/^https?:\/\//, "")}</p>
+              <p className="text-[10px] text-muted-foreground truncate">{siteUrl.replace(/^https?:\/\//, "")}</p>
             )}
             {metaTitle && (
-              <p className="text-sm text-sky-400 leading-tight line-clamp-1">{metaTitle}</p>
+              <p className="text-sm text-muted-foreground leading-tight line-clamp-1">{metaTitle}</p>
             )}
             {metaDescription && (
               <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">{metaDescription}</p>
             )}
           </div>
           <div className="flex items-center gap-2 mt-2 text-[9px] text-muted-foreground">
-            <span className={metaTitle.length > 60 ? "text-amber-400" : ""}>
+            <span className={metaTitle.length > 60 ? "text-muted-foreground" : ""}>
               title: {metaTitle.length}/60
             </span>
             <span>·</span>
-            <span className={metaDescription.length > 160 ? "text-amber-400" : ""}>
+            <span className={metaDescription.length > 160 ? "text-muted-foreground" : ""}>
               desc: {metaDescription.length}/160
             </span>
           </div>

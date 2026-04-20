@@ -208,7 +208,7 @@ export default function BriefingSignalReview({ entryId, metadata, onUpdated }: P
           </Button>
         )}
         {reviewStatus === "reviewed" && (
-          <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
             <CheckCircle2 className="h-4 w-4" />
             Revisado — alimenta Dossiê e Tasks
           </div>

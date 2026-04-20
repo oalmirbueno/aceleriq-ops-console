@@ -211,10 +211,10 @@ export default function GenerateEsteiraDialog({
 
                 {aiResult && (
                   <div className="flex items-center gap-1 flex-wrap text-[10px]">
-                    <Badge variant="outline" className="text-[9px] border-emerald-500/40 text-emerald-400">
+                    <Badge variant="outline" className="text-[9px] border-border text-muted-foreground">
                       {aiResult.template.nodes.length} nodes
                     </Badge>
-                    <Badge variant="outline" className="text-[9px] border-emerald-500/40 text-emerald-400">
+                    <Badge variant="outline" className="text-[9px] border-border text-muted-foreground">
                       {aiResult.template.edges.length} conexões
                     </Badge>
                     {aiResult.sources.hasBriefing && (

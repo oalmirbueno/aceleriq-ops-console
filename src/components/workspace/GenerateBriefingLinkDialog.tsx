@@ -130,7 +130,7 @@ export default function GenerateBriefingLinkDialog({ open, onOpenChange, workspa
               <>
                 <Input value={url} readOnly className="text-xs font-mono" />
                 <Button size="icon" variant="outline" onClick={handleCopy}>
-                  {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                  {copied ? <Check className="h-4 w-4 text-muted-foreground" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </>
             )}

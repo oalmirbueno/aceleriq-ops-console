@@ -214,7 +214,7 @@ export default function TaskFormDialog({ open, onOpenChange, onSubmit, initial, 
 
               <div className="space-y-2">
                 <Label className="text-sm font-medium flex items-center gap-1.5">
-                  <Lightbulb className="h-3.5 w-3.5 text-amber-400" />
+                  <Lightbulb className="h-3.5 w-3.5 text-muted-foreground" />
                   Recomendações
                 </Label>
                 <Textarea
@@ -228,7 +228,7 @@ export default function TaskFormDialog({ open, onOpenChange, onSubmit, initial, 
 
               <div className="space-y-2">
                 <Label className="text-sm font-medium flex items-center gap-1.5">
-                  <Package className="h-3.5 w-3.5 text-emerald-400" />
+                  <Package className="h-3.5 w-3.5 text-muted-foreground" />
                   Entregáveis esperados
                 </Label>
                 <Textarea

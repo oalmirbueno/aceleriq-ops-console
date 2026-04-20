@@ -195,11 +195,11 @@ export default function KickoffNodeDrawer({
   const extraSlot = (
     <div className="space-y-3">
       {/* ─── Card resumo ─── */}
-      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+      <div className="rounded-lg border border-border bg-muted/10 p-3">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="h-7 w-7 rounded-md bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
-              <Calendar className="h-3.5 w-3.5 text-amber-400" />
+            <div className="h-7 w-7 rounded-md bg-muted/10 border border-border flex items-center justify-center shrink-0">
+              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
             </div>
             <div className="min-w-0">
               <p className="text-xs font-semibold truncate">
@@ -234,7 +234,7 @@ export default function KickoffNodeDrawer({
         </div>
 
         {totalParticipants > 0 && (
-          <div className="border-t border-amber-500/20 pt-2 mt-2">
+          <div className="border-t border-border pt-2 mt-2">
             <div className="flex items-center gap-1.5 mb-1.5">
               <Users className="h-3 w-3 text-muted-foreground" />
               <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
@@ -243,7 +243,7 @@ export default function KickoffNodeDrawer({
             </div>
             <div className="flex flex-wrap gap-1">
               {clientTeam.map((p, i) => (
-                <Badge key={`c${i}`} variant="outline" className="text-[9px] border-amber-500/40 text-amber-300">
+                <Badge key={`c${i}`} variant="outline" className="text-[9px] border-border text-muted-foreground">
                   {p}
                 </Badge>
               ))}

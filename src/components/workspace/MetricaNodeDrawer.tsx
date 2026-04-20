@@ -158,11 +158,11 @@ export default function MetricaNodeDrawer({
   const extraSlot = (
     <div className="space-y-3">
       {/* ─── Header KPI ─── */}
-      <div className="rounded-lg border border-orange-500/30 bg-orange-500/5 p-3">
+      <div className="rounded-lg border border-border bg-muted/10 p-3">
         <div className="flex items-start justify-between gap-3 mb-2">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="h-7 w-7 rounded-md bg-orange-500/15 border border-orange-500/30 flex items-center justify-center shrink-0">
-              <BarChart3 className="h-3.5 w-3.5 text-orange-400" />
+            <div className="h-7 w-7 rounded-md bg-muted/10 border border-border flex items-center justify-center shrink-0">
+              <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" />
             </div>
             <div className="min-w-0">
               <p className="text-xs font-semibold truncate">{kpiName || "KPI"}</p>
@@ -195,8 +195,8 @@ export default function MetricaNodeDrawer({
           {delta != null && (
             <div className={cn(
               "flex items-center gap-1 mb-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold tabular-nums",
-              delta > 0  ? "bg-emerald-500/15 text-emerald-400" :
-              delta < 0  ? "bg-rose-500/15 text-rose-400" :
+              delta > 0  ? "bg-muted/10 text-muted-foreground" :
+              delta < 0  ? "bg-muted/10 text-muted-foreground" :
               "bg-muted text-muted-foreground",
             )}>
               {delta > 0 ? <TrendingUp className="h-3 w-3" /> :
@@ -208,7 +208,7 @@ export default function MetricaNodeDrawer({
           {targetH30 != null && (
             <div>
               <p className="text-[9px] text-muted-foreground uppercase tracking-wide">Meta 30d</p>
-              <p className="text-sm font-semibold text-amber-400 tabular-nums">
+              <p className="text-sm font-semibold text-muted-foreground tabular-nums">
                 {targetH30.toLocaleString("pt-BR")}{unit}
               </p>
             </div>
@@ -265,7 +265,7 @@ export default function MetricaNodeDrawer({
       </div>
 
       {!dataMetricKey && !kpiName && (
-        <Badge variant="outline" className="text-[9px] border-amber-500/40 text-amber-400">
+        <Badge variant="outline" className="text-[9px] border-border text-muted-foreground">
           Defina o nome do KPI na seção 'KPI' pra carregar histórico
         </Badge>
       )}

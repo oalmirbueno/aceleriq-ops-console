@@ -44,16 +44,16 @@ interface Props {
 }
 
 const SOURCE_META: Record<BriefingAnswer["source"], { label: string; cls: string; icon: typeof User }> = {
-  client:      { label: "Cliente",        cls: "border-emerald-500/40 text-emerald-400 bg-emerald-500/10", icon: User },
-  ai_inferred: { label: "IA inferiu",     cls: "border-violet-500/40 text-violet-400 bg-violet-500/10",   icon: Bot },
-  to_define:   { label: "A definir",      cls: "border-amber-500/40 text-amber-400 bg-amber-500/10",      icon: HelpCircle },
-  data:        { label: "Dados sistema",  cls: "border-sky-500/40 text-sky-400 bg-sky-500/10",            icon: Database },
+  client:      { label: "Cliente",        cls: "border-border text-muted-foreground bg-muted/10", icon: User },
+  ai_inferred: { label: "IA inferiu",     cls: "border-border text-muted-foreground bg-muted/10",   icon: Bot },
+  to_define:   { label: "A definir",      cls: "border-border text-muted-foreground bg-muted/10",      icon: HelpCircle },
+  data:        { label: "Dados sistema",  cls: "border-border text-muted-foreground bg-muted/10",            icon: Database },
 };
 
 const CONFIDENCE_CLS: Record<BriefingAnswer["confidence"], string> = {
-  high:   "text-emerald-400",
-  medium: "text-amber-400",
-  low:    "text-rose-400",
+  high:   "text-muted-foreground",
+  medium: "text-muted-foreground",
+  low:    "text-muted-foreground",
 };
 
 export default function BriefingConsolidatedView({ workspaceId, clientId, clientName, compact = false }: Props) {
@@ -222,13 +222,13 @@ export default function BriefingConsolidatedView({ workspaceId, clientId, client
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground">Formato</DropdownMenuLabel>
             <DropdownMenuItem onSelect={() => handleExport("pdf")}>
-              <FileText className="h-3.5 w-3.5 mr-2 text-rose-400" /> PDF (formatado)
+              <FileText className="h-3.5 w-3.5 mr-2 text-muted-foreground" /> PDF (formatado)
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => handleExport("md")}>
-              <FileType className="h-3.5 w-3.5 mr-2 text-blue-400" /> Markdown (.md)
+              <FileType className="h-3.5 w-3.5 mr-2 text-muted-foreground" /> Markdown (.md)
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => handleExport("json")}>
-              <FileJson className="h-3.5 w-3.5 mr-2 text-amber-400" /> JSON estruturado
+              <FileJson className="h-3.5 w-3.5 mr-2 text-muted-foreground" /> JSON estruturado
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => handleExport("txt")}>

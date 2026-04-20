@@ -24,8 +24,8 @@ export const CREDENTIAL_CATEGORIES: CategoryMeta[] = [
     label: "Plataformas de mídia",
     description: "Meta Ads, Google Ads, GA4, Search Console, TikTok",
     icon: Megaphone,
-    color: "text-violet-400 border-violet-500/40",
-    bg: "bg-violet-500/10",
+    color: "text-muted-foreground border-border",
+    bg: "bg-muted/10",
     presets: [
       "Meta Business Manager", "Meta Ads Manager", "Google Ads", "Google Analytics 4",
       "Google Search Console", "Google Tag Manager", "TikTok Ads", "Pinterest Ads",
@@ -37,8 +37,8 @@ export const CREDENTIAL_CATEGORIES: CategoryMeta[] = [
     label: "Hospedagem & DNS",
     description: "cPanel, Cloudflare, registrador de domínio, servidor",
     icon: Server,
-    color: "text-cyan-400 border-cyan-500/40",
-    bg: "bg-cyan-500/10",
+    color: "text-muted-foreground border-border",
+    bg: "bg-muted/10",
     presets: [
       "Cloudflare", "Registro.br", "GoDaddy", "Hostinger cPanel", "AWS",
       "DigitalOcean", "Vercel", "Netlify",
@@ -49,8 +49,8 @@ export const CREDENTIAL_CATEGORIES: CategoryMeta[] = [
     label: "CMS & Sites",
     description: "WordPress, Webflow, Shopify e outros painéis",
     icon: Globe,
-    color: "text-emerald-400 border-emerald-500/40",
-    bg: "bg-emerald-500/10",
+    color: "text-muted-foreground border-border",
+    bg: "bg-muted/10",
     presets: [
       "WordPress Admin", "Webflow", "Shopify Admin", "Wix", "Squarespace",
       "RD Station", "HubSpot", "Hotmart",
@@ -61,8 +61,8 @@ export const CREDENTIAL_CATEGORIES: CategoryMeta[] = [
     label: "Redes sociais & E-mail",
     description: "IG, FB, LinkedIn, e-mail corporativo, WhatsApp Business",
     icon: Users,
-    color: "text-pink-400 border-pink-500/40",
-    bg: "bg-pink-500/10",
+    color: "text-muted-foreground border-border",
+    bg: "bg-muted/10",
     presets: [
       "Instagram", "Facebook Page", "LinkedIn Company Page", "TikTok",
       "YouTube", "WhatsApp Business", "E-mail corporativo (Google Workspace)",

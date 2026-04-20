@@ -241,7 +241,7 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
                 <span>{wordCount.toLocaleString("pt-BR")} palavras</span>
                 <span>{charCount.toLocaleString("pt-BR")} caracteres</span>
                 <Badge variant="outline" className="text-[9px]">{label}</Badge>
-                <Badge variant="outline" className="text-[9px] bg-amber-500/10 text-amber-400 border-amber-500/20">
+                <Badge variant="outline" className="text-[9px] bg-muted/10 text-muted-foreground border-border">
                   Pendente de revisão
                 </Badge>
               </div>

@@ -141,11 +141,11 @@ export default function LancamentoNodeDrawer({
   const extraSlot = (
     <div className="space-y-3">
       {/* ─── Header timeline ─── */}
-      <div className="rounded-lg border border-pink-500/30 bg-pink-500/5 p-3">
+      <div className="rounded-lg border border-border bg-muted/10 p-3">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-md bg-pink-500/15 border border-pink-500/30 flex items-center justify-center">
-              <Rocket className="h-3.5 w-3.5 text-pink-400" />
+            <div className="h-7 w-7 rounded-md bg-muted/10 border border-border flex items-center justify-center">
+              <Rocket className="h-3.5 w-3.5 text-muted-foreground" />
             </div>
             <div>
               <p className="text-xs font-semibold">Timeline de pré-launch</p>
@@ -158,7 +158,7 @@ export default function LancamentoNodeDrawer({
           </div>
           {totalItems > 0 && (
             <div className="text-right shrink-0">
-              <p className="text-base font-bold text-pink-400 tabular-nums leading-none">{progressPct}%</p>
+              <p className="text-base font-bold text-muted-foreground tabular-nums leading-none">{progressPct}%</p>
               <p className="text-[9px] text-muted-foreground mt-0.5">{doneItems}/{totalItems}</p>
             </div>
           )}
@@ -178,19 +178,19 @@ export default function LancamentoNodeDrawer({
                 <div key={m.id} className="flex flex-col items-center text-center">
                   <div className={cn(
                     "h-6 w-6 rounded-full border-2 flex items-center justify-center bg-background z-10 transition-colors",
-                    isDday  ? "border-pink-500 bg-pink-500/20" :
-                    fullyDone ? "border-emerald-500 bg-emerald-500/20" :
+                    isDday  ? "border-border bg-muted/10" :
+                    fullyDone ? "border-border bg-muted/10" :
                     allEmpty ? "border-border" :
-                    "border-amber-500 bg-amber-500/10",
+                    "border-border bg-muted/10",
                   )}>
-                    {isDday ? <Rocket className="h-3 w-3 text-pink-400" /> :
-                     fullyDone ? <CheckCircle2 className="h-3 w-3 text-emerald-400" /> :
+                    {isDday ? <Rocket className="h-3 w-3 text-muted-foreground" /> :
+                     fullyDone ? <CheckCircle2 className="h-3 w-3 text-muted-foreground" /> :
                      allEmpty ? <Clock className="h-3 w-3 text-muted-foreground" /> :
-                     <AlertTriangle className="h-3 w-3 text-amber-400" />}
+                     <AlertTriangle className="h-3 w-3 text-muted-foreground" />}
                   </div>
                   <p className={cn(
                     "text-[10px] font-semibold mt-1.5",
-                    isDday && "text-pink-400",
+                    isDday && "text-muted-foreground",
                   )}>{m.label}</p>
                   <p className="text-[9px] text-muted-foreground tabular-nums">{fmtDate(m.date)}</p>
                 </div>
@@ -208,13 +208,13 @@ export default function LancamentoNodeDrawer({
           return (
             <div key={m.id} className={cn(
               "rounded-md border p-2.5",
-              isDday ? "border-pink-500/40 bg-pink-500/5" : "border-border bg-card/40",
+              isDday ? "border-border bg-muted/10" : "border-border bg-card/40",
             )}>
               <div className="flex items-center justify-between gap-2 mb-1.5">
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className={cn(
                     "text-[9px]",
-                    isDday && "border-pink-500/40 text-pink-400",
+                    isDday && "border-border text-muted-foreground",
                   )}>{m.label} · {fmtDate(m.date)}</Badge>
                   <span className="text-[10px] text-muted-foreground">{m.hint}</span>
                 </div>
@@ -226,7 +226,7 @@ export default function LancamentoNodeDrawer({
                 {m.items.map((it) => (
                   <li key={it.id} className="flex items-start gap-1.5 text-[11px]">
                     {it.done ? (
-                      <CheckCircle2 className="h-3 w-3 text-emerald-400 mt-0.5 shrink-0" />
+                      <CheckCircle2 className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
                     ) : (
                       <div className="h-3 w-3 rounded-full border border-border mt-0.5 shrink-0" />
                     )}

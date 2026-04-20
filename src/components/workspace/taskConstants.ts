@@ -43,11 +43,11 @@ export function getStageLabel(stage: string | null): string | null {
 
 export function getStatusColor(status: string): string {
   switch (status) {
-    case "done": return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
-    case "in_progress": return "bg-blue-500/20 text-blue-400 border-blue-500/30";
-    case "blocked": return "bg-red-500/20 text-red-400 border-red-500/30";
-    case "review": return "bg-amber-500/20 text-amber-400 border-amber-500/30";
-    case "todo": return "bg-violet-500/20 text-violet-400 border-violet-500/30";
+    case "done": return "bg-muted/10 text-muted-foreground border-border";
+    case "in_progress": return "bg-muted/10 text-muted-foreground border-border";
+    case "blocked": return "bg-muted/10 text-muted-foreground border-border";
+    case "review": return "bg-muted/10 text-muted-foreground border-border";
+    case "todo": return "bg-muted/10 text-muted-foreground border-border";
     case "canceled": return "bg-muted text-muted-foreground border-border";
     default: return "bg-secondary text-secondary-foreground border-border";
   }
@@ -55,8 +55,8 @@ export function getStatusColor(status: string): string {
 
 export function getPriorityColor(priority: string): string {
   switch (priority) {
-    case "urgent": return "text-red-400";
-    case "high": return "text-amber-400";
+    case "urgent": return "text-muted-foreground";
+    case "high": return "text-muted-foreground";
     case "medium": return "text-foreground";
     default: return "text-muted-foreground";
   }

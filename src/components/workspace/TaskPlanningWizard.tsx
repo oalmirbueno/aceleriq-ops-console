@@ -291,7 +291,7 @@ export default function TaskPlanningWizard({ open, onOpenChange, workspaceId, cl
 
               {plan.retained.filter((f) => f.scopeClassification === "conditional").length > 0 && (
                 <div className="space-y-2 pt-2 border-t border-border/30">
-                  <h4 className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
+                  <h4 className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                     <AlertCircle className="h-3 w-3" />
                     Condicionais — Requerem Confirmação ({plan.retained.filter((f) => f.scopeClassification === "conditional").length})
                   </h4>
@@ -385,14 +385,14 @@ export default function TaskPlanningWizard({ open, onOpenChange, workspaceId, cl
 
               {/* Conditional items */}
               {plan.retained.filter((r) => r.scopeClassification === "conditional").length > 0 && (
-                <div className="pt-2 border-t border-amber-500/20">
-                  <h4 className="text-xs font-semibold text-amber-400 mb-1.5 flex items-center gap-1.5">
+                <div className="pt-2 border-t border-border">
+                  <h4 className="text-xs font-semibold text-muted-foreground mb-1.5 flex items-center gap-1.5">
                     <AlertCircle className="h-3 w-3" />
                     Condicionais — não serão criados automaticamente
                   </h4>
                   <div className="flex flex-wrap gap-1.5">
                     {plan.retained.filter((r) => r.scopeClassification === "conditional").map((r) => (
-                      <Badge key={r.key} variant="outline" className="text-[10px] text-amber-400 border-amber-500/30">
+                      <Badge key={r.key} variant="outline" className="text-[10px] text-muted-foreground border-border">
                         {r.name} — Condicional
                       </Badge>
                     ))}
@@ -484,8 +484,8 @@ function FrontCard({ front, muted = false }: { front: OperationalFront; muted?: 
             </Badge>
           )}
           <Badge variant="outline" className={`text-[9px] ${
-            front.priority === "high" ? "text-red-400 border-red-500/30" :
-            front.priority === "medium" ? "text-amber-400 border-amber-500/30" :
+            front.priority === "high" ? "text-muted-foreground border-border" :
+            front.priority === "medium" ? "text-muted-foreground border-border" :
             "text-muted-foreground"
           }`}>
             {front.priority === "high" ? "Alta" : front.priority === "medium" ? "Média" : "Baixa"}
@@ -505,7 +505,7 @@ function FrontCard({ front, muted = false }: { front: OperationalFront; muted?: 
           </div>
         )}
         {front.retainedReason && (
-          <p className="text-[10px] text-amber-400 mt-1">{front.retainedReason}</p>
+          <p className="text-[10px] text-muted-foreground mt-1">{front.retainedReason}</p>
         )}
       </CardContent>
     </Card>
