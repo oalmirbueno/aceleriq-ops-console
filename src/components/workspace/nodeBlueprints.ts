@@ -1062,6 +1062,8 @@ export const NODE_BLUEPRINTS: NodeBlueprint[] = [
   CAMPANHA,
   METRICA,
   KICKOFF, // shares kind 'reuniao'
+  CHECKLIST,
+  CONTATO,
 ];
 
 /**
