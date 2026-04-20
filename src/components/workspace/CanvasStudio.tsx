@@ -315,7 +315,7 @@ function CanvasStudioInner({
         pos_x,
         pos_y,
         parent_node_id: parent,
-        data: { kind, stage } as Record<string, unknown>,
+        data: { kind, stage, checklist: getChecklistTemplate(kind) } as Record<string, unknown>,
       })
       .select()
       .single();
