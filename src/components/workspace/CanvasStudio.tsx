@@ -166,36 +166,20 @@ function CanvasStudioInner({
   useEffect(() => {
     const q = search.trim().toLowerCase();
 
-    // Build per-client offsets (each client gets its own row of stage lanes stacked vertically)
-    // For MVP simplicity: all projects share the same horizontal lanes (no parent y-offset).
-    // Client groups are rendered as compact pills above the lanes (y < CONTENT_TOP).
+    // No more group nodes inside ReactFlow — pastas viraram abas no topo.
+    // Filtra projetos pelo cliente ativo (ou todos quando activeClientId === null).
+    const sourceProjects = activeClientId === null
+      ? projectNodes
+      : projectNodes.filter((n) => n.parent_node_id === activeClientId);
 
-    const clientRfNodes: Node[] = clientGroups.map((c, idx): Node => {
-      const x = idx * (CLIENT_BAR_GAP + 20) + 80;
-      return {
-        id: c.id,
-        type: "canvasGroup",
-        position: { x: Number(c.pos_x ?? x), y: Number(c.pos_y ?? CLIENT_BAR_Y) },
-        style: { width: CLIENT_BAR_GAP, height: CLIENT_BAR_HEIGHT, zIndex: 0 },
-        draggable: true,
-        data: {
-          title: c.title,
-          childCount: projectNodes.filter((n) => n.parent_node_id === c.id).length,
-        },
-      };
-    });
-
-    const visibleProjects = projectNodes.filter((n) => {
+    const visibleProjects = sourceProjects.filter((n) => {
       if (typeFilter && nodeKindOf(n) !== typeFilter && n.node_type !== typeFilter) return false;
       if (statusFilter && mapLegacyStatus(n.status) !== statusFilter) return false;
       if (q && !n.title.toLowerCase().includes(q)) return false;
       return true;
     });
 
-    const visibleIds = new Set([
-      ...clientGroups.map((c) => c.id),
-      ...visibleProjects.map((n) => n.id),
-    ]);
+    const visibleIds = new Set(visibleProjects.map((n) => n.id));
 
     const projRfNodes: Node[] = visibleProjects.map((n): Node => ({
       id: n.id,
@@ -215,7 +199,7 @@ function CanvasStudioInner({
       } satisfies ProjectNodeData,
     }));
 
-    setRfNodes([...clientRfNodes, ...projRfNodes]);
+    setRfNodes(projRfNodes);
 
     setRfEdges(
       dbEdges
@@ -229,7 +213,7 @@ function CanvasStudioInner({
           style: { stroke: "hsl(var(--primary))", strokeWidth: 1.5 },
         })),
     );
-  }, [clientGroups, projectNodes, dbEdges, search, typeFilter, statusFilter]);
+  }, [projectNodes, dbEdges, search, typeFilter, statusFilter, activeClientId]);
 
   /* ReactFlow handlers */
   const onNodesChange = useCallback((changes: NodeChange[]) => {
