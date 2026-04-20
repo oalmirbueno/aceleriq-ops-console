@@ -21,6 +21,7 @@ import {
   ChevronDown, ChevronUp, GripVertical, Trash2, Link2, Plus, X,
   ArrowDown, GitBranch, ExternalLink, Zap, RefreshCw, Loader2,
 } from "lucide-react";
+import { Tag, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getFunnelBlock, type FunnelBlockKind, FUNNEL_BLOCKS,
