@@ -605,6 +605,18 @@ function CanvasStudioInner({
         </div>
       </div>
 
+      {/* Client tabs (folders) — sempre visíveis */}
+      <CanvasClientTabs
+        tabs={clientTabs}
+        activeId={activeClientId}
+        onSelect={setActiveClientId}
+        onAddClient={() => setClientPickerOpen(true)}
+        onRemoveClient={async (id) => {
+          await handleDeleteNode(id);
+          if (activeClientId === id) setActiveClientId(null);
+        }}
+      />
+
       {/* Body: palette + canvas + inspector */}
       <div className="flex flex-1 min-h-0">
         <CanvasEsteiraPalette
@@ -620,47 +632,79 @@ function CanvasStudioInner({
             <div className="h-full flex items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : dbNodes.length === 0 ? (
+          ) : clientGroups.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center">
-              <Sparkles className="h-10 w-10 text-muted-foreground" />
+              <Building2 className="h-10 w-10 text-muted-foreground" />
               <div>
-                <p className="text-base font-semibold text-foreground mb-1">Esteira vazia</p>
+                <p className="text-base font-semibold text-foreground mb-1">Nenhum cliente na esteira</p>
                 <p className="text-xs text-muted-foreground max-w-md">
-                  Adicione o cliente e use a paleta lateral para criar nodes em cada etapa do método ACELERA. Cada node é um projeto vivo (Briefing, Landing, Site, Automação, IA, Conteúdo…) com copy, links, checklist e métricas.
+                  Cada cliente tem sua própria esteira de produção, com histórico, contexto e nodes isolados.
+                  Comece adicionando uma pasta de cliente.
                 </p>
               </div>
               <div className="flex gap-2 mt-2 flex-wrap justify-center">
-                <Button size="sm" variant="outline" onClick={() => setClientPickerOpen(true)}>
+                <Button size="sm" onClick={() => setClientPickerOpen(true)}>
                   <Building2 className="h-3.5 w-3.5 mr-1" /> Adicionar cliente
                 </Button>
-                <Button size="sm" onClick={handleGenerateBase} disabled={busyAction === "base"}>
+                <Button size="sm" variant="outline" onClick={handleGenerateBase} disabled={busyAction === "base"}>
                   <Sparkles className="h-3.5 w-3.5 mr-1" /> Gerar esteira inicial
                 </Button>
               </div>
             </div>
+          ) : scopedProjectNodes.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center relative">
+              <Sparkles className="h-10 w-10 text-muted-foreground" />
+              <div>
+                <p className="text-base font-semibold text-foreground mb-1">
+                  Esteira de {clientGroups.find((c) => c.id === activeClientId)?.title ?? "todos os clientes"} vazia
+                </p>
+                <p className="text-xs text-muted-foreground max-w-md">
+                  Use a paleta lateral ou o botão abaixo para começar a esteira deste cliente.
+                  Cada etapa ACELERA tem seus próprios tipos de node.
+                </p>
+              </div>
+              <div className="flex gap-2 mt-2 flex-wrap justify-center">
+                <Button size="sm" onClick={() => setAdvancedOpen(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar primeiro node
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleGenerateBase} disabled={busyAction === "base"}>
+                  <Sparkles className="h-3.5 w-3.5 mr-1" /> Gerar Briefing → Landing
+                </Button>
+              </div>
+            </div>
           ) : (
-            <>
-              <ReactFlow
-                nodes={rfNodes}
-                edges={rfEdges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                onNodeClick={onNodeClick}
-                nodeTypes={nodeTypes}
-                fitView
-                fitViewOptions={{ padding: 0.3, maxZoom: 1 }}
-                proOptions={{ hideAttribution: true }}
-                className="bg-background"
-                defaultEdgeOptions={{ type: "smoothstep", animated: true }}
-              >
-                <StageLanesBg height={STAGE_BAND_HEIGHT} offsetY={CONTENT_TOP - 12} />
-                <Background gap={24} size={1} className="opacity-30" />
-                <Controls className="!bg-card !border-border" />
-                <MiniMap className="!bg-card !border-border" nodeColor={() => "hsl(var(--primary))"} pannable zoomable />
-              </ReactFlow>
-
-            </>
+            <ReactFlow
+              nodes={rfNodes}
+              edges={rfEdges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onNodeClick={onNodeClick}
+              nodeTypes={nodeTypes}
+              fitView
+              fitViewOptions={{ padding: 0.4 }}
+              minZoom={0.2}
+              maxZoom={2}
+              panOnDrag
+              panOnScroll={false}
+              zoomOnScroll
+              zoomOnPinch
+              zoomOnDoubleClick={false}
+              selectionOnDrag={false}
+              proOptions={{ hideAttribution: true }}
+              className="bg-background"
+              defaultEdgeOptions={{ type: "smoothstep", animated: true }}
+            >
+              <StageLanesBg height={STAGE_BAND_HEIGHT} offsetY={CONTENT_TOP - 12} />
+              <Background gap={24} size={1} className="opacity-30" />
+              <Controls className="!bg-card !border-border" showInteractive={false} />
+              <MiniMap
+                className="!bg-card !border-border"
+                nodeColor={() => "hsl(var(--primary))"}
+                pannable
+                zoomable
+              />
+            </ReactFlow>
           )}
         </div>
 
