@@ -1263,7 +1263,11 @@ const IDEIA: NodeBlueprint = {
     "Use o briefing e contexto pra listar 3-5 evidências reais a favor/contra (sem inventar). " +
     "Em ICE, sugira números 1-10 com justificativa curta no citation. " +
     "Em 'test', proponha o experimento MAIS BARATO que decide a hipótese. " +
-    "Para 'verdict' e 'cost', use origin=empty — são decisões humanas.",
+    "Em 'experiment_design': calcule MDE realista a partir do baseline (lift relativo 5-20% típico), " +
+    "α=0,05 e power=0,80 padrão; sugira sample size aproximado (ex: '~12.500/braço para detectar 10% lift em 3% baseline'); " +
+    "liste 2-4 guardrails coerentes com a métrica primária. " +
+    "Em 'analysis_plan': escolha o teste correto pelo tipo da métrica (proporção → z-test; média → t-test ou Mann-Whitney). " +
+    "Para 'verdict', 'cost' e 'success_criteria', use origin=empty — são decisões humanas.",
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1750,6 +1754,9 @@ export const NODE_BLUEPRINTS: NodeBlueprint[] = [
   CONTATO,
   AUTOMACAO,
   IA_AGENT,
+  EXPERIMENTO,        // shares kind 'documento' — discriminado por título
+  ANALISE_FUNIL,      // shares kind 'metrica'  — discriminado por título
+  PLANO_ITERACAO,     // shares kind 'checklist' — discriminado por título
 ];
 
 /**
@@ -1764,7 +1771,25 @@ export function getNodeBlueprint(
   // Discriminadores especiais — diagnostico vs documento, kickoff vs reuniao
   if (kind === "documento" && discriminator?.title) {
     const t = discriminator.title.toLowerCase();
+    if (
+      t.includes("experimento") || t.includes("teste a/b") || t.includes("a/b test") ||
+      t.includes("ab test") || t.includes("split test")
+    ) return EXPERIMENTO;
     if (t.includes("diagn")) return DIAGNOSTICO;
+  }
+  if (kind === "metrica" && discriminator?.title) {
+    const t = discriminator.title.toLowerCase();
+    if (
+      t.includes("análise de funil") || t.includes("analise de funil") ||
+      t.includes("funnel analysis") || t.includes("leak") || t.includes("fuga")
+    ) return ANALISE_FUNIL;
+  }
+  if (kind === "checklist" && discriminator?.title) {
+    const t = discriminator.title.toLowerCase();
+    if (
+      t.includes("iteração") || t.includes("iteracao") || t.includes("sprint") ||
+      t.includes("plano de otim") || t.includes("backlog de teste")
+    ) return PLANO_ITERACAO;
   }
   if (kind === "reuniao" && discriminator?.title) {
     const t = discriminator.title.toLowerCase();
