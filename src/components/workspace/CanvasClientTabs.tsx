@@ -1,18 +1,20 @@
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Building2, Plus, X, Layers } from "lucide-react";
+import { Plus, X, Layers } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import ClientAvatar from "./ClientAvatar";
 
 export interface CanvasClientTab {
   id: string;          // canvas_nodes.id (group node)
   title: string;       // client name
   childCount: number;
   linkedClientId: string | null;
+  logoUrl?: string | null;
 }
 
 interface Props {
@@ -40,7 +42,7 @@ export default function CanvasClientTabs({
             {showAllTab && (
               <button
                 onClick={() => onSelect(null)}
-                className={`shrink-0 group flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-all ${
+                className={`shrink-0 group flex items-center gap-1.5 h-9 px-3 rounded-md border text-xs font-medium transition-all ${
                   activeId === null
                     ? "bg-primary/15 border-primary/40 text-primary"
                     : "border-border bg-background/40 text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -61,18 +63,24 @@ export default function CanvasClientTabs({
               return (
                 <div
                   key={t.id}
-                  className={`shrink-0 group flex items-center gap-1.5 h-8 pl-2.5 pr-1 rounded-md border text-xs font-medium transition-all ${
+                  className={`shrink-0 group flex items-center gap-1.5 h-9 pl-1.5 pr-1 rounded-md border text-xs font-medium transition-all ${
                     active
-                      ? "bg-amber-500/15 border-amber-500/40 text-amber-200"
+                      ? "bg-card border-primary/50 text-foreground shadow-sm"
                       : "border-border bg-background/40 text-muted-foreground hover:text-foreground hover:bg-muted/50"
                   }`}
                 >
                   <button
                     onClick={() => onSelect(t.id)}
-                    className="flex items-center gap-1.5 max-w-[180px]"
+                    className="flex items-center gap-1.5 max-w-[200px]"
                     title={t.title}
                   >
-                    <Building2 className="h-3.5 w-3.5 shrink-0" />
+                    <ClientAvatar
+                      name={t.title}
+                      seed={t.linkedClientId ?? t.id}
+                      logoUrl={t.logoUrl}
+                      size="sm"
+                      ring={active}
+                    />
                     <span className="truncate">{t.title}</span>
                     <span className="opacity-60 text-[10px] shrink-0">
                       ({t.childCount})
@@ -108,7 +116,7 @@ export default function CanvasClientTabs({
             <Button
               size="sm"
               variant="ghost"
-              className="h-8 shrink-0 text-xs"
+              className="h-9 shrink-0 text-xs"
               onClick={onAddClient}
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
