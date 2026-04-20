@@ -48,6 +48,26 @@
     --sidebar-accent-foreground: 0 0% 88%;
     --sidebar-border: 0 0% 15%;
     --sidebar-ring: 145 40% 40%;
+
+    /* ─── Node family accents (Linear-style: dark, low sat ~30%, used as 3px left border + 12% bg) ─── */
+    /* Família "entrada" — descoberta / briefing  */
+    --node-entry: 38 55% 58%;
+    /* Família "estrutura" — diagnóstico / docs   */
+    --node-structure: 200 40% 58%;
+    /* Família "plano" — funil / estratégia       */
+    --node-plan: 232 50% 65%;
+    /* Família "build" — site / landing / asset   */
+    --node-build: 265 45% 65%;
+    /* Família "tech" — automação / IA / integração */
+    --node-tech: 175 45% 55%;
+    /* Família "content" — copy / vídeo / imagem  */
+    --node-content: 290 40% 65%;
+    /* Família "launch" — lançamento / tráfego    */
+    --node-launch: 340 55% 62%;
+    /* Família "growth" — métrica / crm / opt     */
+    --node-growth: 25 60% 58%;
+    /* Família "proof" — case / before-after      */
+    --node-proof: 145 45% 55%;
   }
 }
 
