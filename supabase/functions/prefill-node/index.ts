@@ -28,7 +28,10 @@ const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const AI_MODEL = "google/gemini-3-flash-preview";
 
 type FieldType = "text" | "textarea" | "list" | "kv" | "checklist" | "attachments";
-type PrefillSource = "briefing" | "context" | "metrics" | "fronts" | "client" | "assets" | "siblings" | "diagnostico_docs";
+type PrefillSource =
+  | "briefing" | "context" | "metrics" | "fronts" | "client" | "assets" | "siblings" | "diagnostico_docs"
+  // Auto-contexto universal:
+  | "dossier" | "tasks" | "timeline" | "workspace_assets";
 
 interface BlueprintField { id: string; label: string; type: FieldType; hint?: string; decisionOnly?: boolean }
 interface BlueprintSection { id: string; title: string; description?: string; fields: BlueprintField[] }
@@ -207,6 +210,98 @@ serve(async (req) => {
       }
     }
 
+    // ── Auto-contexto universal ────────────────────────────────────────────
+    // Sempre puxa Dossiê (decisões-chave), Tasks (carga e bloqueios), Timeline
+    // (eventos recentes) e Assets do workspace, pra dar à IA visão integral.
+
+    if (blueprint.sources.includes("dossier")) {
+      // Dossiê = context_entries marcados como is_key_decision OU com tag 'dossie'
+      const { data: dossier } = await supabase.from("context_entries")
+        .select("title, content, context_type, tags, happened_at, is_key_decision")
+        .eq("client_id", clientId)
+        .or("is_key_decision.eq.true,tags.cs.{dossie}")
+        .order("happened_at", { ascending: false, nullsFirst: false })
+        .limit(15);
+      if (dossier && dossier.length > 0) {
+        ctx.dossier = dossier.map((d) => ({
+          title: d.title,
+          type: d.context_type,
+          summary: (d.content ?? "").slice(0, 1200),
+          tags: d.tags ?? [],
+          happened_at: d.happened_at,
+          is_key_decision: d.is_key_decision,
+        }));
+        sourcesUsed.push("dossier");
+      }
+    }
+
+    if (blueprint.sources.includes("tasks")) {
+      const { data: tasks } = await supabase.from("tasks")
+        .select("title, status, priority, stage, due_date, source_type, completed_at, created_at")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false })
+        .limit(40);
+      if (tasks && tasks.length > 0) {
+        const open = tasks.filter((t) => t.status !== "done" && t.status !== "completed" && t.status !== "cancelled");
+        const recent = tasks.slice(0, 10);
+        const byStatus: Record<string, number> = {};
+        for (const t of tasks) byStatus[t.status ?? "unknown"] = (byStatus[t.status ?? "unknown"] ?? 0) + 1;
+        ctx.tasks = {
+          totals: { all: tasks.length, open: open.length, by_status: byStatus },
+          open: open.slice(0, 15).map((t) => ({
+            title: t.title, status: t.status, priority: t.priority, stage: t.stage, due_date: t.due_date,
+          })),
+          recent: recent.map((t) => ({
+            title: t.title, status: t.status, completed_at: t.completed_at, created_at: t.created_at,
+          })),
+        };
+        sourcesUsed.push("tasks");
+      }
+    }
+
+    if (blueprint.sources.includes("timeline")) {
+      // timeline_events do workspace (atividade operacional recente)
+      const { data: events, error: tlErr } = await supabase
+        .from("timeline_events")
+        .select("event_type, title, description, occurred_at, actor_label, metadata")
+        .eq("workspace_id", workspaceId)
+        .order("occurred_at", { ascending: false, nullsFirst: false })
+        .limit(20);
+      if (tlErr) console.warn("timeline source failed:", tlErr.message);
+      if (events && events.length > 0) {
+        ctx.timeline = events.map((e) => ({
+          when: e.occurred_at,
+          type: e.event_type,
+          title: e.title,
+          description: (e.description ?? "").slice(0, 500),
+          actor: e.actor_label,
+        }));
+        sourcesUsed.push("timeline");
+      }
+    }
+
+    if (blueprint.sources.includes("workspace_assets")) {
+      // Assets cadastrados no workspace (independente do node atual)
+      const { data: wsAssets, error: aErr } = await supabase
+        .from("assets")
+        .select("name, asset_type, status, version, url, tags, updated_at")
+        .eq("workspace_id", workspaceId)
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .limit(25);
+      if (aErr) console.warn("workspace_assets source failed:", aErr.message);
+      if (wsAssets && wsAssets.length > 0) {
+        ctx.workspace_assets = wsAssets.map((a) => ({
+          name: a.name,
+          type: a.asset_type,
+          status: a.status,
+          version: a.version,
+          url: a.url,
+          tags: a.tags ?? [],
+        }));
+        sourcesUsed.push("workspace_assets");
+      }
+    }
+
     // ── 3. Monta tool schema a partir das sections do blueprint
     const sectionsSchema: Record<string, unknown> = {};
     blueprint.sections.forEach((s) => {
@@ -277,7 +372,9 @@ serve(async (req) => {
       "- Use APENAS o contexto fornecido. Nunca invente fatos sobre orçamento, prazo, datas ou nomes próprios.",
       "- origin='client' = a info vem literal do cliente (form preenchido). origin='auto' = você inferiu do contexto. origin='empty' = falta info.",
       "- Para campos marcados [DECISÃO HUMANA], use origin='empty' a menos que o cliente tenha declarado explicitamente.",
-      "- Cite a fonte em 'citation' quando vier de briefing, contexto ou métrica específica.",
+      "- SEMPRE cite a fonte em 'citation' quando origin='auto' ou 'client'. Use rótulos curtos:",
+      "  briefing §<n>, contexto:<título>, dossier:<título>, métrica:<nome>, task:<título>, timeline:<título>, asset:<nome>, sibling:<título>.",
+      "- AUTO-CONTEXTO: você recebeu também dossier (decisões-chave), tasks (carga atual), timeline (eventos recentes) e workspace_assets. Use-os pra calibrar tom e prioridade — mas só cite quando realmente influenciar o campo.",
       "- Seja conciso. Tom profissional, direto, sem floreio.",
       "- Para listas, prefira 3-5 itens de qualidade vs 10 itens vagos.",
     ].join("\n");

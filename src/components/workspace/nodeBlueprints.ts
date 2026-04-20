@@ -30,7 +30,32 @@ export type PrefillSource =
   | "client"     // dados estruturados do cliente (segmento, plano, links)
   | "assets"     // anexos do cliente / da workspace
   | "siblings"   // outros canvas_nodes da mesma esteira já preenchidos
-  | "diagnostico_docs"; // documentos do Contexto que sustentam diagnóstico (diagnostico/dor/decisao)
+  | "diagnostico_docs" // documentos do Contexto que sustentam diagnóstico (diagnostico/dor/decisao)
+  // ── Auto-contexto universal (injetado em TODOS os nodes via WORKSPACE_UNIVERSAL_SOURCES)
+  | "dossier"    // resumo do dossiê do cliente (decisões-chave + tags)
+  | "tasks"      // tasks abertas/recentes do workspace (carga, bloqueios)
+  | "timeline"   // últimos timeline_events do workspace
+  | "workspace_assets"; // assets cadastrados no workspace (fora dos anexos do node)
+
+/**
+ * Fontes UNIVERSAIS — injetadas automaticamente em todo blueprint via
+ * `expandUniversalSources()`. Garante que QUALQUER node ao abrir já enxergue
+ * Dossiê, Tasks, Métricas, Assets do workspace e Timeline, sem precisar
+ * editar 17 blueprints.
+ */
+export const WORKSPACE_UNIVERSAL_SOURCES: PrefillSource[] = [
+  "client",
+  "dossier",
+  "tasks",
+  "metrics",
+  "workspace_assets",
+  "timeline",
+];
+
+/** Une as fontes específicas do blueprint com as universais (sem duplicar). */
+export function expandUniversalSources(specific: PrefillSource[]): PrefillSource[] {
+  return Array.from(new Set([...specific, ...WORKSPACE_UNIVERSAL_SOURCES]));
+}
 
 export type SectionFieldType =
   | "text"        // input curto
