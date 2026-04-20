@@ -28,7 +28,7 @@ const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const AI_MODEL = "google/gemini-3-flash-preview";
 
 type FieldType = "text" | "textarea" | "list" | "kv" | "checklist" | "attachments";
-type PrefillSource = "briefing" | "context" | "metrics" | "fronts" | "client" | "assets" | "siblings";
+type PrefillSource = "briefing" | "context" | "metrics" | "fronts" | "client" | "assets" | "siblings" | "diagnostico_docs";
 
 interface BlueprintField { id: string; label: string; type: FieldType; hint?: string; decisionOnly?: boolean }
 interface BlueprintSection { id: string; title: string; description?: string; fields: BlueprintField[] }
@@ -179,6 +179,31 @@ serve(async (req) => {
       if (Array.isArray(att) && att.length > 0) {
         ctx.attachments = att.slice(0, 5);
         sourcesUsed.push("assets");
+      }
+    }
+
+    if (blueprint.sources.includes("diagnostico_docs")) {
+      // Puxa TODOS os documentos do Contexto que sustentam diagnóstico:
+      // diagnostico, dor, decisao, anotacao com tag 'diagnostico' — ordenado por relevância
+      const { data: docs } = await supabase.from("context_entries")
+        .select("id, title, content, context_type, source_url, source_label, tags, metadata, happened_at, is_key_decision")
+        .eq("client_id", clientId)
+        .in("context_type", ["diagnostico", "dor", "decisao"])
+        .order("is_key_decision", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(25);
+      if (docs && docs.length > 0) {
+        ctx.diagnostico_docs = docs.map((d) => ({
+          title: d.title,
+          type: d.context_type,
+          content: (d.content ?? "").slice(0, 3500),
+          source_url: d.source_url,
+          source_label: d.source_label,
+          happened_at: d.happened_at,
+          is_key_decision: d.is_key_decision,
+          attachments: ((d.metadata as Record<string, unknown> | null)?.attachments as unknown[] | undefined)?.slice(0, 3) ?? [],
+        }));
+        sourcesUsed.push("diagnostico_docs");
       }
     }
 
