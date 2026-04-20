@@ -33,7 +33,6 @@ interface Props {
 
 type LinkItem = { label: string; url: string };
 type ChecklistItem = { id: string; text: string; done: boolean };
-type AttachmentItem = { label: string; url: string; type?: string };
 
 interface RichData {
   kind?: ProjectNodeKind;
