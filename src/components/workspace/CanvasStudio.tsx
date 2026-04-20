@@ -414,8 +414,12 @@ function CanvasStudioInner({
       toast({ title: "Erro ao adicionar cliente", description: error.message, variant: "destructive" });
       return;
     }
-    if (data) setDbNodes((prev) => [...prev, data as CanvasNodeRow]);
-    toast({ title: "Cliente adicionado", description: `Pasta criada para ${c.name}` });
+    if (data) {
+      const created = data as CanvasNodeRow;
+      setDbNodes((prev) => [...prev, created]);
+      setActiveClientId(created.id);
+    }
+    toast({ title: "Pasta de cliente criada", description: `${c.name} agora tem esteira própria.` });
   };
 
   /* Estrutura base: cria pasta cliente + briefing + landing como exemplo de esteira */
