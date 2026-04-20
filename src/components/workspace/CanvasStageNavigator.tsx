@@ -36,17 +36,6 @@ export default function CanvasStageNavigator({ counts = {}, doneCounts = {} }: P
     ? (Math.max(0, Math.min(maxViewLeft, viewLeft)) / maxViewLeft) * (1 - viewWidthPct)
     : 0;
 
-  /* Mede largura real do trilho pra projetar drag → posição */
-  useEffect(() => {
-    const node = trackRef.current;
-    if (!node) return;
-    const update = () => setTrackWidth(node.getBoundingClientRect().width);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(node);
-    return () => ro.disconnect();
-  }, []);
-
   const centerOnRatio = useCallback(
     (ratio: number, animate = true) => {
       const clampedRatio = Math.max(0, Math.min(1, ratio));
