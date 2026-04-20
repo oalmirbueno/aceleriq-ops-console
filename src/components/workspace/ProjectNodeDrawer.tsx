@@ -20,6 +20,7 @@ import LancamentoNodeDrawer from "./LancamentoNodeDrawer";
 import MetricaNodeDrawer from "./MetricaNodeDrawer";
 import KickoffNodeDrawer from "./KickoffNodeDrawer";
 import DiagnosticoNodeDrawer from "./DiagnosticoNodeDrawer";
+import IaAgentNodeDrawer from "./IaAgentNodeDrawer";
 import { useNodeQuickActions } from "@/hooks/useNodeQuickActions";
 import { hasBlueprint } from "./nodeBlueprints";
 import { resolveProjectNodeKind, type ProjectNodeKind } from "./canvasProjectTypes";
@@ -210,6 +211,21 @@ export default function ProjectNodeDrawer(props: Props) {
 
   // Outros tipos com blueprint → drawer especializado com handlers genéricos
   if (clientId && hasBlueprint(kind)) {
+    // Agente IA: drawer especializado com histórico de versões do system prompt
+    if (kind === "ia") {
+      return (
+        <IaAgentNodeDrawer
+          node={node}
+          open={props.open}
+          onOpenChange={props.onOpenChange}
+          workspaceId={props.workspaceId}
+          clientId={clientId}
+          clientName={clientName}
+          onDelete={props.onDelete}
+          onUpdated={props.onUpdated}
+        />
+      );
+    }
     return (
       <SpecializedGenericDrawer
         node={node}
