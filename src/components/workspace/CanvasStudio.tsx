@@ -666,6 +666,35 @@ function CanvasStudioInner({
           await handleDeleteNode(id);
           if (activeClientId === id) setActiveClientId(null);
         }}
+        onRenameClient={async (id, newTitle) => {
+          const target = clientGroups.find((c) => c.id === id);
+          // Optimistic local update
+          setDbNodes((prev) => prev.map((n) => (n.id === id ? { ...n, title: newTitle } : n)));
+          const { error } = await supabase
+            .from("canvas_nodes")
+            .update({ title: newTitle, updated_at: new Date().toISOString() })
+            .eq("id", id);
+          if (error) {
+            toast({ title: "Erro ao renomear", description: error.message, variant: "destructive" });
+            await fetchData();
+            return;
+          }
+          // If linked to a real client, also rename the client record (best-effort)
+          if (target?.linked_entity_id) {
+            const { error: cErr } = await supabase
+              .from("clients")
+              .update({ name: newTitle })
+              .eq("id", target.linked_entity_id);
+            if (cErr) {
+              toast({
+                title: "Pasta renomeada",
+                description: "Mas não consegui atualizar o nome do cliente vinculado.",
+              });
+              return;
+            }
+          }
+          toast({ title: "Renomeado", description: newTitle });
+        }}
       />
 
       {/* Body: palette + canvas + inspector */}
