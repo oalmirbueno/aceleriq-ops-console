@@ -102,27 +102,51 @@ serve(async (req) => {
     }
 
     // ─── 1. Coleta contexto ────────────────────────────────────────────
-    const [clientRes, briefingRes, contextRes, metricsRes, frontsRes, assetsRes] = await Promise.all([
-      admin.from("clients").select("id,name,plan_name,segment,description,site_url,social_links,tags")
+    // Schema real:
+    //  - clients: name, company_name, segment, plan_name, website, instagram, notes
+    //  - context_entries: context_type, title, content, source_label, metadata, tags
+    //  - briefing consolidado vive em context_entries (context_type=briefing) em metadata.consolidated_briefing
+    //  - metric_snapshots: metric_name, value, unit, captured_at, notes
+    //  - fronts: name, status, description, priority (workspace-scope)
+    //  - assets: title, asset_type, validation_status, external_url (workspace-scope)
+    const [clientRes, contextRes, metricsRes, frontsRes, assetsRes] = await Promise.all([
+      admin.from("clients")
+        .select("id,name,company_name,segment,plan_name,website,instagram,notes")
         .eq("id", body.clientId).maybeSingle(),
-      admin.from("consolidated_briefings").select("consolidated_data,updated_at")
-        .eq("client_id", body.clientId).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
-      admin.from("context_entries").select("entry_type,title,content,tags")
-        .eq("client_id", body.clientId).order("created_at", { ascending: false }).limit(20),
-      admin.from("metric_snapshots").select("metric_key,metric_label,value,unit,note,captured_at")
-        .eq("client_id", body.clientId).order("captured_at", { ascending: false }).limit(15),
-      admin.from("fronts").select("name,status,description,priority")
+      admin.from("context_entries")
+        .select("context_type,title,content,metadata,tags,created_at")
+        .eq("client_id", body.clientId)
+        .order("created_at", { ascending: false }).limit(25),
+      admin.from("metric_snapshots")
+        .select("metric_name,value,unit,notes,captured_at")
+        .eq("client_id", body.clientId)
+        .order("captured_at", { ascending: false }).limit(15),
+      admin.from("fronts")
+        .select("name,status,description,priority")
         .eq("client_id", body.clientId).limit(10),
-      admin.from("client_assets").select("name,asset_type,description,tags")
-        .eq("client_id", body.clientId).limit(15),
+      admin.from("assets")
+        .select("title,asset_type,validation_status,external_url")
+        .eq("workspace_id", body.workspaceId).limit(20),
     ]);
 
     const client = clientRes.data;
     if (!client) return json({ error: "Cliente não encontrado" }, 404);
 
+    // Extrai briefing consolidado do context_entries
+    type CtxRow = { context_type: string | null; title: string | null; content: string | null;
+      metadata: Record<string, unknown> | null; tags: string[] | null };
+    const allCtx: CtxRow[] = (contextRes.data ?? []) as CtxRow[];
+    const briefingEntry = allCtx.find(
+      (e) => e.context_type === "briefing" && (e.metadata as Record<string, unknown> | null)?.consolidated_briefing,
+    );
+    const briefingConsolidated = briefingEntry
+      ? (briefingEntry.metadata as Record<string, unknown>).consolidated_briefing
+      : null;
+    const otherContext = allCtx.filter((e) => e.context_type !== "briefing").slice(0, 15);
+
     const sourcesSummary = {
-      hasBriefing: !!briefingRes.data,
-      contextEntries: contextRes.data?.length ?? 0,
+      hasBriefing: !!briefingConsolidated,
+      contextEntries: otherContext.length,
       metricSnapshots: metricsRes.data?.length ?? 0,
       fronts: frontsRes.data?.length ?? 0,
       assets: assetsRes.data?.length ?? 0,
@@ -132,21 +156,24 @@ serve(async (req) => {
     const contextBlob = JSON.stringify({
       cliente: {
         nome: client.name,
+        empresa: client.company_name,
         plano: client.plan_name,
         segmento: client.segment,
-        descricao: client.description,
-        site: client.site_url,
-        tags: client.tags,
+        site: client.website,
+        instagram: client.instagram,
+        notas: client.notes,
       },
-      briefing_consolidado: briefingRes.data?.consolidated_data ?? null,
-      contexto_recente: (contextRes.data ?? []).map((e: Record<string, unknown>) => ({
-        tipo: e.entry_type, titulo: e.title,
-        resumo: typeof e.content === "string" ? (e.content as string).slice(0, 500) : null,
+      briefing_consolidado: briefingConsolidated,
+      contexto_recente: otherContext.map((e) => ({
+        tipo: e.context_type,
+        titulo: e.title,
+        resumo: typeof e.content === "string" ? e.content.slice(0, 500) : null,
+        tags: e.tags ?? [],
       })),
       metricas: metricsRes.data ?? [],
       fronts_ativos: frontsRes.data ?? [],
       assets_disponiveis: (assetsRes.data ?? []).map((a: Record<string, unknown>) => ({
-        nome: a.name, tipo: a.asset_type,
+        nome: a.title, tipo: a.asset_type, status: a.validation_status,
       })),
       pista_usuario: body.hint ?? null,
       areas_foco: body.focus ?? [],
