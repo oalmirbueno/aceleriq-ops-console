@@ -1,0 +1,458 @@
+/**
+ * FunnelEditorDrawer
+ *
+ * Drawer especializado pro node tipo "funil":
+ *  - Cria/carrega o client_funnels vinculado ao node (1:1)
+ *  - Lista funnel_steps em pipeline vertical reordenável
+ *  - Cada step → FunnelStepCard expansível (config, métricas, checklist, vínculo)
+ *  - Steps de lógica podem ramificar via funnel_branches
+ *  - Header com nome, objetivo, tipo, conversão total calculada
+ *
+ * Persistência: client_funnels + funnel_steps + funnel_branches.
+ * Vínculo com canvas: linked_node_id em cada step aponta pra outro node do workspace.
+ */
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Workflow, Plus, Loader2, X, Trash2, ArrowDown, TrendingUp, Target,
+  Sparkles,
+} from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+import {
+  FUNNEL_BLOCKS, blocksByFamily, getFamilyMeta, getFunnelBlock,
+  calculateFunnelConversion, type FunnelBlockKind,
+} from "./funnelBlocks";
+import FunnelStepCard, {
+  type FunnelStepRow, type FunnelBranchRow, type LinkableNodeOption,
+} from "./FunnelStepCard";
+import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
+
+interface FunnelRow {
+  id: string;
+  workspace_id: string;
+  client_id: string;
+  node_id: string | null;
+  name: string;
+  goal: string | null;
+  funnel_type: string | null;
+  metrics: Record<string, unknown>;
+  notes: string | null;
+}
+
+interface Props {
+  node: CanvasNodeRecord & { parent_node_id?: string | null };
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  workspaceId: string;
+  clientId: string;
+  clientName: string;
+  onDelete?: (id: string) => Promise<void> | void;
+}
+
+export default function FunnelEditorDrawer({
+  node, open, onOpenChange, workspaceId, clientId, clientName, onDelete,
+}: Props) {
+  const [loading, setLoading] = useState(false);
+  const [funnel, setFunnel] = useState<FunnelRow | null>(null);
+  const [steps, setSteps] = useState<FunnelStepRow[]>([]);
+  const [branches, setBranches] = useState<FunnelBranchRow[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [linkableNodes, setLinkableNodes] = useState<LinkableNodeOption[]>([]);
+
+  // ─── Load / bootstrap funnel ────────────────────────────────────────
+  const loadFunnel = useCallback(async () => {
+    setLoading(true);
+    // 1. Tenta achar funil já vinculado ao node
+    const { data: existing, error: fErr } = await supabase
+      .from("client_funnels" as never)
+      .select("*")
+      .eq("node_id", node.id)
+      .maybeSingle();
+    if (fErr) {
+      console.error("loadFunnel error:", fErr);
+      toast({ title: "Falha ao carregar funil", description: fErr.message, variant: "destructive" });
+      setLoading(false);
+      return;
+    }
+
+    let row = existing as FunnelRow | null;
+    // 2. Se não existe, cria um novo vinculado ao node
+    if (!row) {
+      const { data: created, error: cErr } = await supabase
+        .from("client_funnels" as never)
+        .insert({
+          workspace_id: workspaceId,
+          client_id: clientId,
+          node_id: node.id,
+          name: node.title || "Funil sem nome",
+        })
+        .select("*")
+        .maybeSingle();
+      if (cErr) {
+        toast({ title: "Falha ao criar funil", description: cErr.message, variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+      row = created as FunnelRow;
+    }
+    setFunnel(row);
+
+    // 3. Carrega steps + branches
+    const [stepsRes, branchesRes, nodesRes] = await Promise.all([
+      supabase.from("funnel_steps" as never).select("*").eq("funnel_id", row.id).order("position", { ascending: true, nullsFirst: false }),
+      supabase.from("funnel_branches" as never).select("*").eq("funnel_id", row.id),
+      supabase.from("canvas_nodes").select("id,title,node_type").eq("workspace_id", workspaceId).neq("id", node.id),
+    ]);
+    setSteps((stepsRes.data ?? []) as FunnelStepRow[]);
+    setBranches((branchesRes.data ?? []) as FunnelBranchRow[]);
+    setLinkableNodes((nodesRes.data ?? []) as LinkableNodeOption[]);
+    setLoading(false);
+  }, [node.id, node.title, workspaceId, clientId]);
+
+  useEffect(() => { if (open) loadFunnel(); }, [open, loadFunnel]);
+
+  // ─── Funnel metadata patch ──────────────────────────────────────────
+  const patchFunnel = async (patch: Partial<FunnelRow>) => {
+    if (!funnel) return;
+    setFunnel({ ...funnel, ...patch });
+    const { error } = await supabase
+      .from("client_funnels" as never)
+      .update(patch)
+      .eq("id", funnel.id);
+    if (error) toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+  };
+
+  // ─── Steps CRUD ─────────────────────────────────────────────────────
+  const addStep = async (kind: FunnelBlockKind) => {
+    if (!funnel) return;
+    const meta = getFunnelBlock(kind);
+    const nextPos = (steps[steps.length - 1]?.position ?? -1) + 1;
+    const checklistTemplate = meta.checklistTemplate.map((t) => ({
+      id: crypto.randomUUID(), text: t, done: false,
+    }));
+    const { data, error } = await supabase
+      .from("funnel_steps" as never)
+      .insert({
+        funnel_id: funnel.id,
+        workspace_id: workspaceId,
+        position: nextPos,
+        block_kind: kind,
+        title: meta.label,
+        checklist: checklistTemplate,
+      })
+      .select("*")
+      .maybeSingle();
+    if (error || !data) {
+      toast({ title: "Falha ao adicionar bloco", description: error?.message, variant: "destructive" });
+      return;
+    }
+    setSteps((prev) => [...prev, data as FunnelStepRow]);
+    setExpandedId((data as FunnelStepRow).id);
+  };
+
+  const patchStep = async (id: string, patch: Partial<FunnelStepRow>) => {
+    setSteps((prev) => prev.map((s) => s.id === id ? { ...s, ...patch } : s));
+    const { error } = await supabase.from("funnel_steps" as never).update(patch).eq("id", id);
+    if (error) toast({ title: "Erro", description: error.message, variant: "destructive" });
+  };
+
+  const deleteStep = async (id: string) => {
+    if (!confirm("Remover esta etapa do funil?")) return;
+    setSteps((prev) => prev.filter((s) => s.id !== id));
+    setBranches((prev) => prev.filter((b) => b.from_step_id !== id && b.to_step_id !== id));
+    const { error } = await supabase.from("funnel_steps" as never).delete().eq("id", id);
+    if (error) toast({ title: "Erro", description: error.message, variant: "destructive" });
+  };
+
+  const moveStep = async (id: string, dir: "up" | "down") => {
+    const idx = steps.findIndex((s) => s.id === id);
+    if (idx < 0) return;
+    const swap = dir === "up" ? idx - 1 : idx + 1;
+    if (swap < 0 || swap >= steps.length) return;
+    const next = [...steps];
+    [next[idx], next[swap]] = [next[swap], next[idx]];
+    // reassign positions
+    const reordered = next.map((s, i) => ({ ...s, position: i }));
+    setSteps(reordered);
+    // persist both
+    await Promise.all([
+      supabase.from("funnel_steps" as never).update({ position: reordered[idx].position }).eq("id", reordered[idx].id),
+      supabase.from("funnel_steps" as never).update({ position: reordered[swap].position }).eq("id", reordered[swap].id),
+    ]);
+  };
+
+  const changeStepKind = async (id: string, kind: FunnelBlockKind) => {
+    await patchStep(id, { block_kind: kind, config: {}, metrics: {} });
+  };
+
+  // ─── Branches CRUD ──────────────────────────────────────────────────
+  const addBranch = async (fromStepId: string, toStepId: string, condition: FunnelBranchRow["condition"]) => {
+    if (!funnel) return;
+    // upsert por (from_step_id, condition) — unique constraint
+    const existing = branches.find((b) => b.from_step_id === fromStepId && b.condition === condition);
+    if (existing) {
+      await supabase.from("funnel_branches" as never).update({ to_step_id: toStepId }).eq("id", existing.id);
+      setBranches((prev) => prev.map((b) => b.id === existing.id ? { ...b, to_step_id: toStepId } : b));
+      return;
+    }
+    const { data, error } = await supabase
+      .from("funnel_branches" as never)
+      .insert({ funnel_id: funnel.id, from_step_id: fromStepId, to_step_id: toStepId, condition })
+      .select("*")
+      .maybeSingle();
+    if (error || !data) {
+      toast({ title: "Falha ao criar ramificação", description: error?.message, variant: "destructive" });
+      return;
+    }
+    setBranches((prev) => [...prev, data as FunnelBranchRow]);
+  };
+
+  const removeBranch = async (id: string) => {
+    setBranches((prev) => prev.filter((b) => b.id !== id));
+    await supabase.from("funnel_branches" as never).delete().eq("id", id);
+  };
+
+  // ─── Computed: total conversion ─────────────────────────────────────
+  const totalConv = useMemo(() => calculateFunnelConversion(steps), [steps]);
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full sm:max-w-3xl p-0 flex flex-col">
+        {/* ─── Header ─── */}
+        <div className="px-5 pt-5 pb-3 border-b border-border space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3 min-w-0 flex-1">
+              <div className="h-10 w-10 rounded-lg border-2 border-indigo-500/40 bg-indigo-500/10 flex items-center justify-center shrink-0">
+                <Workflow className="h-5 w-5 text-indigo-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base font-semibold truncate">{funnel?.name ?? node.title}</h2>
+                  <Badge variant="outline" className="text-[9px] border-indigo-500/40 text-indigo-400">
+                    L · Planejamento
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                  Editor visual do funil de <span className="text-foreground/80">{clientName}</span>.
+                  Arraste etapas, vincule a assets e mapeie conversões.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              {onDelete && (
+                <Button size="icon" variant="ghost" className="h-7 w-7 text-rose-400"
+                  onClick={() => { onDelete(node.id); onOpenChange(false); }}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onOpenChange(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Funnel metadata bar */}
+          {funnel && (
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-0.5">
+                <Label className="text-[9px] uppercase tracking-wide text-muted-foreground">Nome</Label>
+                <Input
+                  value={funnel.name}
+                  onChange={(e) => setFunnel({ ...funnel, name: e.target.value })}
+                  onBlur={() => patchFunnel({ name: funnel.name })}
+                  className="h-7 text-xs"
+                />
+              </div>
+              <div className="space-y-0.5">
+                <Label className="text-[9px] uppercase tracking-wide text-muted-foreground">Tipo</Label>
+                <Input
+                  value={funnel.funnel_type ?? ""}
+                  onChange={(e) => setFunnel({ ...funnel, funnel_type: e.target.value })}
+                  onBlur={() => patchFunnel({ funnel_type: funnel.funnel_type })}
+                  placeholder="lead-magnet, lançamento..."
+                  className="h-7 text-xs"
+                />
+              </div>
+              <div className="space-y-0.5">
+                <Label className="text-[9px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                  <Target className="h-2.5 w-2.5" /> Objetivo
+                </Label>
+                <Input
+                  value={funnel.goal ?? ""}
+                  onChange={(e) => setFunnel({ ...funnel, goal: e.target.value })}
+                  onBlur={() => patchFunnel({ goal: funnel.goal })}
+                  placeholder="Ex: 100 leads/mês"
+                  className="h-7 text-xs"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* KPIs */}
+          <div className="flex items-center gap-2 text-[10px]">
+            <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 flex items-center gap-1">
+              <TrendingUp className="h-2.5 w-2.5" />
+              Conv. total: {totalConv != null ? `${(totalConv * 100).toFixed(2)}%` : "—"}
+            </Badge>
+            <Badge variant="outline" className="border-border text-muted-foreground">
+              {steps.length} etapa{steps.length !== 1 ? "s" : ""}
+            </Badge>
+            <Badge variant="outline" className="border-border text-muted-foreground">
+              {branches.length} ramificaç{branches.length !== 1 ? "ões" : "ão"}
+            </Badge>
+          </div>
+        </div>
+
+        {/* ─── Pipeline ─── */}
+        <ScrollArea className="flex-1">
+          <div className="px-5 py-4 space-y-2">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : steps.length === 0 ? (
+              <EmptyPipeline onAdd={addStep} />
+            ) : (
+              <>
+                {steps.map((step, i) => (
+                  <div key={step.id}>
+                    <FunnelStepCard
+                      step={step}
+                      branches={branches}
+                      allSteps={steps}
+                      expanded={expandedId === step.id}
+                      isFirst={i === 0}
+                      isLast={i === steps.length - 1}
+                      linkableNodes={linkableNodes}
+                      onToggleExpand={() => setExpandedId((cur) => cur === step.id ? null : step.id)}
+                      onPatch={(patch) => patchStep(step.id, patch)}
+                      onDelete={() => deleteStep(step.id)}
+                      onMove={(dir) => moveStep(step.id, dir)}
+                      onChangeKind={(k) => changeStepKind(step.id, k)}
+                      onAddBranch={(toId, cond) => addBranch(step.id, toId, cond)}
+                      onRemoveBranch={removeBranch}
+                    />
+                    {i < steps.length - 1 && (
+                      <div className="flex justify-center py-1">
+                        <ArrowDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Add bottom */}
+                <div className="pt-3">
+                  <AddBlockPopover onPick={addStep} />
+                </div>
+              </>
+            )}
+          </div>
+
+          {funnel && (
+            <div className="px-5 pb-5">
+              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Notas do funil</Label>
+              <Textarea
+                value={funnel.notes ?? ""}
+                onChange={(e) => setFunnel({ ...funnel, notes: e.target.value })}
+                onBlur={() => patchFunnel({ notes: funnel.notes })}
+                placeholder="Hipóteses, aprendizados, próximos testes..."
+                rows={3}
+                className="text-xs resize-y mt-1"
+              />
+            </div>
+          )}
+        </ScrollArea>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ─── Empty state ──────────────────────────────────────────────────────────
+function EmptyPipeline({ onAdd }: { onAdd: (k: FunnelBlockKind) => void }) {
+  return (
+    <div className="border-2 border-dashed border-border rounded-lg p-8 text-center space-y-4">
+      <Sparkles className="h-8 w-8 mx-auto text-indigo-400/60" />
+      <div className="space-y-1">
+        <p className="text-sm font-medium">Funil vazio</p>
+        <p className="text-xs text-muted-foreground">Comece adicionando o primeiro bloco — geralmente uma fonte de tráfego.</p>
+      </div>
+      <div className="flex flex-wrap justify-center gap-1.5">
+        {(["traffic_ad","page_landing","comm_email_sequence","page_checkout"] as FunnelBlockKind[]).map((k) => {
+          const m = getFunnelBlock(k);
+          const I = m.icon;
+          return (
+            <Button key={k} size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={() => onAdd(k)}>
+              <I className={cn("h-3 w-3", m.color)} /> {m.shortLabel}
+            </Button>
+          );
+        })}
+        <AddBlockPopover onPick={onAdd} compact />
+      </div>
+    </div>
+  );
+}
+
+// ─── Add block popover ────────────────────────────────────────────────────
+function AddBlockPopover({ onPick, compact }: { onPick: (k: FunnelBlockKind) => void; compact?: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        {compact ? (
+          <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5">
+            <Plus className="h-3 w-3" /> Outros
+          </Button>
+        ) : (
+          <Button variant="outline" className="w-full h-9 border-dashed gap-2">
+            <Plus className="h-3.5 w-3.5" /> Adicionar bloco ao funil
+          </Button>
+        )}
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-0" align="center">
+        <ScrollArea className="max-h-96">
+          <div className="p-2 space-y-3">
+            {blocksByFamily().map(({ family, blocks }) => {
+              const f = getFamilyMeta(family);
+              return (
+                <div key={family} className="space-y-1">
+                  <p className={cn("text-[10px] font-semibold uppercase tracking-wide px-1", f.color)}>
+                    {f.label}
+                  </p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {blocks.map((b) => {
+                      const I = b.icon;
+                      return (
+                        <button
+                          key={b.kind}
+                          onClick={() => { onPick(b.kind); setOpen(false); }}
+                          className={cn(
+                            "flex items-center gap-2 rounded-md border px-2 py-1.5 text-left text-[11px] hover:bg-accent transition",
+                            b.border, b.bg,
+                          )}
+                        >
+                          <I className={cn("h-3.5 w-3.5 shrink-0", b.color)} />
+                          <span className="truncate">{b.shortLabel}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
+  );
+}
