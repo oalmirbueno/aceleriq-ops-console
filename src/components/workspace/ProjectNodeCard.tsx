@@ -85,6 +85,29 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
           {d.title}
         </p>
 
+        {/* Cover thumbnail (first previewable attachment) */}
+        {d.coverAttachment?.url && (
+          <div
+            className="relative mb-2 rounded-md overflow-hidden border border-border/60 bg-muted/40 h-24 w-full"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="absolute inset-0 [&>div]:!h-full [&>div]:!w-full [&>button]:!h-full [&>button]:!w-full [&>button]:!rounded-md [&_img]:!object-cover [&_canvas]:!object-contain">
+              <AttachmentPreview
+                url={d.coverAttachment.url}
+                type={d.coverAttachment.type}
+                label={d.coverAttachment.label}
+                className="!h-full !w-full !rounded-md"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Title */}
+        <p className="text-sm font-semibold text-foreground leading-tight line-clamp-2 mb-1">
+          {d.title}
+        </p>
+
         {/* Description */}
         {d.description && (
           <p className="text-[11px] text-muted-foreground line-clamp-2 leading-snug mb-2">
