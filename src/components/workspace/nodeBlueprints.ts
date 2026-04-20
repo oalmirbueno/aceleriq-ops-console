@@ -36,7 +36,8 @@ export type SectionFieldType =
   | "textarea"    // bloco de texto livre
   | "list"        // lista de strings (bullet points)
   | "kv"          // pares chave→valor (ex: meta→60% conversão)
-  | "checklist";  // itens com done:boolean
+  | "checklist"   // itens com done:boolean
+  | "attachments";// anexos (PDF, imagens, links) — UI usa AttachmentUploader; IA não preenche
 
 export interface SectionField {
   id: string;
