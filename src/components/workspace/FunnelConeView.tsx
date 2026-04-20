@@ -8,7 +8,8 @@
  * Volume priority: actual_volume → expected_volume → propagação → synthetic.
  * Ghost cone: usa expected_volume pra mostrar a projeção/meta como referência.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getFunnelBlock } from "./funnelBlocks";
 import type { FunnelStepRow } from "./FunnelStepCard";
@@ -17,6 +18,7 @@ interface Props {
   steps: FunnelStepRow[];
   highlightId?: string | null;
   onPickStep?: (id: string) => void;
+  exportName?: string;
 }
 
 interface Slice {
@@ -100,7 +102,70 @@ function trapPath(cx: number, innerW: number, slice: Slice, nextSlice: Slice | u
   return `M ${cx - wTop / 2} ${yTop} L ${cx + wTop / 2} ${yTop} L ${cx + wBot / 2} ${yBot} L ${cx - wBot / 2} ${yBot} Z`;
 }
 
-export default function FunnelConeView({ steps, highlightId, onPickStep }: Props) {
+/* ─── PNG export ─── */
+async function exportSvgAsPng(svg: SVGSVGElement, filename: string, scale = 2) {
+  const clone = svg.cloneNode(true) as SVGSVGElement;
+  // Resolve CSS variables → inline computed colors so the rasterized PNG is faithful
+  const sourceEls = svg.querySelectorAll<SVGElement>("*");
+  const cloneEls = clone.querySelectorAll<SVGElement>("*");
+  sourceEls.forEach((el, i) => {
+    const target = cloneEls[i];
+    if (!target) return;
+    const cs = getComputedStyle(el);
+    const fill = cs.fill;
+    const stroke = cs.stroke;
+    const opacity = cs.opacity;
+    if (fill && fill !== "none") target.setAttribute("fill", fill);
+    if (stroke && stroke !== "none") target.setAttribute("stroke", stroke);
+    if (opacity && opacity !== "1") target.setAttribute("opacity", opacity);
+  });
+
+  const vb = svg.viewBox.baseVal;
+  const w = vb && vb.width ? vb.width : svg.clientWidth || 640;
+  const h = vb && vb.height ? vb.height : svg.clientHeight || 400;
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  clone.setAttribute("width", String(w));
+  clone.setAttribute("height", String(h));
+
+  const xml = new XMLSerializer().serializeToString(clone);
+  const svgBlob = new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n${xml}`], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(svgBlob);
+
+  try {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = (e) => reject(e);
+      img.src = url;
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(w * scale);
+    canvas.height = Math.ceil(h * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("canvas 2d context unavailable");
+    // Background → match card token (dark) so the PNG isn't transparent on white slides
+    const bg = getComputedStyle(svg).getPropertyValue("background-color");
+    ctx.fillStyle = bg && bg !== "rgba(0, 0, 0, 0)" ? bg : "#0d0d0d";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    const pngUrl = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = pngUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+export default function FunnelConeView({ steps, highlightId, onPickStep, exportName }: Props) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [exporting, setExporting] = useState(false);
   const slices = useMemo(() => computeSlices(steps, "actual"), [steps]);
   const ghostSlices = useMemo(() => computeSlices(steps, "expected"), [steps]);
   const [showGhost, setShowGhost] = useState(false);
@@ -152,6 +217,32 @@ export default function FunnelConeView({ steps, highlightId, onPickStep }: Props
               {showGhost ? "✕ Ocultar projeção" : "Comparar projeção"}
             </button>
           )}
+          <button
+            type="button"
+            disabled={exporting}
+            onClick={async () => {
+              if (!svgRef.current) return;
+              setExporting(true);
+              try {
+                const safe = (exportName || "funil").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "funil";
+                const stamp = new Date().toISOString().slice(0, 10);
+                await exportSvgAsPng(svgRef.current, `${safe}-${stamp}.png`, 2);
+              } catch (e) {
+                console.error("export funnel png", e);
+              } finally {
+                setExporting(false);
+              }
+            }}
+            className={cn(
+              "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md border transition-colors",
+              "border-border text-muted-foreground hover:text-foreground hover:border-foreground/20",
+              exporting && "opacity-60 cursor-wait",
+            )}
+            title="Exportar funil em PNG (2x)"
+          >
+            <Download className="h-3 w-3" />
+            {exporting ? "Exportando…" : "Exportar PNG"}
+          </button>
           <span className="text-[9px] text-muted-foreground/50 tabular-nums">
             {slices.length} etapa{slices.length === 1 ? "" : "s"} · topo {formatNumber(slices[0].volume)}
           </span>
@@ -159,6 +250,7 @@ export default function FunnelConeView({ steps, highlightId, onPickStep }: Props
       </div>
 
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${VIEW_W} ${totalH}`}
         className="w-full h-auto block"
         preserveAspectRatio="xMidYMid meet"
