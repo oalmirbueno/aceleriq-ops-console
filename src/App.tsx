@@ -9,6 +9,7 @@ import AppLayout from "@/layouts/AppLayout";
 import LoginPage from "@/pages/LoginPage";
 import DashboardPage from "@/pages/DashboardPage";
 import ClientsPage from "@/pages/ClientsPage";
+import ClientVaultPage from "@/pages/ClientVaultPage";
 import WorkspacesPage from "@/pages/WorkspacesPage";
 import WorkspaceDetailPage from "@/pages/WorkspaceDetailPage";
 import SettingsPage from "@/pages/SettingsPage";
@@ -40,6 +41,7 @@ const App = () => (
             >
               <Route index element={<DashboardPage />} />
               <Route path="clients" element={<ClientsPage />} />
+              <Route path="clients/:id/vault" element={<ClientVaultPage />} />
               <Route path="workspaces" element={<WorkspacesPage />} />
               <Route path="workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
               <Route path="settings" element={<SettingsPage />} />

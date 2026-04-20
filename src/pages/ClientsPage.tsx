@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Plus, Search, ExternalLink, FolderPlus } from "lucide-react";
+import { Users, Plus, Search, ExternalLink, FolderPlus, KeyRound } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import EmptyState from "@/components/EmptyState";
 import LoadingState from "@/components/LoadingState";
@@ -191,7 +191,7 @@ export default function ClientsPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>Etapa</TableHead>
                   <TableHead>Plano</TableHead>
-                  <TableHead className="w-10" />
+                  <TableHead className="w-24 text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -209,25 +209,35 @@ export default function ClientsPage() {
                       <TableCell className="text-muted-foreground">{stage ? getStagePremiumLabel(stage) : "—"}</TableCell>
                       <TableCell className="text-muted-foreground capitalize">{c.plan_name ?? "—"}</TableCell>
                       <TableCell>
-                        {c.workspaces[0] ? (
+                        <div className="flex items-center gap-0.5 justify-end">
                           <Button
                             size="icon"
                             variant="ghost"
-                            onClick={(e) => { e.stopPropagation(); openWorkspace(c); }}
-                            title="Abrir workspace"
+                            onClick={(e) => { e.stopPropagation(); navigate(`/ops/clients/${c.id}/vault`); }}
+                            title="Ver acessos do cliente"
                           >
-                            <ExternalLink className="h-4 w-4" />
+                            <KeyRound className="h-4 w-4 text-amber-400" />
                           </Button>
-                        ) : (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={(e) => { e.stopPropagation(); createWorkspaceForClient(c); }}
-                            title="Criar workspace"
-                          >
-                            <FolderPlus className="h-4 w-4 text-primary" />
-                          </Button>
-                        )}
+                          {c.workspaces[0] ? (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={(e) => { e.stopPropagation(); openWorkspace(c); }}
+                              title="Abrir workspace"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={(e) => { e.stopPropagation(); createWorkspaceForClient(c); }}
+                              title="Criar workspace"
+                            >
+                              <FolderPlus className="h-4 w-4 text-primary" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
