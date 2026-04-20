@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Plus, Search, ExternalLink, FolderPlus } from "lucide-react";
+import { Users, Plus, Search, ExternalLink, FolderPlus, KeyRound } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import EmptyState from "@/components/EmptyState";
 import LoadingState from "@/components/LoadingState";
