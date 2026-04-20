@@ -28,6 +28,12 @@ const SOURCE_LABELS: Record<string, string> = {
   client:   "cliente",
   assets:   "anexos",
   siblings: "outros nodes",
+  diagnostico_docs: "docs de diagnóstico",
+  // Auto-contexto universal
+  dossier:  "dossiê",
+  tasks:    "tasks",
+  timeline: "timeline",
+  workspace_assets: "assets do workspace",
 };
 
 export default function NodePrefillStatus({ status, prefill, errorMessage, onGenerate, onRegenerate }: Props) {
