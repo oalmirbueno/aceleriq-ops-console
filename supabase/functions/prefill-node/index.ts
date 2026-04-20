@@ -372,7 +372,9 @@ serve(async (req) => {
       "- Use APENAS o contexto fornecido. Nunca invente fatos sobre orçamento, prazo, datas ou nomes próprios.",
       "- origin='client' = a info vem literal do cliente (form preenchido). origin='auto' = você inferiu do contexto. origin='empty' = falta info.",
       "- Para campos marcados [DECISÃO HUMANA], use origin='empty' a menos que o cliente tenha declarado explicitamente.",
-      "- Cite a fonte em 'citation' quando vier de briefing, contexto ou métrica específica.",
+      "- SEMPRE cite a fonte em 'citation' quando origin='auto' ou 'client'. Use rótulos curtos:",
+      "  briefing §<n>, contexto:<título>, dossier:<título>, métrica:<nome>, task:<título>, timeline:<título>, asset:<nome>, sibling:<título>.",
+      "- AUTO-CONTEXTO: você recebeu também dossier (decisões-chave), tasks (carga atual), timeline (eventos recentes) e workspace_assets. Use-os pra calibrar tom e prioridade — mas só cite quando realmente influenciar o campo.",
       "- Seja conciso. Tom profissional, direto, sem floreio.",
       "- Para listas, prefira 3-5 itens de qualidade vs 10 itens vagos.",
     ].join("\n");
