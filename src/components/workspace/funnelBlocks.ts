@@ -57,10 +57,10 @@ export interface FunnelBlockMeta {
 }
 
 export const FAMILY_META: Record<FunnelBlockFamily, { label: string; color: string; bg: string; border: string }> = {
-  traffic: { label: "Tráfego",     color: "text-violet-400",  bg: "bg-violet-500/10",  border: "border-violet-500/40" },
-  page:    { label: "Páginas",     color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/40" },
-  comm:    { label: "Comunicação", color: "text-pink-400",    bg: "bg-pink-500/10",    border: "border-pink-500/40" },
-  logic:   { label: "Lógica",      color: "text-amber-400",   bg: "bg-amber-500/10",   border: "border-amber-500/40" },
+  traffic: { label: "Tráfego",     color: "text-foreground/60",      bg: "bg-transparent",     border: "border-border" },
+  page:    { label: "Páginas",     color: "text-foreground/60",      bg: "bg-transparent",     border: "border-border" },
+  comm:    { label: "Comunicação", color: "text-foreground/60",      bg: "bg-transparent",     border: "border-border" },
+  logic:   { label: "Lógica",      color: "text-foreground/60",      bg: "bg-transparent",     border: "border-border" },
 };
 
 export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
