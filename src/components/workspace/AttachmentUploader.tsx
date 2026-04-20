@@ -151,6 +151,7 @@ export default function AttachmentUploader({ workspaceId, nodeId, attachments, o
           <AttachmentPreview
             url={a.url}
             type={a.type}
+            label={a.label}
             storagePath={a.storage_path}
             onRefreshUrl={() => refreshUrl(i)}
           />
