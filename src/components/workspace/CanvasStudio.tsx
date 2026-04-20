@@ -20,6 +20,7 @@ import StageLanesBg from "./StageLanesBg";
 import ProjectNodeDrawer from "./ProjectNodeDrawer";
 import CanvasEsteiraPalette from "./CanvasEsteiraPalette";
 import CanvasInspector from "./CanvasInspector";
+import CanvasHorizontalScroller from "./CanvasHorizontalScroller";
 import CanvasClientPicker from "./CanvasClientPicker";
 import CanvasClientTabs, { type CanvasClientTab } from "./CanvasClientTabs";
 import GenerateEsteiraDialog from "./GenerateEsteiraDialog";
