@@ -17,7 +17,6 @@ import { toast } from "@/hooks/use-toast";
 import ProjectNodeCard, { type ProjectNodeData } from "./ProjectNodeCard";
 import CanvasGroupNode from "./CanvasGroupNode";
 import StageLanesBg from "./StageLanesBg";
-import CanvasStageNavigator from "./CanvasStageNavigator";
 import ProjectNodeDrawer from "./ProjectNodeDrawer";
 import CanvasEsteiraPalette from "./CanvasEsteiraPalette";
 import CanvasInspector from "./CanvasInspector";
@@ -66,6 +65,12 @@ const CONTENT_TOP = CLIENT_BAR_HEIGHT + 12;
 const STAGE_BAND_HEIGHT = 1800; // long enough for many nodes
 const NODE_VERTICAL = 130;
 const NODE_X_OFFSET = 36; // x inside column
+const TOTAL_STAGE_WIDTH = STAGE_COLUMN_WIDTH * ACELERA_STAGES.length;
+const CANVAS_PADDING = 240;
+const CANVAS_TRANSLATE_EXTENT: [[number, number], [number, number]] = [
+  [-CANVAS_PADDING, -CANVAS_PADDING],
+  [TOTAL_STAGE_WIDTH + CANVAS_PADDING, CONTENT_TOP + STAGE_BAND_HEIGHT + CANVAS_PADDING],
+];
 
 function nodeStageOf(row: CanvasNodeRow): AceleraStageKey {
   const data = (row.data ?? {}) as Record<string, unknown>;
@@ -1020,12 +1025,10 @@ function CanvasStudioInner({
               fitViewOptions={{ padding: 0.4 }}
               minZoom={0.2}
               maxZoom={2}
-              panOnDrag={[0, 1]}
-              panOnScroll
-              panOnScrollSpeed={0.8}
-              panActivationKeyCode={null}
-              zoomOnScroll={false}
-              zoomActivationKeyCode={["Meta", "Control"]}
+              translateExtent={CANVAS_TRANSLATE_EXTENT}
+              panOnDrag={[2]}
+              panOnScroll={false}
+              zoomOnScroll
               zoomOnPinch
               zoomOnDoubleClick={false}
               selectionOnDrag={false}
@@ -1035,22 +1038,10 @@ function CanvasStudioInner({
               proOptions={{ hideAttribution: true }}
               className="bg-background canvas-flow"
               defaultEdgeOptions={{ type: "smoothstep", animated: true }}
+              onPaneContextMenu={(event) => event.preventDefault()}
             >
               <StageLanesBg height={STAGE_BAND_HEIGHT} offsetY={CONTENT_TOP - 12} />
               <Background gap={24} size={1} className="opacity-30" />
-              <CanvasStageNavigator
-                counts={scopedProjectNodes.reduce<Record<string, number>>((acc, n) => {
-                  const k = nodeStageOf(n);
-                  acc[k] = (acc[k] ?? 0) + 1;
-                  return acc;
-                }, {})}
-                doneCounts={scopedProjectNodes.reduce<Record<string, number>>((acc, n) => {
-                  if (mapLegacyStatus(n.status) !== "concluido") return acc;
-                  const k = nodeStageOf(n);
-                  acc[k] = (acc[k] ?? 0) + 1;
-                  return acc;
-                }, {})}
-              />
               {showMiniMap && (
                 <MiniMap
                   nodeColor={() => "hsl(var(--primary))"}
