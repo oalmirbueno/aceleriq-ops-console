@@ -452,22 +452,38 @@ const DOCUMENTO: NodeBlueprint = {
 
 const SITE: NodeBlueprint = {
   kind: "site",
-  purpose: "Site institucional/produto — arquitetura, copy, SEO e go-live.",
+  purpose: "Site institucional/produto — arquitetura, copy, SEO, performance e go-live em fluxo único.",
   methodChecklist: [
     { id: "arch",     label: "Arquitetura de páginas aprovada",     required: true  },
     { id: "copy",     label: "Copy validado por página",            required: true  },
     { id: "seo",      label: "SEO técnico (meta, OG, schema)",      required: true  },
     { id: "visual",   label: "Visual aprovado vs design system",    required: true  },
     { id: "tracking", label: "Tracking instalado e validado",       required: true  },
+    { id: "perf",     label: "Performance (LCP<2.5s, CLS<0.1)",     required: true  },
+    { id: "a11y",     label: "Acessibilidade WCAG AA",              required: true  },
+    { id: "legal",    label: "Privacy / Termos / Cookies publicados", required: true },
     { id: "live",     label: "Domínio + SSL + indexação",           required: true  },
   ],
   sections: [
+    {
+      id: "stack", title: "Stack e plataforma",
+      description: "Decida onde o site vive antes de escrever copy.",
+      fields: [
+        { id: "platform",   label: "Plataforma",          type: "text",  hint: "Lovable/Next.js, WordPress, Webflow, Framer, Shopify..." },
+        { id: "cms",        label: "CMS / fonte de conteúdo", type: "text", hint: "Sanity, Contentful, headless WP, MDX..." },
+        { id: "hosting",    label: "Hosting / CDN",       type: "text",  hint: "Vercel, Cloudflare, Netlify..." },
+        { id: "repo_url",   label: "Repositório",         type: "text",  decisionOnly: true },
+        { id: "staging_url",label: "URL de staging",      type: "text",  decisionOnly: true },
+        { id: "integrations", label: "Integrações esperadas", type: "list", hint: "CRM, e-mail, pagamento, chat..." },
+      ],
+    },
     {
       id: "architecture", title: "Arquitetura de páginas",
       fields: [
         { id: "pages",   label: "Páginas planejadas",  type: "list", hint: "Home, Sobre, Serviços, Contato..." },
         { id: "menu",    label: "Estrutura do menu",   type: "list" },
         { id: "footer",  label: "Itens do rodapé",     type: "list" },
+        { id: "routes",  label: "Rotas técnicas (slug)", type: "kv",   hint: "Home → / ; Blog → /blog/[slug]" },
       ],
     },
     {
@@ -479,6 +495,9 @@ const SITE: NodeBlueprint = {
         { id: "hero_cta",         label: "CTA principal",            type: "text" },
         { id: "value_props",      label: "Propostas de valor (3-5)", type: "list" },
         { id: "about_copy",       label: "Sobre nós (parágrafo)",    type: "textarea" },
+        { id: "services_copy",    label: "Bloco de serviços/produtos", type: "textarea" },
+        { id: "social_proof",     label: "Prova social (depoimentos, números, logos)", type: "list" },
+        { id: "footer_copy",      label: "CTA final / rodapé",       type: "textarea" },
       ],
     },
     {
@@ -488,6 +507,8 @@ const SITE: NodeBlueprint = {
         { id: "meta_description", label: "Meta description",         type: "text",  hint: "<160 caracteres" },
         { id: "keywords",         label: "Keywords-alvo",            type: "list" },
         { id: "schema_type",      label: "Schema.org principal",     type: "text",  hint: "Organization / LocalBusiness / Product" },
+        { id: "og_image_brief",   label: "Brief da OG image",        type: "text",  hint: "1200x630, com logo + claim" },
+        { id: "sitemap_robots",   label: "Sitemap + robots.txt",     type: "text",  hint: "Auto / manual / excluir páginas?" },
       ],
     },
     {
@@ -496,6 +517,26 @@ const SITE: NodeBlueprint = {
         { id: "palette",   label: "Paleta (do design system)",  type: "kv" },
         { id: "fonts",     label: "Tipografia",                 type: "kv", hint: "headings → ; body →" },
         { id: "imagery",   label: "Direção de imagem",          type: "textarea" },
+        { id: "components",label: "Componentes-chave",          type: "list", hint: "Hero, Card, Pricing, FAQ accordion..." },
+        { id: "motion",    label: "Diretrizes de animação",     type: "text",  hint: "Sutis / nenhuma / grandes parallax" },
+      ],
+    },
+    {
+      id: "performance", title: "Performance e qualidade",
+      fields: [
+        { id: "perf_targets", label: "Metas Core Web Vitals", type: "kv", hint: "LCP→<2.5s ; CLS→<0.1 ; INP→<200ms" },
+        { id: "image_strategy", label: "Estratégia de imagens", type: "text", hint: "AVIF/WebP, lazy, responsive srcset" },
+        { id: "a11y_checks", label: "Checks de acessibilidade", type: "list", hint: "Contraste AA, alt em imagens, foco visível, semântica" },
+        { id: "i18n",       label: "Idiomas suportados",     type: "list" },
+      ],
+    },
+    {
+      id: "legal", title: "Legal e cookies",
+      fields: [
+        { id: "privacy_url",  label: "URL Política de Privacidade", type: "text", decisionOnly: true },
+        { id: "terms_url",    label: "URL Termos de uso",            type: "text", decisionOnly: true },
+        { id: "cookies_banner", label: "Banner de cookies",          type: "text", hint: "Cookiebot / Iubenda / próprio" },
+        { id: "lgpd_owner",   label: "Encarregado de dados (DPO)",   type: "text", decisionOnly: true },
       ],
     },
     {
@@ -504,6 +545,16 @@ const SITE: NodeBlueprint = {
         { id: "domain",       label: "Domínio final",     type: "text",     decisionOnly: true },
         { id: "tracking_ids", label: "IDs de tracking",   type: "kv",       hint: "GA4, Meta Pixel, GTM..." },
         { id: "redirects",    label: "Redirects 301 necessários", type: "list" },
+        { id: "dns_notes",    label: "Notas de DNS / SSL", type: "textarea", hint: "Registrador, propagação, certificado" },
+        { id: "rollback_plan",label: "Plano de rollback",  type: "textarea" },
+      ],
+    },
+    {
+      id: "references", title: "Referências e anexos",
+      fields: [
+        { id: "inspiration",   label: "Sites de inspiração",  type: "list", hint: "URLs com 1 frase do que copiar" },
+        { id: "competitors",   label: "Concorrentes a estudar", type: "list" },
+        { id: "files",         label: "Anexos (mockups, logos, brand guide)", type: "attachments" },
       ],
     },
   ],
@@ -512,12 +563,16 @@ const SITE: NodeBlueprint = {
     { id: "go_live",        label: "Checklist pré-launch",    primary: true },
     { id: "link_asset",     label: "Vincular assets" },
     { id: "regenerate_prefill", label: "Regenerar com IA" },
+    { id: "export_pdf",     label: "Exportar brief técnico" },
   ],
   sources: ["briefing","context","client","assets","siblings"],
   prefillPrompt:
-    "Você é diretor de criação + estrategista de SEO. Copy curta, benefício antes de feature, " +
-    "CTA verbal e direto. Meta title até 60 caracteres com keyword. Meta description até 160. " +
-    "Use os objetivos e personas do briefing pra calibrar tom. Não invente domínio nem tracking IDs.",
+    "Você é diretor de criação + estrategista de SEO + tech lead front-end. " +
+    "Copy curta, benefício antes de feature, CTA verbal e direto. Meta title até 60 caracteres com keyword. Meta description até 160. " +
+    "Sugira plataforma/CMS coerentes com o porte do cliente (Lovable+Next pra MVP, Webflow pra marketing puro, WP+headless pra equipe editorial). " +
+    "Componentes citados devem casar com a arquitetura. Para legal/domínio/tracking/repositório, marque origin='empty' — decisão humana. " +
+    "Performance: sempre proponha LCP<2.5s, CLS<0.1, INP<200ms como meta-base. " +
+    "Use os objetivos e personas do briefing pra calibrar tom.",
 };
 
 const LANDING: NodeBlueprint = {
