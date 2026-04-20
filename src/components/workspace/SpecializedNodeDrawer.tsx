@@ -115,6 +115,16 @@ export default function SpecializedNodeDrawer({
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 text-[11px]"
+                onClick={() => setVaultOpen(true)}
+                title="Consultar credenciais do cliente sem sair do node"
+              >
+                <KeyRound className="h-3 w-3" />
+                Acessos
+              </Button>
               {onDelete && (
                 <Button size="icon" variant="ghost" className="h-7 w-7 text-rose-400"
                   onClick={() => { onDelete(node.id); onOpenChange(false); }}>
