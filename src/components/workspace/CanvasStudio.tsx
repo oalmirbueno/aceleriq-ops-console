@@ -97,7 +97,6 @@ function CanvasStudioInner({
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
-  const rootRef = useRef<HTMLDivElement | null>(null);
 
   const [paletteCollapsed, setPaletteCollapsed] = useState(false);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(true);
@@ -279,6 +278,27 @@ function CanvasStudioInner({
       } catch { /* quota — ignore */ }
     }, 250);
   }, [viewportScope]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTyping = !!target && (
+        target.tagName === "INPUT"
+        || target.tagName === "TEXTAREA"
+        || target.isContentEditable
+      );
+      if (isTyping) return;
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        setRfNodes((nodes) => nodes.map((node) => ({ ...node, selected: true })));
+        setRfEdges((edges) => edges.map((edge) => ({ ...edge, selected: true })));
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   /* DB → ReactFlow */
   useEffect(() => {
