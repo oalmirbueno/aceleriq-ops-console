@@ -70,10 +70,7 @@ export default function CanvasHorizontalScroller() {
   // Sempre visível — é o "carrossel" das etapas ACELERA
 
   return (
-    <div
-      className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 pointer-events-auto"
-      style={{ width: "min(70%, 640px)" }}
-    >
+    <div className="w-full pointer-events-auto">
       <div
         ref={trackRef}
         onPointerDown={onPointerDown}

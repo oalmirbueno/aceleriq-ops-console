@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
-  ReactFlow, ReactFlowProvider, Background, MiniMap,
+  ReactFlow, ReactFlowProvider, Background, MiniMap, Panel,
   applyNodeChanges, applyEdgeChanges,
   type Node, type Edge, type NodeChange, type EdgeChange, type Connection,
   type ReactFlowInstance, type Viewport, SelectionMode,
@@ -1051,7 +1051,9 @@ function CanvasStudioInner({
                   style={{ width: 260, height: 170 }}
                 />
               )}
-              <CanvasHorizontalScroller />
+              <Panel position="bottom-center" className="!m-0 mb-2 w-[min(70%,640px)]">
+                <CanvasHorizontalScroller />
+              </Panel>
               {/* Toggles cluster — sobreposto, canto inferior direito */}
               <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-md border border-border bg-card/95 backdrop-blur-sm shadow-md p-0.5">
                 <button
