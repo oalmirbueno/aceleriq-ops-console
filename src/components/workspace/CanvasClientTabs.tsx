@@ -48,12 +48,16 @@ export default function CanvasClientTabs({
   onRenameClient,
   onChangeLogo,
   onMoveToStart,
+  onReorder,
   showAllTab = true,
 }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   useEffect(() => {
     if (editingId && inputRef.current) {
