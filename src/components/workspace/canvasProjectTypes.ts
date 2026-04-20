@@ -192,6 +192,21 @@ export function readKindFromData(data: Record<string, unknown> | null | undefine
   return null;
 }
 
+export function resolveProjectNodeKind(input: {
+  nodeType?: string | null;
+  data?: Record<string, unknown> | null;
+}): ProjectNodeKind | null {
+  const fromData = readKindFromData(input.data);
+  if (fromData) return fromData;
+
+  const fromNodeType = input.nodeType;
+  if (!fromNodeType) return null;
+
+  return PROJECT_TYPES.some((projectType) => projectType.kind === fromNodeType)
+    ? (fromNodeType as ProjectNodeKind)
+    : null;
+}
+
 /* ─── Checklist templates por tipo de projeto ───
  * Cada item vira um ChecklistItem padrão quando o node é criado.
  * Pode ser editado/removido livremente depois.

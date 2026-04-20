@@ -21,7 +21,7 @@ import MetricaNodeDrawer from "./MetricaNodeDrawer";
 import KickoffNodeDrawer from "./KickoffNodeDrawer";
 import { useNodeQuickActions } from "@/hooks/useNodeQuickActions";
 import { hasBlueprint } from "./nodeBlueprints";
-import type { ProjectNodeKind } from "./canvasProjectTypes";
+import { resolveProjectNodeKind, type ProjectNodeKind } from "./canvasProjectTypes";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 
 export type { ClientFolderOption };
@@ -74,12 +74,19 @@ export default function ProjectNodeDrawer(props: Props) {
   const { node } = props;
   if (!node) return null;
 
-  const kind = node.node_type as ProjectNodeKind;
+  const kind = resolveProjectNodeKind({
+    nodeType: node.node_type,
+    data: node.data,
+  }) as ProjectNodeKind | null;
 
   // Resolve clientId from the parent client folder, if available
   const parentFolder = props.clientFolders?.find((c) => c.id === node.parent_node_id);
   const clientId = parentFolder?.linkedClientId ?? null;
   const clientName = parentFolder?.name ?? "Cliente";
+
+  if (!kind) {
+    return <LegacyProjectNodeDrawer {...props} />;
+  }
 
   // Acessos: drawer 100% custom (cofre criptografado)
   if (kind === "acessos" && clientId) {
