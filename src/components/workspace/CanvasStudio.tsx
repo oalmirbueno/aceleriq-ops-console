@@ -1235,20 +1235,17 @@ export default function CanvasStudio(props: Props) {
 interface CanvasViewOptionsProps {
   showLanes: boolean;     onToggleLanes: () => void;
   showGrid: boolean;      onToggleGrid: () => void;
-  showControls: boolean;  onToggleControls: () => void;
   showMiniMap: boolean;   onToggleMiniMap: () => void;
 }
 
 function CanvasViewOptions({
   showLanes, onToggleLanes,
   showGrid, onToggleGrid,
-  showControls, onToggleControls,
   showMiniMap, onToggleMiniMap,
 }: CanvasViewOptionsProps) {
   const items = [
     { key: "lanes",    label: "Lanes do A.C.E.L.E.R.A", desc: "Faixas verticais por estágio", on: showLanes,    toggle: onToggleLanes },
     { key: "grid",     label: "Grade do fundo",         desc: "Pontilhado de referência",      on: showGrid,     toggle: onToggleGrid },
-    { key: "controls", label: "Controles de zoom",      desc: "Botões zoom in / out / fit",    on: showControls, toggle: onToggleControls },
     { key: "minimap",  label: "Minimapa",               desc: "Visão geral no canto",          on: showMiniMap,  toggle: onToggleMiniMap },
   ];
   const onCount = items.filter((i) => i.on).length;
