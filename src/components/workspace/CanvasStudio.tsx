@@ -300,6 +300,8 @@ function CanvasStudioInner({
     stage: AceleraStageKey,
     opts: { sourceId?: string | null; dir?: "right" | "bottom" | null } = {},
   ) => {
+    // Must have a client folder selected
+    if (!ensureActiveClient()) return;
     const meta = getProjectTypeMeta(kind);
     if (!meta) return;
     const dbType = (() => {
