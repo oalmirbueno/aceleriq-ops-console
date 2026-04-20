@@ -166,6 +166,7 @@ function WorkspaceTabCanvasInner({ workspaceId, clientId, clientName, onTimeline
       .from("canvas_nodes")
       .insert({
         workspace_id: workspaceId,
+        client_id: clientId,
         node_type: input.node_type,
         title: input.title,
         status: input.status,
@@ -206,12 +207,12 @@ function WorkspaceTabCanvasInner({ workspaceId, clientId, clientName, onTimeline
 
     const inserts: Array<Record<string, unknown>> = [];
     if (!hasClient) inserts.push({
-      workspace_id: workspaceId, node_type: "client", title: clientName,
+      workspace_id: workspaceId, client_id: clientId, node_type: "client", title: clientName,
       status: "active", description: "Cliente raiz do workspace",
       pos_x: 100, pos_y: 100,
     });
     if (!hasDossier) inserts.push({
-      workspace_id: workspaceId, node_type: "dossier", title: "Dossiê",
+      workspace_id: workspaceId, client_id: clientId, node_type: "dossier", title: "Dossiê",
       status: "active", description: "Leitura operacional consolidada",
       pos_x: 100, pos_y: 280,
     });
