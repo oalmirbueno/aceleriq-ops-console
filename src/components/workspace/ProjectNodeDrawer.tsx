@@ -13,6 +13,7 @@
 import LegacyProjectNodeDrawer, { type ClientFolderOption } from "./LegacyProjectNodeDrawer";
 import BriefingNodeDrawer from "./BriefingNodeDrawer";
 import SpecializedNodeDrawer from "./SpecializedNodeDrawer";
+import AccessVaultDrawer from "./AccessVaultDrawer";
 import { hasBlueprint } from "./nodeBlueprints";
 import type { ProjectNodeKind } from "./canvasProjectTypes";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
@@ -40,6 +41,21 @@ export default function ProjectNodeDrawer(props: Props) {
   const parentFolder = props.clientFolders?.find((c) => c.id === node.parent_node_id);
   const clientId = parentFolder?.linkedClientId ?? null;
   const clientName = parentFolder?.name ?? "Cliente";
+
+  // Acessos: drawer 100% custom (cofre criptografado)
+  if (kind === "acessos" && clientId) {
+    return (
+      <AccessVaultDrawer
+        node={node}
+        open={props.open}
+        onOpenChange={props.onOpenChange}
+        workspaceId={props.workspaceId}
+        clientId={clientId}
+        clientName={clientName}
+        onDelete={props.onDelete}
+      />
+    );
+  }
 
   // Briefing tem extraSlot com BriefingConsolidatedView
   if (kind === "briefing" && clientId) {
