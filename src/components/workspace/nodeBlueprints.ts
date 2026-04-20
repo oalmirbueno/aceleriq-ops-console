@@ -898,6 +898,7 @@ const KICKOFF: NodeBlueprint = {
  */
 export const NODE_BLUEPRINTS: NodeBlueprint[] = [
   BRIEFING,
+  IDEIA,
   DIAGNOSTICO, // shares kind 'documento' — registry resolve por ordem
   OBJETIVO,
   DOCUMENTO,
