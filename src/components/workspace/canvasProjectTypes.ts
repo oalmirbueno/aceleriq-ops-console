@@ -66,6 +66,10 @@ export type ProjectNodeKind =
   | "before_after" | "case" | "video" | "imagem"
   | "contato" | "objetivo" | "lancamento";
 
+export type NodeFamily =
+  | "entry" | "structure" | "plan" | "build"
+  | "tech" | "content" | "launch" | "growth" | "proof";
+
 export interface ProjectNodeTypeMeta {
   kind: ProjectNodeKind;
   label: string;
@@ -73,6 +77,7 @@ export interface ProjectNodeTypeMeta {
   icon: LucideIcon;
   color: string; // border + text accent
   bg: string;    // soft background
+  family?: NodeFamily;
   defaultStage: AceleraStageKey;
   /** Sections rendered in the rich drawer */
   sections: Array<"overview" | "links" | "copy" | "checklist" | "attachments" | "notes" | "metrics">;
@@ -123,6 +128,35 @@ export const PROJECT_TYPES: ProjectNodeTypeMeta[] = [
 export function getProjectTypeMeta(kind: string): ProjectNodeTypeMeta | null {
   return PROJECT_TYPES.find((p) => p.kind === kind) ?? null;
 }
+
+/* ─── Family mapping ─── */
+const KIND_TO_FAMILY: Record<ProjectNodeKind, NodeFamily> = {
+  briefing: "entry", reuniao: "entry", ideia: "entry", objetivo: "entry", acessos: "entry",
+  documento: "structure", checklist: "structure", contato: "structure",
+  funil: "plan",
+  landing_page: "build", site: "build", asset: "build",
+  automacao: "tech", ia: "tech", integracao: "tech",
+  conteudo: "content", video: "content", imagem: "content",
+  lancamento: "launch", trafego: "launch", email_mkt: "launch", social: "launch",
+  crm: "growth", metrica: "growth",
+  before_after: "proof", case: "proof",
+};
+
+export function getNodeFamily(kind: string): NodeFamily {
+  return KIND_TO_FAMILY[kind as ProjectNodeKind] ?? "structure";
+}
+
+export const NODE_FAMILY_LABELS: Record<NodeFamily, string> = {
+  entry: "Descoberta",
+  structure: "Estrutura",
+  plan: "Plano",
+  build: "Construção",
+  tech: "Tecnologia",
+  content: "Conteúdo",
+  launch: "Lançamento",
+  growth: "Crescimento",
+  proof: "Prova",
+};
 
 /** Group catalog into bands for the palette */
 export const PROJECT_TYPE_GROUPS: Array<{ stage: AceleraStageKey; types: ProjectNodeKind[] }> = [
