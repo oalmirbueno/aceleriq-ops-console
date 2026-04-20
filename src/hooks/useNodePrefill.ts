@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { NodeBlueprint } from "../components/workspace/nodeBlueprints";
+import { expandUniversalSources, type NodeBlueprint } from "../components/workspace/nodeBlueprints";
 import type {
   NodePrefillPayload, PrefillFieldValue, MethodChecklistState,
 } from "../components/workspace/nodePrefillTypes";
@@ -47,7 +47,8 @@ export function useNodePrefill({
                 id: f.id, label: f.label, type: f.type, hint: f.hint, decisionOnly: f.decisionOnly,
               })),
             })),
-            sources: blueprint.sources,
+            // Auto-contexto UNIVERSAL: une fontes do blueprint + Dossiê/Tasks/Métricas/Assets/Timeline.
+            sources: expandUniversalSources(blueprint.sources),
             prefillPrompt: blueprint.prefillPrompt,
           },
           force, cacheOnly,
