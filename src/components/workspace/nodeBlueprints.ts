@@ -29,7 +29,8 @@ export type PrefillSource =
   | "fronts"     // fronts de atuação do cliente
   | "client"     // dados estruturados do cliente (segmento, plano, links)
   | "assets"     // anexos do cliente / da workspace
-  | "siblings";  // outros canvas_nodes da mesma esteira já preenchidos
+  | "siblings"   // outros canvas_nodes da mesma esteira já preenchidos
+  | "diagnostico_docs"; // documentos do Contexto que sustentam diagnóstico (diagnostico/dor/decisao)
 
 export type SectionFieldType =
   | "text"        // input curto
