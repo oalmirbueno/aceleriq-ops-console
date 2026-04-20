@@ -27,7 +27,7 @@ const corsHeaders = {
 const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const AI_MODEL = "google/gemini-3-flash-preview";
 
-type FieldType = "text" | "textarea" | "list" | "kv" | "checklist";
+type FieldType = "text" | "textarea" | "list" | "kv" | "checklist" | "attachments";
 type PrefillSource = "briefing" | "context" | "metrics" | "fronts" | "client" | "assets" | "siblings";
 
 interface BlueprintField { id: string; label: string; type: FieldType; hint?: string; decisionOnly?: boolean }
@@ -186,7 +186,9 @@ serve(async (req) => {
     const sectionsSchema: Record<string, unknown> = {};
     blueprint.sections.forEach((s) => {
       const fieldsSchema: Record<string, unknown> = {};
-      s.fields.forEach((f) => {
+      // attachments fields are user-managed — IA não preenche, então removemos do schema
+      const aiFields = s.fields.filter((f) => f.type !== "attachments");
+      aiFields.forEach((f) => {
         const valueSchema: Record<string, unknown> = (() => {
           if (f.type === "text" || f.type === "textarea") return { type: "string" };
           if (f.type === "list") return { type: "array", items: { type: "string" } };
@@ -212,16 +214,22 @@ serve(async (req) => {
           required: ["value", "origin"],
         };
       });
+      // Sections that are 100% attachments-only — pular completamente do schema
+      if (aiFields.length === 0) return;
       sectionsSchema[s.id] = {
         type: "object",
         description: `${s.title}${s.description ? ` — ${s.description}` : ""}`,
         properties: {
-          fields: { type: "object", properties: fieldsSchema, required: s.fields.map((f) => f.id) },
+          fields: { type: "object", properties: fieldsSchema, required: aiFields.map((f) => f.id) },
           ai_notes: { type: "string", description: "Observações da IA sobre essa seção (opcional)" },
         },
         required: ["fields"],
       };
     });
+
+    const requiredSections = blueprint.sections
+      .filter((s) => s.fields.some((f) => f.type !== "attachments"))
+      .map((s) => s.id);
 
     const toolSchema = {
       type: "function",
@@ -230,7 +238,7 @@ serve(async (req) => {
         description: `Preenche o rascunho do node tipo '${blueprint.kind}' com base no contexto do cliente.`,
         parameters: {
           type: "object",
-          properties: { sections: { type: "object", properties: sectionsSchema, required: blueprint.sections.map((s) => s.id) } },
+          properties: { sections: { type: "object", properties: sectionsSchema, required: requiredSections } },
           required: ["sections"],
         },
       },

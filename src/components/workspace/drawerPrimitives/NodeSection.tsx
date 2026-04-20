@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, X, Bot, User, Pencil, AlertCircle, Sparkles } from "lucide-react";
+import { Plus, X, Bot, User, Pencil, AlertCircle, Sparkles, Paperclip } from "lucide-react";
+import AttachmentUploader, { type AttachmentItem } from "../AttachmentUploader";
 import type { NodeSection as NodeSectionType, SectionField } from "../nodeBlueprints";
 import type { PrefillSectionContent, PrefillFieldValue, FieldOrigin } from "../nodePrefillTypes";
 
@@ -21,6 +22,9 @@ interface Props {
   content: PrefillSectionContent | undefined;
   onFieldChange: (fieldId: string, next: PrefillFieldValue) => void;
   disabled?: boolean;
+  /** Necessário para uploads (bucket scope). Quando ausente, o campo de anexo fica desabilitado. */
+  workspaceId?: string;
+  nodeId?: string;
 }
 
 const ORIGIN_META: Record<FieldOrigin, { label: string; cls: string; Icon: typeof Bot }> = {
@@ -31,7 +35,7 @@ const ORIGIN_META: Record<FieldOrigin, { label: string; cls: string; Icon: typeo
   fallback: { label: "Manual",    cls: "border-border text-muted-foreground bg-muted/10",         Icon: Sparkles },
 };
 
-export default function NodeSection({ section, content, onFieldChange, disabled }: Props) {
+export default function NodeSection({ section, content, onFieldChange, disabled, workspaceId, nodeId }: Props) {
   return (
     <div className="rounded-lg border border-border bg-background/40 p-3.5 space-y-3">
       <div>
@@ -48,12 +52,18 @@ export default function NodeSection({ section, content, onFieldChange, disabled 
             value={content?.fields[field.id]}
             onChange={(next) => onFieldChange(field.id, next)}
             disabled={disabled}
+            workspaceId={workspaceId}
+            nodeId={nodeId}
           />
         ))}
       </div>
       {content?.ai_notes && (
-        <div className="text-[10px] text-muted-foreground italic border-t border-border/40 pt-2">
-          <span className="font-semibold not-italic">Nota da IA:</span> {content.ai_notes}
+        <div className="rounded-md border border-primary/20 bg-primary/5 px-2.5 py-2 mt-1 flex gap-2">
+          <Sparkles className="h-3 w-3 text-primary shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <div className="text-[10px] font-semibold text-primary uppercase tracking-wide">Sugestão da IA</div>
+            <p className="text-[11px] text-foreground/80 leading-snug">{content.ai_notes}</p>
+          </div>
         </div>
       )}
     </div>
@@ -61,12 +71,14 @@ export default function NodeSection({ section, content, onFieldChange, disabled 
 }
 
 function FieldEditor({
-  field, value, onChange, disabled,
+  field, value, onChange, disabled, workspaceId, nodeId,
 }: {
   field: SectionField;
   value: PrefillFieldValue | undefined;
   onChange: (next: PrefillFieldValue) => void;
   disabled?: boolean;
+  workspaceId?: string;
+  nodeId?: string;
 }) {
   const origin: FieldOrigin = value?.origin ?? "empty";
   const meta = ORIGIN_META[origin];
