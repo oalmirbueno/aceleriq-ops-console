@@ -25,14 +25,14 @@ export interface AceleraStageMeta {
 }
 
 export const ACELERA_STAGES: AceleraStageMeta[] = [
-  { key: "entrada",        letter: "A", label: "Abertura Estratégica",         short: "Entrada",      color: "text-amber-400 border-amber-500/40",   bg: "bg-amber-500/5",   badge: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
-  { key: "diagnostico",    letter: "C", label: "Diagnóstico Estrutural",       short: "Diagnóstico",  color: "text-sky-400 border-sky-500/40",       bg: "bg-sky-500/5",     badge: "bg-sky-500/15 text-sky-300 border-sky-500/30" },
-  { key: "estrutura_base", letter: "E", label: "Arquitetura Base",             short: "Estrutura",    color: "text-cyan-400 border-cyan-500/40",     bg: "bg-cyan-500/5",    badge: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30" },
-  { key: "planejamento",   letter: "L", label: "Plano Diretor",                short: "Planejamento", color: "text-indigo-400 border-indigo-500/40", bg: "bg-indigo-500/5",  badge: "bg-indigo-500/15 text-indigo-300 border-indigo-500/30" },
-  { key: "producao",       letter: "E", label: "Implantação e Construção",     short: "Produção",     color: "text-violet-400 border-violet-500/40", bg: "bg-violet-500/5",  badge: "bg-violet-500/15 text-violet-300 border-violet-500/30" },
-  { key: "ativacao",       letter: "R", label: "Ativação Assistida",           short: "Ativação",     color: "text-pink-400 border-pink-500/40",     bg: "bg-pink-500/5",    badge: "bg-pink-500/15 text-pink-300 border-pink-500/30" },
-  { key: "otimizacao",     letter: "A", label: "Otimização por Evidência",     short: "Otimização",   color: "text-orange-400 border-orange-500/40", bg: "bg-orange-500/5",  badge: "bg-orange-500/15 text-orange-300 border-orange-500/30" },
-  { key: "expansao",       letter: "+", label: "Escala e Alavancagem",         short: "Expansão",     color: "text-primary border-primary/40",       bg: "bg-primary/5",     badge: "bg-primary/15 text-primary border-primary/30" },
+  { key: "entrada",        letter: "A", label: "Abertura Estratégica",         short: "Entrada",      color: "text-foreground/70 border-border",  bg: "bg-muted/5",  badge: "bg-muted/10 text-muted-foreground border-border" },
+  { key: "diagnostico",    letter: "C", label: "Diagnóstico Estrutural",       short: "Diagnóstico",  color: "text-foreground/70 border-border",  bg: "bg-muted/5",  badge: "bg-muted/10 text-muted-foreground border-border" },
+  { key: "estrutura_base", letter: "E", label: "Arquitetura Base",             short: "Estrutura",    color: "text-foreground/70 border-border",  bg: "bg-muted/5",  badge: "bg-muted/10 text-muted-foreground border-border" },
+  { key: "planejamento",   letter: "L", label: "Plano Diretor",                short: "Planejamento", color: "text-foreground/70 border-border",  bg: "bg-muted/5",  badge: "bg-muted/10 text-muted-foreground border-border" },
+  { key: "producao",       letter: "E", label: "Implantação e Construção",     short: "Produção",     color: "text-foreground/70 border-border",  bg: "bg-muted/5",  badge: "bg-muted/10 text-muted-foreground border-border" },
+  { key: "ativacao",       letter: "R", label: "Ativação Assistida",           short: "Ativação",     color: "text-foreground/70 border-border",  bg: "bg-muted/5",  badge: "bg-muted/10 text-muted-foreground border-border" },
+  { key: "otimizacao",     letter: "A", label: "Otimização por Evidência",     short: "Otimização",   color: "text-foreground/70 border-border",  bg: "bg-muted/5",  badge: "bg-muted/10 text-muted-foreground border-border" },
+  { key: "expansao",       letter: "+", label: "Escala e Alavancagem",         short: "Expansão",     color: "text-foreground/70 border-border",  bg: "bg-muted/5",  badge: "bg-muted/10 text-muted-foreground border-border" },
 ];
 
 export const STAGE_COLUMN_WIDTH = 320;
