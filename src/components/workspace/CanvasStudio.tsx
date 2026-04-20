@@ -845,6 +845,32 @@ function CanvasStudioInner({
         workspaceId={workspaceId}
         onUpdated={fetchData}
         onDelete={handleDeleteNode}
+        clientFolders={clientGroups.map((c) => ({
+          id: c.id,
+          name: c.title,
+          linkedClientId: c.linked_entity_id,
+          logoUrl: c.linked_entity_id ? clientLogos[c.linked_entity_id] ?? null : null,
+        }))}
+        onMoveToFolder={async (nodeId, targetFolderId) => {
+          // Optimistic local update
+          setDbNodes((prev) =>
+            prev.map((n) => (n.id === nodeId ? { ...n, parent_node_id: targetFolderId } : n)),
+          );
+          setSelectedNode((cur) => (cur && cur.id === nodeId ? { ...cur, parent_node_id: targetFolderId } : cur));
+          const { error } = await supabase
+            .from("canvas_nodes")
+            .update({ parent_node_id: targetFolderId, updated_at: new Date().toISOString() })
+            .eq("id", nodeId);
+          if (error) {
+            toast({ title: "Erro ao mover", description: error.message, variant: "destructive" });
+            await fetchData();
+            return;
+          }
+          // Switch active tab to target folder so user sees the node land there
+          if (targetFolderId) setActiveClientId(targetFolderId);
+          const targetName = clientGroups.find((c) => c.id === targetFolderId)?.title ?? "Sem pasta";
+          toast({ title: "Node movido", description: `→ ${targetName}` });
+        }}
       />
     </div>
   );
