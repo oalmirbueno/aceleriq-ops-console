@@ -1200,6 +1200,34 @@ const IDEIA: NodeBlueprint = {
       ],
     },
     {
+      id: "experiment_design", title: "Desenho experimental (rigor)",
+      description:
+        "Defina parâmetros estatísticos antes de rodar — evita decisões em cima de ruído. " +
+        "MDE = Minimum Detectable Effect (menor lift que vale a pena detectar).",
+      fields: [
+        { id: "primary_metric",  label: "Métrica primária (OEC)",       type: "text",     hint: "Uma só. Ex: taxa de conversão checkout" },
+        { id: "guardrails",      label: "Métricas guardrail",           type: "list",     hint: "Não pioram: bounce, churn, ticket médio, NPS..." },
+        { id: "baseline",        label: "Baseline atual",               type: "text",     hint: "Ex: 3,2% conversão (média 30d)" },
+        { id: "mde",             label: "MDE — efeito mínimo detectável", type: "text",   hint: "Ex: lift relativo de 10% (3,2% → 3,52%)" },
+        { id: "alpha",           label: "α (significância)",            type: "text",     hint: "Padrão 0,05 — risco de falso positivo" },
+        { id: "power",           label: "Poder estatístico (1-β)",      type: "text",     hint: "Padrão 0,80 — chance de detectar efeito real" },
+        { id: "sample_size",     label: "Sample size por braço",        type: "text",     hint: "Calcule com Evan Miller / statsig calculator" },
+        { id: "duration_calc",   label: "Duração estimada",             type: "text",     hint: "sample_size × braços ÷ tráfego diário" },
+        { id: "split",           label: "Split de tráfego",             type: "text",     hint: "Ex: 50/50, 90/10 (canary)" },
+        { id: "stop_rules",      label: "Regras de parada",             type: "list",     hint: "Parar se guardrail cair X%, p<0,01 antes do prazo, etc." },
+      ],
+    },
+    {
+      id: "analysis_plan", title: "Plano de análise (pré-registrado)",
+      description: "Decidido ANTES da coleta — evita p-hacking e cherry picking.",
+      fields: [
+        { id: "test_method",     label: "Teste estatístico",            type: "text",     hint: "Z-test proporções / t-test / Mann-Whitney / Bayesian" },
+        { id: "segments",        label: "Segmentos pré-definidos",      type: "list",     hint: "Mobile/desktop, novo/recorrente, fonte de tráfego" },
+        { id: "exclusions",      label: "Critérios de exclusão",        type: "list",     hint: "Bots, sessões <5s, equipe interna, IPs internos" },
+        { id: "success_criteria", label: "Critério de sucesso",         type: "textarea", decisionOnly: true, hint: "Lift ≥ MDE com p<0,05 E nenhum guardrail piora >2%" },
+      ],
+    },
+    {
       id: "risks", title: "Riscos e suposições",
       fields: [
         { id: "assumptions", label: "Suposições críticas",   type: "list", hint: "Se falsa, a ideia cai" },
