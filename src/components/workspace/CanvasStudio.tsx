@@ -124,6 +124,36 @@ function CanvasStudioInner({
     [dbNodes],
   );
 
+  /* Auto-select first client when data loads */
+  useEffect(() => {
+    if (loading) return;
+    if (activeClientId === null && clientGroups.length > 0) {
+      setActiveClientId(clientGroups[0].id);
+    }
+    // If active client was removed, fall back
+    if (activeClientId && !clientGroups.find((c) => c.id === activeClientId)) {
+      setActiveClientId(clientGroups[0]?.id ?? null);
+    }
+  }, [loading, clientGroups, activeClientId]);
+
+  /* Tabs metadata */
+  const clientTabs: CanvasClientTab[] = useMemo(
+    () => clientGroups.map((c) => ({
+      id: c.id,
+      title: c.title,
+      childCount: projectNodes.filter((n) => n.parent_node_id === c.id).length,
+      linkedClientId: c.linked_entity_id,
+    })),
+    [clientGroups, projectNodes],
+  );
+
+  /* Project nodes visible based on active tab */
+  const scopedProjectNodes = useMemo(() => {
+    if (activeClientId === null) return projectNodes;
+    return projectNodes.filter((n) => n.parent_node_id === activeClientId);
+  }, [projectNodes, activeClientId]);
+
+
   /* Quick connect helper */
   const quickConnectFromNode = (sourceId: string, dir: "right" | "bottom") => {
     setQuickAddState({ open: true, sourceId, dir });
