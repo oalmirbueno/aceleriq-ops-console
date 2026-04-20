@@ -177,6 +177,8 @@ export default function SpecializedNodeDrawer({
                   content={prefill?.sections[section.id]}
                   onFieldChange={(fieldId, next) => updateField(section.id, fieldId, next)}
                   disabled={isGenerating}
+                  workspaceId={workspaceId}
+                  nodeId={node.id}
                 />
               ))}
             </div>
