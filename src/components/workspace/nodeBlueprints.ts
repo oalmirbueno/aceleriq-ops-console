@@ -2062,6 +2062,9 @@ export const NODE_BLUEPRINTS: NodeBlueprint[] = [
   AUTOMACAO,
   IA_AGENT,
   CRM_PIPELINE,
+  CASE_PASTA,
+  BEFORE_AFTER,
+  PLAYBOOK, // shares kind 'documento' — discriminado por título
 ];
 
 /**
@@ -2077,6 +2080,9 @@ export function getNodeBlueprint(
   if (kind === "documento" && discriminator?.title) {
     const t = discriminator.title.toLowerCase();
     if (t.includes("diagn")) return DIAGNOSTICO;
+    if (t.includes("playbook") || t.includes("play book") || t.includes("manual de operação") || t.includes("manual de operacao")) {
+      return PLAYBOOK;
+    }
   }
   if (kind === "reuniao" && discriminator?.title) {
     const t = discriminator.title.toLowerCase();
