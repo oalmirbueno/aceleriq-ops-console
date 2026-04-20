@@ -10,13 +10,13 @@
  * Cada tipo pode ter um wrapper específico que adiciona seções customizadas
  * extras (ex: BriefingNodeDrawer mostra também o BriefingConsolidatedView).
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trash2, X } from "lucide-react";
+import { KeyRound, Trash2, X } from "lucide-react";
 import { useNodePrefill } from "@/hooks/useNodePrefill";
 import { getNodeBlueprint, type NodeBlueprint, type QuickActionId } from "./nodeBlueprints";
 import { getProjectTypeMeta, getStageMeta, type ProjectNodeKind } from "./canvasProjectTypes";
@@ -24,6 +24,7 @@ import NodeMethodChecklist from "./drawerPrimitives/NodeMethodChecklist";
 import NodeSection from "./drawerPrimitives/NodeSection";
 import NodeQuickActions from "./drawerPrimitives/NodeQuickActions";
 import NodePrefillStatus from "./drawerPrimitives/NodePrefillStatus";
+import AccessVaultDrawer from "./AccessVaultDrawer";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 
 interface Props {
@@ -32,6 +33,8 @@ interface Props {
   onOpenChange: (v: boolean) => void;
   workspaceId: string;
   clientId: string;
+  /** Nome do cliente — usado no header do AccessVaultDrawer quando aberto por cima. */
+  clientName?: string;
   /** Override do blueprint (caso o caller queira forçar um específico, ex: kickoff vs reuniao) */
   blueprintOverride?: NodeBlueprint;
   /** Map de handlers para as ações rápidas. Ações sem handler ficam desabilitadas. */
@@ -42,9 +45,10 @@ interface Props {
 }
 
 export default function SpecializedNodeDrawer({
-  node, open, onOpenChange, workspaceId, clientId,
+  node, open, onOpenChange, workspaceId, clientId, clientName,
   blueprintOverride, quickActionHandlers = {}, onDelete, extraSlot,
 }: Props) {
+  const [vaultOpen, setVaultOpen] = useState(false);
   const kind = (node.node_type as ProjectNodeKind) ?? "documento";
   const typeMeta = getProjectTypeMeta(kind);
   const stage = (node.data as Record<string, unknown> | null)?.stage as string | undefined;
