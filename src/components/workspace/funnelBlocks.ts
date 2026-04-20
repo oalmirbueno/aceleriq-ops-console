@@ -126,6 +126,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   {
     kind: "page_landing", family: "page", label: "Landing page", shortLabel: "Landing",
     icon: LayoutDashboard, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
+    hasOffer: true,
     metricKeys: ["visits","conversion_rate","leads"],
     configFields: [
       { id: "url", label: "URL", type: "url", placeholder: "https://..." },
@@ -136,6 +137,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   {
     kind: "page_vsl", family: "page", label: "Página de VSL", shortLabel: "VSL",
     icon: PlayCircle, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
+    hasOffer: true,
     metricKeys: ["visits","watch_rate","cta_click_rate"],
     configFields: [
       { id: "url", label: "URL", type: "url" },
@@ -156,6 +158,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   {
     kind: "page_checkout", family: "page", label: "Checkout", shortLabel: "Checkout",
     icon: ShoppingCart, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
+    hasOffer: true,
     metricKeys: ["visits","conversion_rate","sales","ticket_avg"],
     configFields: [
       { id: "url", label: "URL", type: "url" },
@@ -167,6 +170,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   {
     kind: "page_upsell", family: "page", label: "Upsell", shortLabel: "Upsell",
     icon: ArrowUpRight, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
+    hasOffer: true,
     metricKeys: ["visits","take_rate","extra_revenue"],
     configFields: [
       { id: "url", label: "URL", type: "url" },
@@ -177,6 +181,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   {
     kind: "page_downsell", family: "page", label: "Downsell", shortLabel: "Downsell",
     icon: ArrowDownRight, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
+    hasOffer: true,
     metricKeys: ["visits","take_rate"],
     configFields: [
       { id: "url", label: "URL", type: "url" },
