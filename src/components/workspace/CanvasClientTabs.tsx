@@ -225,16 +225,55 @@ export default function CanvasClientTabs({
                 </div>
               );
 
+              // Build drag handlers shared by both wrappers
+              const dragProps = draggable
+                ? {
+                    draggable: true,
+                    onDragStart: (e: React.DragEvent<HTMLDivElement>) => {
+                      setDragId(t.id);
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", t.id);
+                    },
+                    onDragEnd: () => {
+                      setDragId(null);
+                      setDragOverId(null);
+                    },
+                    onDragOver: (e: React.DragEvent<HTMLDivElement>) => {
+                      if (!dragId || dragId === t.id) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (dragOverId !== t.id) setDragOverId(t.id);
+                    },
+                    onDragLeave: () => {
+                      if (dragOverId === t.id) setDragOverId(null);
+                    },
+                    onDrop: async (e: React.DragEvent<HTMLDivElement>) => {
+                      e.preventDefault();
+                      const sourceId = dragId;
+                      setDragId(null);
+                      setDragOverId(null);
+                      if (!sourceId || sourceId === t.id || !onReorder) return;
+                      const ids = tabs.map((x) => x.id);
+                      const from = ids.indexOf(sourceId);
+                      const to = ids.indexOf(t.id);
+                      if (from < 0 || to < 0 || from === to) return;
+                      const [moved] = ids.splice(from, 1);
+                      ids.splice(to, 0, moved);
+                      await onReorder(ids);
+                    },
+                  }
+                : {};
+
               // Wrap in context menu when any contextual action is available
               const hasMenu = !!(onRenameClient || onChangeLogo || onMoveToStart || onRemoveClient);
               if (!hasMenu || isEditing) {
-                return <div key={t.id}>{tabContent}</div>;
+                return <div key={t.id} {...dragProps}>{tabContent}</div>;
               }
 
               return (
                 <ContextMenu key={t.id}>
                   <ContextMenuTrigger asChild>
-                    <div onContextMenu={() => onSelect(t.id)}>{tabContent}</div>
+                    <div {...dragProps} onContextMenu={() => onSelect(t.id)}>{tabContent}</div>
                   </ContextMenuTrigger>
                   <ContextMenuContent className="w-52">
                     {onRenameClient && (
