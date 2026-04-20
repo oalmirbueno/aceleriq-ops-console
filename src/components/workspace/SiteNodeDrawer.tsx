@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Globe, Sparkles, Search } from "lucide-react";
 import { useCanvasNodeMetadata } from "@/hooks/useCanvasNodeMetadata";
+import { useNodeQuickActions } from "@/hooks/useNodeQuickActions";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 import type { NodePrefillPayload } from "./nodePrefillTypes";
 
@@ -25,8 +26,8 @@ interface Props {
   onOpenChange: (v: boolean) => void;
   workspaceId: string;
   clientId: string;
+  clientName?: string;
   onDelete?: (id: string) => Promise<void> | void;
-  onGenerateTasks?: () => void;
   onGoLive?: () => void;
 }
 
@@ -39,10 +40,13 @@ function getStringField(payload: NodePrefillPayload | null, sectionId: string, f
 }
 
 export default function SiteNodeDrawer({
-  node, open, onOpenChange, workspaceId, clientId, onDelete, onGenerateTasks, onGoLive,
+  node, open, onOpenChange, workspaceId, clientId, clientName, onDelete, onGoLive,
 }: Props) {
   const blueprint = getNodeBlueprint("site");
   const { prefill } = useCanvasNodeMetadata({ nodeId: node.id, open });
+  const { handlers: baseHandlers, dialogs } = useNodeQuickActions({
+    node, open, workspaceId, clientId, clientName,
+  });
 
   // URL do site — primeiro tenta o campo "domain" da seção launch, depois data.url
   const siteUrl = useMemo(() => {
@@ -67,7 +71,7 @@ export default function SiteNodeDrawer({
   if (!blueprint) return null;
 
   const handlers = {
-    ...(onGenerateTasks && { generate_tasks: onGenerateTasks }),
+    ...baseHandlers,
     ...(onGoLive && { go_live: onGoLive }),
   };
 
@@ -158,16 +162,19 @@ export default function SiteNodeDrawer({
   );
 
   return (
-    <SpecializedNodeDrawer
-      node={node}
-      open={open}
-      onOpenChange={onOpenChange}
-      workspaceId={workspaceId}
-      clientId={clientId}
-      blueprintOverride={blueprint}
-      quickActionHandlers={handlers}
-      onDelete={onDelete}
-      extraSlot={extraSlot}
-    />
+    <>
+      <SpecializedNodeDrawer
+        node={node}
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        clientId={clientId}
+        blueprintOverride={blueprint}
+        quickActionHandlers={handlers}
+        onDelete={onDelete}
+        extraSlot={extraSlot}
+      />
+      {dialogs}
+    </>
   );
 }
