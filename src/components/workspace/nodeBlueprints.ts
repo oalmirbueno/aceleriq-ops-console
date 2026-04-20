@@ -1731,6 +1731,353 @@ const IA_AGENT: NodeBlueprint = {
     "Modelo padrão sugerido: 'google/gemini-3-flash-preview' via Lovable AI Gateway, salvo se o contexto exigir voz/multimodal/custo específico.",
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// OTIMIZAÇÃO — blueprints especializados (compartilham kind, discriminados por título)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * EXPERIMENTO — kind 'documento' discriminado por título contendo
+ * "experimento", "teste a/b", "split test". Drawer rigoroso com hipótese,
+ * desenho estatístico (MDE/sample size/power), plano de análise pré-registrado,
+ * resultados observados e decisão final (ship / kill / iterate).
+ */
+const EXPERIMENTO: NodeBlueprint = {
+  kind: "documento",
+  purpose:
+    "Experimento estruturado (A/B, multivariado, holdout) — desenho estatístico antes da coleta, " +
+    "decisão por evidência, não por opinião.",
+  methodChecklist: [
+    { id: "hyp_clear",      label: "Hipótese 'Se X, então Y, porque Z' escrita",                 required: true  },
+    { id: "oec_defined",    label: "Métrica primária (OEC) e guardrails definidos",              required: true  },
+    { id: "power_calc",     label: "MDE + α + power → sample size calculados",                   required: true  },
+    { id: "preregistered",  label: "Plano de análise pré-registrado (antes de coletar)",         required: true  },
+    { id: "qa_setup",       label: "QA do tracking (eventos, randomização, SRM check)",          required: true  },
+    { id: "stop_rules",     label: "Regras de parada e exclusões documentadas",                  required: true  },
+    { id: "decision_made",  label: "Decisão final tomada: ship / kill / iterate",                required: true  },
+    { id: "learnings_log",  label: "Aprendizados registrados no playbook",                       required: false },
+  ],
+  sections: [
+    {
+      id: "context", title: "Contexto e hipótese",
+      description: "Por que esse experimento agora — e o que esperamos descobrir.",
+      fields: [
+        { id: "hypothesis", label: "Hipótese (Se X, então Y, porque Z)", type: "textarea", hint: "Mecanismo causal explícito" },
+        { id: "rationale",  label: "Por que agora",                       type: "textarea", hint: "Sinal do dado, fala de cliente, oportunidade competitiva" },
+        { id: "scope",      label: "Escopo (página/fluxo/segmento)",      type: "text",     hint: "Ex: checkout mobile BR, novos usuários" },
+        { id: "owner",      label: "Owner do experimento",                type: "text",     decisionOnly: true },
+      ],
+    },
+    {
+      id: "design", title: "Desenho estatístico",
+      description:
+        "Defina TUDO antes de rodar. MDE = lift mínimo que importa pro negócio. " +
+        "Sample size: use Evan Miller, statsig, ou fórmula z-test 2-proporções.",
+      fields: [
+        { id: "primary_metric", label: "Métrica primária (OEC)",          type: "text",     hint: "Uma só. Ex: conversão checkout, ARPU 7d" },
+        { id: "metric_type",    label: "Tipo da métrica",                 type: "text",     hint: "Proporção / média contínua / contagem / razão" },
+        { id: "guardrails",     label: "Guardrails (não pioram)",         type: "list",     hint: "Bounce, latência, churn 30d, NPS, ticket médio" },
+        { id: "baseline",       label: "Baseline (média recente)",        type: "text",     hint: "Ex: 3,2% (média 30d, sem sazonalidade)" },
+        { id: "mde",            label: "MDE — efeito mínimo detectável",  type: "text",     hint: "Lift relativo. Ex: 10% (3,2% → 3,52%)" },
+        { id: "alpha",          label: "α (significância)",               type: "text",     hint: "Padrão 0,05 (95% confiança)" },
+        { id: "power",          label: "Poder (1-β)",                     type: "text",     hint: "Padrão 0,80 — chance de achar efeito real" },
+        { id: "sample_per_arm", label: "Sample size por braço",           type: "text",     hint: "Calcule com α, power, baseline, MDE" },
+        { id: "arms",           label: "Braços (controle + variantes)",   type: "list",     hint: "A: controle | B: copy nova | C: novo CTA" },
+        { id: "split",          label: "Split de tráfego",                type: "text",     hint: "50/50, 33/33/33, 90/10 (canary)" },
+        { id: "duration_calc",  label: "Duração estimada",                type: "text",     hint: "(sample × braços) ÷ tráfego diário, mín. 1 ciclo semanal" },
+        { id: "randomization",  label: "Unidade de randomização",         type: "text",     hint: "Visitor (cookie) / user_id / sessão" },
+      ],
+    },
+    {
+      id: "analysis_plan", title: "Plano de análise pré-registrado",
+      description: "Decidido ANTES da coleta — assina embaixo, sem mexer depois.",
+      fields: [
+        { id: "test_method",      label: "Teste estatístico",             type: "text",     hint: "Z-test 2-prop / Welch t-test / Mann-Whitney / CUPED / Bayesian" },
+        { id: "segments",         label: "Segmentos pré-definidos",       type: "list",     hint: "Mobile/desktop, novo/recorrente, pago/orgânico" },
+        { id: "exclusions",       label: "Exclusões",                     type: "list",     hint: "Bots, equipe, sessões <5s, IPs internos, fraudes" },
+        { id: "stop_rules",       label: "Regras de parada antecipada",   type: "list",     hint: "Guardrail cai >5%; SRM detectado; bug crítico" },
+        { id: "success_criteria", label: "Critério de sucesso",           type: "textarea", decisionOnly: true, hint: "Lift ≥ MDE com p<α E zero guardrail piora >2% E mín. 1 ciclo semanal" },
+      ],
+    },
+    {
+      id: "qa", title: "QA do setup",
+      description: "Antes de ligar pra 100% do tráfego — checagem de instrumentação.",
+      fields: [
+        { id: "tracking_check", label: "Tracking validado",              type: "checklist", hint: "Evento de exposição dispara; conversão atribui ao braço; sem dupla contagem" },
+        { id: "srm_check",      label: "SRM (Sample Ratio Mismatch)",    type: "text",     hint: "χ² do split observado vs esperado, p>0,01" },
+        { id: "aa_test",        label: "A/A test rodado (opcional)",      type: "text",     hint: "Se sim, p deveria ser uniforme (~5% falso-positivo)" },
+        { id: "feature_flag",   label: "Feature flag / experiment ID",    type: "text",     decisionOnly: true, hint: "GrowthBook, Statsig, LaunchDarkly, Optimizely..." },
+      ],
+    },
+    {
+      id: "results", title: "Resultados observados",
+      description: "Preencher só DEPOIS do teste — números reais.",
+      fields: [
+        { id: "actual_sample",   label: "Sample real coletado por braço", type: "text",     decisionOnly: true },
+        { id: "metric_results",  label: "Resultado da métrica primária",  type: "kv",       decisionOnly: true, hint: "controle→3,2% | variante→3,7% | lift→+15,6% | p→0,021" },
+        { id: "guardrail_results", label: "Guardrails observados",       type: "kv",       decisionOnly: true, hint: "bounce→+0,3% (ok) | latência→+12ms (ok)" },
+        { id: "segment_findings", label: "Heterogeneidade por segmento",  type: "list",     decisionOnly: true, hint: "Onde funcionou mais/menos" },
+        { id: "ci",              label: "Intervalo de confiança",         type: "text",     decisionOnly: true, hint: "Lift: +15,6% [+2,1%, +29,1%]" },
+      ],
+    },
+    {
+      id: "decision", title: "Decisão e aprendizados",
+      description: "Um experimento sem decisão e aprendizado é desperdício.",
+      fields: [
+        { id: "verdict",     label: "Decisão",          type: "text",     decisionOnly: true, hint: "ship / kill / iterate / inconclusivo (rodar mais)" },
+        { id: "rationale",   label: "Justificativa",    type: "textarea", decisionOnly: true },
+        { id: "rollout",     label: "Plano de rollout", type: "textarea", decisionOnly: true, hint: "Se ship: % gradual, monitoramento, rollback trigger" },
+        { id: "learnings",   label: "Aprendizados pro playbook", type: "list",  hint: "Generalize: o que esse teste ensina pra próximos?" },
+        { id: "next_tests",  label: "Próximos testes derivados", type: "list" },
+      ],
+    },
+    {
+      id: "links", title: "Links e anexos",
+      fields: [
+        { id: "calculator_url", label: "Calculadora de sample size",  type: "text",        decisionOnly: true, hint: "Print do Evan Miller / statsig" },
+        { id: "dashboard_url",  label: "Dashboard de monitoramento",  type: "text",        decisionOnly: true },
+        { id: "files",          label: "Print, planilha, doc",        type: "attachments" },
+      ],
+    },
+  ],
+  quickActions: [
+    { id: "generate_tasks",     label: "Gerar tasks de execução", primary: true },
+    { id: "create_snapshot",    label: "Snapshot de resultado" },
+    { id: "export_pdf",         label: "Exportar relatório" },
+    { id: "approve",            label: "Marcar decisão" },
+    { id: "regenerate_prefill", label: "Sugerir com IA" },
+  ],
+  sources: ["briefing","context","metrics","siblings"],
+  prefillPrompt:
+    "Você é um experimentation lead (Booking, Microsoft, Netflix-style). Rigor estatístico é inegociável. " +
+    "Hipótese: reescreva no formato 'Se X, então Y, porque Z' com mecanismo causal claro. " +
+    "Métrica primária: UMA só, alinhada ao OEC do negócio. Guardrails: 2-4 métricas que não podem piorar. " +
+    "Baseline: tire do dossiê/métricas reais do workspace; cite a fonte. Se não houver, marque empty. " +
+    "MDE: proponha um lift relativo defensável (5-20% típico) — explique no citation o trade-off custo×detecção. " +
+    "α=0,05, power=0,80 como padrão; ajuste só se houver razão. " +
+    "Sample size por braço: estime com fórmula 2-proporções e cite a aproximação. " +
+    "Duração: combine com tráfego diário do baseline; mín. 1 ciclo semanal pra cobrir sazonalidade. " +
+    "Plano de análise: escolha o teste pelo tipo da métrica (proporção→z-test; média→Welch; cauda longa→Mann-Whitney). " +
+    "Liste exclusões e regras de parada COERENTES com o contexto. " +
+    "QA do setup: sempre incluir validação de tracking e SRM check. " +
+    "Para 'results', 'verdict', 'rationale', 'rollout', URLs e feature flag: origin='empty' — vêm depois.",
+};
+
+/**
+ * ANALISE_FUNIL — kind 'metrica' discriminado por "análise de funil",
+ * "funnel analysis", "leak". Drawer pra mapear taxas etapa-a-etapa,
+ * identificar leak points por impacto e priorizar correções.
+ */
+const ANALISE_FUNIL: NodeBlueprint = {
+  kind: "metrica",
+  purpose:
+    "Análise quantitativa do funil — onde está vazando, quanto vale tampar cada vazamento, " +
+    "e o que testar primeiro para impactar o resultado final.",
+  methodChecklist: [
+    { id: "scope",         label: "Escopo do funil definido (qual jornada, segmento, período)", required: true  },
+    { id: "stages_data",   label: "Volumes e taxas etapa-a-etapa coletados",                    required: true  },
+    { id: "benchmarks",    label: "Benchmarks comparados (interno e setor)",                    required: true  },
+    { id: "leaks_ranked",  label: "Leak points priorizados por impacto × esforço",              required: true  },
+    { id: "root_cause",    label: "Causa-raiz hipotetizada para top 3 leaks",                   required: true  },
+    { id: "actions_plan",  label: "Plano de ação ligado a experimentos",                        required: true  },
+    { id: "review_cad",    label: "Cadência de revisão definida",                               required: false },
+  ],
+  sections: [
+    {
+      id: "scope", title: "Escopo da análise",
+      description: "Sem escopo claro, a análise vira pescaria.",
+      fields: [
+        { id: "funnel_name",  label: "Funil analisado",        type: "text",     hint: "Aquisição → Lead → SQL → Venda; ou Visita → Add-cart → Checkout" },
+        { id: "segment",      label: "Segmento",               type: "text",     hint: "Todos / mobile BR / pago / cohort jan-25" },
+        { id: "period",       label: "Período de análise",     type: "text",     hint: "Últimos 30d? Comparativo com 30d anteriores?" },
+        { id: "data_source",  label: "Fonte dos dados",        type: "text",     hint: "GA4, Mixpanel, Meta Ads, planilha do cliente, CRM" },
+        { id: "data_caveats", label: "Limitações conhecidas",  type: "list",     hint: "Sem tracking server-side, perda mobile, atribuição last-click" },
+      ],
+    },
+    {
+      id: "stages", title: "Funil etapa-a-etapa",
+      description: "Volumes absolutos + taxa de conversão entre etapas + benchmark.",
+      fields: [
+        { id: "volumes",       label: "Volume por etapa",          type: "kv",   hint: "visitas→10.000 | leads→820 | reuniões→210 | vendas→34" },
+        { id: "step_rates",    label: "Conversão etapa→etapa",     type: "kv",   hint: "visita→lead: 8,2% | lead→reunião: 25,6% | reunião→venda: 16,2%" },
+        { id: "overall_rate",  label: "Conversão fim-a-fim",       type: "text", hint: "Ex: 0,34% (34/10.000)" },
+        { id: "benchmark",     label: "Benchmark (interno + setor)", type: "kv", hint: "lead→reunião setor: 30-40% | nosso melhor mês: 32%" },
+      ],
+    },
+    {
+      id: "leaks", title: "Leak points (vazamentos)",
+      description:
+        "Para cada vazamento sério: tamanho do leak, valor estimado se fechar 50%, e fricção observada. " +
+        "Priorize por impacto financeiro × esforço de correção.",
+      fields: [
+        { id: "leak_list",      label: "Vazamentos identificados",  type: "list",     hint: "Etapa X→Y: taxa Z% vs benchmark W% (gap N pp)" },
+        { id: "leak_impact",    label: "Impacto financeiro estimado", type: "kv",     hint: "leak1→R$ 18k/mês recuperáveis | leak2→R$ 6k/mês" },
+        { id: "friction_evidence", label: "Evidência de fricção",   type: "list",     hint: "Heatmap, session replay, pesquisa qualitativa, suporte" },
+        { id: "ranked_leaks",   label: "Ranking final (impacto × esforço)", type: "list", hint: "1. checkout mobile | 2. confirmação email | 3. follow-up SDR" },
+      ],
+    },
+    {
+      id: "root_cause", title: "Causa-raiz e hipóteses",
+      description: "Para os top 2-3 leaks: por que vaza? Diferente de 'o que vaza'.",
+      fields: [
+        { id: "leak_1_cause", label: "Leak #1 — causa-raiz hipotetizada", type: "textarea", hint: "Quanto mais específico, melhor" },
+        { id: "leak_2_cause", label: "Leak #2 — causa-raiz hipotetizada", type: "textarea" },
+        { id: "leak_3_cause", label: "Leak #3 — causa-raiz hipotetizada", type: "textarea" },
+        { id: "validation",   label: "Como validar a causa antes de testar a solução", type: "list", hint: "5 entrevistas, 1h de session replay, query SQL específica" },
+      ],
+    },
+    {
+      id: "actions", title: "Plano de ação",
+      description: "Cada leak top vira 1 experimento ou 1 entrega — link explícito.",
+      fields: [
+        { id: "experiments",  label: "Experimentos sugeridos",     type: "list",     hint: "1 por leak: 'Testar copy do botão X (leak #1)'" },
+        { id: "deliveries",   label: "Entregas sem teste (no-brainer)", type: "list", hint: "Bug fixes óbvios, copy errado, link quebrado" },
+        { id: "expected_lift", label: "Lift esperado se tudo der certo", type: "text", decisionOnly: true, hint: "Ex: conversão fim-a-fim 0,34% → 0,52% (+53%)" },
+        { id: "owner",        label: "Owner do plano",             type: "text",     decisionOnly: true },
+      ],
+    },
+    {
+      id: "review", title: "Cadência e governança",
+      fields: [
+        { id: "review_cadence", label: "Cadência de revisão",       type: "text",  hint: "Semanal, quinzenal, mensal" },
+        { id: "dashboard_url",  label: "Dashboard ao vivo",         type: "text",  decisionOnly: true },
+        { id: "next_review",    label: "Próxima revisão",           type: "text",  decisionOnly: true },
+      ],
+    },
+    {
+      id: "links", title: "Anexos e fontes",
+      fields: [
+        { id: "files", label: "Prints, planilhas, exports", type: "attachments" },
+      ],
+    },
+  ],
+  quickActions: [
+    { id: "generate_tasks",     label: "Gerar experimentos", primary: true },
+    { id: "create_snapshot",    label: "Snapshot dos números" },
+    { id: "export_pdf",         label: "Exportar relatório" },
+    { id: "regenerate_prefill", label: "Regenerar com IA" },
+  ],
+  sources: ["briefing","context","metrics","fronts","siblings"],
+  prefillPrompt:
+    "Você é growth analyst sênior. Analise o funil com OBJETIVIDADE: dados primeiro, narrativa depois. " +
+    "Use métricas do workspace (snapshots) sempre que existirem — cite source no citation. " +
+    "Em 'volumes' e 'step_rates', se NÃO houver dados reais, marque origin='empty' e deixe o esqueleto pronto pro operador preencher (NÃO invente número). " +
+    "Em benchmark: cite faixa setorial conhecida (ex: 'B2B SaaS: lead→demo 25-40%') quando aplicável. " +
+    "Em leaks: priorize por GAP vs benchmark × VOLUME na etapa (impacto financeiro real). " +
+    "Causa-raiz: hipóteses específicas (não 'UX ruim' — diga 'CTA invisível em mobile <375px'). " +
+    "Para 'expected_lift', 'owner', URLs e datas: origin='empty'. " +
+    "Cada leak top deve gerar 1 experimento sugerido em 'actions' — pra encaixar com o blueprint EXPERIMENTO.",
+};
+
+/**
+ * PLANO_ITERACAO — kind 'checklist' discriminado por "iteração", "sprint",
+ * "plano de otimização", "backlog de teste". Drawer estilo growth-team
+ * weekly: backlog priorizado (ICE/RICE), sprint atual, learnings, métricas norte.
+ */
+const PLANO_ITERACAO: NodeBlueprint = {
+  kind: "checklist",
+  purpose:
+    "Plano de iteração contínua baseado em dados — backlog priorizado, sprint definida, " +
+    "learnings versionados e métricas norte sob cadência.",
+  methodChecklist: [
+    { id: "north_star",    label: "Métrica norte definida (1 só)",                          required: true  },
+    { id: "current_state", label: "Foto atual da métrica norte registrada",                 required: true  },
+    { id: "backlog_score", label: "Backlog priorizado por ICE ou RICE",                     required: true  },
+    { id: "sprint_set",    label: "Sprint atual com 3-5 itens, cada um com owner",          required: true  },
+    { id: "criteria_dod",  label: "Definition of Done por item",                            required: true  },
+    { id: "learnings_log", label: "Learnings das últimas iterações registrados",            required: true  },
+    { id: "rituals",       label: "Rituais (planning / review / retro) agendados",          required: false },
+  ],
+  sections: [
+    {
+      id: "north_star", title: "Métrica norte e estado atual",
+      description: "Sem norte não há iteração — só agitação.",
+      fields: [
+        { id: "metric",       label: "Métrica norte",          type: "text",     hint: "Receita recorrente, conversão fim-a-fim, ARPU, NPS, CAC payback" },
+        { id: "current",      label: "Valor atual",            type: "text",     hint: "Foto de hoje" },
+        { id: "target",       label: "Meta do trimestre",      type: "text",     decisionOnly: true },
+        { id: "trend",        label: "Tendência últimas 4 sem", type: "text",    hint: "Crescendo / estável / caindo" },
+        { id: "secondary",    label: "Métricas secundárias",   type: "list",     hint: "Acompanham o norte sem virar foco" },
+      ],
+    },
+    {
+      id: "backlog", title: "Backlog priorizado",
+      description:
+        "Cada item: hipótese curta + score (ICE: Impacto×Confiança×Esforço, ou RICE: Reach×Impact×Confidence÷Effort). " +
+        "Backlog vivo — re-priorize toda iteração.",
+      fields: [
+        { id: "scoring_model", label: "Modelo de priorização", type: "text",     hint: "ICE / RICE / WSJF / Kano" },
+        { id: "items",         label: "Itens do backlog (ordenados)", type: "list", hint: "1. [9.0] Testar copy hero LP — origem leak #1 | 2. [7.5] Email de carrinho abandonado..." },
+        { id: "parking_lot",   label: "Parking lot (rejeitados/adiados)", type: "list", hint: "Por que ficaram fora — pra não reaparecerem do nada" },
+      ],
+    },
+    {
+      id: "sprint", title: "Sprint atual",
+      description: "3-5 itens. Mais que isso, ninguém entrega. Owner explícito.",
+      fields: [
+        { id: "sprint_name",  label: "Nome / período da sprint",  type: "text",     hint: "Sprint 12 — 22-Abr a 03-Mai" },
+        { id: "sprint_goal",  label: "Goal da sprint (1 frase)",  type: "textarea", hint: "Mover métrica norte X em Y% via Z" },
+        { id: "sprint_items", label: "Itens em execução",         type: "list",     hint: "Item — owner — DoD — link experimento" },
+        { id: "dependencies", label: "Dependências/bloqueios",    type: "list",     hint: "Acessos, aprovações cliente, fornecedor" },
+        { id: "capacity",     label: "Capacidade da equipe",      type: "text",     hint: "Ex: 3 pessoas × 60% growth = 1,8 FTE" },
+      ],
+    },
+    {
+      id: "rituals", title: "Rituais",
+      description: "Cadência fixa. Cancelou ritual = perdeu o ritmo.",
+      fields: [
+        { id: "planning",  label: "Planning",       type: "text", hint: "Quando, quanto tempo, quem participa, output esperado" },
+        { id: "review",    label: "Review / Show",  type: "text", hint: "Apresenta resultados de experimentos da sprint" },
+        { id: "retro",     label: "Retro",          type: "text", hint: "O que melhorar no PROCESSO (não nos resultados)" },
+        { id: "standup",   label: "Standup",        type: "text", hint: "Diário/3x semana, 15min, async ok" },
+      ],
+    },
+    {
+      id: "learnings", title: "Learnings acumulados",
+      description: "Memória da operação — evita repetir teste já feito ou erro já cometido.",
+      fields: [
+        { id: "won",       label: "O que vingou",                type: "list", hint: "Generalize: copy de prova social funciona em LP de B2B" },
+        { id: "lost",      label: "O que falhou",                type: "list", hint: "Inclui POR QUE falhou — sem isso é só lista de cadáver" },
+        { id: "surprises", label: "Surpresas / contraintuitivos", type: "list" },
+        { id: "rules",     label: "Regras pro playbook",         type: "list", hint: "Coisas que viram padrão pra próximos clientes/projetos" },
+      ],
+    },
+    {
+      id: "results", title: "Resultados da última iteração",
+      description: "Foto pra fechar o ciclo — input pra próxima sprint.",
+      fields: [
+        { id: "shipped",       label: "Itens entregues",          type: "list", decisionOnly: true },
+        { id: "metric_delta",  label: "Delta da métrica norte",   type: "text", decisionOnly: true, hint: "Ex: 0,34% → 0,41% (+20,6%)" },
+        { id: "experiment_results", label: "Resumo dos experimentos rodados", type: "list", decisionOnly: true, hint: "Linka pros nodes EXPERIMENTO" },
+        { id: "carryover",     label: "Carryover pra próxima sprint", type: "list", decisionOnly: true },
+      ],
+    },
+    {
+      id: "links", title: "Links e anexos",
+      fields: [
+        { id: "board_url",    label: "Board (Notion/Linear/Trello)", type: "text", decisionOnly: true },
+        { id: "dashboard_url", label: "Dashboard da métrica norte",  type: "text", decisionOnly: true },
+        { id: "files",        label: "Anexos da iteração",         type: "attachments" },
+      ],
+    },
+  ],
+  quickActions: [
+    { id: "generate_tasks",     label: "Criar tasks da sprint", primary: true },
+    { id: "create_snapshot",    label: "Snapshot da métrica norte" },
+    { id: "export_pdf",         label: "Exportar plano" },
+    { id: "regenerate_prefill", label: "Regenerar com IA" },
+  ],
+  sources: ["briefing","context","metrics","fronts","siblings"],
+  prefillPrompt:
+    "Você é growth lead operando o ciclo experimentation → learnings → backlog. " +
+    "Métrica norte: escolha UMA alinhada ao objetivo de negócio do dossiê. Cite fonte. " +
+    "Backlog: gere 6-12 itens priorizados, cada um com hipótese curta + score ICE (1-10 cada eixo) ou RICE — explique no citation. " +
+    "Use leak points de análises de funil existentes (siblings) como insumo principal. " +
+    "Sprint atual: proponha 3-5 itens do TOPO do backlog, com goal coeso (não pulverize). " +
+    "Rituais: defina cadência realista pra time pequeno (planning quinzenal, review na entrega, retro mensal). " +
+    "Learnings: extraia do contexto/timeline o que já foi testado e o que aprendemos. " +
+    "Para 'target', 'capacity', URLs, owners e SEÇÃO INTEIRA 'results': origin='empty' — vêm da execução humana.",
+};
+
 /**
  * NOTA: alguns kinds compartilham o mesmo blueprint base (ex: documento e diagnostico
  * são ambos `documento` no enum atual — diferenciamos via título do node).
