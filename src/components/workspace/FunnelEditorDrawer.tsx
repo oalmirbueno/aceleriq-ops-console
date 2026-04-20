@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/popover";
 import {
   Workflow, Plus, Loader2, X, Trash2, ArrowDown, TrendingUp, Target,
-  Sparkles,
+  Sparkles, ListTodo,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
