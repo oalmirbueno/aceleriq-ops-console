@@ -1867,6 +1867,177 @@ const IA_AGENT: NodeBlueprint = {
     "Modelo padrão sugerido: 'google/gemini-3-flash-preview' via Lovable AI Gateway, salvo se o contexto exigir voz/multimodal/custo específico.",
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ATIVAÇÃO — CRM / Pipeline + automações de nutrição
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * CRM — pipeline comercial + nutrição. Drawer cobre: estágios do pipeline com
+ * critérios de entrada/saída, definições de MQL/SQL, SLA por estágio, sequências
+ * de nutrição (email/WhatsApp), scoring, automações (HubSpot/RD/Pipedrive),
+ * playbook de SDR/closer e métricas operacionais.
+ */
+const CRM_PIPELINE: NodeBlueprint = {
+  kind: "crm",
+  purpose:
+    "CRM operacional: pipeline com critérios objetivos por estágio, automações de nutrição, " +
+    "scoring, SLA e playbook — pra venda parar de depender de heroísmo.",
+  methodChecklist: [
+    { id: "platform_set",   label: "Plataforma definida e contas criadas",                      required: true  },
+    { id: "stages_defined", label: "Estágios do pipeline com critérios de entrada/saída",       required: true  },
+    { id: "mql_sql",        label: "Definições MQL e SQL escritas e validadas com vendas",      required: true  },
+    { id: "sla_set",        label: "SLA por estágio (tempo máximo) acordado",                   required: true  },
+    { id: "sources_mapped", label: "Origens de lead mapeadas e UTM padronizada",                required: true  },
+    { id: "nurture_built",  label: "Sequências de nutrição (email/WhatsApp) implementadas",     required: true  },
+    { id: "scoring_set",    label: "Lead scoring (perfil + engajamento) configurado",           required: true  },
+    { id: "automations_on", label: "Automações de movimentação e atribuição ativas",            required: true  },
+    { id: "dashboards",     label: "Dashboard com funil + conversões + tempo médio por estágio", required: true },
+    { id: "playbook",       label: "Playbook de SDR/closer escrito (roteiros, objeções)",       required: false },
+    { id: "compliance",     label: "Compliance LGPD: opt-in, descadastro, retenção",            required: true  },
+  ],
+  sections: [
+    {
+      id: "platform", title: "Plataforma e arquitetura",
+      description: "Onde mora o lead, o que conversa com o quê.",
+      fields: [
+        { id: "crm_tool",        label: "CRM principal",                  type: "text",  hint: "HubSpot, RD Station, Pipedrive, Salesforce, ActiveCampaign" },
+        { id: "marketing_auto",  label: "Automação de marketing",         type: "text",  hint: "Pode ser o mesmo do CRM ou separado (Mailchimp, Klaviyo, MailerLite)" },
+        { id: "messaging",       label: "Mensageria (WhatsApp/SMS)",      type: "text",  hint: "Z-API, Twilio, Take Blip, oficial Meta WhatsApp Business API" },
+        { id: "data_sources",    label: "Origens de lead conectadas",     type: "list",  hint: "LP do site, LP do funil, ads lead form, formulário de contato, importação manual, indicação" },
+        { id: "integrations",    label: "Integrações ativas",             type: "list",  hint: "Site → CRM, Ads Lead Forms → CRM, Calendar, Slack, Asana, BI, billing" },
+        { id: "data_residency",  label: "Onde os dados ficam",            type: "text",  decisionOnly: true, hint: "Importante pra LGPD: região do CRM, backup, retenção" },
+      ],
+    },
+    {
+      id: "pipeline", title: "Pipeline (estágios + critérios)",
+      description:
+        "Cada estágio precisa de critério OBJETIVO de entrada e saída. " +
+        "Sem isso, vendedores movem por feeling e o funil mente.",
+      fields: [
+        { id: "stages",         label: "Estágios do pipeline (ordem)",    type: "list",  hint: "Lead novo → MQL → SQL → Reunião agendada → Reunião realizada → Proposta → Negociação → Fechado ganho/perdido" },
+        { id: "entry_criteria", label: "Critério de ENTRADA por estágio", type: "kv",    hint: "MQL → preencheu form completo + abriu 2 emails | SQL → respondeu BANT positivo | Proposta → enviou doc formal" },
+        { id: "exit_criteria",  label: "Critério de SAÍDA por estágio",   type: "kv",    hint: "SQL → reunião marcada OU desqualificou | Proposta → cliente respondeu (sim/não/contraposta)" },
+        { id: "sla_per_stage",  label: "SLA por estágio (tempo máx)",     type: "kv",    hint: "Lead novo → contato em 5min | MQL → call em 24h | Proposta → follow-up 48h" },
+        { id: "owner_per_stage", label: "Owner por estágio",              type: "kv",    decisionOnly: true, hint: "Lead novo → SDR | SQL → AE | Proposta → AE+CS" },
+        { id: "loss_reasons",   label: "Motivos de perda padronizados",    type: "list", hint: "Preço, timing, autoridade, sem necessidade clara, foi pra concorrente, sumiu — taxonomia fechada" },
+      ],
+    },
+    {
+      id: "qualification", title: "Qualificação (MQL/SQL/BANT)",
+      description: "Critérios escritos = vendas e marketing falando a mesma língua.",
+      fields: [
+        { id: "mql_definition", label: "Definição de MQL (perfil + comportamento)",  type: "textarea", hint: "Cargo X em empresas Y faturando Z + 2 ações de engajamento (download + email aberto)" },
+        { id: "sql_definition", label: "Definição de SQL (interesse explícito)",     type: "textarea", hint: "MQL + agendou call OU pediu proposta OU respondeu BANT positivo" },
+        { id: "bant",           label: "BANT / SPIN / framework escolhido",          type: "kv",       hint: "B (Budget) → ; A (Authority) → ; N (Need) → ; T (Timeline) → " },
+        { id: "disqualifiers",  label: "Critérios de desqualificação",                type: "list",    hint: "Fora do ICP, sem budget mínimo, decisão >12m, concorrente direto, fora do Brasil" },
+        { id: "ideal_icp",      label: "ICP atualizado",                              type: "textarea", hint: "Resumo curto — full perfil mora no dossiê" },
+      ],
+    },
+    {
+      id: "scoring", title: "Lead scoring",
+      description: "Pontuação por perfil (firmográfico) + engajamento (comportamental).",
+      fields: [
+        { id: "profile_points", label: "Pontos por perfil",                type: "kv",  hint: "Cargo C-level: +20 | Setor X: +15 | Empresa 50+ funcionários: +10 | E-mail corporativo: +5" },
+        { id: "behavior_points", label: "Pontos por comportamento",        type: "kv",  hint: "Visitou pricing: +15 | Baixou material: +10 | Email aberto: +2 | Clicou ad: +5 | Demo agendada: +30" },
+        { id: "negative_points", label: "Pontos negativos",                 type: "kv", hint: "Email gratuito: -10 | Sem cargo: -5 | 90 dias sem engajar: -20 | Concorrente: -100" },
+        { id: "thresholds",      label: "Thresholds → estágio",            type: "kv",  hint: "0-30 → Lead | 31-60 → MQL | 61+ → SQL ready" },
+        { id: "decay",           label: "Decaimento temporal",              type: "text", hint: "Score perde 10% a cada 30 dias sem engajamento" },
+      ],
+    },
+    {
+      id: "nurture", title: "Sequências de nutrição",
+      description:
+        "Por temperatura e fase do funil. Cada sequência: gatilho, intervalo, conteúdo, exit-criteria.",
+      fields: [
+        { id: "welcome_seq",     label: "Boas-vindas (D0 → D+7)",          type: "list",     hint: "D0 confirmação + entrega isca | D1 storytelling marca | D3 caso de cliente | D5 educacional | D7 oferta soft" },
+        { id: "mql_to_sql_seq",  label: "Aceleração MQL→SQL (D0 → D+14)",  type: "list",     hint: "D0 case + CTA call | D2 objeção #1 quebrada | D5 prova social | D8 demo gratuita | D12 escassez | D14 break-up" },
+        { id: "post_demo_seq",   label: "Pós-demo (D0 → D+10)",            type: "list",     hint: "D0 thank you + recap | D1 material complementar | D3 ROI calculator | D5 case similar | D7 proposta | D10 follow-up" },
+        { id: "lost_recover_seq", label: "Recuperação de perdidos (90/180/365d)", type: "list", hint: "90d feature nova | 180d case do segmento | 365d 'voltei' + oferta especial" },
+        { id: "abandoned_seq",   label: "Carrinho/checkout abandonado",     type: "list",     hint: "+1h lembrete suave | +24h ajuda + FAQ | +48h prova social | +72h desconto/escassez" },
+        { id: "channels_per_seq", label: "Canais por sequência",            type: "kv",       hint: "Welcome → email; MQL→SQL → email + WhatsApp D5; Pós-demo → email + ligação D3; Recuperação → email + Ads custom audience" },
+        { id: "exit_criteria",   label: "Exit criteria das sequências",     type: "list",     hint: "Agendou call → sai; pediu descadastro → sai; abriu zero em 30d → muda pra cold list; respondeu → SDR assume" },
+      ],
+    },
+    {
+      id: "automations", title: "Automações de pipeline",
+      description:
+        "Tarefas repetitivas viram regra. Vendedor foca em conversa, não em mover card.",
+      fields: [
+        { id: "lead_routing",     label: "Roteamento de leads (round-robin / por território / por scoring)", type: "textarea", hint: "Lead novo → atribui ao SDR de plantão por round-robin; SQL >70 → vai pro AE sênior; região X → time Y" },
+        { id: "auto_movements",   label: "Movimentação automática entre estágios",     type: "list",     hint: "Reunião marcada no Calendly → move pra 'Reunião agendada' | Proposta enviada (HubSpot doc) → move pra 'Proposta'" },
+        { id: "auto_tasks",       label: "Tarefas automáticas pro vendedor",           type: "list",     hint: "Lead há 24h sem contato → task 'Ligar agora' | Proposta há 48h sem resposta → task 'Follow-up'" },
+        { id: "internal_alerts",  label: "Alertas internos (Slack/Teams)",             type: "kv",       hint: "Lead score >80 → #vendas-quentes; SLA estourado → DM gerente; Negócio R$50k+ → #deals-grandes" },
+        { id: "notification_rules", label: "Notificações pro lead",                    type: "list",     hint: "Confirmação de inscrição; lembrete de reunião 24h e 1h antes; pós-call agradecimento; pós-proposta resumo" },
+        { id: "data_enrichment",  label: "Enriquecimento de dados",                     type: "text",    hint: "Clearbit, Apollo, Hunter, ZoomInfo — preencher cargo/empresa/setor automaticamente" },
+      ],
+    },
+    {
+      id: "playbook", title: "Playbook de SDR / Closer",
+      description: "Roteiros e respostas escritas — onboarding novo vendedor em dias, não meses.",
+      fields: [
+        { id: "first_touch_script", label: "Script de 1º contato",          type: "textarea", hint: "Abertura + qualificação rápida (BANT em 3 perguntas) + CTA pra agenda" },
+        { id: "discovery_script",   label: "Script de discovery (call qualif.)", type: "textarea", hint: "Perguntas SPIN/BANT estruturadas, escuta ativa, próximos passos claros" },
+        { id: "demo_script",        label: "Roteiro de demo",                type: "textarea", hint: "Estrutura: dor → solução → prova → próximos passos. Tempo: 30-45min" },
+        { id: "objections",         label: "Objeções + respostas",           type: "kv",       hint: "Caro → ; Vou pensar → ; Já uso X → ; Mando email → ; Sem orçamento agora → " },
+        { id: "follow_up_cadence",  label: "Cadência de follow-up",          type: "list",     hint: "8 toques em 14 dias: D0 ligação + email; D2 ligação; D4 LinkedIn + email; D7 email valor; D10 ligação; D14 break-up" },
+        { id: "qualifying_qs",      label: "Perguntas-chave de qualificação", type: "list",    hint: "Por que agora? Como resolvem hoje? Quem decide? Budget aprovado? Timeline?" },
+      ],
+    },
+    {
+      id: "metrics", title: "Métricas e governança",
+      description: "O que medir semanalmente pra otimizar — sem isso, é gestão por vibe.",
+      fields: [
+        { id: "core_metrics",   label: "Métricas-core do funil",            type: "list",  hint: "Leads/mês, MQL %, SQL %, no-show %, win rate, ticket médio, ciclo médio (dias), CAC, LTV" },
+        { id: "stage_conversion", label: "Conversão alvo por estágio",      type: "kv",    hint: "Lead→MQL 20% | MQL→SQL 30% | SQL→Reunião 60% | Reunião→Proposta 50% | Proposta→Ganho 30%" },
+        { id: "velocity",       label: "Velocity por estágio (dias alvo)",  type: "kv",    hint: "Lead→MQL: 2d | MQL→SQL: 5d | SQL→Reunião: 7d | Proposta→Decisão: 14d" },
+        { id: "review_cad",     label: "Cadência de gestão",                type: "text",  hint: "Daily 15min com SDRs | Weekly 1h pipeline review | Monthly business review" },
+        { id: "dashboards",     label: "Dashboards configurados",           type: "list",  decisionOnly: true, hint: "Funil ao vivo, leads por origem, performance por vendedor, motivos de perda, previsão" },
+      ],
+    },
+    {
+      id: "compliance", title: "Compliance e LGPD",
+      description: "Não é detalhe — multa por LGPD inviabiliza operação inteira.",
+      fields: [
+        { id: "consent",          label: "Captação de consentimento",        type: "checklist", hint: "Form com finalidade clara; checkbox separado pra marketing; armazenar timestamp + IP do consentimento" },
+        { id: "unsubscribe",      label: "Mecanismo de descadastro",         type: "checklist", hint: "Link em todo email; opt-out WhatsApp em 1 mensagem; reflete no CRM em <24h; preferences center" },
+        { id: "data_retention",   label: "Política de retenção",             type: "text",     hint: "Lead inativo 24m → anonimizar; cliente perdido 60m → arquivar; backup criptografado" },
+        { id: "data_request",     label: "Atendimento a titulares",          type: "text",     hint: "Canal pra solicitar acesso/correção/exclusão; SLA de 15 dias; responsável definido" },
+        { id: "dpo",              label: "DPO / responsável LGPD",           type: "text",     decisionOnly: true },
+      ],
+    },
+    {
+      id: "links", title: "Links e anexos",
+      fields: [
+        { id: "crm_url",         label: "URL do CRM",                       type: "text", decisionOnly: true },
+        { id: "automation_url",  label: "URL da automação de marketing",    type: "text", decisionOnly: true },
+        { id: "dashboard_url",   label: "Dashboard de pipeline",            type: "text", decisionOnly: true },
+        { id: "playbook_url",    label: "Playbook compartilhado (Notion/Drive)", type: "text", decisionOnly: true },
+        { id: "files",           label: "Anexos (scripts, fluxogramas, exports)", type: "attachments" },
+      ],
+    },
+  ],
+  quickActions: [
+    { id: "generate_tasks",     label: "Gerar tasks de implementação", primary: true },
+    { id: "create_snapshot",    label: "Snapshot do funil" },
+    { id: "link_asset",         label: "Vincular sequências/templates" },
+    { id: "export_pdf",         label: "Exportar manual de operação" },
+    { id: "regenerate_prefill", label: "Regenerar com IA" },
+  ],
+  sources: ["briefing","context","client","metrics","fronts","siblings"],
+  prefillPrompt:
+    "Você é RevOps sênior desenhando CRM operacional do zero pra B2B/D2C. " +
+    "Plataforma: se o briefing menciona, use; senão sugira HubSpot pra B2B com volume médio, RD Station pra Brasil/B2B SMB, ActiveCampaign pra D2C/infoproduto. " +
+    "Pipeline: gere 6-8 estágios coerentes com o ciclo de venda do dossiê, com critérios de entrada/saída CONCRETOS (não 'lead interessado' — algo binário). " +
+    "MQL/SQL: definições escritas em 1 frase cada, alinhadas ao ICP do dossiê. " +
+    "Lead scoring: pontue cargos/setores/comportamentos coerentes com o ICP — explique no citation. " +
+    "Nutrição: 4-6 sequências (welcome, MQL→SQL, pós-demo, recuperação, abandonado) com 5-8 toques cada e exit-criteria explícitos. " +
+    "Automações: roteamento, movimentação, tarefas e alertas — concretas, não genéricas. " +
+    "Playbook: scripts curtos mas executáveis; objeções tiradas das dores reais do briefing. " +
+    "Métricas: benchmarks realistas pro segmento (cite quando souber faixa típica). " +
+    "Compliance LGPD: SEMPRE preencher checklist de consentimento e descadastro — não é opcional. " +
+    "Para URLs reais (CRM, dashboard, playbook), DPO, owners por estágio, dashboards específicos: origin='empty'.",
+};
+
 /**
  * NOTA: alguns kinds compartilham o mesmo blueprint base (ex: documento e diagnostico
  * são ambos `documento` no enum atual — diferenciamos via título do node).
@@ -1890,6 +2061,7 @@ export const NODE_BLUEPRINTS: NodeBlueprint[] = [
   CONTATO,
   AUTOMACAO,
   IA_AGENT,
+  CRM_PIPELINE,
 ];
 
 /**
