@@ -147,39 +147,55 @@ export default function AttachmentUploader({ workspaceId, nodeId, attachments, o
       )}
 
       {attachments.map((a, i) => (
-        <div key={i} className="rounded-md border border-border p-2 space-y-1.5 bg-card/40">
-          <div className="flex items-center gap-1.5">
-            <FileIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <Input
-              value={a.label}
-              onChange={(e) => updateLabel(i, e.target.value)}
-              className="h-7 text-xs flex-1 border-0 px-1 focus-visible:ring-0 bg-transparent font-medium"
-            />
-            {a.type && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase">
-                {a.type}
-              </span>
-            )}
-            {a.url && (
+        <div key={i} className="rounded-md border border-border p-2 bg-card/40 flex gap-2.5">
+          <AttachmentPreview
+            url={a.url}
+            type={a.type}
+            storagePath={a.storage_path}
+            onRefreshUrl={() => refreshUrl(i)}
+          />
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex items-center gap-1">
+              <Input
+                value={a.label}
+                onChange={(e) => updateLabel(i, e.target.value)}
+                className="h-7 text-xs flex-1 border-0 px-1 focus-visible:ring-0 bg-transparent font-medium truncate"
+              />
+              {a.url && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 shrink-0"
+                  onClick={async () => {
+                    const url = await refreshUrl(i);
+                    if (url) window.open(url, "_blank", "noopener,noreferrer");
+                  }}
+                  title="Abrir em nova aba"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Button>
+              )}
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-7 w-7"
-                onClick={async () => {
-                  const url = await refreshUrl(i);
-                  if (url) window.open(url, "_blank", "noopener,noreferrer");
-                }}
+                className="h-7 w-7 text-destructive shrink-0"
+                onClick={() => removeAttachment(i)}
+                title="Remover"
               >
-                <ExternalLink className="h-3.5 w-3.5" />
+                <X className="h-3.5 w-3.5" />
               </Button>
-            )}
-            <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeAttachment(i)}>
-              <X className="h-3.5 w-3.5" />
-            </Button>
+            </div>
+            <div className="flex items-center gap-1.5 pl-1 flex-wrap">
+              {a.type && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase">
+                  {a.type}
+                </span>
+              )}
+              {a.size != null && (
+                <span className="text-[10px] text-muted-foreground">{formatSize(a.size)}</span>
+              )}
+            </div>
           </div>
-          {a.size != null && (
-            <p className="text-[10px] text-muted-foreground pl-5">{formatSize(a.size)}</p>
-          )}
         </div>
       ))}
 
