@@ -149,16 +149,18 @@ export default function ProjectNodeDrawer(props: Props) {
     );
   }
 
-  // Outros tipos com blueprint → drawer especializado
+  // Outros tipos com blueprint → drawer especializado com handlers genéricos
   if (clientId && hasBlueprint(kind)) {
     return (
-      <SpecializedNodeDrawer
+      <SpecializedGenericDrawer
         node={node}
         open={props.open}
         onOpenChange={props.onOpenChange}
         workspaceId={props.workspaceId}
         clientId={clientId}
+        clientName={clientName}
         onDelete={props.onDelete}
+        onUpdated={props.onUpdated}
       />
     );
   }

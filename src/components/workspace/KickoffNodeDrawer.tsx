@@ -181,8 +181,8 @@ export default function KickoffNodeDrawer({
   if (!blueprint) return null;
 
   const handlers = {
+    ...baseHandlers,
     schedule_meeting: handleDownloadIcs,
-    ...(onGenerateTasks && { generate_tasks: onGenerateTasks }),
     ...(onOpenBriefing && { open_briefing: onOpenBriefing }),
   };
 
@@ -275,16 +275,19 @@ export default function KickoffNodeDrawer({
   );
 
   return (
-    <SpecializedNodeDrawer
-      node={node}
-      open={open}
-      onOpenChange={onOpenChange}
-      workspaceId={workspaceId}
-      clientId={clientId}
-      blueprintOverride={blueprint}
-      quickActionHandlers={handlers}
-      onDelete={onDelete}
-      extraSlot={extraSlot}
-    />
+    <>
+      <SpecializedNodeDrawer
+        node={node}
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        clientId={clientId}
+        blueprintOverride={blueprint}
+        quickActionHandlers={handlers}
+        onDelete={onDelete}
+        extraSlot={extraSlot}
+      />
+      {dialogs}
+    </>
   );
 }
