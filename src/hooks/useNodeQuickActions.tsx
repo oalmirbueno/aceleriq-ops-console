@@ -19,7 +19,7 @@ import { exportNodePdf } from "@/lib/nodePdfExport";
 import TaskPlanningWizard from "@/components/workspace/TaskPlanningWizard";
 import CreateMetricSnapshotDialog from "@/components/workspace/CreateMetricSnapshotDialog";
 import { getNodeBlueprint } from "@/components/workspace/nodeBlueprints";
-import { getProjectTypeMeta, type ProjectNodeKind } from "@/components/workspace/canvasProjectTypes";
+import { getProjectTypeMeta, resolveProjectNodeKind, type ProjectNodeKind } from "@/components/workspace/canvasProjectTypes";
 import type { CanvasNodeRecord } from "@/components/workspace/CanvasNodeDrawer";
 import type { QuickActionId } from "@/components/workspace/nodeBlueprints";
 
@@ -59,7 +59,10 @@ export function useNodeQuickActions({
   const [snapshotDialogOpen, setSnapshotDialogOpen] = useState(false);
   const { prefill } = useCanvasNodeMetadata({ nodeId: node.id, open });
 
-  const kind = (node.node_type as ProjectNodeKind) ?? "documento";
+  const kind = resolveProjectNodeKind({
+    nodeType: node.node_type,
+    data: node.data,
+  }) ?? "documento";
   const blueprint = getNodeBlueprint(kind, { title: node.title });
   const typeMeta = getProjectTypeMeta(kind);
 

@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { KeyRound, Trash2, X } from "lucide-react";
 import { useNodePrefill } from "@/hooks/useNodePrefill";
 import { getNodeBlueprint, type NodeBlueprint, type QuickActionId } from "./nodeBlueprints";
-import { getProjectTypeMeta, getStageMeta, type ProjectNodeKind } from "./canvasProjectTypes";
+import { getProjectTypeMeta, getStageMeta, resolveProjectNodeKind, type ProjectNodeKind } from "./canvasProjectTypes";
 import NodeMethodChecklist from "./drawerPrimitives/NodeMethodChecklist";
 import NodeSection from "./drawerPrimitives/NodeSection";
 import NodeQuickActions from "./drawerPrimitives/NodeQuickActions";
@@ -49,7 +49,10 @@ export default function SpecializedNodeDrawer({
   blueprintOverride, quickActionHandlers = {}, onDelete, extraSlot,
 }: Props) {
   const [vaultOpen, setVaultOpen] = useState(false);
-  const kind = (node.node_type as ProjectNodeKind) ?? "documento";
+  const kind = resolveProjectNodeKind({
+    nodeType: node.node_type,
+    data: node.data,
+  }) ?? "documento";
   const typeMeta = getProjectTypeMeta(kind);
   const stage = (node.data as Record<string, unknown> | null)?.stage as string | undefined;
   const stageMeta = stage ? getStageMeta(stage) : null;
