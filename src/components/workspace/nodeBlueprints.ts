@@ -707,55 +707,113 @@ const LANDING: NodeBlueprint = {
 
 const CONTEUDO: NodeBlueprint = {
   kind: "conteudo",
-  purpose: "Peça de conteúdo (post, artigo, roteiro) com pauta e CTA.",
+  purpose: "Peça de conteúdo dentro de um calendário editorial — pauta, ângulo, draft, distribuição e métrica.",
   methodChecklist: [
+    { id: "calendar",  label: "Posicionado no calendário editorial",required: true },
     { id: "angle",     label: "Ângulo único definido",              required: true },
     { id: "outline",   label: "Outline aprovado",                   required: true },
     { id: "draft",     label: "Rascunho escrito",                   required: true },
     { id: "review",    label: "Revisão de tom + ortografia",        required: true },
+    { id: "assets",    label: "Assets visuais entregues",           required: true },
+    { id: "approval",  label: "Aprovação do cliente registrada",    required: true },
     { id: "schedule",  label: "Agendado/publicado",                 required: false },
+    { id: "measure",   label: "Métrica medida em D+7",              required: false },
   ],
   sections: [
     {
+      id: "editorial", title: "Calendário editorial",
+      description: "Onde essa peça vive dentro do plano do mês.",
+      fields: [
+        { id: "campaign",     label: "Campanha / pilar de conteúdo", type: "text", hint: "Ex: 'Lançamento Curso Q2' / 'Pilar Educação'" },
+        { id: "pillar",       label: "Pilar editorial",          type: "text",  hint: "Educar / Inspirar / Converter / Bastidores / Autoridade" },
+        { id: "funnel_stage", label: "Etapa do funil",           type: "text",  hint: "ToFu / MoFu / BoFu" },
+        { id: "publish_at",   label: "Data e hora de publicação", type: "text", decisionOnly: true },
+        { id: "frequency_ctx",label: "Cadência do canal nesse mês", type: "text", hint: "Ex: 3x/semana, terça/quinta/sábado" },
+        { id: "owner",        label: "Responsável (criador)",     type: "text", decisionOnly: true },
+        { id: "approver",     label: "Aprovador final",           type: "text", decisionOnly: true },
+      ],
+    },
+    {
       id: "brief", title: "Pauta",
       fields: [
-        { id: "format",   label: "Formato",        type: "text", hint: "Post, artigo, vídeo, carrossel" },
+        { id: "format",   label: "Formato",        type: "text", hint: "Reels, carrossel, post estático, artigo, vídeo, podcast, e-mail, thread" },
         { id: "channel",  label: "Canal",          type: "text" },
         { id: "angle",    label: "Ângulo único",   type: "text", hint: "1 frase do que torna esse conteúdo único" },
+        { id: "promise",  label: "Promessa pro leitor",   type: "text",  hint: "O que ele leva embora em 1 frase" },
         { id: "audience", label: "Quem deve ler",  type: "textarea" },
+        { id: "keywords", label: "Keywords / hashtags-alvo", type: "list" },
+        { id: "references", label: "Referências de inspiração", type: "list" },
       ],
     },
     {
-      id: "outline", title: "Outline",
+      id: "outline", title: "Outline e estrutura",
       fields: [
-        { id: "hook",      label: "Gancho (primeiras 3 linhas)", type: "textarea" },
+        { id: "hook",      label: "Gancho (primeiras 3 linhas / 3s)", type: "textarea", hint: "Quebra padrão, pergunta, dado chocante" },
+        { id: "hook_alts", label: "Variações de gancho",        type: "list",     hint: "3 versões pra teste" },
         { id: "structure", label: "Estrutura em tópicos",        type: "list" },
         { id: "cta",       label: "CTA final",                   type: "text" },
+        { id: "next_action", label: "Para onde leva (link, perfil, DM)", type: "text" },
       ],
     },
     {
-      id: "draft", title: "Texto / roteiro",
+      id: "script", title: "Roteiro / texto",
+      description: "Conteúdo pronto pra publicação. Para vídeo: cenas + falas. Para carrossel: slides numerados.",
       fields: [
-        { id: "body", label: "Conteúdo completo", type: "textarea", hint: "Versão pronta pra publicação" },
+        { id: "body",          label: "Conteúdo completo",        type: "textarea" },
+        { id: "slides",        label: "Slides do carrossel (1 por linha)", type: "list" },
+        { id: "scenes",        label: "Cenas / takes (vídeo)",    type: "list", hint: "[Cena 1] Plano + ação + fala" },
+        { id: "subtitles",     label: "Legendas / closed captions", type: "textarea" },
+        { id: "alt_text",      label: "Alt-text das imagens",     type: "list" },
+      ],
+    },
+    {
+      id: "production", title: "Produção e assets",
+      fields: [
+        { id: "shotlist",   label: "Shot list / takes a gravar",  type: "list" },
+        { id: "props",      label: "Props / cenário / locação",   type: "list" },
+        { id: "wardrobe",   label: "Figurino / styling",          type: "text" },
+        { id: "music",      label: "Trilha / áudio sugerido",     type: "text" },
+        { id: "files",      label: "Anexos (mídia, draft, brand)",type: "attachments" },
       ],
     },
     {
       id: "distribution", title: "Distribuição",
       fields: [
-        { id: "schedule_at", label: "Quando publicar",   type: "text", decisionOnly: true },
-        { id: "tags",        label: "Tags / hashtags",   type: "list" },
+        { id: "primary_channel", label: "Canal principal",        type: "text" },
+        { id: "repurpose",       label: "Repurpose (mesma peça em outros canais)", type: "list", hint: "Reels → TikTok → Shorts → carrossel LinkedIn" },
+        { id: "tags",            label: "Tags / hashtags / mentions", type: "list" },
+        { id: "boosting",        label: "Plano de impulsionamento", type: "kv", hint: "budget→R$ ; público→ ; objetivo→" },
+        { id: "cross_promo",     label: "Cross-promo (parcerias, stories de apoio)", type: "list" },
+      ],
+    },
+    {
+      id: "measurement", title: "Medição e aprendizado",
+      fields: [
+        { id: "kpi",         label: "KPI principal",                 type: "text", hint: "Saves, alcance, cliques, leads, vendas" },
+        { id: "benchmark",   label: "Benchmark do canal",            type: "text", hint: "Média histórica desse formato/canal" },
+        { id: "actuals",     label: "Resultado real (D+7)",          type: "kv",   hint: "alcance→ ; eng→ ; cliques→ ; conv→" },
+        { id: "learnings",   label: "Aprendizado / hipótese pro próximo", type: "textarea" },
       ],
     },
   ],
   quickActions: [
     { id: "export_pdf", label: "Baixar conteúdo", primary: true },
     { id: "generate_tasks", label: "Gerar tasks de produção" },
+    { id: "schedule_meeting", label: "Bloquear gravação/agenda" },
+    { id: "link_asset",       label: "Vincular assets" },
     { id: "regenerate_prefill", label: "Regenerar com IA" },
   ],
-  sources: ["briefing","context","siblings"],
+  sources: ["briefing","context","siblings","metrics"],
   prefillPrompt:
-    "Você é editor-chefe. Gancho na 1ª linha, valor antes da venda, CTA específico. " +
-    "Tom alinhado ao público do briefing. Se for carrossel, divida em slides claros.",
+    "Você é editor-chefe + roteirista de conteúdo digital. " +
+    "Posicione a peça no calendário (pilar + etapa de funil) com base nos pilares do briefing. " +
+    "Gancho na 1ª linha/3s — quebra de padrão, pergunta provocadora ou dado contra-intuitivo. " +
+    "Sempre proponha 3 variações de gancho com ângulos diferentes (dor / curiosidade / desejo). " +
+    "Se for carrossel, escreva slide a slide (capa + 5-8 conteúdos + CTA). " +
+    "Se for vídeo, divida em cenas com (plano + ação + fala). " +
+    "CTA específico, não 'comente aí'. Repurpose: sugira 2-3 adaptações pra outros canais. " +
+    "Para data, owner, approver e budget — origin='empty' (decisão humana). " +
+    "Use métricas históricas se houver no contexto pra propor benchmark realista.",
 };
 
 const ASSET: NodeBlueprint = {
