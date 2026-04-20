@@ -8,7 +8,8 @@
  * Volume priority: actual_volume → expected_volume → propagação → synthetic.
  * Ghost cone: usa expected_volume pra mostrar a projeção/meta como referência.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getFunnelBlock } from "./funnelBlocks";
 import type { FunnelStepRow } from "./FunnelStepCard";
@@ -17,6 +18,7 @@ interface Props {
   steps: FunnelStepRow[];
   highlightId?: string | null;
   onPickStep?: (id: string) => void;
+  exportName?: string;
 }
 
 interface Slice {
