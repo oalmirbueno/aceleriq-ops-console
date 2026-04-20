@@ -969,6 +969,12 @@ function CanvasStudioInner({
                   acc[k] = (acc[k] ?? 0) + 1;
                   return acc;
                 }, {})}
+                doneCounts={scopedProjectNodes.reduce<Record<string, number>>((acc, n) => {
+                  if (mapLegacyStatus(n.status) !== "concluido") return acc;
+                  const k = nodeStageOf(n);
+                  acc[k] = (acc[k] ?? 0) + 1;
+                  return acc;
+                }, {})}
               />
               {showControls && <Controls showInteractive={false} />}
               {showMiniMap && (
