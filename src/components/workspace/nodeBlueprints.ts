@@ -452,22 +452,38 @@ const DOCUMENTO: NodeBlueprint = {
 
 const SITE: NodeBlueprint = {
   kind: "site",
-  purpose: "Site institucional/produto — arquitetura, copy, SEO e go-live.",
+  purpose: "Site institucional/produto — arquitetura, copy, SEO, performance e go-live em fluxo único.",
   methodChecklist: [
     { id: "arch",     label: "Arquitetura de páginas aprovada",     required: true  },
     { id: "copy",     label: "Copy validado por página",            required: true  },
     { id: "seo",      label: "SEO técnico (meta, OG, schema)",      required: true  },
     { id: "visual",   label: "Visual aprovado vs design system",    required: true  },
     { id: "tracking", label: "Tracking instalado e validado",       required: true  },
+    { id: "perf",     label: "Performance (LCP<2.5s, CLS<0.1)",     required: true  },
+    { id: "a11y",     label: "Acessibilidade WCAG AA",              required: true  },
+    { id: "legal",    label: "Privacy / Termos / Cookies publicados", required: true },
     { id: "live",     label: "Domínio + SSL + indexação",           required: true  },
   ],
   sections: [
+    {
+      id: "stack", title: "Stack e plataforma",
+      description: "Decida onde o site vive antes de escrever copy.",
+      fields: [
+        { id: "platform",   label: "Plataforma",          type: "text",  hint: "Lovable/Next.js, WordPress, Webflow, Framer, Shopify..." },
+        { id: "cms",        label: "CMS / fonte de conteúdo", type: "text", hint: "Sanity, Contentful, headless WP, MDX..." },
+        { id: "hosting",    label: "Hosting / CDN",       type: "text",  hint: "Vercel, Cloudflare, Netlify..." },
+        { id: "repo_url",   label: "Repositório",         type: "text",  decisionOnly: true },
+        { id: "staging_url",label: "URL de staging",      type: "text",  decisionOnly: true },
+        { id: "integrations", label: "Integrações esperadas", type: "list", hint: "CRM, e-mail, pagamento, chat..." },
+      ],
+    },
     {
       id: "architecture", title: "Arquitetura de páginas",
       fields: [
         { id: "pages",   label: "Páginas planejadas",  type: "list", hint: "Home, Sobre, Serviços, Contato..." },
         { id: "menu",    label: "Estrutura do menu",   type: "list" },
         { id: "footer",  label: "Itens do rodapé",     type: "list" },
+        { id: "routes",  label: "Rotas técnicas (slug)", type: "kv",   hint: "Home → / ; Blog → /blog/[slug]" },
       ],
     },
     {
@@ -479,6 +495,9 @@ const SITE: NodeBlueprint = {
         { id: "hero_cta",         label: "CTA principal",            type: "text" },
         { id: "value_props",      label: "Propostas de valor (3-5)", type: "list" },
         { id: "about_copy",       label: "Sobre nós (parágrafo)",    type: "textarea" },
+        { id: "services_copy",    label: "Bloco de serviços/produtos", type: "textarea" },
+        { id: "social_proof",     label: "Prova social (depoimentos, números, logos)", type: "list" },
+        { id: "footer_copy",      label: "CTA final / rodapé",       type: "textarea" },
       ],
     },
     {
@@ -488,6 +507,8 @@ const SITE: NodeBlueprint = {
         { id: "meta_description", label: "Meta description",         type: "text",  hint: "<160 caracteres" },
         { id: "keywords",         label: "Keywords-alvo",            type: "list" },
         { id: "schema_type",      label: "Schema.org principal",     type: "text",  hint: "Organization / LocalBusiness / Product" },
+        { id: "og_image_brief",   label: "Brief da OG image",        type: "text",  hint: "1200x630, com logo + claim" },
+        { id: "sitemap_robots",   label: "Sitemap + robots.txt",     type: "text",  hint: "Auto / manual / excluir páginas?" },
       ],
     },
     {
@@ -496,6 +517,26 @@ const SITE: NodeBlueprint = {
         { id: "palette",   label: "Paleta (do design system)",  type: "kv" },
         { id: "fonts",     label: "Tipografia",                 type: "kv", hint: "headings → ; body →" },
         { id: "imagery",   label: "Direção de imagem",          type: "textarea" },
+        { id: "components",label: "Componentes-chave",          type: "list", hint: "Hero, Card, Pricing, FAQ accordion..." },
+        { id: "motion",    label: "Diretrizes de animação",     type: "text",  hint: "Sutis / nenhuma / grandes parallax" },
+      ],
+    },
+    {
+      id: "performance", title: "Performance e qualidade",
+      fields: [
+        { id: "perf_targets", label: "Metas Core Web Vitals", type: "kv", hint: "LCP→<2.5s ; CLS→<0.1 ; INP→<200ms" },
+        { id: "image_strategy", label: "Estratégia de imagens", type: "text", hint: "AVIF/WebP, lazy, responsive srcset" },
+        { id: "a11y_checks", label: "Checks de acessibilidade", type: "list", hint: "Contraste AA, alt em imagens, foco visível, semântica" },
+        { id: "i18n",       label: "Idiomas suportados",     type: "list" },
+      ],
+    },
+    {
+      id: "legal", title: "Legal e cookies",
+      fields: [
+        { id: "privacy_url",  label: "URL Política de Privacidade", type: "text", decisionOnly: true },
+        { id: "terms_url",    label: "URL Termos de uso",            type: "text", decisionOnly: true },
+        { id: "cookies_banner", label: "Banner de cookies",          type: "text", hint: "Cookiebot / Iubenda / próprio" },
+        { id: "lgpd_owner",   label: "Encarregado de dados (DPO)",   type: "text", decisionOnly: true },
       ],
     },
     {
@@ -504,6 +545,16 @@ const SITE: NodeBlueprint = {
         { id: "domain",       label: "Domínio final",     type: "text",     decisionOnly: true },
         { id: "tracking_ids", label: "IDs de tracking",   type: "kv",       hint: "GA4, Meta Pixel, GTM..." },
         { id: "redirects",    label: "Redirects 301 necessários", type: "list" },
+        { id: "dns_notes",    label: "Notas de DNS / SSL", type: "textarea", hint: "Registrador, propagação, certificado" },
+        { id: "rollback_plan",label: "Plano de rollback",  type: "textarea" },
+      ],
+    },
+    {
+      id: "references", title: "Referências e anexos",
+      fields: [
+        { id: "inspiration",   label: "Sites de inspiração",  type: "list", hint: "URLs com 1 frase do que copiar" },
+        { id: "competitors",   label: "Concorrentes a estudar", type: "list" },
+        { id: "files",         label: "Anexos (mockups, logos, brand guide)", type: "attachments" },
       ],
     },
   ],
@@ -512,31 +563,50 @@ const SITE: NodeBlueprint = {
     { id: "go_live",        label: "Checklist pré-launch",    primary: true },
     { id: "link_asset",     label: "Vincular assets" },
     { id: "regenerate_prefill", label: "Regenerar com IA" },
+    { id: "export_pdf",     label: "Exportar brief técnico" },
   ],
   sources: ["briefing","context","client","assets","siblings"],
   prefillPrompt:
-    "Você é diretor de criação + estrategista de SEO. Copy curta, benefício antes de feature, " +
-    "CTA verbal e direto. Meta title até 60 caracteres com keyword. Meta description até 160. " +
-    "Use os objetivos e personas do briefing pra calibrar tom. Não invente domínio nem tracking IDs.",
+    "Você é diretor de criação + estrategista de SEO + tech lead front-end. " +
+    "Copy curta, benefício antes de feature, CTA verbal e direto. Meta title até 60 caracteres com keyword. Meta description até 160. " +
+    "Sugira plataforma/CMS coerentes com o porte do cliente (Lovable+Next pra MVP, Webflow pra marketing puro, WP+headless pra equipe editorial). " +
+    "Componentes citados devem casar com a arquitetura. Para legal/domínio/tracking/repositório, marque origin='empty' — decisão humana. " +
+    "Performance: sempre proponha LCP<2.5s, CLS<0.1, INP<200ms como meta-base. " +
+    "Use os objetivos e personas do briefing pra calibrar tom.",
 };
 
 const LANDING: NodeBlueprint = {
   kind: "landing_page",
-  purpose: "Landing focada em 1 conversão única — sem distrações.",
+  purpose: "Landing focada em 1 conversão única — copy de resposta direta com base de conversão completa.",
   methodChecklist: [
     { id: "single_goal",  label: "1 objetivo único definido",       required: true },
     { id: "above_fold",   label: "Promessa+CTA acima da dobra",     required: true },
     { id: "proof",        label: "Prova social posicionada",        required: true },
     { id: "objections",   label: "Objeções respondidas",            required: true },
     { id: "tracking",     label: "Eventos de conversão tracked",    required: true },
+    { id: "ab_plan",      label: "Plano de teste A/B definido",     required: false },
+    { id: "speed",        label: "LCP<2.5s validado",               required: true },
   ],
   sections: [
     {
-      id: "goal", title: "Objetivo único",
+      id: "goal", title: "Objetivo único e contexto de tráfego",
       fields: [
         { id: "conversion", label: "Conversão alvo",       type: "text", hint: "Ex: agendar demo / baixar e-book" },
         { id: "audience",   label: "Quem é o visitante",   type: "textarea" },
         { id: "source",     label: "De onde vem o tráfego", type: "text" },
+        { id: "match",      label: "Message-match (anúncio → headline)", type: "text", hint: "A landing tem que continuar a frase do anúncio" },
+        { id: "stage",      label: "Momento de consciência",  type: "text", hint: "Inconsciente / problema / solução / produto / mais consciente (Schwartz)" },
+        { id: "goal_metric", label: "Métrica-meta",            type: "kv",   hint: "CTR_hero→% ; conv_total→% ; CPL→R$" },
+      ],
+    },
+    {
+      id: "promise", title: "Big Idea / promessa central",
+      description: "Core promise antes de escrever qualquer headline.",
+      fields: [
+        { id: "big_idea",      label: "Big Idea (1 frase)",   type: "text", hint: "O insight novo/contra-intuitivo que sustenta a oferta" },
+        { id: "transformation",label: "Transformação prometida", type: "textarea", hint: "De [estado atual] → para [estado desejado] em [prazo]" },
+        { id: "mechanism",     label: "Mecanismo único",       type: "text",  hint: "Por que SÓ você entrega isso" },
+        { id: "guarantee",     label: "Garantia / risco-zero", type: "text" },
       ],
     },
     {
@@ -544,7 +614,10 @@ const LANDING: NodeBlueprint = {
       fields: [
         { id: "headline",    label: "Headline (promessa)",    type: "text",  hint: "Específica, mensurável, urgente" },
         { id: "subheadline", label: "Subheadline (clareza)",  type: "text" },
+        { id: "headline_alts", label: "3 variações de headline (A/B)", type: "list" },
         { id: "cta_primary", label: "CTA principal",          type: "text",  hint: "Verbo + benefício" },
+        { id: "cta_alts",    label: "Variações de CTA",       type: "list" },
+        { id: "microtrust",  label: "Microcopy de confiança", type: "text",  hint: "Ex: 'Sem cartão de crédito' / '+1.200 clientes'" },
         { id: "hero_visual", label: "Visual hero",            type: "text",  hint: "Mockup / vídeo / ilustração" },
       ],
     },
@@ -552,94 +625,195 @@ const LANDING: NodeBlueprint = {
       id: "body", title: "Corpo da página (em blocos)",
       fields: [
         { id: "blocks", label: "Blocos em ordem", type: "list", hint: "Ex: benefícios → como funciona → prova → FAQ → CTA" },
-        { id: "value_props", label: "Propostas de valor (3)", type: "list" },
+        { id: "pains",       label: "Dores que a página agita", type: "list" },
+        { id: "value_props", label: "Propostas de valor (3-5, benefício+feature+prova)", type: "list" },
         { id: "how_it_works", label: "Como funciona (passos)", type: "list" },
+        { id: "for_who",     label: "Pra quem é / pra quem não é", type: "kv", hint: "para→ ; não para→" },
+        { id: "bonuses",     label: "Bônus / extras",         type: "list" },
+      ],
+    },
+    {
+      id: "offer", title: "Oferta",
+      description: "Stack de valor + ancoragem + escassez.",
+      fields: [
+        { id: "price",       label: "Preço (real ou simbólico)", type: "text" },
+        { id: "anchor",      label: "Ancoragem de preço",        type: "text",  hint: "De R$X por R$Y / equivalente a Z" },
+        { id: "stack",       label: "Stack de valor",            type: "list",  hint: "Item + valor percebido" },
+        { id: "urgency",     label: "Urgência / escassez",       type: "text",  hint: "Vagas, prazo, lote — apenas se real" },
+        { id: "payment",     label: "Condições de pagamento",    type: "text" },
       ],
     },
     {
       id: "proof", title: "Prova social",
       fields: [
         { id: "testimonials", label: "Depoimentos a usar",    type: "list" },
+        { id: "case_studies", label: "Cases / before-after",   type: "list" },
         { id: "logos",        label: "Logos de clientes",      type: "list" },
         { id: "numbers",      label: "Números (X clientes, Y anos)", type: "kv" },
+        { id: "press",        label: "Mídia / certificações",  type: "list" },
       ],
     },
     {
       id: "objections", title: "Objeções e FAQ",
       fields: [
+        { id: "top_objections", label: "Top 5 objeções a derrubar", type: "list" },
         { id: "faq", label: "FAQ (pergunta → resposta)", type: "kv" },
+        { id: "risk_reversal", label: "Risk reversal (garantia, devolução)", type: "text" },
       ],
     },
     {
-      id: "tracking", title: "Tracking",
+      id: "tracking", title: "Tracking e instrumentação",
       fields: [
         { id: "events",   label: "Eventos a disparar",    type: "list" },
+        { id: "pixels",   label: "Pixels / tags",         type: "kv",   hint: "GA4, Meta, GTM, LinkedIn..." },
+        { id: "utm_plan", label: "Plano de UTMs",         type: "kv",   hint: "source→ ; medium→ ; campaign→" },
         { id: "thanks",   label: "Página de obrigado",    type: "text" },
+        { id: "post_conv",label: "Pós-conversão (e-mail, WhatsApp, redirect)", type: "list" },
+      ],
+    },
+    {
+      id: "ab", title: "Plano de teste A/B",
+      fields: [
+        { id: "hypothesis", label: "Hipóteses a testar (em ordem)", type: "list", hint: "Headline → CTA → ordem dos blocos → preço" },
+        { id: "min_volume", label: "Volume mínimo para significância", type: "text", hint: "Ex: 1.000 visitas/variação" },
+        { id: "kpi",        label: "KPI de decisão",      type: "text",  hint: "Conversão / CPL / receita" },
+      ],
+    },
+    {
+      id: "references", title: "Referências e assets",
+      fields: [
+        { id: "swipe_files", label: "Swipe files (URLs de inspiração)", type: "list" },
+        { id: "files",       label: "Anexos (wireframe, vídeo, mockups)", type: "attachments" },
       ],
     },
   ],
   quickActions: [
-    { id: "generate_tasks", label: "Gerar tasks", primary: true },
+    { id: "generate_tasks", label: "Gerar tasks de produção", primary: true },
     { id: "go_live",        label: "Pré-launch",  primary: true },
+    { id: "export_pdf",     label: "Exportar copy doc" },
+    { id: "link_asset",     label: "Vincular assets" },
     { id: "regenerate_prefill", label: "Regenerar com IA" },
   ],
   sources: ["briefing","context","siblings","assets"],
   prefillPrompt:
-    "Você é copywriter de resposta direta (Cialdini + Halbert). Headline específica, mensurável, com benefício. " +
-    "CTA com verbo de ação. Use depoimentos reais se houver no contexto — nunca invente.",
+    "Você é copywriter de resposta direta (Halbert + Eugene Schwartz + Hormozi). " +
+    "Calibre o tom pelo nível de consciência (Schwartz). Headline específica, mensurável, com benefício e — quando couber — dispositivo de curiosidade. " +
+    "Big Idea: 1 frase contra-intuitiva, não chavão. Mecanismo único é o motivo de SÓ a marca entregar a transformação. " +
+    "Stack de valor: cada item com valor percebido em R$ (Hormozi). Urgência só se real — nunca invente lote/vaga. " +
+    "Variações A/B: produza 3 headlines distintas em ângulo (dor / desejo / curiosidade), não em sinônimos. " +
+    "Use depoimentos reais se houver no contexto — NUNCA invente. Para preço, garantia e datas, marque decisionOnly como vazio se não houver fonte. " +
+    "FAQ: gere as 5 objeções mais prováveis pra esse público com resposta curta + prova.",
 };
 
 const CONTEUDO: NodeBlueprint = {
   kind: "conteudo",
-  purpose: "Peça de conteúdo (post, artigo, roteiro) com pauta e CTA.",
+  purpose: "Peça de conteúdo dentro de um calendário editorial — pauta, ângulo, draft, distribuição e métrica.",
   methodChecklist: [
+    { id: "calendar",  label: "Posicionado no calendário editorial",required: true },
     { id: "angle",     label: "Ângulo único definido",              required: true },
     { id: "outline",   label: "Outline aprovado",                   required: true },
     { id: "draft",     label: "Rascunho escrito",                   required: true },
     { id: "review",    label: "Revisão de tom + ortografia",        required: true },
+    { id: "assets",    label: "Assets visuais entregues",           required: true },
+    { id: "approval",  label: "Aprovação do cliente registrada",    required: true },
     { id: "schedule",  label: "Agendado/publicado",                 required: false },
+    { id: "measure",   label: "Métrica medida em D+7",              required: false },
   ],
   sections: [
     {
+      id: "editorial", title: "Calendário editorial",
+      description: "Onde essa peça vive dentro do plano do mês.",
+      fields: [
+        { id: "campaign",     label: "Campanha / pilar de conteúdo", type: "text", hint: "Ex: 'Lançamento Curso Q2' / 'Pilar Educação'" },
+        { id: "pillar",       label: "Pilar editorial",          type: "text",  hint: "Educar / Inspirar / Converter / Bastidores / Autoridade" },
+        { id: "funnel_stage", label: "Etapa do funil",           type: "text",  hint: "ToFu / MoFu / BoFu" },
+        { id: "publish_at",   label: "Data e hora de publicação", type: "text", decisionOnly: true },
+        { id: "frequency_ctx",label: "Cadência do canal nesse mês", type: "text", hint: "Ex: 3x/semana, terça/quinta/sábado" },
+        { id: "owner",        label: "Responsável (criador)",     type: "text", decisionOnly: true },
+        { id: "approver",     label: "Aprovador final",           type: "text", decisionOnly: true },
+      ],
+    },
+    {
       id: "brief", title: "Pauta",
       fields: [
-        { id: "format",   label: "Formato",        type: "text", hint: "Post, artigo, vídeo, carrossel" },
+        { id: "format",   label: "Formato",        type: "text", hint: "Reels, carrossel, post estático, artigo, vídeo, podcast, e-mail, thread" },
         { id: "channel",  label: "Canal",          type: "text" },
         { id: "angle",    label: "Ângulo único",   type: "text", hint: "1 frase do que torna esse conteúdo único" },
+        { id: "promise",  label: "Promessa pro leitor",   type: "text",  hint: "O que ele leva embora em 1 frase" },
         { id: "audience", label: "Quem deve ler",  type: "textarea" },
+        { id: "keywords", label: "Keywords / hashtags-alvo", type: "list" },
+        { id: "references", label: "Referências de inspiração", type: "list" },
       ],
     },
     {
-      id: "outline", title: "Outline",
+      id: "outline", title: "Outline e estrutura",
       fields: [
-        { id: "hook",      label: "Gancho (primeiras 3 linhas)", type: "textarea" },
+        { id: "hook",      label: "Gancho (primeiras 3 linhas / 3s)", type: "textarea", hint: "Quebra padrão, pergunta, dado chocante" },
+        { id: "hook_alts", label: "Variações de gancho",        type: "list",     hint: "3 versões pra teste" },
         { id: "structure", label: "Estrutura em tópicos",        type: "list" },
         { id: "cta",       label: "CTA final",                   type: "text" },
+        { id: "next_action", label: "Para onde leva (link, perfil, DM)", type: "text" },
       ],
     },
     {
-      id: "draft", title: "Texto / roteiro",
+      id: "script", title: "Roteiro / texto",
+      description: "Conteúdo pronto pra publicação. Para vídeo: cenas + falas. Para carrossel: slides numerados.",
       fields: [
-        { id: "body", label: "Conteúdo completo", type: "textarea", hint: "Versão pronta pra publicação" },
+        { id: "body",          label: "Conteúdo completo",        type: "textarea" },
+        { id: "slides",        label: "Slides do carrossel (1 por linha)", type: "list" },
+        { id: "scenes",        label: "Cenas / takes (vídeo)",    type: "list", hint: "[Cena 1] Plano + ação + fala" },
+        { id: "subtitles",     label: "Legendas / closed captions", type: "textarea" },
+        { id: "alt_text",      label: "Alt-text das imagens",     type: "list" },
+      ],
+    },
+    {
+      id: "production", title: "Produção e assets",
+      fields: [
+        { id: "shotlist",   label: "Shot list / takes a gravar",  type: "list" },
+        { id: "props",      label: "Props / cenário / locação",   type: "list" },
+        { id: "wardrobe",   label: "Figurino / styling",          type: "text" },
+        { id: "music",      label: "Trilha / áudio sugerido",     type: "text" },
+        { id: "files",      label: "Anexos (mídia, draft, brand)",type: "attachments" },
       ],
     },
     {
       id: "distribution", title: "Distribuição",
       fields: [
-        { id: "schedule_at", label: "Quando publicar",   type: "text", decisionOnly: true },
-        { id: "tags",        label: "Tags / hashtags",   type: "list" },
+        { id: "primary_channel", label: "Canal principal",        type: "text" },
+        { id: "repurpose",       label: "Repurpose (mesma peça em outros canais)", type: "list", hint: "Reels → TikTok → Shorts → carrossel LinkedIn" },
+        { id: "tags",            label: "Tags / hashtags / mentions", type: "list" },
+        { id: "boosting",        label: "Plano de impulsionamento", type: "kv", hint: "budget→R$ ; público→ ; objetivo→" },
+        { id: "cross_promo",     label: "Cross-promo (parcerias, stories de apoio)", type: "list" },
+      ],
+    },
+    {
+      id: "measurement", title: "Medição e aprendizado",
+      fields: [
+        { id: "kpi",         label: "KPI principal",                 type: "text", hint: "Saves, alcance, cliques, leads, vendas" },
+        { id: "benchmark",   label: "Benchmark do canal",            type: "text", hint: "Média histórica desse formato/canal" },
+        { id: "actuals",     label: "Resultado real (D+7)",          type: "kv",   hint: "alcance→ ; eng→ ; cliques→ ; conv→" },
+        { id: "learnings",   label: "Aprendizado / hipótese pro próximo", type: "textarea" },
       ],
     },
   ],
   quickActions: [
     { id: "export_pdf", label: "Baixar conteúdo", primary: true },
     { id: "generate_tasks", label: "Gerar tasks de produção" },
+    { id: "schedule_meeting", label: "Bloquear gravação/agenda" },
+    { id: "link_asset",       label: "Vincular assets" },
     { id: "regenerate_prefill", label: "Regenerar com IA" },
   ],
-  sources: ["briefing","context","siblings"],
+  sources: ["briefing","context","siblings","metrics"],
   prefillPrompt:
-    "Você é editor-chefe. Gancho na 1ª linha, valor antes da venda, CTA específico. " +
-    "Tom alinhado ao público do briefing. Se for carrossel, divida em slides claros.",
+    "Você é editor-chefe + roteirista de conteúdo digital. " +
+    "Posicione a peça no calendário (pilar + etapa de funil) com base nos pilares do briefing. " +
+    "Gancho na 1ª linha/3s — quebra de padrão, pergunta provocadora ou dado contra-intuitivo. " +
+    "Sempre proponha 3 variações de gancho com ângulos diferentes (dor / curiosidade / desejo). " +
+    "Se for carrossel, escreva slide a slide (capa + 5-8 conteúdos + CTA). " +
+    "Se for vídeo, divida em cenas com (plano + ação + fala). " +
+    "CTA específico, não 'comente aí'. Repurpose: sugira 2-3 adaptações pra outros canais. " +
+    "Para data, owner, approver e budget — origin='empty' (decisão humana). " +
+    "Use métricas históricas se houver no contexto pra propor benchmark realista.",
 };
 
 const ASSET: NodeBlueprint = {
@@ -1277,6 +1451,229 @@ const CONTATO: NodeBlueprint = {
     "Tom: profissional, objetivo, sem julgamento ('cético' ≠ 'difícil').",
 };
 
+const AUTOMACAO: NodeBlueprint = {
+  kind: "automacao",
+  purpose: "Automação operacional (Make / n8n / Zapier) — gatilho → ações → tratamento de erro, pronta pra implantar.",
+  methodChecklist: [
+    { id: "trigger",     label: "Trigger definido e testado",          required: true },
+    { id: "auth",        label: "Conexões autenticadas (apps/contas)", required: true },
+    { id: "happy_path",  label: "Happy path documentado passo a passo",required: true },
+    { id: "errors",      label: "Tratamento de erro + retry",          required: true },
+    { id: "data_map",    label: "Mapa de campos (input → output)",     required: true },
+    { id: "secrets",     label: "Secrets fora do flow (vault)",        required: true },
+    { id: "monitor",     label: "Monitoramento / alertas configurados",required: true },
+    { id: "handoff",     label: "Handoff documentado (quem mantém)",   required: true },
+  ],
+  sections: [
+    {
+      id: "platform", title: "Plataforma e ambiente",
+      fields: [
+        { id: "tool",        label: "Plataforma",       type: "text",  hint: "Make (Integromat), n8n self-hosted, n8n cloud, Zapier, Pipedream, Workato" },
+        { id: "scenario_url",label: "URL do cenário/workflow", type: "text", decisionOnly: true },
+        { id: "version",     label: "Versão do workflow", type: "text", hint: "v1.0 / v1.2-beta" },
+        { id: "environment", label: "Ambiente",         type: "text",  hint: "Sandbox / staging / produção" },
+        { id: "owner",       label: "Owner técnico",    type: "text",  decisionOnly: true },
+        { id: "schedule",    label: "Frequência de execução", type: "text", hint: "Em tempo real / a cada X min / cron" },
+      ],
+    },
+    {
+      id: "trigger", title: "Trigger / disparador",
+      description: "O que inicia a automação.",
+      fields: [
+        { id: "trigger_type",  label: "Tipo de trigger",  type: "text",  hint: "Webhook, agendado (cron), polling, evento de app (ex: novo lead Hubspot)" },
+        { id: "source_app",    label: "App de origem",    type: "text" },
+        { id: "trigger_event", label: "Evento exato",     type: "text",  hint: "Ex: 'Watch new rows' na planilha Y" },
+        { id: "filter",        label: "Filtros / condições de entrada", type: "list", hint: "Ex: status = 'novo' E origem = 'site'" },
+        { id: "sample_payload",label: "Sample payload (JSON exemplo)",  type: "textarea" },
+      ],
+    },
+    {
+      id: "flow", title: "Passos do flow",
+      description: "Sequência de módulos/nodes — cada step com ação clara.",
+      fields: [
+        { id: "steps",        label: "Passos em ordem (1 por linha)",  type: "list", hint: "1. HTTP GET /lead → 2. Filtra → 3. Cria deal Hubspot → 4. Notifica Slack" },
+        { id: "branches",     label: "Ramificações / routers",         type: "list", hint: "Se status=A → ramo X ; senão → ramo Y" },
+        { id: "transformations", label: "Transformações de dados",     type: "list", hint: "Formatar data, parse JSON, regex, lookup..." },
+      ],
+    },
+    {
+      id: "data", title: "Mapa de dados",
+      description: "Input → output — sem mapa, ninguém mantém.",
+      fields: [
+        { id: "field_map",    label: "Campos (origem → destino)",      type: "kv",   hint: "trigger.email → hubspot.contact.email" },
+        { id: "computed",     label: "Campos calculados",              type: "kv",   hint: "deal.amount → trigger.qty * price" },
+        { id: "validations",  label: "Validações antes de gravar",     type: "list" },
+      ],
+    },
+    {
+      id: "errors", title: "Erros e resiliência",
+      fields: [
+        { id: "error_handler",label: "Estratégia de erro",             type: "text",  hint: "Retry exponencial / dead letter / Slack alert / mark fail" },
+        { id: "retry_policy", label: "Política de retry",              type: "text",  hint: "3 tentativas em 1, 5, 15 min" },
+        { id: "fallback",     label: "Fallback / plano B",             type: "text" },
+        { id: "edge_cases",   label: "Edge cases mapeados",            type: "list",  hint: "API fora, payload vazio, duplicado, rate-limit" },
+      ],
+    },
+    {
+      id: "secrets", title: "Segurança e segredos",
+      fields: [
+        { id: "auth_apps",    label: "Apps autenticados",              type: "list",  hint: "Hubspot, Gmail, Slack, Notion..." },
+        { id: "vault_refs",   label: "Refs no vault (não cole keys aqui)", type: "list", hint: "vault://hubspot/private_app_token" },
+        { id: "scopes",       label: "Scopes mínimos por app",         type: "kv" },
+        { id: "pii_handling", label: "Tratamento de PII / LGPD",       type: "text",  hint: "Hash, mascarar, não logar payload" },
+      ],
+    },
+    {
+      id: "monitoring", title: "Monitoramento e KPIs",
+      fields: [
+        { id: "success_kpi",  label: "KPI de sucesso",                 type: "text",  hint: "% de execuções OK em 24h" },
+        { id: "alert_channel",label: "Canal de alerta",                type: "text",  hint: "#ops-alerts no Slack / e-mail / PagerDuty" },
+        { id: "dashboard",    label: "Dashboard de execução",          type: "text",  decisionOnly: true },
+        { id: "expected_volume", label: "Volume esperado",             type: "text",  hint: "100 execuções/dia" },
+      ],
+    },
+    {
+      id: "ops", title: "Operação e handoff",
+      fields: [
+        { id: "runbook",      label: "Runbook (passos quando quebrar)",type: "textarea" },
+        { id: "maintainers",  label: "Manutenedores",                  type: "list",  decisionOnly: true },
+        { id: "review_freq",  label: "Frequência de revisão",          type: "text",  hint: "Mensal / trimestral" },
+        { id: "files",        label: "Anexos (export JSON do flow, screenshots, vídeo)", type: "attachments" },
+      ],
+    },
+  ],
+  quickActions: [
+    { id: "generate_tasks",     label: "Gerar tasks de implementação", primary: true },
+    { id: "export_pdf",         label: "Exportar runbook" },
+    { id: "link_asset",         label: "Vincular cenário/JSON" },
+    { id: "approve",            label: "Aprovar para produção" },
+    { id: "regenerate_prefill", label: "Regenerar com IA" },
+  ],
+  sources: ["briefing","context","client","siblings"],
+  prefillPrompt:
+    "Você é engenheiro de automação sênior (Make + n8n + Zapier). " +
+    "Escolha a plataforma que faz mais sentido pelo contexto (volume, custo, manutenção, presença de devs). " +
+    "Quebre o flow em passos atômicos numerados — 1 ação por step. Sempre proponha tratamento de erro com retry exponencial + alerta. " +
+    "No mapa de dados use a notação 'origem.path → destino.path'. " +
+    "NUNCA escreva tokens, API keys ou senhas — referencie como 'vault://...'. " +
+    "Para URLs de cenário, owner e maintainers: origin='empty' (decisão humana). " +
+    "Sempre liste edge cases (API fora, payload vazio, duplicado, rate-limit) — automação sem isso quebra na 1ª semana.",
+};
+
+const IA_AGENT: NodeBlueprint = {
+  kind: "ia",
+  purpose: "Agente de IA — propósito, prompt, tools, guardrails e métricas, pronto pra subir em produção.",
+  methodChecklist: [
+    { id: "purpose",     label: "Propósito e usuário definidos",        required: true },
+    { id: "prompt",      label: "System prompt versionado",             required: true },
+    { id: "tools",       label: "Tools mapeadas com schema",            required: true },
+    { id: "guardrails",  label: "Guardrails (limites, recusas, PII)",   required: true },
+    { id: "evals",       label: "Conjunto de avaliação (≥10 casos)",    required: true },
+    { id: "fallback",    label: "Fallback humano / handoff",            required: true },
+    { id: "monitor",     label: "Logs + métricas de qualidade",         required: true },
+    { id: "cost",        label: "Custo / token budget controlado",      required: true },
+  ],
+  sections: [
+    {
+      id: "purpose", title: "Propósito e usuário",
+      fields: [
+        { id: "name",         label: "Nome do agente",         type: "text" },
+        { id: "one_liner",    label: "Pitch em 1 frase",       type: "text", hint: "O que ele faz pra quem, em até 15 palavras" },
+        { id: "user",         label: "Usuário-alvo",           type: "textarea", hint: "Quem conversa com o agente — perfil, contexto, jornada" },
+        { id: "use_cases",    label: "Casos de uso suportados",type: "list" },
+        { id: "out_of_scope", label: "Fora de escopo (recusar)",type: "list", hint: "Ex: dar conselho médico, falar de concorrente, prometer prazo" },
+        { id: "success_def",  label: "Definição de sucesso",   type: "text", hint: "Quando consideramos uma conversa boa?" },
+      ],
+    },
+    {
+      id: "model", title: "Modelo e plataforma",
+      fields: [
+        { id: "platform",     label: "Plataforma",             type: "text",  hint: "Lovable AI Gateway, OpenAI Assistants, Anthropic, Vertex, n8n AI Agent, Voiceflow, Make AI..." },
+        { id: "model",        label: "Modelo",                 type: "text",  hint: "google/gemini-3-flash-preview, gpt-5, claude-4.5-sonnet..." },
+        { id: "temperature",  label: "Temperature / params",   type: "kv",    hint: "temperature→0.3 ; top_p→0.9 ; max_tokens→1024" },
+        { id: "interface",    label: "Interface (canal de uso)", type: "text", hint: "Chat web, WhatsApp, Slack, voz, embed iframe" },
+        { id: "memory",       label: "Memória / contexto",     type: "text",  hint: "Stateless / janela X mensagens / vector store" },
+      ],
+    },
+    {
+      id: "prompt", title: "System prompt",
+      description: "O prompt principal — versionado e rastreável.",
+      fields: [
+        { id: "persona",      label: "Persona / tom",          type: "textarea", hint: "Quem o agente É — voz, atitude, limites de tom" },
+        { id: "system_prompt",label: "System prompt completo", type: "textarea", hint: "Texto literal que vai no role:system" },
+        { id: "few_shot",     label: "Few-shot examples (Q→R)",type: "kv" },
+        { id: "output_format",label: "Formato de saída",       type: "text",  hint: "Markdown / JSON com schema X / texto puro" },
+        { id: "version",      label: "Versão do prompt",       type: "text",  hint: "v1.0, atualizado em..." },
+      ],
+    },
+    {
+      id: "tools", title: "Tools / function calling",
+      description: "Funções que o agente pode chamar — com schema e quando usar.",
+      fields: [
+        { id: "tools_list",   label: "Tools (nome → o que faz)", type: "kv" },
+        { id: "tool_schemas", label: "Schemas das tools (JSON)", type: "textarea", hint: "JSON schema completo de cada tool" },
+        { id: "decision_rules", label: "Quando chamar cada tool", type: "list", hint: "Ex: usar buscar_cliente() se mensagem cita CNPJ ou e-mail" },
+        { id: "max_calls",    label: "Limite de tool calls / turno", type: "text", hint: "Ex: 5 — evita loop" },
+      ],
+    },
+    {
+      id: "guardrails", title: "Guardrails e segurança",
+      fields: [
+        { id: "refusals",     label: "O que recusar (com mensagem)", type: "kv", hint: "tema → resposta padrão" },
+        { id: "pii",          label: "Política de PII",        type: "text",  hint: "Não pedir CPF/cartão; mascarar nos logs" },
+        { id: "prompt_injection", label: "Defesa contra prompt injection", type: "text", hint: "Tag system, ignorar 'esqueça instruções acima'..." },
+        { id: "factuality",   label: "Política de fatos",      type: "text",  hint: "Citar fonte quando vier de tool; nunca inventar preço/prazo" },
+        { id: "tone_limits",  label: "Limites de tom",         type: "list",  hint: "Não brincar com luto; não promessa garantida; não opinião política" },
+      ],
+    },
+    {
+      id: "evals", title: "Avaliação e testes",
+      fields: [
+        { id: "test_cases",   label: "Casos de teste (input → resposta esperada)", type: "kv" },
+        { id: "edge_cases",   label: "Casos adversariais",     type: "list", hint: "Pergunta enviesada, fora de escopo, prompt injection" },
+        { id: "metrics",      label: "Métricas de qualidade",  type: "list", hint: "Resolução em 1 turno, CSAT, tool-call accuracy, %hand-off" },
+        { id: "rubric",       label: "Rubrica de avaliação",   type: "textarea", hint: "Critérios pra dar nota 1-5 em cada resposta" },
+      ],
+    },
+    {
+      id: "ops", title: "Operação, custo e handoff",
+      fields: [
+        { id: "logs",         label: "Logs e observabilidade", type: "text",  hint: "Onde inspecionar conversas (Langfuse, Arize, custom)" },
+        { id: "human_handoff",label: "Handoff humano",         type: "text",  hint: "Quando e como passar pra atendente" },
+        { id: "cost_budget",  label: "Budget de tokens / custo",type: "kv",   hint: "max_tokens_in→ ; max_tokens_out→ ; custo_estimado_msg→USD" },
+        { id: "kill_switch",  label: "Kill switch / desligamento", type: "text", decisionOnly: true },
+        { id: "owner",        label: "Owner do agente",        type: "text",  decisionOnly: true },
+      ],
+    },
+    {
+      id: "links", title: "Links e anexos",
+      fields: [
+        { id: "playground_url", label: "URL do playground / preview", type: "text", decisionOnly: true },
+        { id: "knowledge_url",  label: "Base de conhecimento (vector store)", type: "text", decisionOnly: true },
+        { id: "repo_url",       label: "Repositório / arquivos do agente", type: "text", decisionOnly: true },
+        { id: "files",          label: "Anexos (prompt.md, eval.csv, screenshots)", type: "attachments" },
+      ],
+    },
+  ],
+  quickActions: [
+    { id: "generate_tasks",     label: "Gerar tasks de build", primary: true },
+    { id: "export_pdf",         label: "Exportar prompt + spec" },
+    { id: "link_asset",         label: "Vincular base de conhecimento" },
+    { id: "approve",            label: "Aprovar para produção" },
+    { id: "regenerate_prefill", label: "Regenerar com IA" },
+  ],
+  sources: ["briefing","context","client","siblings"],
+  prefillPrompt:
+    "Você é um arquiteto de agentes de IA com experiência prática (LangChain, OpenAI Assistants, n8n AI Agent, Voiceflow). " +
+    "Comece pelo PROPÓSITO e USUÁRIO — sem isso o resto não importa. " +
+    "System prompt: escreva LITERAL, em português, com (1) persona, (2) o que faz, (3) o que NUNCA faz, (4) formato de saída, (5) como chamar tools. " +
+    "Tools: para cada uma, descreva 1 frase do que faz + quando usar. Se não houver evidência de quais tools existem, proponha 2-3 candidatas razoáveis e marque como auto. " +
+    "Guardrails são obrigatórios: SEMPRE liste recusas mínimas (PII, tópicos sensíveis, prompt injection). " +
+    "Evals: produza ao menos 5 casos de teste (3 happy path + 2 adversariais) com resposta esperada. " +
+    "Para URLs (playground, repo, knowledge base), owner, kill switch: origin='empty'. " +
+    "Modelo padrão sugerido: 'google/gemini-3-flash-preview' via Lovable AI Gateway, salvo se o contexto exigir voz/multimodal/custo específico.",
+};
+
 /**
  * NOTA: alguns kinds compartilham o mesmo blueprint base (ex: documento e diagnostico
  * são ambos `documento` no enum atual — diferenciamos via título do node).
@@ -1298,6 +1695,8 @@ export const NODE_BLUEPRINTS: NodeBlueprint[] = [
   KICKOFF, // shares kind 'reuniao'
   CHECKLIST,
   CONTATO,
+  AUTOMACAO,
+  IA_AGENT,
 ];
 
 /**
