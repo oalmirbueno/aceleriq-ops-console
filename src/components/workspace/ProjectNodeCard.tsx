@@ -1,8 +1,7 @@
 import { memo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Plus, Link2, Paperclip, ListChecks } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { getProjectTypeMeta } from "./canvasProjectTypes";
+import { getProjectTypeMeta, getNodeFamily } from "./canvasProjectTypes";
 import { getEsteiraStatus, mapLegacyStatus } from "./canvasEsteiraStatus";
 import ClientAvatar from "./ClientAvatar";
 import AttachmentPreview from "./AttachmentPreview";
@@ -38,36 +37,38 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
   const d = data as ProjectNodeData;
   const meta = getProjectTypeMeta(d.kind);
   const Icon = meta?.icon ?? Link2;
-  const colorClass = meta?.color ?? "border-border text-foreground";
-  const bgClass = meta?.bg ?? "bg-muted/30";
   const statusMeta = getEsteiraStatus(mapLegacyStatus(d.status));
+  const family = getNodeFamily(d.kind);
+  const checklistPct =
+    d.checklistTotal && d.checklistTotal > 0
+      ? Math.round(((d.checklistDone ?? 0) / d.checklistTotal) * 100)
+      : null;
 
   const [hover, setHover] = useState(false);
 
   return (
     <div
-      className="relative group"
+      className={`relative group node-family-${family}`}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
       <Handle type="target" position={Position.Left} className="!bg-primary !w-2 !h-2 !border-background" />
 
       <div
-        className={`relative rounded-xl border-2 ${colorClass} ${bgClass} px-3 py-2.5 w-[230px] shadow-md backdrop-blur-sm transition-all ${
-          selected ? "ring-2 ring-primary ring-offset-2 ring-offset-background scale-[1.02]" : "hover:shadow-lg hover:-translate-y-0.5"
-        }`}
+        data-selected={selected ? "true" : "false"}
+        className="node-card relative rounded-lg w-[240px] px-3 py-2.5"
       >
-        {/* Top row: icon + label + client avatar + linked indicator */}
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <div className={`h-6 w-6 rounded-md ${bgClass} border ${colorClass.split(" ")[0]} flex items-center justify-center shrink-0`}>
-            <Icon className="h-3.5 w-3.5" />
+        {/* Top row: icon · kind label · indicators */}
+        <div className="flex items-center gap-2 mb-2">
+          <div className="node-icon h-6 w-6 rounded-md flex items-center justify-center shrink-0">
+            <Icon className="h-3.5 w-3.5" strokeWidth={2} />
           </div>
-          <span className="text-[10px] uppercase tracking-wider opacity-80 font-semibold truncate">
+          <span className="node-kind-label text-[10px] uppercase tracking-[0.08em] font-semibold truncate">
             {meta?.shortLabel ?? d.kind}
           </span>
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex items-center gap-1.5">
             {d.hasLinkedEntity && (
-              <Link2 className="h-3 w-3 text-primary" aria-label="Vinculado" />
+              <Link2 className="h-3 w-3 text-foreground/40" aria-label="Vinculado" />
             )}
             {d.clientName && (
               <ClientAvatar
@@ -83,7 +84,7 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
         {/* Cover thumbnail (first previewable attachment) */}
         {d.coverAttachment?.url && (
           <div
-            className="relative mb-2 rounded-md overflow-hidden border border-border/60 bg-muted/40 h-24 w-full"
+            className="relative mb-2 rounded-md overflow-hidden border border-border/60 bg-black/30 h-24 w-full"
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
@@ -98,41 +99,63 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
           </div>
         )}
 
-        {/* Title */}
-        <p className="text-sm font-semibold text-foreground leading-tight line-clamp-2 mb-1">
+        {/* Title — strong hierarchy */}
+        <p className="text-[13.5px] font-semibold text-foreground leading-[1.25] tracking-[-0.01em] line-clamp-2 mb-1">
           {d.title}
         </p>
 
-        {/* Description */}
+        {/* Description — secondary */}
         {d.description && (
-          <p className="text-[11px] text-muted-foreground line-clamp-2 leading-snug mb-2">
+          <p className="text-[11px] text-muted-foreground/80 line-clamp-2 leading-snug mb-2">
             {d.description}
           </p>
         )}
 
-        {/* Footer: status + meta counts */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${statusMeta.color}`}>
+        {/* Checklist progress bar — only if there's a checklist */}
+        {checklistPct !== null && (
+          <div className="mb-2">
+            <div className="flex items-center justify-between text-[9.5px] text-muted-foreground/70 mb-0.5">
+              <span className="inline-flex items-center gap-1">
+                <ListChecks className="h-2.5 w-2.5" />
+                {d.checklistDone ?? 0}/{d.checklistTotal}
+              </span>
+              <span className="font-mono tabular-nums">{checklistPct}%</span>
+            </div>
+            <div className="h-[3px] w-full rounded-full bg-white/[0.04] overflow-hidden">
+              <div
+                className="h-full rounded-full transition-[width] duration-300"
+                style={{
+                  width: `${checklistPct}%`,
+                  background: "hsl(var(--node-accent, var(--primary)) / 0.85)",
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Footer: status dot + meta counts (compact, low contrast) */}
+        <div className="flex items-center gap-2 pt-1.5 border-t border-white/[0.04]">
+          <span className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ background: "hsl(var(--node-accent, var(--muted-foreground)) / 0.9)" }}
+            />
             {statusMeta.label}
-          </Badge>
-          {(d.checklistTotal ?? 0) > 0 && (
-            <span className="text-[10px] text-muted-foreground inline-flex items-center gap-0.5">
-              <ListChecks className="h-2.5 w-2.5" />
-              {d.checklistDone ?? 0}/{d.checklistTotal}
-            </span>
-          )}
-          {(d.links ?? 0) > 0 && (
-            <span className="text-[10px] text-muted-foreground inline-flex items-center gap-0.5">
-              <Link2 className="h-2.5 w-2.5" />
-              {d.links}
-            </span>
-          )}
-          {(d.attachments ?? 0) > 0 && (
-            <span className="text-[10px] text-muted-foreground inline-flex items-center gap-0.5">
-              <Paperclip className="h-2.5 w-2.5" />
-              {d.attachments}
-            </span>
-          )}
+          </span>
+          <div className="ml-auto flex items-center gap-2 text-[10px] text-muted-foreground/60">
+            {(d.links ?? 0) > 0 && (
+              <span className="inline-flex items-center gap-0.5">
+                <Link2 className="h-2.5 w-2.5" />
+                {d.links}
+              </span>
+            )}
+            {(d.attachments ?? 0) > 0 && (
+              <span className="inline-flex items-center gap-0.5">
+                <Paperclip className="h-2.5 w-2.5" />
+                {d.attachments}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -141,17 +164,17 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
         <>
           <button
             onClick={(e) => { e.stopPropagation(); d.onQuickConnect?.("right"); }}
-            className="absolute top-1/2 -right-3 -translate-y-1/2 h-6 w-6 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:scale-110 transition-transform z-10"
+            className="absolute top-1/2 -right-3 -translate-y-1/2 h-5 w-5 rounded-full bg-foreground/90 text-background shadow-lg flex items-center justify-center hover:scale-110 hover:bg-foreground transition-all z-10"
             aria-label="Adicionar próximo node à direita"
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="h-3 w-3" strokeWidth={2.5} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); d.onQuickConnect?.("bottom"); }}
-            className="absolute -bottom-3 left-1/2 -translate-x-1/2 h-6 w-6 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:scale-110 transition-transform z-10"
+            className="absolute -bottom-3 left-1/2 -translate-x-1/2 h-5 w-5 rounded-full bg-foreground/90 text-background shadow-lg flex items-center justify-center hover:scale-110 hover:bg-foreground transition-all z-10"
             aria-label="Adicionar próximo node abaixo"
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="h-3 w-3" strokeWidth={2.5} />
           </button>
         </>
       )}
