@@ -104,6 +104,9 @@ function CanvasStudioInner({
   // Quick add menu (advanced)
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
+  // Generate esteira (per-plan template) dialog
+  const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     const [{ data: nodesData }, { data: edgesData }] = await Promise.all([
