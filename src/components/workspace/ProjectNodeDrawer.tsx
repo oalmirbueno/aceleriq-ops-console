@@ -182,6 +182,110 @@ export default function ProjectNodeDrawer({
                 <Badge variant="outline" className={`text-[10px] ${getEsteiraStatus(statusPremium).color}`}>
                   {getEsteiraStatus(statusPremium).label}
                 </Badge>
+                {onMoveToFolder && (() => {
+                  const current = clientFolders.find((f) => f.id === node.parent_node_id);
+                  return (
+                    <Popover open={moveOpen} onOpenChange={setMoveOpen}>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded-md border border-border bg-background/60 hover:bg-muted/70 hover:border-primary/50 transition-colors px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+                          aria-label="Mover para outra pasta"
+                          disabled={moving}
+                        >
+                          {moving ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : current ? (
+                            <ClientAvatar
+                              name={current.name}
+                              seed={current.linkedClientId ?? current.id}
+                              logoUrl={current.logoUrl}
+                              size="xs"
+                            />
+                          ) : (
+                            <FolderInput className="h-3 w-3" />
+                          )}
+                          <span className="max-w-[120px] truncate">
+                            {current?.name ?? "Sem pasta"}
+                          </span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-72 p-0">
+                        <div className="px-3 py-2 border-b border-border">
+                          <p className="text-xs font-semibold text-foreground">Mover para outra pasta</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Escolha o cliente que será o novo dono deste node.
+                          </p>
+                        </div>
+                        <ScrollArea className="max-h-64">
+                          <div className="p-1">
+                            {clientFolders.length === 0 && (
+                              <p className="text-[11px] text-muted-foreground text-center py-4 px-2">
+                                Nenhuma pasta de cliente disponível.
+                              </p>
+                            )}
+                            {clientFolders.map((f) => {
+                              const active = f.id === node.parent_node_id;
+                              return (
+                                <button
+                                  key={f.id}
+                                  type="button"
+                                  disabled={active || moving}
+                                  onClick={async () => {
+                                    if (!onMoveToFolder || active) return;
+                                    setMoving(true);
+                                    try {
+                                      await onMoveToFolder(node.id, f.id);
+                                      setMoveOpen(false);
+                                    } finally {
+                                      setMoving(false);
+                                    }
+                                  }}
+                                  className={`w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
+                                    active
+                                      ? "bg-primary/10 text-primary cursor-default"
+                                      : "hover:bg-muted/60 text-foreground"
+                                  }`}
+                                >
+                                  <ClientAvatar
+                                    name={f.name}
+                                    seed={f.linkedClientId ?? f.id}
+                                    logoUrl={f.logoUrl}
+                                    size="sm"
+                                  />
+                                  <span className="flex-1 truncate">{f.name}</span>
+                                  {active && <Check className="h-3.5 w-3.5 shrink-0" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </ScrollArea>
+                        {node.parent_node_id && (
+                          <div className="border-t border-border p-1">
+                            <button
+                              type="button"
+                              disabled={moving}
+                              onClick={async () => {
+                                if (!onMoveToFolder) return;
+                                setMoving(true);
+                                try {
+                                  await onMoveToFolder(node.id, null);
+                                  setMoveOpen(false);
+                                } finally {
+                                  setMoving(false);
+                                }
+                              }}
+                              className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                              Remover de qualquer pasta
+                            </button>
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
+                  );
+                })()}
               </div>
               <Input
                 value={title}
