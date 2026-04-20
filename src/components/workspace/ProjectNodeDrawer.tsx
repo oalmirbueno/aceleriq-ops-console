@@ -58,6 +58,21 @@ export default function ProjectNodeDrawer(props: Props) {
     );
   }
 
+  // Funil: editor visual completo (pipeline + ramificações)
+  if (kind === "funil" && clientId) {
+    return (
+      <FunnelEditorDrawer
+        node={node}
+        open={props.open}
+        onOpenChange={props.onOpenChange}
+        workspaceId={props.workspaceId}
+        clientId={clientId}
+        clientName={clientName}
+        onDelete={props.onDelete}
+      />
+    );
+  }
+
   // Briefing tem extraSlot com BriefingConsolidatedView
   if (kind === "briefing" && clientId) {
     return (
