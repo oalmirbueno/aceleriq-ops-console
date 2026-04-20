@@ -284,3 +284,52 @@
 .react-flow__edge:focus .react-flow__edge-path {
   stroke: hsl(var(--primary));
 }
+
+/* ─── Node family helpers — used by ProjectNodeCard ─── */
+.node-family-entry     { --node-accent: var(--node-entry); }
+.node-family-structure { --node-accent: var(--node-structure); }
+.node-family-plan      { --node-accent: var(--node-plan); }
+.node-family-build     { --node-accent: var(--node-build); }
+.node-family-tech      { --node-accent: var(--node-tech); }
+.node-family-content   { --node-accent: var(--node-content); }
+.node-family-launch    { --node-accent: var(--node-launch); }
+.node-family-growth    { --node-accent: var(--node-growth); }
+.node-family-proof     { --node-accent: var(--node-proof); }
+
+/* Linear-style card: dark base, sharp 3px left accent, layered shadow, hover lift */
+.node-card {
+  background:
+    linear-gradient(180deg, hsl(var(--card)) 0%, hsl(0 0% 6%) 100%);
+  border: 1px solid hsl(0 0% 14%);
+  border-left: 3px solid hsl(var(--node-accent, var(--border)));
+  box-shadow:
+    0 1px 0 hsl(0 0% 100% / 0.02) inset,
+    0 4px 12px -2px hsl(0 0% 0% / 0.5),
+    0 1px 2px hsl(0 0% 0% / 0.4);
+  transition: transform .18s cubic-bezier(.4,0,.2,1),
+              border-color .18s, box-shadow .18s;
+}
+.node-card:hover {
+  transform: translateY(-2px);
+  border-color: hsl(0 0% 22%);
+  border-left-color: hsl(var(--node-accent, var(--border)));
+  box-shadow:
+    0 1px 0 hsl(0 0% 100% / 0.04) inset,
+    0 12px 28px -6px hsl(0 0% 0% / 0.6),
+    0 4px 10px -2px hsl(0 0% 0% / 0.45),
+    0 0 0 1px hsl(var(--node-accent, var(--border)) / 0.18);
+}
+.node-card[data-selected="true"] {
+  border-color: hsl(var(--node-accent, var(--primary)) / 0.5);
+  box-shadow:
+    0 0 0 1px hsl(var(--node-accent, var(--primary)) / 0.4),
+    0 12px 28px -6px hsl(0 0% 0% / 0.6);
+}
+.node-card .node-icon {
+  background: hsl(var(--node-accent, var(--muted)) / 0.12);
+  color: hsl(var(--node-accent, var(--foreground)));
+  border: 1px solid hsl(var(--node-accent, var(--border)) / 0.25);
+}
+.node-card .node-kind-label {
+  color: hsl(var(--node-accent, var(--muted-foreground)) / 0.85);
+}
