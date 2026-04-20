@@ -109,12 +109,13 @@ export default function CanvasClientTabs({
 
             {tabs.length > 0 && <div className="h-5 w-px bg-border mx-1 shrink-0" />}
 
-            {tabs.map((t) => {
+            {tabs.map((t, idx) => {
               const active = t.id === activeId;
               const isEditing = editingId === t.id;
-              return (
+              const isFirst = idx === 0;
+
+              const tabContent = (
                 <div
-                  key={t.id}
                   className={`shrink-0 group flex items-center gap-1.5 h-9 pl-1.5 pr-1 rounded-md border text-xs font-medium transition-all ${
                     active
                       ? "bg-card border-primary/50 text-foreground shadow-sm"
@@ -173,7 +174,7 @@ export default function CanvasClientTabs({
                         </TooltipTrigger>
                         {onRenameClient && (
                           <TooltipContent side="bottom">
-                            Duplo-clique para renomear
+                            Duplo-clique para renomear · Botão direito para mais opções
                           </TooltipContent>
                         )}
                       </Tooltip>
@@ -212,6 +213,52 @@ export default function CanvasClientTabs({
                     </>
                   )}
                 </div>
+              );
+
+              // Wrap in context menu when any contextual action is available
+              const hasMenu = !!(onRenameClient || onChangeLogo || onMoveToStart || onRemoveClient);
+              if (!hasMenu || isEditing) {
+                return <div key={t.id}>{tabContent}</div>;
+              }
+
+              return (
+                <ContextMenu key={t.id}>
+                  <ContextMenuTrigger asChild>
+                    <div onContextMenu={() => onSelect(t.id)}>{tabContent}</div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent className="w-52">
+                    {onRenameClient && (
+                      <ContextMenuItem onSelect={() => startEdit(t)}>
+                        <Pencil className="h-3.5 w-3.5 mr-2" /> Renomear
+                      </ContextMenuItem>
+                    )}
+                    {onChangeLogo && (
+                      <ContextMenuItem onSelect={() => onChangeLogo(t.id)}>
+                        <ImageIcon className="h-3.5 w-3.5 mr-2" /> Trocar logo
+                      </ContextMenuItem>
+                    )}
+                    {onMoveToStart && !isFirst && (
+                      <ContextMenuItem onSelect={() => onMoveToStart(t.id)}>
+                        <ArrowLeftToLine className="h-3.5 w-3.5 mr-2" /> Mover para o início
+                      </ContextMenuItem>
+                    )}
+                    {onRemoveClient && (
+                      <>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onSelect={() => {
+                            if (confirm(`Remover a pasta de "${t.title}" do canvas? Os nodes ficarão sem pasta.`)) {
+                              onRemoveClient(t.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-2" /> Remover pasta
+                        </ContextMenuItem>
+                      </>
+                    )}
+                  </ContextMenuContent>
+                </ContextMenu>
               );
             })}
           </div>
