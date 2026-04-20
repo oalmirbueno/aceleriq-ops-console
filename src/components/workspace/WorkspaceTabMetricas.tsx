@@ -136,8 +136,8 @@ export default function WorkspaceTabMetricas({ workspaceId, clientId, onTimeline
             const Icon = cmp?.direction === "up" ? ArrowUp : cmp?.direction === "down" ? ArrowDown : Minus;
             const accent =
               !cmp ? "text-muted-foreground"
-              : cmp.direction === "up" ? "text-emerald-400"
-              : cmp.direction === "down" ? "text-rose-400"
+              : cmp.direction === "up" ? "text-muted-foreground"
+              : cmp.direction === "down" ? "text-muted-foreground"
               : "text-muted-foreground";
             return (
               <Card key={g.key} className="border-border bg-card">

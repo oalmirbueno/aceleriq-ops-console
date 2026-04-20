@@ -336,13 +336,13 @@ export default function FunnelEditorDrawer({
         <div className="px-5 pt-5 pb-3 border-b border-border space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3 min-w-0 flex-1">
-              <div className="h-10 w-10 rounded-lg border-2 border-indigo-500/40 bg-indigo-500/10 flex items-center justify-center shrink-0">
-                <Workflow className="h-5 w-5 text-indigo-400" />
+              <div className="h-10 w-10 rounded-lg border-2 border-border bg-muted/10 flex items-center justify-center shrink-0">
+                <Workflow className="h-5 w-5 text-muted-foreground" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-base font-semibold truncate">{funnel?.name ?? node.title}</h2>
-                  <Badge variant="outline" className="text-[9px] border-indigo-500/40 text-indigo-400">
+                  <Badge variant="outline" className="text-[9px] border-border text-muted-foreground">
                     L · Planejamento
                   </Badge>
                 </div>
@@ -356,7 +356,7 @@ export default function FunnelEditorDrawer({
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 gap-1.5 text-[11px] border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50"
+                className="h-7 gap-1.5 text-[11px] border-border text-muted-foreground hover:bg-muted/10 disabled:opacity-50"
                 onClick={generateTasksFromChecklists}
                 disabled={generatingTasks || pendingChecklist.length === 0}
                 title={
@@ -372,13 +372,13 @@ export default function FunnelEditorDrawer({
                 )}
                 Gerar tarefas
                 {pendingChecklist.length > 0 && (
-                  <Badge variant="outline" className="h-4 px-1 text-[9px] border-emerald-500/40 text-emerald-400">
+                  <Badge variant="outline" className="h-4 px-1 text-[9px] border-border text-muted-foreground">
                     {pendingChecklist.length}
                   </Badge>
                 )}
               </Button>
               {onDelete && (
-                <Button size="icon" variant="ghost" className="h-7 w-7 text-rose-400"
+                <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground"
                   onClick={() => { onDelete(node.id); onOpenChange(false); }}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -428,7 +428,7 @@ export default function FunnelEditorDrawer({
 
           {/* KPIs */}
           <div className="flex items-center gap-2 text-[10px]">
-            <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 flex items-center gap-1">
+            <Badge variant="outline" className="border-border text-muted-foreground flex items-center gap-1">
               <TrendingUp className="h-2.5 w-2.5" />
               Conv. total: {totalConv != null ? `${(totalConv * 100).toFixed(2)}%` : "—"}
             </Badge>
@@ -516,7 +516,7 @@ export default function FunnelEditorDrawer({
 function EmptyPipeline({ onAdd }: { onAdd: (k: FunnelBlockKind) => void }) {
   return (
     <div className="border-2 border-dashed border-border rounded-lg p-8 text-center space-y-4">
-      <Sparkles className="h-8 w-8 mx-auto text-indigo-400/60" />
+      <Sparkles className="h-8 w-8 mx-auto text-muted-foreground" />
       <div className="space-y-1">
         <p className="text-sm font-medium">Funil vazio</p>
         <p className="text-xs text-muted-foreground">Comece adicionando o primeiro bloco — geralmente uma fonte de tráfego.</p>

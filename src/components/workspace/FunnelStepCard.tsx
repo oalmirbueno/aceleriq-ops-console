@@ -112,7 +112,7 @@ export default function FunnelStepCard({
               {meta.shortLabel}
             </Badge>
             {step.conversion_rate != null && (
-              <Badge variant="outline" className="text-[9px] border-emerald-500/40 text-emerald-400">
+              <Badge variant="outline" className="text-[9px] border-border text-muted-foreground">
                 {(step.conversion_rate * 100).toFixed(1)}% conv.
               </Badge>
             )}
@@ -139,7 +139,7 @@ export default function FunnelStepCard({
           <Button size="icon" variant="ghost" className="h-6 w-6" disabled={isLast} onClick={() => onMove("down")}>
             <ChevronDown className="h-3 w-3" />
           </Button>
-          <Button size="icon" variant="ghost" className="h-6 w-6 text-rose-400" onClick={onDelete}>
+          <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground" onClick={onDelete}>
             <Trash2 className="h-3 w-3" />
           </Button>
           <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={onToggleExpand}>
@@ -221,8 +221,8 @@ export default function FunnelStepCard({
 
           {/* Conversão + volume */}
           {!step.block_kind.startsWith("logic_") && (
-            <div className="space-y-2 rounded-md border border-emerald-500/20 bg-emerald-500/5 p-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-400">Conversão & Volume</p>
+            <div className="space-y-2 rounded-md border border-border bg-muted/10 p-2.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Conversão & Volume</p>
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1">
                   <Label className="text-[10px] text-muted-foreground">Taxa conv. (%)</Label>
@@ -297,7 +297,7 @@ export default function FunnelStepCard({
                       }}
                       className={cn("h-7 text-xs flex-1", item.done && "line-through text-muted-foreground")}
                     />
-                    <Button size="icon" variant="ghost" className="h-6 w-6 text-rose-400"
+                    <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground"
                       onClick={() => onPatch({ checklist: step.checklist.filter((_, idx) => idx !== i) })}>
                       <X className="h-3 w-3" />
                     </Button>
@@ -348,14 +348,14 @@ export default function FunnelStepCard({
 
       {/* ─── Conector de ramificação visível (resumo) ─── */}
       {!expanded && stepBranches.length > 0 && (
-        <div className="border-t border-border px-3 py-2 bg-amber-500/5">
-          <div className="flex items-center gap-2 text-[10px] text-amber-400">
+        <div className="border-t border-border px-3 py-2 bg-muted/10">
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
             <GitBranch className="h-3 w-3" />
             <span>{stepBranches.length} ramificação{stepBranches.length > 1 ? "ões" : ""}:</span>
             {stepBranches.map((b) => {
               const target = allSteps.find((s) => s.id === b.to_step_id);
               return (
-                <Badge key={b.id} variant="outline" className="text-[9px] border-amber-500/40">
+                <Badge key={b.id} variant="outline" className="text-[9px] border-border">
                   {b.condition} → {target?.title ?? "?"}
                 </Badge>
               );
@@ -387,8 +387,8 @@ function BranchEditor({
     : ["yes","no","default"];
 
   return (
-    <div className="space-y-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-400 flex items-center gap-1">
+    <div className="space-y-2 rounded-md border border-border bg-muted/10 p-2.5">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
         <GitBranch className="h-3 w-3" /> Ramificações
       </p>
 
@@ -400,10 +400,10 @@ function BranchEditor({
             const target = allSteps.find((s) => s.id === b.to_step_id);
             return (
               <li key={b.id} className="flex items-center gap-1.5 text-[11px]">
-                <Badge variant="outline" className="text-[9px] border-amber-500/40 text-amber-400">{b.condition}</Badge>
+                <Badge variant="outline" className="text-[9px] border-border text-muted-foreground">{b.condition}</Badge>
                 <ArrowDown className="h-3 w-3 text-muted-foreground rotate-[-90deg]" />
                 <span className="flex-1 truncate">{target?.title ?? "(etapa removida)"}</span>
-                <Button size="icon" variant="ghost" className="h-5 w-5 text-rose-400" onClick={() => onRemoveBranch(b.id)}>
+                <Button size="icon" variant="ghost" className="h-5 w-5 text-muted-foreground" onClick={() => onRemoveBranch(b.id)}>
                   <X className="h-3 w-3" />
                 </Button>
               </li>
@@ -412,7 +412,7 @@ function BranchEditor({
         </ul>
       )}
 
-      <div className="flex gap-1.5 pt-1 border-t border-amber-500/20">
+      <div className="flex gap-1.5 pt-1 border-t border-border">
         <Select value={newCondition} onValueChange={(v) => setNewCondition(v as FunnelBranchRow["condition"])}>
           <SelectTrigger className="h-7 text-[10px] w-24"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -537,7 +537,7 @@ function LinkedMetricsPanel({
                   </Badge>
                 )}
                 {hasOverride && (
-                  <Badge variant="outline" className="text-[8px] border-amber-500/40 text-amber-400 px-1 py-0 h-3.5 leading-none">
+                  <Badge variant="outline" className="text-[8px] border-border text-muted-foreground px-1 py-0 h-3.5 leading-none">
                     manual
                   </Badge>
                 )}
@@ -552,7 +552,7 @@ function LinkedMetricsPanel({
                   />
                   {hasOverride && (
                     <Button
-                      size="icon" variant="ghost" className="h-7 w-7 text-rose-400 shrink-0"
+                      size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground shrink-0"
                       onClick={() => {
                         const next = { ...step.metrics };
                         delete next[mk];

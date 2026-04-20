@@ -21,16 +21,16 @@ export const VALIDATION_STATUS_OPTIONS: Array<{ value: ValidationStatus; label: 
 
 export const VALIDATION_COLORS: Record<ValidationStatus, string> = {
   draft: "bg-muted text-muted-foreground border-border",
-  registered: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  validated: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  case_ready: "bg-violet-500/15 text-violet-400 border-violet-500/30",
+  registered: "bg-muted/10 text-muted-foreground border-border",
+  validated: "bg-muted/10 text-muted-foreground border-border",
+  case_ready: "bg-muted/10 text-muted-foreground border-border",
 };
 
 export const ASSET_TYPE_COLORS: Record<AssetType, string> = {
-  deliverable_link: "bg-sky-500/15 text-sky-400 border-sky-500/30",
-  operational_proof: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-  result_evidence: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  case_material: "bg-violet-500/15 text-violet-400 border-violet-500/30",
+  deliverable_link: "bg-muted/10 text-muted-foreground border-border",
+  operational_proof: "bg-muted/10 text-muted-foreground border-border",
+  result_evidence: "bg-muted/10 text-muted-foreground border-border",
+  case_material: "bg-muted/10 text-muted-foreground border-border",
 };
 
 export function getAssetTypeLabel(t: AssetType | string): string {

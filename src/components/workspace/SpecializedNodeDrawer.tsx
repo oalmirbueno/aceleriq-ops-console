@@ -126,7 +126,7 @@ export default function SpecializedNodeDrawer({
                 Acessos
               </Button>
               {onDelete && (
-                <Button size="icon" variant="ghost" className="h-7 w-7 text-rose-400"
+                <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground"
                   onClick={() => { onDelete(node.id); onOpenChange(false); }}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>

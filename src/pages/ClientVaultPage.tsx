@@ -303,9 +303,9 @@ export default function ClientVaultPage() {
         </div>
 
         {/* ─── Banner de segurança ─── */}
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 flex items-center gap-3 flex-wrap">
-          <div className="h-9 w-9 rounded-md border border-amber-500/40 bg-amber-500/10 flex items-center justify-center">
-            <Lock className="h-4 w-4 text-amber-400" />
+        <div className="rounded-lg border border-border bg-muted/10 px-4 py-3 flex items-center gap-3 flex-wrap">
+          <div className="h-9 w-9 rounded-md border border-border bg-muted/10 flex items-center justify-center">
+            <Lock className="h-4 w-4 text-muted-foreground" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-foreground">Cofre criptografado · {totalCreds} acesso{totalCreds === 1 ? "" : "s"}</p>
@@ -314,11 +314,11 @@ export default function ClientVaultPage() {
             </p>
           </div>
           {isAdmin ? (
-            <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-400 gap-1">
+            <Badge variant="outline" className="text-[9px] border-border text-muted-foreground gap-1">
               <ShieldCheck className="h-2.5 w-2.5" /> Admin · pode revelar
             </Badge>
           ) : (
-            <Badge variant="outline" className="text-[9px] border-amber-500/30 text-amber-400">
+            <Badge variant="outline" className="text-[9px] border-border text-muted-foreground">
               Você não é admin — não pode revelar
             </Badge>
           )}
@@ -595,7 +595,7 @@ function CredentialCard({
           <Button size="icon" variant="ghost" className="h-6 w-6" onClick={onEdit}>
             <Pencil className="h-3 w-3" />
           </Button>
-          <Button size="icon" variant="ghost" className="h-6 w-6 text-rose-400" onClick={onDelete}>
+          <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground" onClick={onDelete}>
             <Trash2 className="h-3 w-3" />
           </Button>
         </div>
@@ -731,7 +731,7 @@ function CredentialFormDialog({
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <KeyRound className="h-4 w-4 text-amber-400" />
+            <KeyRound className="h-4 w-4 text-muted-foreground" />
             {mode === "create" ? "Nova credencial" : "Editar credencial"}
           </DialogTitle>
           <DialogDescription className="text-xs">

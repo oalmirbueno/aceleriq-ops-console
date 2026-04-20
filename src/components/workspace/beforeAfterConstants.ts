@@ -24,8 +24,8 @@ export const BEFORE_AFTER_STATUS_OPTIONS: Array<{ value: BeforeAfterStatus; labe
 
 export const BEFORE_AFTER_STATUS_COLORS: Record<BeforeAfterStatus, string> = {
   draft: "bg-muted text-muted-foreground border-border",
-  in_progress: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  completed: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  in_progress: "bg-muted/10 text-muted-foreground border-border",
+  completed: "bg-muted/10 text-muted-foreground border-border",
 };
 
 export function getBeforeAfterStatusLabel(s: string): string {

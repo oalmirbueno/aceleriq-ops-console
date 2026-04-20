@@ -24,11 +24,11 @@ interface Props {
 }
 
 const ORIGIN_META: Record<FieldOrigin, { label: string; cls: string; Icon: typeof Bot }> = {
-  auto:     { label: "IA",        cls: "border-violet-500/40 text-violet-300 bg-violet-500/10",   Icon: Bot },
-  client:   { label: "Cliente",   cls: "border-emerald-500/40 text-emerald-300 bg-emerald-500/10", Icon: User },
-  edited:   { label: "Editado",   cls: "border-amber-500/40 text-amber-300 bg-amber-500/10",      Icon: Pencil },
+  auto:     { label: "IA",        cls: "border-border text-muted-foreground bg-muted/10",   Icon: Bot },
+  client:   { label: "Cliente",   cls: "border-border text-muted-foreground bg-muted/10", Icon: User },
+  edited:   { label: "Editado",   cls: "border-border text-muted-foreground bg-muted/10",      Icon: Pencil },
   empty:    { label: "A definir", cls: "border-border text-muted-foreground bg-muted/30",         Icon: AlertCircle },
-  fallback: { label: "Manual",    cls: "border-rose-500/30 text-rose-300 bg-rose-500/10",         Icon: Sparkles },
+  fallback: { label: "Manual",    cls: "border-border text-muted-foreground bg-muted/10",         Icon: Sparkles },
 };
 
 export default function NodeSection({ section, content, onFieldChange, disabled }: Props) {
@@ -91,7 +91,7 @@ function FieldEditor({
         <Label className="text-[11px] font-medium text-foreground/90 flex items-center gap-1.5">
           {field.label}
           {field.decisionOnly && (
-            <span className="text-[9px] text-amber-400 font-mono" title="Decisão humana — IA não preenche">
+            <span className="text-[9px] text-muted-foreground font-mono" title="Decisão humana — IA não preenche">
               decisão
             </span>
           )}

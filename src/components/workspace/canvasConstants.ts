@@ -19,15 +19,15 @@ export interface CanvasNodeTypeConfig {
 }
 
 export const CANVAS_NODE_TYPES: CanvasNodeTypeConfig[] = [
-  { value: "client",       label: "Cliente",      icon: Building2,    color: "border-amber-500/40 text-amber-400",   bg: "bg-amber-500/10",   linkedEntity: "clients" },
-  { value: "dossier",      label: "Dossiê",       icon: FileText,     color: "border-sky-500/40 text-sky-400",       bg: "bg-sky-500/10",     linkedEntity: null },
-  { value: "context",      label: "Contexto",     icon: MessageSquare,color: "border-cyan-500/40 text-cyan-400",     bg: "bg-cyan-500/10",    linkedEntity: "context_entries" },
+  { value: "client",       label: "Cliente",      icon: Building2,    color: "border-border text-muted-foreground",   bg: "bg-muted/10",   linkedEntity: "clients" },
+  { value: "dossier",      label: "Dossiê",       icon: FileText,     color: "border-border text-muted-foreground",       bg: "bg-muted/10",     linkedEntity: null },
+  { value: "context",      label: "Contexto",     icon: MessageSquare,color: "border-border text-muted-foreground",     bg: "bg-muted/10",    linkedEntity: "context_entries" },
   { value: "front",        label: "Frente",       icon: FolderKanban, color: "border-primary/50 text-primary",       bg: "bg-primary/10",     linkedEntity: "operational_fronts" },
-  { value: "task",         label: "Task",         icon: ListChecks,   color: "border-violet-500/40 text-violet-400", bg: "bg-violet-500/10",  linkedEntity: "tasks" },
-  { value: "asset",        label: "Asset",        icon: PackageCheck, color: "border-emerald-500/40 text-emerald-400", bg: "bg-emerald-500/10", linkedEntity: "assets" },
-  { value: "metric",       label: "Métrica",      icon: BarChart3,    color: "border-orange-500/40 text-orange-400", bg: "bg-orange-500/10",  linkedEntity: "metric_snapshots" },
-  { value: "before_after", label: "Before/After", icon: Sparkles,     color: "border-pink-500/40 text-pink-400",     bg: "bg-pink-500/10",    linkedEntity: "before_after_records" },
-  { value: "case",         label: "Case",         icon: Trophy,       color: "border-yellow-500/40 text-yellow-400", bg: "bg-yellow-500/10",  linkedEntity: "case_records" },
+  { value: "task",         label: "Task",         icon: ListChecks,   color: "border-border text-muted-foreground", bg: "bg-muted/10",  linkedEntity: "tasks" },
+  { value: "asset",        label: "Asset",        icon: PackageCheck, color: "border-border text-muted-foreground", bg: "bg-muted/10", linkedEntity: "assets" },
+  { value: "metric",       label: "Métrica",      icon: BarChart3,    color: "border-border text-muted-foreground", bg: "bg-muted/10",  linkedEntity: "metric_snapshots" },
+  { value: "before_after", label: "Before/After", icon: Sparkles,     color: "border-border text-muted-foreground",     bg: "bg-muted/10",    linkedEntity: "before_after_records" },
+  { value: "case",         label: "Case",         icon: Trophy,       color: "border-border text-muted-foreground", bg: "bg-muted/10",  linkedEntity: "case_records" },
 ];
 
 export function getCanvasTypeConfig(t: string): CanvasNodeTypeConfig {
@@ -36,9 +36,9 @@ export function getCanvasTypeConfig(t: string): CanvasNodeTypeConfig {
 
 export const CANVAS_STATUS_OPTIONS: Array<{ value: CanvasNodeStatus; label: string; color: string }> = [
   { value: "draft",   label: "Rascunho", color: "bg-muted text-muted-foreground border-border" },
-  { value: "active",  label: "Ativo",    color: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
-  { value: "blocked", label: "Bloqueado",color: "bg-red-500/15 text-red-400 border-red-500/30" },
-  { value: "done",    label: "Concluído",color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
+  { value: "active",  label: "Ativo",    color: "bg-muted/10 text-muted-foreground border-border" },
+  { value: "blocked", label: "Bloqueado",color: "bg-muted/10 text-muted-foreground border-border" },
+  { value: "done",    label: "Concluído",color: "bg-muted/10 text-muted-foreground border-border" },
 ];
 
 export function getCanvasStatusConfig(s: string) {

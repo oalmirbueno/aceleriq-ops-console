@@ -46,7 +46,7 @@ const STARTER: EsteiraTemplate = {
   key: "starter",
   label: "Starter — Fundação",
   tagline: "Presença digital básica + processos iniciais",
-  accent: "border-amber-500/40 text-amber-300 bg-amber-500/10",
+  accent: "border-border text-muted-foreground bg-muted/10",
   nodes: [
     { ref: "brief",   kind: "briefing",     stage: "entrada",       title: "Briefing inicial",            description: "Importado da SiteBolt ou preenchido manualmente." },
     { ref: "diag",    kind: "documento",    stage: "diagnostico",   title: "Diagnóstico digital",         description: "Mapeamento rápido de presença atual e gaps." },
@@ -73,7 +73,7 @@ const GROWTH: EsteiraTemplate = {
   key: "growth",
   label: "Growth — Aceleração",
   tagline: "Funil completo: aquisição, conversão e operação escalável",
-  accent: "border-violet-500/40 text-violet-300 bg-violet-500/10",
+  accent: "border-border text-muted-foreground bg-muted/10",
   nodes: [
     { ref: "brief",   kind: "briefing",     stage: "entrada",        title: "Briefing estratégico",        description: "Importado da SiteBolt + sessão estratégica." },
     { ref: "diag",    kind: "documento",    stage: "diagnostico",    title: "Diagnóstico de operação",     description: "Posicionamento, oferta, canais, bloqueios." },

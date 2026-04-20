@@ -7,47 +7,47 @@
 @layer base {
   :root {
     --background: 0 0% 5%;
-    --foreground: 0 0% 100%;
+    --foreground: 0 0% 92%;
 
-    --card: 0 0% 10%;
-    --card-foreground: 0 0% 100%;
+    --card: 0 0% 8%;
+    --card-foreground: 0 0% 92%;
 
     --popover: 0 0% 7%;
-    --popover-foreground: 0 0% 100%;
+    --popover-foreground: 0 0% 92%;
 
-    --primary: 145 100% 50%;
+    --primary: 145 60% 46%;
     --primary-foreground: 0 0% 5%;
 
-    --secondary: 0 0% 13%;
-    --secondary-foreground: 0 0% 63%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 55%;
 
-    --muted: 0 0% 13%;
-    --muted-foreground: 0 0% 40%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 38%;
 
-    --accent: 145 100% 50%;
-    --accent-foreground: 0 0% 5%;
+    --accent: 145 30% 22%;
+    --accent-foreground: 0 0% 88%;
 
-    --destructive: 0 100% 62%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 0 50% 45%;
+    --destructive-foreground: 0 0% 92%;
 
-    --success: 145 100% 50%;
-    --warning: 43 100% 50%;
-    --info: 200 100% 50%;
+    --success: 145 40% 42%;
+    --warning: 43 40% 45%;
+    --info: 200 30% 45%;
 
-    --border: 0 0% 17%;
-    --input: 0 0% 17%;
-    --ring: 145 100% 50%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 145 40% 40%;
 
     --radius: 0.75rem;
 
     --sidebar-background: 0 0% 5%;
-    --sidebar-foreground: 0 0% 40%;
-    --sidebar-primary: 145 100% 50%;
+    --sidebar-foreground: 0 0% 38%;
+    --sidebar-primary: 145 40% 42%;
     --sidebar-primary-foreground: 0 0% 5%;
-    --sidebar-accent: 0 0% 13%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 0 0% 17%;
-    --sidebar-ring: 145 100% 50%;
+    --sidebar-accent: 0 0% 12%;
+    --sidebar-accent-foreground: 0 0% 88%;
+    --sidebar-border: 0 0% 15%;
+    --sidebar-ring: 145 40% 40%;
   }
 }
 
@@ -79,7 +79,7 @@
 }
 
 ::selection {
-  background: rgba(0, 255, 102, 0.2);
+  background: hsla(145, 40%, 42%, 0.25);
   color: #FFFFFF;
 }
 
@@ -91,11 +91,11 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(0 0% 20%);
+  background: hsl(0 0% 18%);
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(145 100% 50%);
+  background: hsl(0 0% 28%);
 }
 
 .grid-perspective {
@@ -108,8 +108,8 @@
   position: absolute;
   inset: -50%;
   background-image:
-    linear-gradient(rgba(0, 255, 102, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 255, 102, 0.03) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
   background-size: 60px 60px;
   transform: perspective(500px) rotateX(60deg);
   transform-origin: center center;
@@ -122,7 +122,7 @@
   width: 500px;
   height: 500px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(0, 255, 102, 0.06) 0%, transparent 70%);
+  background: radial-gradient(circle, hsla(145, 40%, 42%, 0.05) 0%, transparent 70%);
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
@@ -135,8 +135,8 @@
   position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(rgba(0, 255, 102, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 255, 102, 0.02) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
   background-size: 60px 60px;
   pointer-events: none;
   z-index: 0;
@@ -177,8 +177,8 @@
 .login-form { animation: fadeInUp 0.8s ease-out 0.25s both; }
 
 @keyframes subtlePulse {
-  0%, 100% { box-shadow: 0 0 15px rgba(0, 255, 102, 0.15); }
-  50% { box-shadow: 0 0 25px rgba(0, 255, 102, 0.3); }
+  0%, 100% { box-shadow: 0 0 12px hsla(145, 40%, 42%, 0.1); }
+  50% { box-shadow: 0 0 20px hsla(145, 40%, 42%, 0.2); }
 }
 .login-btn { animation: subtlePulse 3s ease-in-out infinite; }
 
@@ -187,8 +187,8 @@
 }
 .card-hover:hover {
   transform: translateY(-3px);
-  border-color: hsl(145 100% 50% / 0.3);
-  box-shadow: 0 8px 30px rgba(0, 255, 102, 0.08);
+  border-color: hsl(var(--border));
+  box-shadow: 0 8px 24px hsla(0, 0%, 0%, 0.3);
 }
 
 @keyframes float {
@@ -213,7 +213,6 @@
 }
 
 /* ─── React Flow — dark theme overrides ────────────────────────────── */
-/* Sem isso, Controls e MiniMap vêm com fundo branco padrão e ficam ilegíveis no tema escuro. */
 .react-flow__controls {
   background: hsl(var(--card)) !important;
   border: 1px solid hsl(var(--border)) !important;

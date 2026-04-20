@@ -203,22 +203,22 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium text-foreground">{def.label}</span>
                     {exists && (
-                      <Badge variant="outline" className="text-[11px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                      <Badge variant="outline" className="text-[11px] bg-muted/10 text-muted-foreground border-border">
                         Preenchido
                       </Badge>
                     )}
                     {importSource && (
-                      <Badge variant="outline" className="text-[11px] bg-blue-500/10 text-blue-400 border-blue-500/20">
+                      <Badge variant="outline" className="text-[11px] bg-muted/10 text-muted-foreground border-border">
                         Importado
                       </Badge>
                     )}
                     {reviewStatus === "reviewed" && (
-                      <Badge variant="outline" className="text-[11px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                      <Badge variant="outline" className="text-[11px] bg-muted/10 text-muted-foreground border-border">
                         Revisado
                       </Badge>
                     )}
                     {reviewStatus === "pending_review" && (
-                      <Badge variant="outline" className="text-[11px] bg-amber-500/10 text-amber-400 border-amber-500/20">
+                      <Badge variant="outline" className="text-[11px] bg-muted/10 text-muted-foreground border-border">
                         Pendente revisão
                       </Badge>
                     )}
@@ -253,7 +253,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
                 <Icon className="h-4 w-4 text-primary" />
                 {block.label}
                 {blockSignals.length > 0 && (
-                  <Badge variant="outline" className="text-[11px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                  <Badge variant="outline" className="text-[11px] bg-muted/10 text-muted-foreground border-border">
                     {blockSignals.length} sinal(is)
                   </Badge>
                 )}
@@ -273,7 +273,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
                   <div className="space-y-3 mb-4">
                     {blockSignals.map((sig, idx) => (
                       <div key={idx} className="flex items-start gap-3">
-                        <span className="text-emerald-400 mt-1 shrink-0 text-sm">✦</span>
+                        <span className="text-muted-foreground mt-1 shrink-0 text-sm">✦</span>
                         <div className="min-w-0 flex-1">
                           <span className="text-sm font-medium text-foreground">{sig.label}</span>
                           <p className="text-sm text-muted-foreground leading-relaxed mt-0.5">{sig.summary}</p>
@@ -298,7 +298,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
                             <div className="flex items-center gap-2 flex-wrap mb-0.5">
                               <Badge variant="outline" className="text-[11px] px-2 py-0.5">{getContextLabel(ctx.context_type)}</Badge>
                               <span className="text-sm font-medium text-foreground">{ctx.title}</span>
-                              {ctx.is_key_decision && <Badge className="text-[11px] px-1.5 py-0.5 bg-amber-500/15 text-amber-400 border-amber-500/25">Decisão-chave</Badge>}
+                              {ctx.is_key_decision && <Badge className="text-[11px] px-1.5 py-0.5 bg-muted/10 text-muted-foreground border-border">Decisão-chave</Badge>}
                               {scope && <ScopeBadge scope={scope} className="text-[11px] px-1.5 py-0.5" />}
                             </div>
                             <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">{ctx.content}</p>
@@ -332,9 +332,9 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
             <div className="space-y-3">
               <div className="flex items-center gap-6 text-sm">
                 <span className="text-foreground font-medium">{taskSummary.total} tasks</span>
-                <span className="text-emerald-400">{taskSummary.done} concluídas</span>
-                <span className="text-blue-400">{taskSummary.in_progress} em progresso</span>
-                {taskSummary.blocked > 0 && <span className="text-red-400">{taskSummary.blocked} bloqueadas</span>}
+                <span className="text-muted-foreground">{taskSummary.done} concluídas</span>
+                <span className="text-muted-foreground">{taskSummary.in_progress} em progresso</span>
+                {taskSummary.blocked > 0 && <span className="text-muted-foreground">{taskSummary.blocked} bloqueadas</span>}
               </div>
               <Progress value={taskSummary.total > 0 ? (taskSummary.done / taskSummary.total) * 100 : 0} className="h-2" />
             </div>
@@ -346,7 +346,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Lightbulb className="h-4 w-4 text-amber-400" />
+            <Lightbulb className="h-4 w-4 text-muted-foreground" />
             Oportunidades Futuras
           </CardTitle>
         </CardHeader>

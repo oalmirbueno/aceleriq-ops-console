@@ -87,7 +87,7 @@ export default function CanvasClientPicker({
         <DialogContent className="sm:max-w-lg p-0 overflow-hidden">
           <DialogHeader className="px-5 pt-5 pb-3 border-b border-border">
             <DialogTitle className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-amber-400" />
+              <Building2 className="h-4 w-4 text-muted-foreground" />
               Adicionar cliente ao Canvas
             </DialogTitle>
             <DialogDescription className="text-xs">

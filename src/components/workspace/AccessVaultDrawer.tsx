@@ -169,13 +169,13 @@ export default function AccessVaultDrawer({
           <div className="px-5 pt-5 pb-3 border-b border-border space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-3 min-w-0 flex-1">
-                <div className="h-10 w-10 rounded-lg border-2 border-amber-500/40 bg-amber-500/10 flex items-center justify-center shrink-0">
-                  <KeyRound className="h-5 w-5 text-amber-400" />
+                <div className="h-10 w-10 rounded-lg border-2 border-border bg-muted/10 flex items-center justify-center shrink-0">
+                  <KeyRound className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-base font-semibold truncate">{node.title}</h2>
-                    <Badge variant="outline" className="text-[9px] border-amber-500/40 text-amber-400">
+                    <Badge variant="outline" className="text-[9px] border-border text-muted-foreground">
                       A · Entrada
                     </Badge>
                   </div>
@@ -187,7 +187,7 @@ export default function AccessVaultDrawer({
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 {onDelete && (
-                  <Button size="icon" variant="ghost" className="h-7 w-7 text-rose-400"
+                  <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground"
                     onClick={() => { onDelete(node.id); onOpenChange(false); }}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
@@ -201,12 +201,12 @@ export default function AccessVaultDrawer({
               <Lock className="h-3 w-3" />
               <span>Criptografia AES (pgp_sym) · master key fora do banco</span>
               {!isAdmin && (
-                <Badge variant="outline" className="ml-auto text-[9px] border-amber-500/30 text-amber-400">
+                <Badge variant="outline" className="ml-auto text-[9px] border-border text-muted-foreground">
                   Você não é admin — não pode revelar
                 </Badge>
               )}
               {isAdmin && (
-                <Badge variant="outline" className="ml-auto text-[9px] border-emerald-500/30 text-emerald-400 flex items-center gap-1">
+                <Badge variant="outline" className="ml-auto text-[9px] border-border text-muted-foreground flex items-center gap-1">
                   <ShieldCheck className="h-2.5 w-2.5" /> Admin
                 </Badge>
               )}
@@ -290,7 +290,7 @@ export default function AccessVaultDrawer({
                                       onClick={() => setEditingId(cred.id)}>
                                       <Pencil className="h-3 w-3" />
                                     </Button>
-                                    <Button size="icon" variant="ghost" className="h-6 w-6 text-rose-400"
+                                    <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground"
                                       onClick={() => handleDelete(cred)}>
                                       <Trash2 className="h-3 w-3" />
                                     </Button>
@@ -457,7 +457,7 @@ function CredentialFormDialog({
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <KeyRound className="h-4 w-4 text-amber-400" />
+            <KeyRound className="h-4 w-4 text-muted-foreground" />
             {mode === "create" ? "Nova credencial" : "Editar credencial"}
           </DialogTitle>
           <DialogDescription className="text-xs">

@@ -216,7 +216,7 @@ export default function ClientsPage() {
                             onClick={(e) => { e.stopPropagation(); navigate(`/ops/clients/${c.id}/vault`); }}
                             title="Ver acessos do cliente"
                           >
-                            <KeyRound className="h-4 w-4 text-amber-400" />
+                            <KeyRound className="h-4 w-4 text-muted-foreground" />
                           </Button>
                           {c.workspaces[0] ? (
                             <Button

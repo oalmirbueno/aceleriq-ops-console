@@ -54,9 +54,9 @@ const MATURITY_ORDER: Array<{
   accent: string;
   icon: typeof Sparkles;
 }> = [
-  { key: "case_ready", label: "Pronto p/ Case", hint: "Material pronto para uso em case ou portfólio", accent: "text-violet-400", icon: Sparkles },
-  { key: "validated", label: "Validado", hint: "Prova confirmada como evidência sólida", accent: "text-emerald-400", icon: PackageCheck },
-  { key: "registered", label: "Registrado", hint: "Asset registrado e em uso operacional", accent: "text-blue-400", icon: PackageCheck },
+  { key: "case_ready", label: "Pronto p/ Case", hint: "Material pronto para uso em case ou portfólio", accent: "text-muted-foreground", icon: Sparkles },
+  { key: "validated", label: "Validado", hint: "Prova confirmada como evidência sólida", accent: "text-muted-foreground", icon: PackageCheck },
+  { key: "registered", label: "Registrado", hint: "Asset registrado e em uso operacional", accent: "text-muted-foreground", icon: PackageCheck },
   { key: "draft", label: "Rascunho", hint: "Em construção, ainda não validado", accent: "text-muted-foreground", icon: PackageCheck },
 ];
 
@@ -195,8 +195,8 @@ export default function WorkspaceTabAssets({ workspaceId, clientId, onTimelineRe
           <p className="text-sm font-medium text-foreground">Provas operacionais</p>
           <p className="text-xs text-muted-foreground">
             {totalCount} {totalCount === 1 ? "asset" : "assets"} ·{" "}
-            <span className="text-emerald-400">{validatedCount} validados</span> ·{" "}
-            <span className="text-violet-400">{caseReadyCount} prontos p/ case</span>
+            <span className="text-muted-foreground">{validatedCount} validados</span> ·{" "}
+            <span className="text-muted-foreground">{caseReadyCount} prontos p/ case</span>
           </p>
         </div>
         <Button size="sm" onClick={() => setCreateOpen(true)}>

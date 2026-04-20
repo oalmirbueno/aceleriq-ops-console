@@ -29,8 +29,8 @@ export const CASE_STATUS_OPTIONS: Array<{ value: CaseStatus; label: string; hint
 
 export const CASE_STATUS_COLORS: Record<CaseStatus, string> = {
   draft: "bg-muted text-muted-foreground border-border",
-  in_review: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  approved: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  in_review: "bg-muted/10 text-muted-foreground border-border",
+  approved: "bg-muted/10 text-muted-foreground border-border",
 };
 
 export function getCaseStatusLabel(s: string): string {

@@ -20,15 +20,15 @@ interface Props {
 }
 
 const EVENT_CONFIG: Record<string, { icon: typeof Clock; color: string; label: string }> = {
-  stage_changed: { icon: ArrowRight, color: "text-blue-400 bg-blue-400/15 border-blue-400/30", label: "Etapa" },
-  task_created: { icon: Plus, color: "text-violet-400 bg-violet-400/15 border-violet-400/30", label: "Task" },
-  task_completed: { icon: CheckCircle2, color: "text-emerald-400 bg-emerald-400/15 border-emerald-400/30", label: "Concluída" },
-  briefing_reviewed: { icon: UserCheck, color: "text-amber-400 bg-amber-400/15 border-amber-400/30", label: "Revisão" },
-  briefing_imported: { icon: Upload, color: "text-cyan-400 bg-cyan-400/15 border-cyan-400/30", label: "Import" },
+  stage_changed: { icon: ArrowRight, color: "text-muted-foreground bg-muted/10 border-border", label: "Etapa" },
+  task_created: { icon: Plus, color: "text-muted-foreground bg-muted/10 border-border", label: "Task" },
+  task_completed: { icon: CheckCircle2, color: "text-muted-foreground bg-muted/10 border-border", label: "Concluída" },
+  briefing_reviewed: { icon: UserCheck, color: "text-muted-foreground bg-muted/10 border-border", label: "Revisão" },
+  briefing_imported: { icon: Upload, color: "text-muted-foreground bg-muted/10 border-border", label: "Import" },
   front_created: { icon: Layers, color: "text-primary bg-primary/15 border-primary/30", label: "Frente" },
   fronts_generated: { icon: Sparkles, color: "text-primary bg-primary/15 border-primary/30", label: "Geração" },
   context_created: { icon: FileText, color: "text-muted-foreground bg-muted/30 border-border", label: "Contexto" },
-  metric_added: { icon: BarChart3, color: "text-emerald-400 bg-emerald-400/15 border-emerald-400/30", label: "Métrica" },
+  metric_added: { icon: BarChart3, color: "text-muted-foreground bg-muted/10 border-border", label: "Métrica" },
 };
 
 const DEFAULT_CONFIG = { icon: Clock, color: "text-muted-foreground bg-muted/30 border-border", label: "Evento" };

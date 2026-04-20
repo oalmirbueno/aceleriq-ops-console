@@ -57,17 +57,17 @@ export interface FunnelBlockMeta {
 }
 
 export const FAMILY_META: Record<FunnelBlockFamily, { label: string; color: string; bg: string; border: string }> = {
-  traffic: { label: "Tráfego",     color: "text-violet-400",  bg: "bg-violet-500/10",  border: "border-violet-500/40" },
-  page:    { label: "Páginas",     color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/40" },
-  comm:    { label: "Comunicação", color: "text-pink-400",    bg: "bg-pink-500/10",    border: "border-pink-500/40" },
-  logic:   { label: "Lógica",      color: "text-amber-400",   bg: "bg-amber-500/10",   border: "border-amber-500/40" },
+  traffic: { label: "Tráfego",     color: "text-foreground/60",      bg: "bg-transparent",     border: "border-border" },
+  page:    { label: "Páginas",     color: "text-foreground/60",      bg: "bg-transparent",     border: "border-border" },
+  comm:    { label: "Comunicação", color: "text-foreground/60",      bg: "bg-transparent",     border: "border-border" },
+  logic:   { label: "Lógica",      color: "text-foreground/60",      bg: "bg-transparent",     border: "border-border" },
 };
 
 export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   // ─── Tráfego ────────────────────────────────────────────────────────
   {
     kind: "traffic_ad", family: "traffic", label: "Anúncio pago", shortLabel: "Ads",
-    icon: Megaphone, color: "text-violet-400", border: "border-violet-500/40", bg: "bg-violet-500/10", familyTint: "bg-violet-500/5",
+    icon: Megaphone, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
     metricKeys: ["impressions","clicks","ctr","cpc","spend","cpl"],
     configFields: [
       { id: "platform", label: "Plataforma", type: "text", placeholder: "Meta Ads, Google Ads, TikTok..." },
@@ -78,7 +78,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   },
   {
     kind: "traffic_organic", family: "traffic", label: "Tráfego orgânico", shortLabel: "Orgânico",
-    icon: Search, color: "text-violet-400", border: "border-violet-500/40", bg: "bg-violet-500/10", familyTint: "bg-violet-500/5",
+    icon: Search, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
     metricKeys: ["impressions","clicks","ctr","position"],
     configFields: [
       { id: "channel", label: "Canal", type: "text", placeholder: "SEO, IG, YouTube, TikTok..." },
@@ -88,7 +88,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   },
   {
     kind: "traffic_email_cold", family: "traffic", label: "E-mail frio", shortLabel: "Cold mail",
-    icon: Mail, color: "text-violet-400", border: "border-violet-500/40", bg: "bg-violet-500/10", familyTint: "bg-violet-500/5",
+    icon: Mail, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
     metricKeys: ["sent","open_rate","reply_rate","positive_reply"],
     configFields: [
       { id: "list_size", label: "Tamanho da lista", type: "number" },
@@ -98,7 +98,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   },
   {
     kind: "traffic_partner", family: "traffic", label: "Parceria / Afiliado", shortLabel: "Parceria",
-    icon: Handshake, color: "text-violet-400", border: "border-violet-500/40", bg: "bg-violet-500/10", familyTint: "bg-violet-500/5",
+    icon: Handshake, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
     metricKeys: ["clicks","conversions","commission"],
     configFields: [
       { id: "partner", label: "Parceiro", type: "text" },
@@ -110,7 +110,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   // ─── Páginas ────────────────────────────────────────────────────────
   {
     kind: "page_landing", family: "page", label: "Landing page", shortLabel: "Landing",
-    icon: LayoutDashboard, color: "text-emerald-400", border: "border-emerald-500/40", bg: "bg-emerald-500/10", familyTint: "bg-emerald-500/5",
+    icon: LayoutDashboard, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
     metricKeys: ["visits","conversion_rate","leads"],
     configFields: [
       { id: "url", label: "URL", type: "url", placeholder: "https://..." },
@@ -120,7 +120,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   },
   {
     kind: "page_vsl", family: "page", label: "Página de VSL", shortLabel: "VSL",
-    icon: PlayCircle, color: "text-emerald-400", border: "border-emerald-500/40", bg: "bg-emerald-500/10", familyTint: "bg-emerald-500/5",
+    icon: PlayCircle, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
     metricKeys: ["visits","watch_rate","cta_click_rate"],
     configFields: [
       { id: "url", label: "URL", type: "url" },
@@ -130,7 +130,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   },
   {
     kind: "page_thanks", family: "page", label: "Página de obrigado", shortLabel: "Obrigado",
-    icon: CheckCircle2, color: "text-emerald-400", border: "border-emerald-500/40", bg: "bg-emerald-500/10", familyTint: "bg-emerald-500/5",
+    icon: CheckCircle2, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
     metricKeys: ["visits"],
     configFields: [
       { id: "url", label: "URL", type: "url" },
@@ -140,7 +140,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   },
   {
     kind: "page_checkout", family: "page", label: "Checkout", shortLabel: "Checkout",
-    icon: ShoppingCart, color: "text-emerald-400", border: "border-emerald-500/40", bg: "bg-emerald-500/10", familyTint: "bg-emerald-500/5",
+    icon: ShoppingCart, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
     metricKeys: ["visits","conversion_rate","sales","ticket_avg"],
     configFields: [
       { id: "url", label: "URL", type: "url" },
@@ -151,7 +151,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   },
   {
     kind: "page_upsell", family: "page", label: "Upsell", shortLabel: "Upsell",
-    icon: ArrowUpRight, color: "text-emerald-400", border: "border-emerald-500/40", bg: "bg-emerald-500/10", familyTint: "bg-emerald-500/5",
+    icon: ArrowUpRight, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
     metricKeys: ["visits","take_rate","extra_revenue"],
     configFields: [
       { id: "url", label: "URL", type: "url" },
@@ -161,7 +161,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   },
   {
     kind: "page_downsell", family: "page", label: "Downsell", shortLabel: "Downsell",
-    icon: ArrowDownRight, color: "text-emerald-400", border: "border-emerald-500/40", bg: "bg-emerald-500/10", familyTint: "bg-emerald-500/5",
+    icon: ArrowDownRight, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
     metricKeys: ["visits","take_rate"],
     configFields: [
       { id: "url", label: "URL", type: "url" },
@@ -173,7 +173,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   // ─── Comunicação ────────────────────────────────────────────────────
   {
     kind: "comm_email_sequence", family: "comm", label: "Sequência de e-mail", shortLabel: "E-mail",
-    icon: Mail, color: "text-pink-400", border: "border-pink-500/40", bg: "bg-pink-500/10", familyTint: "bg-pink-500/5",
+    icon: Mail, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
     metricKeys: ["sent","open_rate","click_rate","unsub_rate"],
     configFields: [
       { id: "email_count", label: "Qtde de e-mails", type: "number" },
@@ -183,7 +183,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   },
   {
     kind: "comm_whatsapp", family: "comm", label: "WhatsApp", shortLabel: "WhatsApp",
-    icon: MessageSquare, color: "text-pink-400", border: "border-pink-500/40", bg: "bg-pink-500/10", familyTint: "bg-pink-500/5",
+    icon: MessageSquare, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
     metricKeys: ["sent","read_rate","reply_rate"],
     configFields: [
       { id: "tool", label: "Ferramenta / API", type: "text", placeholder: "Z-API, Twilio, oficial..." },
@@ -193,7 +193,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   },
   {
     kind: "comm_sms", family: "comm", label: "SMS", shortLabel: "SMS",
-    icon: Send, color: "text-pink-400", border: "border-pink-500/40", bg: "bg-pink-500/10", familyTint: "bg-pink-500/5",
+    icon: Send, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
     metricKeys: ["sent","delivery_rate","click_rate"],
     configFields: [
       { id: "tool", label: "Ferramenta", type: "text" },
@@ -203,7 +203,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   },
   {
     kind: "comm_push", family: "comm", label: "Push notification", shortLabel: "Push",
-    icon: Bell, color: "text-pink-400", border: "border-pink-500/40", bg: "bg-pink-500/10", familyTint: "bg-pink-500/5",
+    icon: Bell, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
     metricKeys: ["sent","open_rate","click_rate"],
     configFields: [
       { id: "tool", label: "Ferramenta", type: "text", placeholder: "OneSignal, Pushwoosh..." },
@@ -214,7 +214,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   // ─── Lógica ─────────────────────────────────────────────────────────
   {
     kind: "logic_decision", family: "logic", label: "Decisão (sim/não)", shortLabel: "Decisão",
-    icon: GitBranch, color: "text-amber-400", border: "border-amber-500/40", bg: "bg-amber-500/10", familyTint: "bg-amber-500/5",
+    icon: GitBranch, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
     canBranch: true, metricKeys: ["yes_rate","no_rate"],
     configFields: [
       { id: "condition", label: "Condição", type: "textarea", placeholder: "Ex: Lead clicou no e-mail 2?" },
@@ -223,7 +223,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   },
   {
     kind: "logic_split_test", family: "logic", label: "Split test A/B", shortLabel: "A/B",
-    icon: FlaskConical, color: "text-amber-400", border: "border-amber-500/40", bg: "bg-amber-500/10", familyTint: "bg-amber-500/5",
+    icon: FlaskConical, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
     canBranch: true, metricKeys: ["variant_a_rate","variant_b_rate","winner"],
     configFields: [
       { id: "hypothesis", label: "Hipótese testada", type: "textarea" },
@@ -233,7 +233,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   },
   {
     kind: "logic_tag", family: "logic", label: "Aplicar tag/segmento", shortLabel: "Tag",
-    icon: Tag, color: "text-amber-400", border: "border-amber-500/40", bg: "bg-amber-500/10", familyTint: "bg-amber-500/5",
+    icon: Tag, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
     metricKeys: [],
     configFields: [
       { id: "tag", label: "Tag aplicada", type: "text" },
@@ -243,7 +243,7 @@ export const FUNNEL_BLOCKS: FunnelBlockMeta[] = [
   },
   {
     kind: "logic_delay", family: "logic", label: "Atraso / Espera", shortLabel: "Delay",
-    icon: Clock, color: "text-amber-400", border: "border-amber-500/40", bg: "bg-amber-500/10", familyTint: "bg-amber-500/5",
+    icon: Clock, color: "text-foreground/60", border: "border-border", bg: "bg-transparent", familyTint: "bg-transparent",
     metricKeys: [],
     configFields: [
       { id: "duration", label: "Duração", type: "text", placeholder: "Ex: 2 dias, 3 horas" },

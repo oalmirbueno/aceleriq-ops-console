@@ -262,8 +262,8 @@ export default function FrontDetailDialog({ front, open, onOpenChange, onUpdated
 
           {/* Block input */}
           {showBlockInput && (
-            <div className="space-y-2 p-3 border rounded-md border-red-500/30 bg-red-500/5">
-              <Label className="text-xs text-red-400">Motivo do bloqueio</Label>
+            <div className="space-y-2 p-3 border rounded-md border-border bg-muted/10">
+              <Label className="text-xs text-muted-foreground">Motivo do bloqueio</Label>
               <Input value={blockReason} onChange={(e) => setBlockReason(e.target.value)} placeholder="Descreva o impedimento..." />
               <div className="flex gap-2">
                 <Button size="sm" variant="destructive" onClick={handleBlock} disabled={!blockReason.trim()}>
@@ -276,11 +276,11 @@ export default function FrontDetailDialog({ front, open, onOpenChange, onUpdated
 
           {/* Blocked banner */}
           {front.execution_status === "blocked" && front.blocked_reason && (
-            <div className="flex items-start gap-2 p-3 rounded-md border border-red-500/30 bg-red-500/5">
-              <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
+            <div className="flex items-start gap-2 p-3 rounded-md border border-border bg-muted/10">
+              <AlertTriangle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
               <div className="flex-1">
-                <p className="text-xs text-red-400 font-medium">Bloqueada</p>
-                <p className="text-xs text-red-300">{front.blocked_reason}</p>
+                <p className="text-xs text-muted-foreground font-medium">Bloqueada</p>
+                <p className="text-xs text-muted-foreground">{front.blocked_reason}</p>
               </div>
               <Button size="sm" variant="outline" className="shrink-0" onClick={handleUnblock}>
                 <Unlock className="h-3.5 w-3.5 mr-1" /> Desbloquear

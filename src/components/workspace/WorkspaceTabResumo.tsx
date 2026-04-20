@@ -238,20 +238,20 @@ export default function WorkspaceTabResumo({
                 <Progress value={taskPct} className="h-2" />
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                    <span className="h-2 w-2 rounded-full bg-muted/10" />
                     <span className="text-muted-foreground">{taskStats.done} concluídas</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-blue-400" />
+                    <span className="h-2 w-2 rounded-full bg-muted/10" />
                     <span className="text-muted-foreground">{taskStats.in_progress} em andamento</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-violet-400" />
+                    <span className="h-2 w-2 rounded-full bg-muted/10" />
                     <span className="text-muted-foreground">{taskStats.todo} pendentes</span>
                   </div>
                   {taskStats.blocked > 0 && (
                     <div className="flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full bg-red-400" />
+                      <span className="h-2 w-2 rounded-full bg-muted/10" />
                       <span className="text-muted-foreground">{taskStats.blocked} bloqueadas</span>
                     </div>
                   )}
@@ -275,11 +275,11 @@ export default function WorkspaceTabResumo({
                 <span className="text-2xl font-bold text-foreground">{frontSummary.total}</span>
                 <div className="space-y-1.5 text-xs">
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                    <span className="h-2 w-2 rounded-full bg-muted/10" />
                     <span className="text-muted-foreground">{frontSummary.active} ativas</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-amber-400" />
+                    <span className="h-2 w-2 rounded-full bg-muted/10" />
                     <span className="text-muted-foreground">{frontSummary.conditional} condicionais</span>
                   </div>
                   {frontSummary.out_of_scope > 0 && (
@@ -308,10 +308,10 @@ export default function WorkspaceTabResumo({
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Revisados</span>
-                <span className="text-emerald-400 font-medium">{reviewedCount}</span>
+                <span className="text-muted-foreground font-medium">{reviewedCount}</span>
               </div>
               {briefingCount > 0 && reviewedCount < briefingCount && (
-                <div className="flex items-center gap-1.5 text-amber-400 mt-2">
+                <div className="flex items-center gap-1.5 text-muted-foreground mt-2">
                   <AlertTriangle className="h-3.5 w-3.5" />
                   <span>{briefingCount - reviewedCount} pendente(s) de revisão</span>
                 </div>

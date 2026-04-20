@@ -200,7 +200,7 @@ export default function AttachmentPreview({ url, type, label, onRefreshUrl, clas
             {pdfLoading ? (
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             ) : (
-              <FileText className="h-7 w-7 text-rose-400" />
+              <FileText className="h-7 w-7 text-muted-foreground" />
             )}
           </div>
         )}
@@ -210,7 +210,7 @@ export default function AttachmentPreview({ url, type, label, onRefreshUrl, clas
           </div>
         )}
         {pdfRendered && (
-          <span className="absolute bottom-0 left-0 right-0 bg-rose-500/80 text-[8px] font-bold uppercase text-white text-center leading-tight py-0.5">
+          <span className="absolute bottom-0 left-0 right-0 bg-muted/10 text-[8px] font-bold uppercase text-white text-center leading-tight py-0.5">
             PDF
           </span>
         )}
