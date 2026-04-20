@@ -21,7 +21,7 @@ import CanvasInspector from "./CanvasInspector";
 import CanvasClientPicker from "./CanvasClientPicker";
 import {
   ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH, STAGE_HEADER_HEIGHT,
-  getProjectTypeMeta, getStageMeta, stageColumnX,
+  getProjectTypeMeta, getStageMeta, stageColumnX, getChecklistTemplate,
   type ProjectNodeKind, type AceleraStageKey,
 } from "./canvasProjectTypes";
 import { mapLegacyStatus, premiumStatusToDb } from "./canvasEsteiraStatus";
