@@ -29,7 +29,8 @@ export interface EsteiraTemplateEdge {
 }
 
 export interface EsteiraTemplate {
-  key: PlanKey | "custom";
+  /** "ai_smart" é gerado dinamicamente pela edge function generate-esteira-ai */
+  key: PlanKey | "custom" | "ai_smart";
   label: string;
   tagline: string;
   /** Cor de destaque do card no menu */
