@@ -29,7 +29,8 @@ export type PrefillSource =
   | "fronts"     // fronts de atuação do cliente
   | "client"     // dados estruturados do cliente (segmento, plano, links)
   | "assets"     // anexos do cliente / da workspace
-  | "siblings";  // outros canvas_nodes da mesma esteira já preenchidos
+  | "siblings"   // outros canvas_nodes da mesma esteira já preenchidos
+  | "diagnostico_docs"; // documentos do Contexto que sustentam diagnóstico (diagnostico/dor/decisao)
 
 export type SectionFieldType =
   | "text"        // input curto
@@ -210,11 +211,24 @@ const DIAGNOSTICO: NodeBlueprint = {
   purpose: "Mapeamento estrutural do estado atual — gaps que justificam o projeto.",
   methodChecklist: [
     { id: "map_assets",    label: "Mapear ativos digitais existentes",     required: true  },
+    { id: "review_docs",   label: "Revisar documentos puxados do Contexto", required: true },
     { id: "score_gaps",    label: "Pontuar gaps por impacto/esforço",      required: true  },
+    { id: "structural",    label: "Análise por dimensão (oferta/canais/conv/retenção/ops)", required: true },
+    { id: "quick_wins",    label: "Identificar 3-5 quick wins acionáveis",  required: true },
     { id: "benchmark",     label: "Benchmark com 3 concorrentes",          required: false },
+    { id: "plan",          label: "Plano de remediação 30/60/90",          required: true },
     { id: "share_diag",    label: "Compartilhar diagnóstico com o cliente", required: true },
   ],
   sections: [
+    {
+      id: "documents", title: "Documentos revisados",
+      description: "Lista materiais do Contexto que sustentam o diagnóstico — adicione anexos extras se faltar.",
+      fields: [
+        { id: "reviewed",    label: "Documentos analisados (do Contexto + anexos)", type: "list", hint: "Auto-puxado de Contexto: diagnósticos, dores, decisões" },
+        { id: "key_quotes",  label: "Trechos-chave citados",      type: "list",  hint: "Citações textuais que sustentam o diagnóstico" },
+        { id: "extras",      label: "Documentos adicionais (PDF/links)", type: "attachments" },
+      ],
+    },
     {
       id: "current_state", title: "Estado atual",
       description: "O que existe hoje — site, redes, processos, métricas.",
@@ -222,15 +236,38 @@ const DIAGNOSTICO: NodeBlueprint = {
         { id: "channels",   label: "Canais ativos",        type: "list",     hint: "Site, IG, LinkedIn, etc." },
         { id: "stack",      label: "Stack/ferramentas",    type: "list" },
         { id: "metrics_now",label: "Métricas atuais",      type: "kv",       hint: "Tráfego, conversão, CAC" },
+        { id: "team",       label: "Time e responsabilidades hoje", type: "list", hint: "Quem opera o quê" },
+        { id: "processes",  label: "Processos existentes (que funcionam)", type: "list" },
+      ],
+    },
+    {
+      id: "structural", title: "Análise estrutural por dimensão",
+      description: "Pontue cada dimensão de 1-5 e justifique. Base do plano de ataque.",
+      fields: [
+        { id: "offer",     label: "Oferta e posicionamento",      type: "textarea", hint: "Score 1-5 + justificativa: clareza, diferenciação, fit" },
+        { id: "channels",  label: "Canais de aquisição",          type: "textarea", hint: "Score 1-5: diversidade, eficiência, dependência" },
+        { id: "conversion",label: "Funil de conversão",           type: "textarea", hint: "Score 1-5: pontos de fricção, taxas por etapa" },
+        { id: "retention", label: "Retenção e LTV",               type: "textarea", hint: "Score 1-5: churn, repetição, NPS" },
+        { id: "ops",       label: "Operação e dados",             type: "textarea", hint: "Score 1-5: tracking, governança, automação" },
+        { id: "brand",     label: "Marca e percepção",            type: "textarea", hint: "Score 1-5: awareness, autoridade, prova social" },
       ],
     },
     {
       id: "gaps", title: "Gaps identificados",
-      description: "O que está faltando ou mal feito.",
+      description: "Priorize por impacto × esforço — não liste tudo.",
       fields: [
-        { id: "critical",   label: "Críticos (resolver já)",   type: "list" },
-        { id: "important",  label: "Importantes (30 dias)",    type: "list" },
-        { id: "nice",       label: "Desejáveis (depois)",      type: "list" },
+        { id: "critical",   label: "Críticos (bloqueiam o objetivo)",   type: "list", hint: "Resolver já — sem isso nada avança" },
+        { id: "important",  label: "Importantes (atrasam — 30 dias)",    type: "list" },
+        { id: "nice",       label: "Desejáveis (otimização — depois)",   type: "list" },
+        { id: "evidence",   label: "Evidência por gap",                  type: "kv",   hint: "gap → fonte/dado que prova" },
+      ],
+    },
+    {
+      id: "risks", title: "Riscos e bloqueios",
+      fields: [
+        { id: "risks",       label: "Riscos estruturais identificados", type: "list", hint: "Probabilidade × impacto" },
+        { id: "blockers",    label: "Bloqueios externos",               type: "list", hint: "Aprovações, fornecedores, legais" },
+        { id: "tech_debt",   label: "Débito técnico relevante",         type: "list" },
       ],
     },
     {
@@ -238,7 +275,26 @@ const DIAGNOSTICO: NodeBlueprint = {
       fields: [
         { id: "competitors", label: "Concorrentes analisados", type: "list" },
         { id: "advantages",  label: "Vantagens deles",         type: "list" },
+        { id: "weaknesses",  label: "Fraquezas deles",         type: "list" },
         { id: "openings",    label: "Aberturas pra atacar",    type: "list" },
+      ],
+    },
+    {
+      id: "quick_wins", title: "Quick wins (≤14 dias)",
+      description: "Ações de alto impacto e baixo esforço — pra mostrar tração rápido.",
+      fields: [
+        { id: "wins",     label: "Quick wins identificados",  type: "list",  hint: "Ação → impacto esperado" },
+        { id: "owner",    label: "Dono de cada quick win",    type: "kv",    hint: "ação → responsável" },
+      ],
+    },
+    {
+      id: "plan", title: "Plano de remediação 30/60/90",
+      description: "Sequência de ataque por horizonte — alimenta a etapa de Estrutura/Planejamento.",
+      fields: [
+        { id: "h30",  label: "Primeiros 30 dias",  type: "list", hint: "Resolver críticos + quick wins" },
+        { id: "h60",  label: "30-60 dias",         type: "list" },
+        { id: "h90",  label: "60-90 dias",         type: "list" },
+        { id: "deps", label: "Dependências entre fases", type: "list", hint: "O que precisa estar pronto antes" },
       ],
     },
     {
@@ -246,6 +302,7 @@ const DIAGNOSTICO: NodeBlueprint = {
       fields: [
         { id: "summary",  label: "Síntese executiva",  type: "textarea", hint: "3-5 frases que justificam o projeto" },
         { id: "priorities", label: "Prioridades",      type: "list" },
+        { id: "next_step", label: "Próximo passo único e claro",  type: "text",     decisionOnly: true },
       ],
     },
   ],
@@ -254,11 +311,18 @@ const DIAGNOSTICO: NodeBlueprint = {
     { id: "generate_tasks",    label: "Gerar tasks de remediação", primary: true },
     { id: "regenerate_prefill",label: "Regenerar com IA" },
   ],
-  sources: ["briefing","context","metrics","client"],
+  sources: ["briefing","context","metrics","client","diagnostico_docs","assets"],
   prefillPrompt:
-    "Você é consultor sênior fazendo diagnóstico estrutural. Pontue gaps com critério: " +
-    "crítico = bloqueia o objetivo; importante = atrasa; desejável = melhoraria. " +
-    "Para benchmark, se não houver dados de concorrentes, deixe vazio — não invente.",
+    "Você é consultor sênior (ex-McKinsey) fazendo diagnóstico estrutural. " +
+    "PRIORIDADE ABSOLUTA: leia TODOS os documentos em `diagnostico_docs` e `context_entries` — eles são a base factual. " +
+    "Em 'documents.reviewed', liste cada documento revisado pelo TÍTULO exato (1 por linha). " +
+    "Em 'documents.key_quotes', extraia 3-7 trechos textuais curtos que sustentam o diagnóstico (use citation com o título do doc). " +
+    "Em 'structural', dê SCORE 1-5 + 1-2 frases de justificativa por dimensão — base do plano. " +
+    "Pontue gaps com critério: crítico = bloqueia o objetivo; importante = atrasa; desejável = melhoraria. " +
+    "Em 'gaps.evidence', vincule cada gap a uma fonte específica (briefing, doc X, métrica Y). " +
+    "Quick wins: só itens de ALTO impacto e BAIXO esforço (≤14 dias, ≤1 pessoa). Se não tiver, deixe vazio. " +
+    "Plano 30/60/90: sequência lógica — críticos primeiro, dependências respeitadas. " +
+    "Para benchmark, se não houver dados reais de concorrentes, deixe vazio — não invente.",
 };
 
 const OBJETIVO: NodeBlueprint = {

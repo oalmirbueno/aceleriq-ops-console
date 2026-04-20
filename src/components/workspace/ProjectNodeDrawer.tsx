@@ -19,6 +19,7 @@ import SiteNodeDrawer from "./SiteNodeDrawer";
 import LancamentoNodeDrawer from "./LancamentoNodeDrawer";
 import MetricaNodeDrawer from "./MetricaNodeDrawer";
 import KickoffNodeDrawer from "./KickoffNodeDrawer";
+import DiagnosticoNodeDrawer from "./DiagnosticoNodeDrawer";
 import { useNodeQuickActions } from "@/hooks/useNodeQuickActions";
 import { hasBlueprint } from "./nodeBlueprints";
 import { resolveProjectNodeKind, type ProjectNodeKind } from "./canvasProjectTypes";
@@ -129,6 +130,23 @@ export default function ProjectNodeDrawer(props: Props) {
         clientId={clientId}
         clientName={clientName}
         onDelete={props.onDelete}
+      />
+    );
+  }
+
+  // Diagnóstico (documento cujo título contém "diagn"):
+  // sections estruturais + painel de docs do Contexto auto-puxados
+  if (kind === "documento" && clientId && node.title?.toLowerCase().includes("diagn")) {
+    return (
+      <DiagnosticoNodeDrawer
+        node={node}
+        open={props.open}
+        onOpenChange={props.onOpenChange}
+        workspaceId={props.workspaceId}
+        clientId={clientId}
+        clientName={clientName}
+        onDelete={props.onDelete}
+        onUpdated={props.onUpdated}
       />
     );
   }
