@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import {
   FileText, FileSpreadsheet, FileImage, FileVideo, FileCode2, File as FileIcon,
-  Figma, Loader2, AlertCircle,
+  Figma, Loader2, AlertCircle, Maximize2,
 } from "lucide-react";
+import AttachmentLightbox from "./AttachmentLightbox";
 
 interface Props {
   url: string;
   type?: string;
+  label?: string;
   storagePath?: string;
   /** Called to refresh signed url when expired (returns new URL or original) */
   onRefreshUrl?: () => Promise<string | undefined>;
   className?: string;
+  /** Disable click-to-open lightbox */
+  disableLightbox?: boolean;
 }
 
 const IMAGE_TYPES = ["image", "jpg", "jpeg", "png", "webp", "gif", "svg"];
