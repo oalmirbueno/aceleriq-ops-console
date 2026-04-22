@@ -91,6 +91,7 @@ const ENGINE_KINDS = new Set(["engine", "automacao", "ia", "integracao", "agente
 const RESULT_KINDS = new Set(["resultado", "landing_page", "site", "conteudo", "video", "imagem", "trafego", "email_mkt", "social", "crm", "lancamento", "metrica", "before_after", "case"]);
 const DECISION_KINDS = new Set(["decisao"]);
 const PROOF_KINDS = new Set(["metrica", "before_after", "case"]);
+const FLOW_GRAMMAR = ["Contexto", "Instrução", "Engine", "Resultado", "Decisão", "Prova"];
 
 type ConnectionValidation = { allowed: boolean; label: string | null; reason: string | null };
 const allowConnection = (label: string): ConnectionValidation => ({ allowed: true, label, reason: null });
@@ -905,6 +906,19 @@ function CanvasStudioInner({
     proof: scopedProjectNodes.filter((node) => ["measurement", "proof", "narrative"].includes(getNodeFlowRole(nodeKindOf(node)))).length,
     pending: scopedProjectNodes.filter((node) => readCanvasOperationalMeta(node.data as Record<string, unknown> | null).approvalStatus === "pending").length,
   }), [clientGroups.length, projectNodes.length, dbEdges.length, scopedProjectNodes]);
+
+  const proofTrail = useMemo(() => ({
+    entrega: scopedProjectNodes.filter((node) => getNodeFlowRole(nodeKindOf(node)) === "result").length,
+    kpi: scopedProjectNodes.filter((node) => nodeKindOf(node) === "metrica").length,
+    beforeAfter: scopedProjectNodes.filter((node) => nodeKindOf(node) === "before_after").length,
+    cases: scopedProjectNodes.filter((node) => nodeKindOf(node) === "case").length,
+  }), [scopedProjectNodes]);
+
+  const togglePalette = useCallback(() => setPaletteCollapsed((v) => !v), []);
+  const toggleInspector = useCallback(() => setInspectorCollapsed((v) => !v), []);
+  const handlePaletteAdd = useCallback((kind: ProjectNodeKind, stage: AceleraStageKey) => addProjectNode(kind, stage), [addProjectNode]);
+  const openClientPicker = useCallback(() => setClientPickerOpen(true), []);
+  const openAdvanced = useCallback(() => setAdvancedOpen(true), []);
 
   const hasFilters = !!search || !!typeFilter || !!statusFilter || approvalFilter !== "all" || blockedFilter !== "all" || !!ownerFilter;
   const existingClientIds = useMemo(
