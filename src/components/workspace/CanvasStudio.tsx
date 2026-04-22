@@ -1,15 +1,14 @@
 import { useState, useEffect, useCallback, useMemo, useRef, useDeferredValue } from "react";
 import {
-  ReactFlow, ReactFlowProvider, Background, MiniMap, Panel,
+  ReactFlow, ReactFlowProvider, Background,
   applyNodeChanges, applyEdgeChanges,
   type Node, type Edge, type NodeChange, type EdgeChange, type Connection,
   type ReactFlowInstance, type Viewport, SelectionMode,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Settings2, Check, Workflow } from "lucide-react";
+import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,15 +18,13 @@ import CanvasGroupNode from "./CanvasGroupNode";
 import ProjectNodeDrawer from "./ProjectNodeDrawer";
 import CanvasEsteiraPalette from "./CanvasEsteiraPalette";
 import CanvasInspector from "./CanvasInspector";
-import CanvasQuickDock from "./CanvasQuickDock";
 import CanvasClientPicker from "./CanvasClientPicker";
 import CanvasClientTabs, { type CanvasClientTab } from "./CanvasClientTabs";
 import GenerateEsteiraDialog from "./GenerateEsteiraDialog";
-import { featureFlags } from "@/config/featureFlags";
 import type { EsteiraTemplate } from "./esteiraTemplates";
 import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalMeta } from "./canvasOperationalMeta";
 import {
-  ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH, STAGE_HEADER_HEIGHT,
+  ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH,
   getProjectTypeMeta, getStageMeta, stageColumnX, getChecklistTemplate,
   projectKindToDbNodeType, type ProjectNodeKind, type AceleraStageKey,
 } from "./canvasProjectTypes";
@@ -72,7 +69,6 @@ const NODE_VERTICAL = 130;
 const NODE_X_OFFSET = 36; // x inside column
 const TOTAL_STAGE_WIDTH = STAGE_COLUMN_WIDTH * ACELERA_STAGES.length;
 const CANVAS_PADDING = 640;
-const PREVIEWABLE_ATTACHMENT_TYPES = new Set(["image", "jpg", "jpeg", "png", "webp", "gif", "svg", "pdf", "video", "mp4", "mov", "webm"]);
 const CANVAS_TRANSLATE_EXTENT: [[number, number], [number, number]] = [
   [-CANVAS_PADDING, -CANVAS_PADDING],
   [TOTAL_STAGE_WIDTH + CANVAS_PADDING, CONTENT_TOP + STAGE_BAND_HEIGHT + CANVAS_PADDING],
@@ -282,28 +278,23 @@ function CanvasStudioInner({
   const visibleCanvasNodes = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
     return scopedProjectNodes.filter((node) => {
+      const meta = readCanvasOperationalMeta(node.data as Record<string, unknown> | null);
       if (typeFilter && nodeKindOf(node) !== typeFilter && node.node_type !== typeFilter) return false;
       if (statusFilter && mapLegacyStatus(node.status) !== statusFilter) return false;
+      if (approvalFilter !== "all" && meta.approvalStatus !== approvalFilter) return false;
+      if (blockedFilter === "blocked" && !meta.blockedReason && node.status !== "blocked" && node.status !== "bloqueado") return false;
+      if (blockedFilter === "clear" && (meta.blockedReason || node.status === "blocked" || node.status === "bloqueado")) return false;
+      if (ownerFilter && meta.ownerName !== ownerFilter) return false;
       if (q && !node.title.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter]);
+  }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter]);
 
   const scopedProjectIds = useMemo(() => new Set(scopedProjectNodes.map((n) => n.id)), [scopedProjectNodes]);
   const scopedEdges = useMemo(
     () => dbEdges.filter((edge) => scopedProjectIds.has(edge.source_node_id) && scopedProjectIds.has(edge.target_node_id)),
     [dbEdges, scopedProjectIds],
   );
-
-
-  // Toggle MiniMap (persistido) — alguns usuários acham que polui
-  const [showMiniMap, setShowMiniMap] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return localStorage.getItem("canvas:showMiniMap") !== "0";
-  });
-  useEffect(() => {
-    localStorage.setItem("canvas:showMiniMap", showMiniMap ? "1" : "0");
-  }, [showMiniMap]);
 
   /* ─── Persist viewport (zoom + pan) por escopo cliente/workspace ────
    * Cada combinação (workspace, clienteAtivo) tem seu próprio viewport
@@ -389,11 +380,6 @@ function CanvasStudioInner({
       const dataObj = (n.data as Record<string, unknown> | null) ?? {};
       const operationalMeta = (dataObj.operationalMeta ?? dataObj.operational_meta ?? {}) as CanvasOperationalMeta;
       const attachmentList = (dataObj.attachments as Array<{ url?: string; type?: string; label?: string }> | undefined) ?? [];
-      const coverRaw = attachmentList.find((a) => a?.url && PREVIEWABLE_ATTACHMENT_TYPES.has((a.type ?? "").toLowerCase()))
-        ?? attachmentList.find((a) => a?.url);
-      const cover = coverRaw?.url
-        ? { url: coverRaw.url, type: coverRaw.type, label: coverRaw.label }
-        : null;
 
       return {
         id: n.id,
@@ -409,7 +395,6 @@ function CanvasStudioInner({
           attachments: attachmentList.length,
           checklistTotal: (dataObj.checklist as Array<{ done?: boolean }> | undefined)?.length ?? 0,
           checklistDone: (dataObj.checklist as Array<{ done?: boolean }> | undefined)?.filter((c) => c.done).length ?? 0,
-          coverAttachment: cover,
           clientName: owner?.name ?? null,
           clientSeed: owner?.seed ?? null,
           clientLogoUrl: owner?.logoUrl ?? null,
@@ -927,11 +912,6 @@ function CanvasStudioInner({
     setAdvancedOpen(false);
   };
 
-  const quickDockAdd = (kind: ProjectNodeKind) => {
-    const meta = getProjectTypeMeta(kind);
-    if (meta) addProjectNode(kind, meta.defaultStage);
-  };
-
   /* Quick add from inline + on a node */
   const quickAddFromNode = (kind: ProjectNodeKind) => {
     const src = dbNodes.find((n) => n.id === quickAddState.sourceId);
@@ -943,13 +923,13 @@ function CanvasStudioInner({
   return (
     <div className={`flex flex-col bg-background ${fullscreen ? "h-full" : "h-[80vh] rounded-lg border border-border overflow-hidden"}`}>
       {/* Top bar */}
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-card/40 backdrop-blur-sm">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-background/95">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="h-2 w-2 rounded-full bg-primary shrink-0 animate-pulse" />
-          <p className="text-sm font-semibold text-foreground truncate">Esteira de produção</p>
+          <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+          <p className="text-sm font-semibold text-foreground truncate">Execução operacional</p>
           <span className="text-[11px] text-muted-foreground hidden sm:inline truncate">
             {activeClientId
-              ? `${clientGroups.find((c) => c.id === activeClientId)?.title ?? "Cliente"} · ${scopedProjectNodes.length} nodes`
+              ? `${clientGroups.find((c) => c.id === activeClientId)?.title ?? "Cliente"} · ${visibleCanvasNodes.length}/${scopedProjectNodes.length} passos`
               : `Todos · ${summary.clients} cliente${summary.clients === 1 ? "" : "s"} · ${summary.projects} nodes`}
           </span>
         </div>
@@ -1188,38 +1168,11 @@ function CanvasStudioInner({
               multiSelectionKeyCode={["Meta", "Control"]}
               selectionMode={SelectionMode.Partial}
               proOptions={{ hideAttribution: true }}
-              className="bg-background canvas-flow gravyx-flow"
+              className="bg-background canvas-flow acelera-ops-flow"
               defaultEdgeOptions={{ type: "smoothstep", animated: true }}
               onPaneContextMenu={(event) => event.preventDefault()}
             >
               <Background gap={32} size={1} className="opacity-20" />
-              {showMiniMap && (
-                <MiniMap
-                  nodeColor={() => "hsl(var(--primary))"}
-                  maskColor="hsl(var(--background) / 0.6)"
-                  pannable
-                  zoomable
-                  style={{ width: 260, height: 170 }}
-                />
-              )}
-              {featureFlags.canvasBottomDockEnabled && (
-                <Panel position="bottom-center" className="!m-0 mb-4">
-                  <CanvasQuickDock activeKind={typeFilter} onCreate={quickDockAdd} />
-                </Panel>
-              )}
-              {/* Toggles cluster — sobreposto, canto inferior direito */}
-              <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-md border border-border bg-card/95 backdrop-blur-sm shadow-md p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setShowMiniMap((v) => !v)}
-                  className={`h-6 px-2 rounded text-[10px] font-medium transition-colors ${
-                    showMiniMap ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
-                  }`}
-                  title={showMiniMap ? "Ocultar minimapa" : "Mostrar minimapa"}
-                >
-                  Mapa
-                </button>
-              </div>
             </ReactFlow>
           )}
         </div>
@@ -1382,78 +1335,6 @@ export default function CanvasStudio(props: Props) {
     <ReactFlowProvider>
       <CanvasStudioInner {...props} />
     </ReactFlowProvider>
-  );
-}
-
-/* ─── Canvas view options popover ─────────────────────────────────────────
- * Engrenagem flutuante que agrupa as preferências visuais do canvas:
- * lanes de estágio, grade do background, zoom controls e minimapa.
- */
-interface CanvasViewOptionsProps {
-  showLanes: boolean;     onToggleLanes: () => void;
-  showGrid: boolean;      onToggleGrid: () => void;
-  showMiniMap: boolean;   onToggleMiniMap: () => void;
-}
-
-function CanvasViewOptions({
-  showLanes, onToggleLanes,
-  showGrid, onToggleGrid,
-  showMiniMap, onToggleMiniMap,
-}: CanvasViewOptionsProps) {
-  const items = [
-    { key: "lanes",    label: "Lanes do A.C.E.L.E.R.A", desc: "Faixas verticais por estágio", on: showLanes,    toggle: onToggleLanes },
-    { key: "grid",     label: "Grade do fundo",         desc: "Pontilhado de referência",      on: showGrid,     toggle: onToggleGrid },
-    { key: "minimap",  label: "Minimapa",               desc: "Visão geral no canto",          on: showMiniMap,  toggle: onToggleMiniMap },
-  ];
-  const onCount = items.filter((i) => i.on).length;
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label="Opções de visualização do canvas"
-          title="Opções de visualização"
-          className="flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-border bg-card/95 backdrop-blur-sm shadow-md text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-        >
-          <Settings2 className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Visualização</span>
-          <span className="text-[9px] tabular-nums opacity-70">{onCount}/{items.length}</span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent side="top" align="end" sideOffset={8} className="w-64 p-1.5">
-        <div className="px-2 pt-1.5 pb-1">
-          <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">
-            Opções do canvas
-          </p>
-        </div>
-        <div className="flex flex-col">
-          {items.map((it) => (
-            <button
-              key={it.key}
-              type="button"
-              role="menuitemcheckbox"
-              aria-checked={it.on}
-              onClick={it.toggle}
-              className="flex items-start gap-2 w-full text-left px-2 py-1.5 rounded-md hover:bg-muted/60 transition-colors"
-            >
-              <span
-                className={`mt-0.5 h-4 w-4 rounded-sm border flex items-center justify-center shrink-0 transition-colors ${
-                  it.on ? "bg-primary/20 border-primary text-primary" : "border-border text-transparent"
-                }`}
-                aria-hidden
-              >
-                <Check className="h-3 w-3" />
-              </span>
-              <span className="flex-1 min-w-0">
-                <span className="block text-xs font-medium leading-tight text-foreground">{it.label}</span>
-                <span className="block text-[10px] text-muted-foreground leading-tight">{it.desc}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
   );
 }
 
