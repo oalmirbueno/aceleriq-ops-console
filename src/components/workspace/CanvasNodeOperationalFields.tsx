@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,7 +39,7 @@ function taskLinkedToNode(task: RelatedTask, nodeId: string) {
   return task.metadata?.canvas_node_id === nodeId || task.metadata?.source_node_id === nodeId;
 }
 
-export default function CanvasNodeOperationalFields({ node, workspaceId, clientId, availableNodes = [], onUpdated }: Props) {
+function CanvasNodeOperationalFields({ node, workspaceId, clientId, availableNodes = [], onUpdated }: Props) {
   const currentData = (node.data ?? {}) as Record<string, unknown>;
   const [meta, setMeta] = useState<CanvasOperationalMeta>(() => readCanvasOperationalMeta(currentData));
   const [handoff, setHandoff] = useState(String(currentData.operational_handoff ?? ""));
@@ -61,7 +61,7 @@ export default function CanvasNodeOperationalFields({ node, workspaceId, clientI
   const relatedTasks = useMemo(() => tasks.filter((task) => taskLinkedToNode(task, node.id)), [tasks, node.id]);
   const unlinkedTasks = useMemo(() => tasks.filter((task) => !taskLinkedToNode(task, node.id)), [tasks, node.id]);
 
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     const { data } = await supabase
       .from("tasks")
       .select("id, title, status, priority, metadata")
@@ -69,9 +69,9 @@ export default function CanvasNodeOperationalFields({ node, workspaceId, clientI
       .order("created_at", { ascending: false })
       .limit(80);
     setTasks((data ?? []) as RelatedTask[]);
-  };
+  }, [workspaceId]);
 
-  useEffect(() => { fetchTasks(); }, [workspaceId, node.id]);
+  useEffect(() => { fetchTasks(); }, [fetchTasks, node.id]);
 
   const updateMeta = (patch: Partial<CanvasOperationalMeta>) => setMeta((prev) => ({ ...prev, ...patch }));
   const addEvidence = () => {
@@ -168,3 +168,5 @@ export default function CanvasNodeOperationalFields({ node, workspaceId, clientI
     </div>
   );
 }
+
+export default memo(CanvasNodeOperationalFields);

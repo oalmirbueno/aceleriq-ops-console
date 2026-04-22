@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { AlertTriangle, BarChart3, CheckCircle2, Clock3, GitBranch, Plus, Link2, Paperclip, ListChecks, Maximize2, Sparkles, Trophy, XCircle } from "lucide-react";
 import { getProjectTypeMeta, getNodeFamily, getNodeFlowRole, NODE_FLOW_ROLE_LABELS } from "./canvasProjectTypes";
@@ -64,6 +64,12 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
   const dependencyCount = countOperationalDependencies(opMeta);
   const overdue = isOperationalOverdue(opMeta);
   const blocked = !!opMeta?.blockedReason || d.status === "blocked" || d.status === "bloqueado";
+  const proofSignals = useMemo(() => [
+    d.kind === "metrica" ? "KPI" : null,
+    d.kind === "before_after" ? "Visual" : null,
+    d.kind === "case" ? "Case" : null,
+    evidenceCount > 0 ? `${evidenceCount} evid.` : null,
+  ].filter(Boolean), [d.kind, evidenceCount]);
 
   return (
     <div className={`relative group node-family-${family} node-flow-${flowRole}`}>
@@ -131,6 +137,16 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
           <span>{NODE_FLOW_ROLE_LABELS[flowRole]}</span>
           {approvalSignal && <span className="ml-auto">{approvalSignal.label}</span>}
         </div>
+
+        {family === "proof" && proofSignals.length > 0 && (
+          <div className="mb-2.5 flex flex-wrap gap-1">
+            {proofSignals.map((signal) => (
+              <span key={signal} className="rounded-full border border-border/70 bg-background/45 px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                {signal}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Checklist progress bar — only if there's a checklist */}
         {checklistPct !== null && (

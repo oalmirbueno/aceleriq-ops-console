@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ChevronLeft, ChevronRight, Building2, Plus } from "lucide-react";
@@ -13,7 +13,7 @@ interface Props {
   onOpenAdvanced: () => void;
 }
 
-export default function CanvasEsteiraPalette({
+function CanvasEsteiraPalette({
   collapsed, onToggleCollapse, onAdd, onAddClient, onOpenAdvanced,
 }: Props) {
   const [openStage, setOpenStage] = useState<AceleraStageKey | null>("producao");
@@ -139,3 +139,5 @@ export default function CanvasEsteiraPalette({
     </TooltipProvider>
   );
 }
+
+export default memo(CanvasEsteiraPalette);

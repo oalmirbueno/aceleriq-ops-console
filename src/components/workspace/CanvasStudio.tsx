@@ -91,6 +91,7 @@ const ENGINE_KINDS = new Set(["engine", "automacao", "ia", "integracao", "agente
 const RESULT_KINDS = new Set(["resultado", "landing_page", "site", "conteudo", "video", "imagem", "trafego", "email_mkt", "social", "crm", "lancamento", "metrica", "before_after", "case"]);
 const DECISION_KINDS = new Set(["decisao"]);
 const PROOF_KINDS = new Set(["metrica", "before_after", "case"]);
+const FLOW_GRAMMAR = ["Contexto", "Instrução", "Engine", "Resultado", "Decisão", "Prova"];
 
 type ConnectionValidation = { allowed: boolean; label: string | null; reason: string | null };
 const allowConnection = (label: string): ConnectionValidation => ({ allowed: true, label, reason: null });
@@ -906,6 +907,19 @@ function CanvasStudioInner({
     pending: scopedProjectNodes.filter((node) => readCanvasOperationalMeta(node.data as Record<string, unknown> | null).approvalStatus === "pending").length,
   }), [clientGroups.length, projectNodes.length, dbEdges.length, scopedProjectNodes]);
 
+  const proofTrail = useMemo(() => ({
+    entrega: scopedProjectNodes.filter((node) => getNodeFlowRole(nodeKindOf(node)) === "result").length,
+    kpi: scopedProjectNodes.filter((node) => nodeKindOf(node) === "metrica").length,
+    beforeAfter: scopedProjectNodes.filter((node) => nodeKindOf(node) === "before_after").length,
+    cases: scopedProjectNodes.filter((node) => nodeKindOf(node) === "case").length,
+  }), [scopedProjectNodes]);
+
+  const togglePalette = useCallback(() => setPaletteCollapsed((v) => !v), []);
+  const toggleInspector = useCallback(() => setInspectorCollapsed((v) => !v), []);
+  const handlePaletteAdd = useCallback((kind: ProjectNodeKind, stage: AceleraStageKey) => addProjectNode(kind, stage), [addProjectNode]);
+  const openClientPicker = useCallback(() => setClientPickerOpen(true), []);
+  const openAdvanced = useCallback(() => setAdvancedOpen(true), []);
+
   const hasFilters = !!search || !!typeFilter || !!statusFilter || approvalFilter !== "all" || blockedFilter !== "all" || !!ownerFilter;
   const existingClientIds = useMemo(
     () => clientGroups.filter((n) => n.linked_entity_id).map((n) => n.linked_entity_id as string),
@@ -928,7 +942,7 @@ function CanvasStudioInner({
   };
 
   return (
-      <div className={`flex flex-col bg-background ${fullscreen ? "h-full" : "h-[80vh] rounded-lg border border-border/70 overflow-hidden"}`}>
+    <div className={`flex flex-col bg-background ${fullscreen ? "h-full" : "h-[80vh] rounded-lg border border-border/70 overflow-hidden"}`}>
       {/* Top bar */}
       <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/70 bg-background/95">
         <div className="flex items-center gap-2 min-w-0">
@@ -939,6 +953,14 @@ function CanvasStudioInner({
               ? `${clientGroups.find((c) => c.id === activeClientId)?.title ?? "Cliente"} · ${visibleCanvasNodes.length}/${scopedProjectNodes.length} passos · ${summary.proof} provas`
               : `Todos · ${summary.clients} cliente${summary.clients === 1 ? "" : "s"} · ${summary.projects} nodes`}
           </span>
+          <div className="hidden xl:flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            {FLOW_GRAMMAR.map((item, index) => (
+              <span key={item} className="inline-flex items-center gap-1">
+                <span>{item}</span>
+                {index < FLOW_GRAMMAR.length - 1 && <span className="text-muted-foreground/40">→</span>}
+              </span>
+            ))}
+          </div>
           {summary.pending > 0 && <span className="hidden lg:inline-flex rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">{summary.pending} aprovações pendentes</span>}
         </div>
         <div className="flex items-center gap-1">
@@ -1098,13 +1120,24 @@ function CanvasStudioInner({
       <div className="flex flex-1 min-h-0">
         <CanvasEsteiraPalette
           collapsed={paletteCollapsed}
-          onToggleCollapse={() => setPaletteCollapsed((v) => !v)}
-          onAdd={(kind, stage) => addProjectNode(kind, stage)}
-          onAddClient={() => setClientPickerOpen(true)}
-          onOpenAdvanced={() => setAdvancedOpen(true)}
+          onToggleCollapse={togglePalette}
+          onAdd={handlePaletteAdd}
+          onAddClient={openClientPicker}
+          onOpenAdvanced={openAdvanced}
         />
 
         <div className="flex-1 min-w-0 relative">
+          {!loading && scopedProjectNodes.length > 0 && (
+            <div className="pointer-events-none absolute left-3 top-3 z-10 hidden lg:flex items-center gap-1.5 rounded-full border border-border/60 bg-background/72 px-2.5 py-1 text-[10px] text-muted-foreground backdrop-blur-sm">
+              <span>Entrega {proofTrail.entrega}</span>
+              <span className="text-muted-foreground/40">→</span>
+              <span>KPI {proofTrail.kpi}</span>
+              <span className="text-muted-foreground/40">→</span>
+              <span>Before/After {proofTrail.beforeAfter}</span>
+              <span className="text-muted-foreground/40">→</span>
+              <span>Case {proofTrail.cases}</span>
+            </div>
+          )}
           {loading ? (
             <div className="h-full flex items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1205,7 +1238,7 @@ function CanvasStudioInner({
           onPick={(n) => setSelectedNode(n)}
           selectedId={selectedNode?.id ?? null}
           collapsed={inspectorCollapsed}
-          onToggleCollapse={() => setInspectorCollapsed((v) => !v)}
+          onToggleCollapse={toggleInspector}
         />
       </div>
 
