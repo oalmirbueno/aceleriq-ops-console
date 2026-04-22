@@ -587,6 +587,16 @@ export default function WorkspaceDetailPage() {
             </DialogHeader>
 
             <div className="flex flex-wrap items-center gap-3">
+              <div className="relative min-w-[260px] flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={movementSearch}
+                  onChange={(event) => setMovementSearch(event.target.value)}
+                  placeholder="Buscar por título ou descrição..."
+                  className="pl-9"
+                />
+              </div>
+
               <Select value={eventTypeFilter} onValueChange={setEventTypeFilter}>
                 <SelectTrigger className="w-[220px]">
                   <SelectValue placeholder="Tipo de evento" />
@@ -620,8 +630,8 @@ export default function WorkspaceDetailPage() {
                 </PopoverContent>
               </Popover>
 
-              {(eventTypeFilter !== "__all__" || movementDate) && (
-                <Button variant="ghost" className="gap-2" onClick={() => { setEventTypeFilter("__all__"); setMovementDate(undefined); }}>
+              {(eventTypeFilter !== "__all__" || movementDate || movementSearch) && (
+                <Button variant="ghost" className="gap-2" onClick={() => { setEventTypeFilter("__all__"); setMovementDate(undefined); setMovementSearch(""); }}>
                   <X className="h-4 w-4" />
                   Limpar filtros
                 </Button>
