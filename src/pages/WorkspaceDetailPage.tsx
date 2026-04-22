@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
-import { ArrowRight, CalendarDays, CalendarIcon, CheckCircle2, FolderKanban, Info, ListChecks, Loader2, Lock, RefreshCw, Search, Sparkles, Target, X } from "lucide-react";
+import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowRight, CalendarDays, CalendarIcon, CheckCircle2, FolderKanban, Info, ListChecks, Loader2, RefreshCw, Search, Sparkles, Target, X } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingState from "@/components/LoadingState";
 import EmptyState from "@/components/EmptyState";
@@ -254,6 +254,7 @@ async function fetchAllTimelineEvents(workspaceId: string) {
 export default function WorkspaceDetailPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [ws, setWs] = useState<Workspace | null>(null);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [timelineTotal, setTimelineTotal] = useState(0);
@@ -340,8 +341,14 @@ export default function WorkspaceDetailPage() {
   }, [workspaceId]);
 
   useEffect(() => {
-    setShowFullWorkspace(false);
-  }, [workspaceId]);
+    const shouldOpenFullWorkspace = searchParams.get("view") === "full";
+    setShowFullWorkspace(shouldOpenFullWorkspace);
+
+    const tab = searchParams.get("tab");
+    if (tab) setActiveTab(tab);
+
+    setCanvasStatusShortcut(searchParams.get("status"));
+  }, [workspaceId, searchParams]);
 
   const setWorkspaceMode = (mode: "preview" | "full") => {
     setShowFullWorkspace(mode === "full");
@@ -361,25 +368,13 @@ export default function WorkspaceDetailPage() {
   };
 
   const openCanvasByStatus = (status: string) => {
-    if (!showFullWorkspace && !triageComplete) {
-      toast({
-        title: "Workspace completo aberto",
-        description: "A pré-entrada fica como apoio para contexto, prioridades e qualidade da execução.",
-      });
-    }
-    setWorkspaceMode("full");
-    setCanvasStatusShortcut(status);
-    setActiveTab("canvas");
+    if (!workspaceId) return;
+    window.open(`/ops/workspaces/${workspaceId}?view=full&tab=canvas&status=${encodeURIComponent(status)}`, "_blank", "noopener,noreferrer");
   };
 
   const handleWorkspaceEntry = () => {
-    if (!showFullWorkspace && !triageComplete) {
-      toast({
-        title: "Workspace completo aberto",
-        description: "A pré-entrada fica como apoio para alinhar contexto, prioridades e próximos passos.",
-      });
-    }
-    setWorkspaceMode("full");
+    if (!workspaceId) return;
+    window.open(`/ops/workspaces/${workspaceId}?view=full`, "_blank", "noopener,noreferrer");
   };
 
   const completeChecklistTask = async (item: LeanChecklistItem) => {
