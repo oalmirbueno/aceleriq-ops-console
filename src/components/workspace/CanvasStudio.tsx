@@ -3,7 +3,7 @@ import {
   ReactFlow, ReactFlowProvider, Background,
   applyNodeChanges, applyEdgeChanges,
   type Node, type Edge, type NodeChange, type EdgeChange, type Connection,
-  type ReactFlowInstance, type Viewport, SelectionMode,
+  type ReactFlowInstance, type Viewport, SelectionMode, MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow } from "lucide-react";
@@ -131,13 +131,13 @@ function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNodeRow) 
 }
 
 function edgeIntent(edge: CanvasEdgeRecord, nodesById: Map<string, CanvasNodeRow>) {
-  const sourceKind = edge.source_node_id ? nodeKindOf(nodesById.get(edge.source_node_id)!) : "";
-  const targetKind = edge.target_node_id ? nodeKindOf(nodesById.get(edge.target_node_id)!) : "";
-  if (PROOF_KINDS.has(targetKind) || PROOF_KINDS.has(sourceKind)) return { label: edge.label ?? "prova", stroke: "hsl(var(--node-proof))", animated: false };
-  if (targetKind === "engine") return { label: edge.label ?? "input", stroke: "hsl(var(--node-tech))", animated: true };
-  if (sourceKind === "engine") return { label: edge.label ?? "gera", stroke: "hsl(var(--node-build))", animated: true };
-  if (targetKind === "decisao" || sourceKind === "decisao") return { label: edge.label ?? "aprova", stroke: "hsl(var(--node-growth))", animated: false };
-  return { label: edge.label ?? undefined, stroke: "hsl(var(--primary))", animated: true };
+  const sourceKind = edge.source_node_id && nodesById.get(edge.source_node_id) ? nodeKindOf(nodesById.get(edge.source_node_id)!) : "";
+  const targetKind = edge.target_node_id && nodesById.get(edge.target_node_id) ? nodeKindOf(nodesById.get(edge.target_node_id)!) : "";
+  if (PROOF_KINDS.has(targetKind) || PROOF_KINDS.has(sourceKind)) return { label: edge.label ?? "prova", stroke: "hsl(var(--node-proof))", animated: false, className: "edge-proof", strokeWidth: 2.8 };
+  if (targetKind === "engine") return { label: edge.label ?? "input", stroke: "hsl(var(--node-tech))", animated: true, className: "edge-input", strokeWidth: 2.6 };
+  if (sourceKind === "engine") return { label: edge.label ?? "gera", stroke: "hsl(var(--node-build))", animated: true, className: "edge-engine", strokeWidth: 3 };
+  if (targetKind === "decisao" || sourceKind === "decisao") return { label: edge.label ?? "aprova", stroke: "hsl(var(--node-growth))", animated: false, className: "edge-decision", strokeWidth: 2.5 };
+  return { label: edge.label ?? undefined, stroke: "hsl(var(--primary))", animated: true, className: "edge-flow", strokeWidth: 2.3 };
 }
 
 function CanvasStudioInner({
