@@ -158,6 +158,7 @@ function CanvasStudioInner({
   const [rfEdges, setRfEdges] = useState<Edge[]>([]);
 
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(initialStatusFilter ?? null);
   const [approvalFilter, setApprovalFilter] = useState<ApprovalStatus | "all">("all");
@@ -274,6 +275,16 @@ function CanvasStudioInner({
     if (activeClientId === null) return projectNodes;
     return projectNodes.filter((n) => n.parent_node_id === activeClientId);
   }, [projectNodes, activeClientId]);
+
+  const visibleCanvasNodes = useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
+    return scopedProjectNodes.filter((node) => {
+      if (typeFilter && nodeKindOf(node) !== typeFilter && node.node_type !== typeFilter) return false;
+      if (statusFilter && mapLegacyStatus(node.status) !== statusFilter) return false;
+      if (q && !node.title.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter]);
 
   const scopedProjectIds = useMemo(() => new Set(scopedProjectNodes.map((n) => n.id)), [scopedProjectNodes]);
   const scopedEdges = useMemo(
