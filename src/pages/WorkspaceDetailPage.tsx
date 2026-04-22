@@ -328,6 +328,8 @@ export default function WorkspaceDetailPage() {
     const matchesDate = !movementDate || sameDay(movementDate, event.happened_at);
     return matchesType && matchesDate;
   });
+  const paginatedMovements = filteredMovements.slice(0, visibleMovements);
+  const hasMoreMovements = visibleMovements < filteredMovements.length;
 
   return (
     <>
