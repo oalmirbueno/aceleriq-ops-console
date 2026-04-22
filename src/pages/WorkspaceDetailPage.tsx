@@ -461,7 +461,7 @@ export default function WorkspaceDetailPage() {
                 </Button>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
-                Progresso real calculado por nodes concluídos/ativos no canvas; fallback pela etapa quando ainda não há nodes.
+                Progresso real calculado por nodes concluídos sobre o total do canvas; fallback pela etapa quando ainda não há nodes.
               </p>
             </div>
 
@@ -478,9 +478,8 @@ export default function WorkspaceDetailPage() {
               </div>
               <Progress value={progress} className="h-2" />
               <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-                Como calculamos: nodes <strong className="font-medium text-foreground">done/concluido</strong> valem 100%,
-                <strong className="font-medium text-foreground"> active/ativo</strong> valem 55% e
-                <strong className="font-medium text-foreground"> blocked/bloqueado</strong> aplicam penalidade de 15%. Sem nodes, usamos a etapa atual como base.
+                Como calculamos: progresso = <strong className="font-medium text-foreground">nodes done/concluido</strong> ÷
+                <strong className="font-medium text-foreground"> total de nodes</strong>. Nodes ativos, bloqueados e demais statuses entram no total, mas não contam como concluídos. Sem nodes, usamos a etapa atual como base.
               </p>
               <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                 <button type="button" onClick={() => openCanvasByStatus("concluido")} className="rounded-md border border-border bg-card/60 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:text-primary">
