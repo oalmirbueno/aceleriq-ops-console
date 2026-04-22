@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ArrowRight, CalendarDays, CalendarIcon, CheckCircle2, FolderKanban, ListChecks, RefreshCw, Search, Sparkles, Target, X } from "lucide-react";
+import { ArrowRight, CalendarDays, CalendarIcon, CheckCircle2, FolderKanban, ListChecks, Loader2, Lock, RefreshCw, Search, Sparkles, Target, X } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingState from "@/components/LoadingState";
 import EmptyState from "@/components/EmptyState";
@@ -198,6 +198,10 @@ function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: 
   return checklist.slice(0, 6);
 }
 
+function triageItemKey(item: LeanChecklistItem, index: number) {
+  return item.taskId ?? `${item.source}:${index}:${item.title}`;
+}
+
 function sameDay(a: Date, iso: string) {
   const b = new Date(iso);
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -259,6 +263,7 @@ export default function WorkspaceDetailPage() {
   const [visibleMovements, setVisibleMovements] = useState(MOVEMENTS_PAGE_SIZE);
   const [activeTab, setActiveTab] = useState("resumo");
   const [canvasStatusShortcut, setCanvasStatusShortcut] = useState<string | null>(null);
+  const [completedTriageKeys, setCompletedTriageKeys] = useState<string[]>([]);
 
   const fetchWorkspace = async () => {
     if (!workspaceId) return;
@@ -365,6 +370,15 @@ export default function WorkspaceDetailPage() {
     toast({ title: "Task concluída", description: item.title });
   };
 
+  const toggleTriageItem = (item: LeanChecklistItem, index: number) => {
+    const key = triageItemKey(item, index);
+    if (item.taskId && !item.completed) {
+      completeChecklistTask(item);
+      return;
+    }
+    setCompletedTriageKeys((current) => current.includes(key) ? current.filter((value) => value !== key) : [...current, key]);
+  };
+
   useEffect(() => {
     setVisibleMovements(MOVEMENTS_PAGE_SIZE);
   }, [movementsOpen, eventTypeFilter, movementDate, movementSearch]);
@@ -431,6 +445,13 @@ export default function WorkspaceDetailPage() {
   const intro = introCopy(ws.current_stage);
   const actionPlan = buildActionPlan(ws.current_stage, taskSignals, nodesProgress);
   const leanChecklist = buildLeanChecklist(ws.current_stage, taskSignals, nodesProgress);
+  const lockedChecklist = leanChecklist.map((item, index) => ({
+    ...item,
+    key: triageItemKey(item, index),
+    lockedDone: Boolean(item.completed || completedTriageKeys.includes(triageItemKey(item, index))),
+  }));
+  const triageComplete = lockedChecklist.length > 0 && lockedChecklist.every((item) => item.lockedDone);
+  const triageProgress = lockedChecklist.length > 0 ? Math.round((lockedChecklist.filter((item) => item.lockedDone).length / lockedChecklist.length) * 100) : 0;
   const movementTypes = Array.from(new Set(timeline.map((event) => event.event_type))).sort();
   const movementQuery = movementSearch.trim().toLowerCase();
   const filteredMovements = timeline.filter((event) => {
@@ -629,28 +650,28 @@ export default function WorkspaceDetailPage() {
                     <h3 className="text-base font-semibold text-foreground">Maiores primeiro, menores só para fechar ciclo</h3>
                   </div>
                   <span className="rounded-md border border-border bg-card/70 px-2 py-1 text-[11px] text-muted-foreground">
-                    {leanChecklist.length} ações · não diário
+                    {triageProgress}% travado · {lockedChecklist.filter((item) => item.lockedDone).length}/{lockedChecklist.length}
                   </span>
                 </div>
 
                 <div className="grid gap-2">
-                  {leanChecklist.map((item, index) => (
-                    <div key={`${item.title}-${index}`} className={cn("flex items-start gap-3 rounded-md border border-border bg-card/70 p-3", item.completed && "border-primary/30 bg-primary/10")}>
+                  {lockedChecklist.map((item, index) => (
+                    <div key={item.key} className={cn("flex items-start gap-3 rounded-md border border-border bg-card/70 p-3", item.lockedDone && "border-primary/30 bg-primary/10")}>
                       <button
                         type="button"
-                        onClick={() => completeChecklistTask(item)}
-                        disabled={!item.taskId || item.completed}
-                        className={cn("mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-primary/40 text-primary transition-colors hover:bg-primary/10 disabled:cursor-not-allowed", (!item.taskId || item.completed) && "disabled:border-border disabled:text-muted-foreground", item.completed && "border-primary bg-primary text-primary-foreground")}
-                        aria-label={item.completed ? `${item.title} concluída` : item.taskId ? `Concluir ${item.title}` : item.title}
+                        onClick={() => toggleTriageItem(item, index)}
+                        className={cn("mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-primary/40 text-primary transition-colors hover:bg-primary/10", item.lockedDone && "border-primary bg-primary text-primary-foreground")}
+                        aria-label={item.lockedDone ? `${item.title} travado como feito` : `Marcar ${item.title}`}
                       >
-                        {item.taskId || item.completed ? <CheckCircle2 className="h-3.5 w-3.5" /> : <span className="text-[10px] font-semibold">{index + 1}</span>}
+                        {item.lockedDone ? <Lock className="h-3 w-3" /> : item.taskId ? <CheckCircle2 className="h-3.5 w-3.5" /> : <span className="text-[10px] font-semibold">{index + 1}</span>}
                       </button>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className={cn("text-sm font-medium text-foreground", item.completed && "text-muted-foreground line-through")}>{item.title}</p>
+                          <p className={cn("text-sm font-medium text-foreground", item.lockedDone && "text-muted-foreground line-through")}>{item.title}</p>
                           <span className="rounded border border-border bg-secondary px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
                             {item.size}
                           </span>
+                          {item.lockedDone && <span className="rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] uppercase text-primary">feito</span>}
                         </div>
                         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.detail}</p>
                       </div>
@@ -682,7 +703,17 @@ export default function WorkspaceDetailPage() {
                 </div>
               </div>
 
-              <Button onClick={() => setWorkspaceMode("full")} className="h-11 w-full gap-2" disabled={showFullWorkspace}>
+              {!triageComplete && (
+                <div className="rounded-md border border-border bg-secondary/30 p-4 text-xs text-muted-foreground">
+                  <div className="mb-2 flex items-center gap-2 text-foreground">
+                    {lockedChecklist.length === 0 ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Lock className="h-4 w-4 text-primary" />}
+                    <span className="font-medium">Triagem ainda bloqueando a entrada</span>
+                  </div>
+                  {lockedChecklist.length === 0 ? "Carregando ações de triagem..." : "Conclua e trave todos os itens do checklist para liberar o workspace completo."}
+                </div>
+              )}
+
+              <Button onClick={() => setWorkspaceMode("full")} className="h-11 w-full gap-2" disabled={showFullWorkspace || !triageComplete}>
                 Entrar no workspace completo
                 <ArrowRight className="h-4 w-4" />
               </Button>
