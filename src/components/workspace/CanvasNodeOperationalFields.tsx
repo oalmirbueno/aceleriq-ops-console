@@ -104,7 +104,7 @@ export default function CanvasNodeOperationalFields({ node, workspaceId, clientI
       workspace_id: workspaceId,
       client_id: clientId,
       title,
-      description: node.description ?? handoff || null,
+      description: node.description ?? (handoff || null),
       status: "todo",
       priority: "medium",
       stage: ((node.data as Record<string, unknown> | null)?.stage as string | undefined) ?? null,
