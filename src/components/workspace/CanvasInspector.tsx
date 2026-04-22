@@ -4,12 +4,13 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Search, Link2, Filter, ChevronRight, ChevronLeft, PanelRight } from "lucide-react";
+import { AlertTriangle, GitBranch, Search, Link2, Filter, ChevronRight, ChevronLeft, PanelRight } from "lucide-react";
 import {
   CANVAS_STATUS_OPTIONS, getCanvasTypeConfig, getCanvasStatusConfig,
 } from "./canvasConstants";
 import { PROJECT_TYPES, getProjectTypeMeta } from "./canvasProjectTypes";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
+import { isCanvasNodeBlocked, readCanvasOperationalMeta, type ApprovalStatus } from "./canvasOperationalMeta";
 
 interface Props {
   nodes: CanvasNodeRecord[];
@@ -20,6 +21,13 @@ interface Props {
   onTypeFilter: (v: string | null) => void;
   statusFilter: string | null;
   onStatusFilter: (v: string | null) => void;
+  approvalFilter?: ApprovalStatus | "all" | null;
+  onApprovalFilter?: (v: ApprovalStatus | "all" | null) => void;
+  blockedFilter?: "all" | "blocked" | "clear";
+  onBlockedFilter?: (v: "all" | "blocked" | "clear") => void;
+  ownerFilter?: string | null;
+  onOwnerFilter?: (v: string | null) => void;
+  onOpenDependencies?: (n: CanvasNodeRecord) => void;
   onPick: (n: CanvasNodeRecord) => void;
   selectedId: string | null;
   collapsed: boolean;
@@ -29,6 +37,7 @@ interface Props {
 export default function CanvasInspector({
   nodes, edges, search, onSearch,
   typeFilter, onTypeFilter, statusFilter, onStatusFilter,
+  approvalFilter = "all", onApprovalFilter, blockedFilter = "all", onBlockedFilter, ownerFilter, onOwnerFilter, onOpenDependencies,
   onPick, selectedId,
   collapsed, onToggleCollapse,
 }: Props) {
@@ -36,12 +45,17 @@ export default function CanvasInspector({
     const q = search.trim().toLowerCase();
     return nodes.filter((n) => {
       const kind = ((n.data as Record<string, unknown> | null)?.kind as string | undefined) ?? n.node_type;
+      const meta = readCanvasOperationalMeta(n.data as Record<string, unknown> | null);
       if (typeFilter && kind !== typeFilter && n.node_type !== typeFilter) return false;
       if (statusFilter && n.status !== statusFilter) return false;
+      if (approvalFilter && approvalFilter !== "all" && meta.approvalStatus !== approvalFilter) return false;
+      if (blockedFilter === "blocked" && !isCanvasNodeBlocked(n.status, meta)) return false;
+      if (blockedFilter === "clear" && isCanvasNodeBlocked(n.status, meta)) return false;
+      if (ownerFilter && meta.ownerName !== ownerFilter) return false;
       if (q && !n.title.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [nodes, search, typeFilter, statusFilter]);
+  }, [nodes, search, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter]);
 
   const counts = useMemo(() => {
     const map: Record<string, number> = {};
@@ -53,6 +67,7 @@ export default function CanvasInspector({
   }, [nodes]);
 
   const linkedCount = nodes.filter((n) => n.linked_entity_id).length;
+  const owners = useMemo(() => Array.from(new Set(nodes.map((n) => readCanvasOperationalMeta(n.data as Record<string, unknown> | null).ownerName).filter(Boolean))) as string[], [nodes]);
 
   if (collapsed) {
     return (
