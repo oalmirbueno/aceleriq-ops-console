@@ -33,6 +33,7 @@ import WorkspaceTabBeforeAfter from "@/components/workspace/WorkspaceTabBeforeAf
 import WorkspaceTabCase from "@/components/workspace/WorkspaceTabCase";
 import WorkspaceTabCanvas from "@/components/workspace/WorkspaceTabCanvas";
 import WorkspaceTabConteudo from "@/components/workspace/WorkspaceTabConteudo";
+import { CANVAS_NODE_TYPES, getCanvasTypeConfig } from "@/components/workspace/canvasConstants";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -65,6 +66,8 @@ interface TimelineEvent {
 interface WorkspaceNodeProgress {
   id: string;
   status: string | null;
+  node_type: string | null;
+  data: Record<string, unknown> | null;
 }
 
 interface WorkspaceTaskSignal {
@@ -202,6 +205,10 @@ function movementDayKey(iso: string) {
   return new Date(iso).toISOString().slice(0, 10);
 }
 
+function nodeStage(node: WorkspaceNodeProgress) {
+  return ((node.data?.stage ?? node.data?.acelera_stage) as string | undefined) ?? "__none__";
+}
+
 async function fetchAllTimelineEvents(workspaceId: string) {
   const all: TimelineEvent[] = [];
   let total = 0;
@@ -247,6 +254,8 @@ export default function WorkspaceDetailPage() {
   const [movementDate, setMovementDate] = useState<Date | undefined>();
   const [movementSearch, setMovementSearch] = useState("");
   const [visibleMovements, setVisibleMovements] = useState(MOVEMENTS_PAGE_SIZE);
+  const [progressTypeFilter, setProgressTypeFilter] = useState("__all__");
+  const [progressStageFilter, setProgressStageFilter] = useState("__all__");
 
   const fetchWorkspace = async () => {
     if (!workspaceId) return;
@@ -264,7 +273,7 @@ export default function WorkspaceDetailPage() {
 
     const { data: nodes } = await supabase
       .from("canvas_nodes")
-      .select("id, status")
+      .select("id, status, node_type, data")
       .eq("workspace_id", workspaceId);
 
     if (nodes) setNodesProgress(nodes as WorkspaceNodeProgress[]);
@@ -293,7 +302,7 @@ export default function WorkspaceDetailPage() {
         async () => {
           const { data: nodes } = await supabase
             .from("canvas_nodes")
-            .select("id, status")
+            .select("id, status, node_type, data")
             .eq("workspace_id", workspaceId);
 
           if (nodes) setNodesProgress(nodes as WorkspaceNodeProgress[]);
@@ -321,7 +330,7 @@ export default function WorkspaceDetailPage() {
     setRefreshingProgress(true);
     const { data: nodes, error } = await supabase
       .from("canvas_nodes")
-      .select("id, status")
+      .select("id, status, node_type, data")
       .eq("workspace_id", workspaceId);
 
     if (error) toast({ title: "Erro ao atualizar progresso", description: error.message, variant: "destructive" });
@@ -386,11 +395,17 @@ export default function WorkspaceDetailPage() {
   const clientName = ws.clients?.name ?? "Cliente";
   const ownerName = ws.profiles?.full_name ?? ws.profiles?.email ?? null;
   const planName = ws.clients?.plan_name ?? null;
-  const progress = calculateRealProgress(ws.current_stage, nodesProgress);
+  const filteredProgressNodes = nodesProgress.filter((node) => {
+    const matchesType = progressTypeFilter === "__all__" || node.node_type === progressTypeFilter;
+    const matchesStage = progressStageFilter === "__all__" || nodeStage(node) === progressStageFilter;
+    return matchesType && matchesStage;
+  });
+  const progress = calculateRealProgress(ws.current_stage, filteredProgressNodes);
   const stageProgress = workspaceProgress(ws.current_stage);
-  const finishedNodes = nodesProgress.filter((node) => node.status === "done" || node.status === "concluido").length;
-  const activeNodes = nodesProgress.filter((node) => node.status === "active" || node.status === "ativo").length;
-  const blockedNodes = nodesProgress.filter((node) => node.status === "blocked" || node.status === "bloqueado").length;
+  const finishedNodes = filteredProgressNodes.filter((node) => node.status === "done" || node.status === "concluido").length;
+  const activeNodes = filteredProgressNodes.filter((node) => node.status === "active" || node.status === "ativo").length;
+  const blockedNodes = filteredProgressNodes.filter((node) => node.status === "blocked" || node.status === "bloqueado").length;
+  const availableProgressStages = STAGES.filter((stage) => nodesProgress.some((node) => nodeStage(node) === stage));
   const intro = introCopy(ws.current_stage);
   const actionPlan = buildActionPlan(ws.current_stage, taskSignals, nodesProgress);
   const leanChecklist = buildLeanChecklist(ws.current_stage, taskSignals, nodesProgress);
@@ -465,16 +480,46 @@ export default function WorkspaceDetailPage() {
                   <p className="text-2xl font-semibold text-foreground">{progress}%</p>
                 </div>
                 <div className="text-right text-xs text-muted-foreground">
-                  <p>{finishedNodes}/{nodesProgress.length} nodes concluídos</p>
+                  <p>{finishedNodes}/{filteredProgressNodes.length} nodes concluídos</p>
                   <p>Etapa base: {stageProgress}%</p>
                 </div>
               </div>
               <Progress value={progress} className="h-2" />
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <Select value={progressTypeFilter} onValueChange={setProgressTypeFilter}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Tipo de node" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todos os tipos</SelectItem>
+                    {CANVAS_NODE_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={progressStageFilter} onValueChange={setProgressStageFilter}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Etapa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todas as etapas</SelectItem>
+                    {availableProgressStages.map((stage) => (
+                      <SelectItem key={stage} value={stage}>{getStagePremiumLabel(stage)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
                 Como calculamos: nodes <strong className="font-medium text-foreground">done/concluido</strong> valem 100%,
                 <strong className="font-medium text-foreground"> active/ativo</strong> valem 55% e
                 <strong className="font-medium text-foreground"> blocked/bloqueado</strong> aplicam penalidade de 15%. Sem nodes, usamos a etapa atual como base.
               </p>
+              {(progressTypeFilter !== "__all__" || progressStageFilter !== "__all__") && (
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Recorte atual: {progressTypeFilter === "__all__" ? "todos os tipos" : getCanvasTypeConfig(progressTypeFilter).label} · {progressStageFilter === "__all__" ? "todas as etapas" : getStagePremiumLabel(progressStageFilter)}
+                </p>
+              )}
               <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                 <div className="rounded-md border border-border bg-card/60 px-2.5 py-2">
                   <p className="text-muted-foreground">Concluídos</p>
