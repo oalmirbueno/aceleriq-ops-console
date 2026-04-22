@@ -9,12 +9,15 @@ interface Props {
 }
 
 /**
- * Monochrome stage lanes — clean vertical dividers with subtle headers.
- * Outline-only, no color fills.
+ * Monochrome stage lanes — vertical dividers follow the canvas,
+ * while ACELERA headers stay pinned to the viewport top.
  */
 function StageLanesBgComp({ height, offsetX = 0, offsetY = 0 }: Props) {
   const totalWidth = STAGE_COLUMN_WIDTH * ACELERA_STAGES.length;
   const [x, y, zoom] = useStore((s) => s.transform);
+  const safeZoom = Math.max(zoom, 0.0001);
+  const viewportX = x + offsetX * safeZoom;
+  const viewportY = y + offsetY * safeZoom;
 
   return (
     <div
@@ -24,11 +27,11 @@ function StageLanesBgComp({ height, offsetX = 0, offsetY = 0 }: Props) {
       <div
         className="absolute"
         style={{
-          left: offsetX,
-          top: offsetY,
+          left: 0,
+          top: 0,
           width: totalWidth,
           height,
-          transform: `translate(${x / Math.max(zoom, 0.0001)}px, ${y / Math.max(zoom, 0.0001)}px) scale(${zoom})`,
+          transform: `translate(${viewportX}px, ${viewportY}px) scale(${safeZoom})`,
           transformOrigin: "0 0",
         }}
       >
@@ -38,9 +41,26 @@ function StageLanesBgComp({ height, offsetX = 0, offsetY = 0 }: Props) {
               key={s.key}
               className={`relative h-full ${idx > 0 ? "border-l border-dashed border-border/20" : ""}`}
               style={{ width: STAGE_COLUMN_WIDTH }}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div
+        className="absolute left-0 top-0 z-20"
+        style={{
+          width: totalWidth,
+          transform: `translateX(${viewportX}px) scale(${safeZoom})`,
+          transformOrigin: "0 0",
+        }}
+      >
+        <div className="flex h-14 border-b border-border/30 bg-background/85 shadow-lg shadow-background/40 backdrop-blur-md">
+          {ACELERA_STAGES.map((s, idx) => (
+            <div
+              key={s.key}
+              className={`relative flex h-14 items-center gap-2.5 px-3.5 ${idx > 0 ? "border-l border-dashed border-border/25" : ""}`}
+              style={{ width: STAGE_COLUMN_WIDTH }}
             >
-              {/* Header bar */}
-              <div className="absolute top-0 left-0 right-0 h-14 backdrop-blur-md bg-background/60 border-b border-border/30 flex items-center gap-2.5 px-3.5">
                 <div className="h-9 w-9 rounded-lg border border-border flex items-center justify-center font-bold text-base font-mono text-foreground/50">
                   {s.letter}
                 </div>
@@ -55,7 +75,6 @@ function StageLanesBgComp({ height, offsetX = 0, offsetY = 0 }: Props) {
                 <div className="text-[9px] font-mono text-muted-foreground/30 tabular-nums">
                   {String(idx + 1).padStart(2, "0")}
                 </div>
-              </div>
             </div>
           ))}
         </div>
