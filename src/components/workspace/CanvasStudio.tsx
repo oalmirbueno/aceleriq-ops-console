@@ -406,10 +406,12 @@ function CanvasStudioInner({
           clientLogoUrl: owner?.logoUrl ?? null,
           operationalMeta,
           onQuickConnect: (dir: "right" | "bottom") => quickConnectFromNode(n.id, dir),
+          canExpandHub: nodeKindOf(n) === "engine",
+          onExpandHub: () => expandEngineHub(n.id),
         } satisfies ProjectNodeData,
       };
     });
-  }, [visibleCanvasNodes, groupMeta, quickConnectFromNode]);
+  }, [expandEngineHub, visibleCanvasNodes, groupMeta, quickConnectFromNode]);
 
   const reactFlowEdges = useMemo(() => {
     const visibleIds = new Set(visibleCanvasNodes.map((n) => n.id));
@@ -513,29 +515,32 @@ function CanvasStudioInner({
   }, [dbNodes]);
 
   /* Pick parent: prioriza cliente da aba ativa */
-  const pickParentGroup = (): string | null => {
+  const pickParentGroup = useCallback((resolvedClientId?: string | null): string | null => {
+    if (resolvedClientId) return resolvedClientId;
     if (activeClientId) return activeClientId;
     if (clientGroups.length === 1) return clientGroups[0].id;
     return null;
-  };
+  }, [activeClientId, clientGroups]);
 
   /* Quando o usuário tenta criar um node sem cliente ativo e existem várias pastas,
-   * abre o seletor de cliente para evitar nodes "órfãos". */
-  const ensureActiveClient = (): boolean => {
+   * abre o seletor de cliente para evitar nodes "órfãos".
+   * Retorna o id do cliente/pasta que deve receber o novo node. */
+  const ensureActiveClient = useCallback((): string | null => {
     if (clientGroups.length === 0) {
       toast({
         title: "Adicione um cliente primeiro",
         description: "Cada esteira pertence a uma pasta de cliente.",
       });
       setClientPickerOpen(true);
-      return false;
+      return null;
     }
-    if (!activeClientId) {
-      // Há clientes mas nenhuma aba selecionada — selecione automaticamente
-      setActiveClientId(clientGroups[0].id);
+
+    const resolvedClientId = activeClientId ?? clientGroups[0]?.id ?? null;
+    if (resolvedClientId && activeClientId !== resolvedClientId) {
+      setActiveClientId(resolvedClientId);
     }
-    return true;
-  };
+    return resolvedClientId;
+  }, [activeClientId, clientGroups]);
 
   /* Add a project node at chosen kind+stage */
   const addProjectNode = useCallback(async (
@@ -544,12 +549,13 @@ function CanvasStudioInner({
     opts: { sourceId?: string | null; dir?: "right" | "bottom" | null } = {},
   ) => {
     // Must have a client folder selected
-    if (!ensureActiveClient()) return;
+    const resolvedParent = ensureActiveClient();
+    if (!resolvedParent) return;
     const meta = getProjectTypeMeta(kind);
     if (!meta) return;
     const dbType = projectKindToDbNodeType(kind);
 
-    // Compute position: based on source if connecting, else stack inside stage column
+    // Compute position: based on source if connecting, else stack inside the active client's stage column
     let pos_x = stageColumnX(stage) + NODE_X_OFFSET;
     let pos_y = CONTENT_TOP + 16;
     if (opts.sourceId) {
@@ -564,14 +570,39 @@ function CanvasStudioInner({
         }
       }
     } else {
-      // Stack new node below existing nodes in same stage
-      const sameStage = projectNodes.filter((n) => nodeStageOf(n) === stage);
+      // Stack new node below existing nodes in the same stage AND same client folder
+      const sameStage = projectNodes.filter((n) => n.parent_node_id === resolvedParent && nodeStageOf(n) === stage);
       const maxY = sameStage.length === 0 ? CONTENT_TOP + 16 : Math.max(...sameStage.map((n) => Number(n.pos_y ?? CONTENT_TOP)));
       pos_y = sameStage.length === 0 ? CONTENT_TOP + 16 : maxY + NODE_VERTICAL;
     }
 
-    const parent = pickParentGroup();
+    const parent = pickParentGroup(resolvedParent);
     const initialTitle = `${meta.titleTemplate}`;
+    let connectionLabel: string | null = null;
+
+    if (opts.sourceId) {
+      const sourceNode = dbNodes.find((n) => n.id === opts.sourceId);
+      if (sourceNode) {
+        const previewTarget = {
+          ...sourceNode,
+          id: "preview-target",
+          title: initialTitle,
+          node_type: dbType,
+          parent_node_id: parent,
+          data: { kind, stage },
+        } as CanvasNodeRow;
+        const validation = validateCanvasConnection(sourceNode, previewTarget);
+        if (!validation.allowed) {
+          toast({
+            title: "Ligação incompatível",
+            description: validation.reason ?? "Esse tipo de node não faz sentido como próximo passo daqui.",
+            variant: "destructive",
+          });
+          return;
+        }
+        connectionLabel = validation.label;
+      }
+    }
 
     const { data, error } = await supabase
       .from("canvas_nodes")
@@ -606,7 +637,8 @@ function CanvasStudioInner({
             workspace_id: workspaceId,
             source_node_id: opts.sourceId,
             target_node_id: newRow.id,
-            edge_type: "next",
+            edge_type: "ops",
+            label: connectionLabel,
           })
           .select()
           .single();
@@ -615,7 +647,184 @@ function CanvasStudioInner({
 
       setSelectedNode(newRow);
     }
-  }, [dbNodes, projectNodes, clientGroups, workspaceId, clientId]);
+  }, [clientId, dbNodes, ensureActiveClient, pickParentGroup, projectNodes, workspaceId]);
+
+  const expandEngineHub = useCallback(async (engineNodeId: string) => {
+    const engineNode = dbNodes.find((node) => node.id === engineNodeId);
+    if (!engineNode) return;
+
+    if (nodeKindOf(engineNode) !== "engine") {
+      toast({ title: "Hub indisponível", description: "Esse atalho só funciona em nodes Engine." });
+      return;
+    }
+
+    const parent = engineNode.parent_node_id ?? ensureActiveClient();
+    if (!parent) return;
+
+    setBusyAction("engine-hub");
+    try {
+      const incomingToEngine = dbEdges
+        .filter((edge) => edge.target_node_id === engineNodeId)
+        .map((edge) => dbNodes.find((node) => node.id === edge.source_node_id))
+        .filter(Boolean) as CanvasNodeRow[];
+      const outgoingFromEngine = dbEdges
+        .filter((edge) => edge.source_node_id === engineNodeId)
+        .map((edge) => dbNodes.find((node) => node.id === edge.target_node_id))
+        .filter(Boolean) as CanvasNodeRow[];
+
+      const existingResult = outgoingFromEngine.find((node) => RESULT_KINDS.has(nodeKindOf(node)) && !PROOF_KINDS.has(nodeKindOf(node)));
+      const existingAgent = outgoingFromEngine.find((node) => nodeKindOf(node) === "agente");
+      const existingDecision = [
+        ...outgoingFromEngine,
+        ...(existingResult
+          ? dbEdges
+              .filter((edge) => edge.source_node_id === existingResult.id)
+              .map((edge) => dbNodes.find((node) => node.id === edge.target_node_id))
+              .filter(Boolean) as CanvasNodeRow[]
+          : []),
+      ].find((node) => nodeKindOf(node) === "decisao");
+
+      const missingSpecs: Array<{ ref: string; kind: ProjectNodeKind; title: string; stage: AceleraStageKey; x: number; y: number; description: string }> = [];
+      const engineX = Number(engineNode.pos_x ?? stageColumnX("planejamento") + NODE_X_OFFSET);
+      const engineY = Number(engineNode.pos_y ?? CONTENT_TOP + 16);
+
+      if (!incomingToEngine.some((node) => INPUT_KINDS.has(nodeKindOf(node)))) {
+        missingSpecs.push({
+          ref: "context",
+          kind: "contexto_ops",
+          title: "Contexto do hub",
+          stage: "entrada",
+          x: engineX - 430,
+          y: engineY - 130,
+          description: "Entradas estratégicas, ativos, briefing e restrições que alimentam a engine.",
+        });
+      }
+
+      if (!incomingToEngine.some((node) => INSTRUCTION_KINDS.has(nodeKindOf(node)))) {
+        missingSpecs.push({
+          ref: "instruction",
+          kind: "instrucao",
+          title: "Instruções do hub",
+          stage: "planejamento",
+          x: engineX - 430,
+          y: engineY + 40,
+          description: "Regras, SOP, critérios de aceite e lógica do fluxo que entram na engine.",
+        });
+      }
+
+      if (!existingResult) {
+        missingSpecs.push({
+          ref: "result",
+          kind: "resultado",
+          title: "Resultado do hub",
+          stage: "producao",
+          x: engineX + 430,
+          y: engineY - 30,
+          description: "Entregável principal que sai da engine já pronto para revisão, prova e aprovação.",
+        });
+      }
+
+      if (!existingAgent) {
+        missingSpecs.push({
+          ref: "agent",
+          kind: "agente",
+          title: "Agente executor",
+          stage: "producao",
+          x: engineX + 430,
+          y: engineY + 150,
+          description: "Camada operacional que executa tarefas, handoffs e verificações a partir da engine.",
+        });
+      }
+
+      if (!existingDecision) {
+        missingSpecs.push({
+          ref: "decision",
+          kind: "decisao",
+          title: "Decisão do hub",
+          stage: "ativacao",
+          x: engineX + 790,
+          y: engineY - 30,
+          description: "Node de aprovação, revisão ou próxima ação do fluxo disparado pela engine.",
+        });
+      }
+
+      if (missingSpecs.length === 0) {
+        toast({ title: "Hub já montado", description: "Esse Engine já tem entradas e saídas principais conectadas." });
+        return;
+      }
+
+      const createdNodes: CanvasNodeRow[] = [];
+      const createdByRef: Record<string, CanvasNodeRow> = {};
+
+      for (const spec of missingSpecs) {
+        const { data, error } = await supabase
+          .from("canvas_nodes")
+          .insert({
+            workspace_id: workspaceId,
+            client_id: clientId,
+            node_type: projectKindToDbNodeType(spec.kind),
+            title: spec.title,
+            status: "draft",
+            description: spec.description,
+            pos_x: spec.x,
+            pos_y: spec.y,
+            parent_node_id: parent,
+            data: { kind: spec.kind, stage: spec.stage, checklist: getChecklistTemplate(spec.kind), generatedByEngineHub: engineNodeId },
+          })
+          .select()
+          .single();
+
+        if (error || !data) throw error ?? new Error("Falha ao criar node do hub.");
+        const row = data as CanvasNodeRow;
+        createdNodes.push(row);
+        createdByRef[spec.ref] = row;
+      }
+
+      const resultNode = existingResult ?? createdByRef.result;
+      const edgesToCreate = [
+        createdByRef.context ? { source_node_id: createdByRef.context.id, target_node_id: engineNodeId, label: "contexto" } : null,
+        createdByRef.instruction ? { source_node_id: createdByRef.instruction.id, target_node_id: engineNodeId, label: "regra" } : null,
+        createdByRef.agent ? { source_node_id: engineNodeId, target_node_id: createdByRef.agent.id, label: "aciona" } : null,
+        createdByRef.result ? { source_node_id: engineNodeId, target_node_id: createdByRef.result.id, label: "gera" } : null,
+        createdByRef.decision && resultNode ? { source_node_id: resultNode.id, target_node_id: createdByRef.decision.id, label: "aprovar" } : null,
+      ].filter(Boolean) as Array<{ source_node_id: string; target_node_id: string; label: string }>;
+
+      const dedupedEdges = edgesToCreate.filter((edge, index, arr) => (
+        arr.findIndex((candidate) => candidate.source_node_id === edge.source_node_id && candidate.target_node_id === edge.target_node_id) === index
+        && !dbEdges.some((existing) => existing.source_node_id === edge.source_node_id && existing.target_node_id === edge.target_node_id)
+      ));
+
+      let createdEdges: CanvasEdgeRecord[] = [];
+      if (dedupedEdges.length > 0) {
+        const { data: edgeRows, error: edgeError } = await supabase
+          .from("canvas_edges")
+          .insert(dedupedEdges.map((edge) => ({
+            workspace_id: workspaceId,
+            edge_type: "ops",
+            ...edge,
+          })))
+          .select();
+        if (edgeError) throw edgeError;
+        createdEdges = ((edgeRows ?? []) as CanvasEdgeRecord[]);
+      }
+
+      setDbNodes((prev) => [...prev, ...createdNodes]);
+      if (createdEdges.length > 0) setDbEdges((prev) => [...prev, ...createdEdges]);
+      setSelectedNode(engineNode);
+      toast({
+        title: "Hub inteligente montado",
+        description: `${createdNodes.length} nodes e ${createdEdges.length} conexões foram organizados ao redor da engine.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Erro ao montar hub",
+        description: err instanceof Error ? err.message : "Falha ao expandir a engine.",
+        variant: "destructive",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  }, [clientId, dbEdges, dbNodes, ensureActiveClient, workspaceId]);
 
   /* Pick existing client → group */
   const handlePickClient = async (c: { id: string; name: string }) => {
@@ -773,8 +982,7 @@ function CanvasStudioInner({
   ]);
 
   const applyOpsFlowBlueprint = useCallback(async () => {
-    if (!ensureActiveClient()) return;
-    const parent = pickParentGroup();
+    const parent = ensureActiveClient();
     if (!parent) return;
     setBusyAction("ops-flow");
     try {
@@ -817,7 +1025,7 @@ function CanvasStudioInner({
     } finally {
       setBusyAction(null);
     }
-  }, [workspaceId, clientId, fetchData, activeClientId, clientGroups]);
+  }, [clientId, ensureActiveClient, fetchData, workspaceId]);
 
 
   /* Auto-layout: por etapa, empilha vertical (apenas nodes do cliente ativo) */
@@ -1128,7 +1336,7 @@ function CanvasStudioInner({
 
         <div className="flex-1 min-w-0 relative">
           {!loading && scopedProjectNodes.length > 0 && (
-            <div className="pointer-events-none absolute left-3 top-3 z-10 hidden lg:flex items-center gap-1.5 rounded-full border border-border/60 bg-background/72 px-2.5 py-1 text-[10px] text-muted-foreground backdrop-blur-sm">
+            <div className="pointer-events-none absolute left-3 top-3 z-10 hidden lg:flex items-center gap-2 rounded-full border border-border/70 bg-card/92 px-3 py-1.5 text-[10px] text-muted-foreground shadow-sm backdrop-blur-sm">
               <span>Entrega {proofTrail.entrega}</span>
               <span className="text-muted-foreground/40">→</span>
               <span>KPI {proofTrail.kpi}</span>
@@ -1136,6 +1344,10 @@ function CanvasStudioInner({
               <span>Before/After {proofTrail.beforeAfter}</span>
               <span className="text-muted-foreground/40">→</span>
               <span>Case {proofTrail.cases}</span>
+              <span className="text-muted-foreground/40">•</span>
+              <span>Arraste dos conectores laterais para ligar nodes</span>
+              <span className="text-muted-foreground/40">•</span>
+              <span>Use “Hub” no Engine para montar o fluxo central</span>
             </div>
           )}
           {loading ? (
@@ -1211,6 +1423,7 @@ function CanvasStudioInner({
               proOptions={{ hideAttribution: true }}
               className="bg-background canvas-flow acelera-ops-flow"
               defaultEdgeOptions={{ type: "smoothstep", animated: true }}
+              connectionLineStyle={{ stroke: "hsl(var(--primary))", strokeWidth: 2.5 }}
               onPaneContextMenu={(event) => event.preventDefault()}
             >
               <Background gap={32} size={1} className="opacity-20" />
