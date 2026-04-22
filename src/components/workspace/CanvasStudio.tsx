@@ -16,14 +16,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import ProjectNodeCard, { type ProjectNodeData } from "./ProjectNodeCard";
 import CanvasGroupNode from "./CanvasGroupNode";
-import StageLanesBg from "./StageLanesBg";
 import ProjectNodeDrawer from "./ProjectNodeDrawer";
 import CanvasEsteiraPalette from "./CanvasEsteiraPalette";
 import CanvasInspector from "./CanvasInspector";
-import CanvasHorizontalScroller from "./CanvasHorizontalScroller";
 import CanvasQuickDock from "./CanvasQuickDock";
-import CanvasStageSummary from "./CanvasStageSummary";
-import CanvasOperationalSummary from "./CanvasOperationalSummary";
 import CanvasClientPicker from "./CanvasClientPicker";
 import CanvasClientTabs, { type CanvasClientTab } from "./CanvasClientTabs";
 import GenerateEsteiraDialog from "./GenerateEsteiraDialog";
@@ -1196,18 +1192,7 @@ function CanvasStudioInner({
               defaultEdgeOptions={{ type: "smoothstep", animated: true }}
               onPaneContextMenu={(event) => event.preventDefault()}
             >
-              <StageLanesBg height={STAGE_BAND_HEIGHT} offsetY={CONTENT_TOP - 12} />
-              <Background gap={24} size={1} className="opacity-30" />
-              {featureFlags.canvasOperationalOverlayEnabled && (
-                <>
-                  <Panel position="top-center" className="!m-0 mt-4">
-                    <CanvasStageSummary nodes={scopedProjectNodes} />
-                  </Panel>
-                  <Panel position="top-left" className="!m-0 ml-4 mt-20">
-                    <CanvasOperationalSummary nodes={scopedProjectNodes} edges={scopedEdges} />
-                  </Panel>
-                </>
-              )}
+              <Background gap={32} size={1} className="opacity-20" />
               {showMiniMap && (
                 <MiniMap
                   nodeColor={() => "hsl(var(--primary))"}
@@ -1217,11 +1202,8 @@ function CanvasStudioInner({
                   style={{ width: 260, height: 170 }}
                 />
               )}
-              <Panel position="bottom-center" className="!m-0 mb-2 w-[min(70%,640px)]">
-                <CanvasHorizontalScroller />
-              </Panel>
               {featureFlags.canvasBottomDockEnabled && (
-                <Panel position="bottom-center" className="!m-0 mb-14">
+                <Panel position="bottom-center" className="!m-0 mb-4">
                   <CanvasQuickDock activeKind={typeFilter} onCreate={quickDockAdd} />
                 </Panel>
               )}
