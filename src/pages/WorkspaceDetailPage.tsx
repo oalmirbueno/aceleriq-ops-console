@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ArrowRight, CalendarDays, CalendarIcon, CheckCircle2, FolderKanban, ListChecks, Sparkles, Target, X } from "lucide-react";
+import { ArrowRight, CalendarDays, CalendarIcon, CheckCircle2, FolderKanban, ListChecks, Search, Sparkles, Target, X } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingState from "@/components/LoadingState";
 import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -243,6 +244,7 @@ export default function WorkspaceDetailPage() {
   const [movementsOpen, setMovementsOpen] = useState(false);
   const [eventTypeFilter, setEventTypeFilter] = useState("__all__");
   const [movementDate, setMovementDate] = useState<Date | undefined>();
+  const [movementSearch, setMovementSearch] = useState("");
   const [visibleMovements, setVisibleMovements] = useState(MOVEMENTS_PAGE_SIZE);
 
   const fetchWorkspace = async () => {
@@ -291,7 +293,7 @@ export default function WorkspaceDetailPage() {
 
   useEffect(() => {
     setVisibleMovements(MOVEMENTS_PAGE_SIZE);
-  }, [movementsOpen, eventTypeFilter, movementDate]);
+  }, [movementsOpen, eventTypeFilter, movementDate, movementSearch]);
 
   const handleStageChange = async (newStage: string) => {
     if (!ws || newStage === ws.current_stage) return;
