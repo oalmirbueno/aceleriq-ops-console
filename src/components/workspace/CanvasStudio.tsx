@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, useDeferredValue } from "react";
 import {
-  ReactFlow, ReactFlowProvider, Background, MiniMap, Panel,
+  ReactFlow, ReactFlowProvider, Background,
   applyNodeChanges, applyEdgeChanges,
   type Node, type Edge, type NodeChange, type EdgeChange, type Connection,
   type ReactFlowInstance, type Viewport, SelectionMode,
@@ -18,11 +18,9 @@ import CanvasGroupNode from "./CanvasGroupNode";
 import ProjectNodeDrawer from "./ProjectNodeDrawer";
 import CanvasEsteiraPalette from "./CanvasEsteiraPalette";
 import CanvasInspector from "./CanvasInspector";
-import CanvasQuickDock from "./CanvasQuickDock";
 import CanvasClientPicker from "./CanvasClientPicker";
 import CanvasClientTabs, { type CanvasClientTab } from "./CanvasClientTabs";
 import GenerateEsteiraDialog from "./GenerateEsteiraDialog";
-import { featureFlags } from "@/config/featureFlags";
 import type { EsteiraTemplate } from "./esteiraTemplates";
 import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalMeta } from "./canvasOperationalMeta";
 import {
@@ -281,28 +279,23 @@ function CanvasStudioInner({
   const visibleCanvasNodes = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
     return scopedProjectNodes.filter((node) => {
+      const meta = readCanvasOperationalMeta(node.data as Record<string, unknown> | null);
       if (typeFilter && nodeKindOf(node) !== typeFilter && node.node_type !== typeFilter) return false;
       if (statusFilter && mapLegacyStatus(node.status) !== statusFilter) return false;
+      if (approvalFilter !== "all" && meta.approvalStatus !== approvalFilter) return false;
+      if (blockedFilter === "blocked" && !meta.blockedReason && node.status !== "blocked" && node.status !== "bloqueado") return false;
+      if (blockedFilter === "clear" && (meta.blockedReason || node.status === "blocked" || node.status === "bloqueado")) return false;
+      if (ownerFilter && meta.ownerName !== ownerFilter) return false;
       if (q && !node.title.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter]);
+  }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter]);
 
   const scopedProjectIds = useMemo(() => new Set(scopedProjectNodes.map((n) => n.id)), [scopedProjectNodes]);
   const scopedEdges = useMemo(
     () => dbEdges.filter((edge) => scopedProjectIds.has(edge.source_node_id) && scopedProjectIds.has(edge.target_node_id)),
     [dbEdges, scopedProjectIds],
   );
-
-
-  // Toggle MiniMap (persistido) — alguns usuários acham que polui
-  const [showMiniMap, setShowMiniMap] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return localStorage.getItem("canvas:showMiniMap") !== "0";
-  });
-  useEffect(() => {
-    localStorage.setItem("canvas:showMiniMap", showMiniMap ? "1" : "0");
-  }, [showMiniMap]);
 
   /* ─── Persist viewport (zoom + pan) por escopo cliente/workspace ────
    * Cada combinação (workspace, clienteAtivo) tem seu próprio viewport
