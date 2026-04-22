@@ -304,7 +304,12 @@ export default function WorkspaceDetailPage() {
       .order("created_at", { ascending: false })
       .limit(200);
 
-    if (tasks) setTaskSignals(tasks as WorkspaceTaskSignal[]);
+    if (tasks) {
+      const syncedTasks = tasks as WorkspaceTaskSignal[];
+      const syncedTaskIds = new Set(syncedTasks.map((task) => task.id));
+      setTaskSignals(syncedTasks);
+      setCompletedTriageKeys((current) => current.filter((key) => !syncedTaskIds.has(key)));
+    }
     setTriageLoading(false);
   };
 
@@ -381,13 +386,17 @@ export default function WorkspaceDetailPage() {
       return;
     }
 
-    setTaskSignals((current) => current.map((task) => task.id === item.taskId ? { ...task, status: "done" } : task));
     toast({ title: "Task concluída", description: item.title });
+    await fetchWorkspace();
   };
 
   const toggleTriageItem = (item: LeanChecklistItem, index: number) => {
     const key = triageItemKey(item, index);
-    if (item.taskId && !item.completed) {
+    if (item.taskId) {
+      if (item.completed) {
+        toast({ title: "Task já concluída", description: "Status confirmado pelo workspace." });
+        return;
+      }
       completeChecklistTask(item);
       return;
     }
