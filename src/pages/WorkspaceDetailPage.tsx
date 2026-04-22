@@ -315,6 +315,7 @@ export default function WorkspaceDetailPage() {
   const finishedNodes = nodesProgress.filter((node) => node.status === "done" || node.status === "concluido").length;
   const intro = introCopy(ws.current_stage);
   const actionPlan = buildActionPlan(ws.current_stage, taskSignals, nodesProgress);
+  const leanChecklist = buildLeanChecklist(ws.current_stage, taskSignals, nodesProgress);
   const movementTypes = Array.from(new Set(timeline.map((event) => event.event_type))).sort();
   const filteredMovements = timeline.filter((event) => {
     const matchesType = eventTypeFilter === "__all__" || event.event_type === eventTypeFilter;
