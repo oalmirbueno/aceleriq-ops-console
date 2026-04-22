@@ -61,11 +61,24 @@ interface TimelineEvent {
   created_at: string;
 }
 
+interface WorkspaceNodeProgress {
+  id: string;
+  status: string | null;
+}
+
 const STAGES = ["entrada", "diagnostico", "estrutura_base", "planejamento", "producao", "ativacao", "otimizacao", "expansao"];
 
 function workspaceProgress(stage: string) {
   const index = Math.max(0, STAGES.indexOf(stage));
   return Math.round(((index + 1) / STAGES.length) * 100);
+}
+
+function calculateRealProgress(stage: string, nodes: WorkspaceNodeProgress[]) {
+  if (nodes.length === 0) return workspaceProgress(stage);
+  const done = nodes.filter((node) => node.status === "done" || node.status === "concluido").length;
+  const activeWeight = nodes.filter((node) => node.status === "active" || node.status === "ativo").length * 0.55;
+  const blockedPenalty = nodes.filter((node) => node.status === "blocked" || node.status === "bloqueado").length * 0.15;
+  return Math.max(5, Math.min(100, Math.round(((done + activeWeight) / nodes.length) * 100 - blockedPenalty)));
 }
 
 function introCopy(stage: string) {
