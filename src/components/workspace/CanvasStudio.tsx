@@ -6,7 +6,7 @@ import {
   type ReactFlowInstance, type Viewport, SelectionMode,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Settings2, Check } from "lucide-react";
+import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Settings2, Check, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
