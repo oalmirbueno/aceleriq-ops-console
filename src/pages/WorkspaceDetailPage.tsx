@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { FolderKanban } from "lucide-react";
+import { ArrowRight, CheckCircle2, FolderKanban, Sparkles, Target } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingState from "@/components/LoadingState";
 import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import ClientAvatar from "@/components/workspace/ClientAvatar";
 import WorkspaceHeader from "@/components/workspace/WorkspaceHeader";
 import WorkspaceTabResumo from "@/components/workspace/WorkspaceTabResumo";
 import WorkspaceTabTimeline from "@/components/workspace/WorkspaceTabTimeline";
@@ -33,7 +35,7 @@ interface Workspace {
   summary: string | null;
   created_at: string;
   metadata: Record<string, unknown> | null;
-  clients: { id: string; name: string; company_name: string | null; segment: string | null; plan_name: string | null; metadata: Record<string, unknown> | null } | null;
+  clients: { id: string; name: string; company_name: string | null; segment: string | null; plan_name: string | null; logo_url?: string | null; metadata: Record<string, unknown> | null } | null;
   profiles: { full_name: string | null; email: string } | null;
 }
 
@@ -58,7 +60,7 @@ export default function WorkspaceDetailPage() {
     if (!workspaceId) return;
     const { data, error } = await supabase
       .from("workspaces")
-      .select("id, name, status, current_stage, primary_owner_id, client_id, summary, created_at, metadata, clients(id, name, company_name, segment, plan_name, metadata), profiles:primary_owner_id(full_name, email)")
+      .select("id, name, status, current_stage, primary_owner_id, client_id, summary, created_at, metadata, clients(id, name, company_name, segment, plan_name, logo_url, metadata), profiles:primary_owner_id(full_name, email)")
       .eq("id", workspaceId)
       .single();
 
