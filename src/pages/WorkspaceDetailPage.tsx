@@ -251,10 +251,7 @@ export default function WorkspaceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
   const [refreshingProgress, setRefreshingProgress] = useState(false);
-  const [showFullWorkspace, setShowFullWorkspace] = useState(() => {
-    if (!workspaceId) return false;
-    return localStorage.getItem(`workspace-mode:${workspaceId}`) === "full";
-  });
+  const [showFullWorkspace, setShowFullWorkspace] = useState(false);
   const [movementsOpen, setMovementsOpen] = useState(false);
   const [eventTypeFilter, setEventTypeFilter] = useState("__all__");
   const [movementDate, setMovementDate] = useState<Date | undefined>();
@@ -322,12 +319,10 @@ export default function WorkspaceDetailPage() {
   }, [workspaceId]);
 
   useEffect(() => {
-    if (!workspaceId) return;
-    setShowFullWorkspace(localStorage.getItem(`workspace-mode:${workspaceId}`) === "full");
+    setShowFullWorkspace(false);
   }, [workspaceId]);
 
   const setWorkspaceMode = (mode: "preview" | "full") => {
-    if (workspaceId) localStorage.setItem(`workspace-mode:${workspaceId}`, mode);
     setShowFullWorkspace(mode === "full");
   };
 
@@ -345,6 +340,10 @@ export default function WorkspaceDetailPage() {
   };
 
   const openCanvasByStatus = (status: string) => {
+    if (!showFullWorkspace) {
+      toast({ title: "Entre no workspace completo", description: "Use o botão de entrada para abrir as abas e navegar pelos nodes." });
+      return;
+    }
     setWorkspaceMode("full");
     setCanvasStatusShortcut(status);
     setActiveTab("canvas");
@@ -597,7 +596,10 @@ export default function WorkspaceDetailPage() {
               <div className="mb-5 flex items-center justify-between gap-4">
                 <div>
                   <p className="label-sm mb-2">Pré-entrada operacional</p>
-                  <h2 className="text-xl font-semibold tracking-tight text-foreground">Plano de ação antes de entrar no workspace completo</h2>
+                  <h2 className="text-xl font-semibold tracking-tight text-foreground">Triagem completa, contexto e plano gradual de produção</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                    Este bloco organiza contexto, prioridades e próximas ações antes de abrir o workspace completo, para evitar perda de tempo e manter o avanço visível.
+                  </p>
                 </div>
                 <div className="hidden h-10 w-10 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary md:flex">
                   <ListChecks className="h-5 w-5" />
@@ -680,7 +682,7 @@ export default function WorkspaceDetailPage() {
                 </div>
               </div>
 
-              <Button onClick={() => setWorkspaceMode("full")} className="h-11 w-full gap-2">
+              <Button onClick={() => setWorkspaceMode("full")} className="h-11 w-full gap-2" disabled={showFullWorkspace}>
                 Entrar no workspace completo
                 <ArrowRight className="h-4 w-4" />
               </Button>
