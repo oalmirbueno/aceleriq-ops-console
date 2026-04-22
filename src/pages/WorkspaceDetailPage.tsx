@@ -395,11 +395,17 @@ export default function WorkspaceDetailPage() {
   const clientName = ws.clients?.name ?? "Cliente";
   const ownerName = ws.profiles?.full_name ?? ws.profiles?.email ?? null;
   const planName = ws.clients?.plan_name ?? null;
-  const progress = calculateRealProgress(ws.current_stage, nodesProgress);
+  const filteredProgressNodes = nodesProgress.filter((node) => {
+    const matchesType = progressTypeFilter === "__all__" || node.node_type === progressTypeFilter;
+    const matchesStage = progressStageFilter === "__all__" || nodeStage(node) === progressStageFilter;
+    return matchesType && matchesStage;
+  });
+  const progress = calculateRealProgress(ws.current_stage, filteredProgressNodes);
   const stageProgress = workspaceProgress(ws.current_stage);
-  const finishedNodes = nodesProgress.filter((node) => node.status === "done" || node.status === "concluido").length;
-  const activeNodes = nodesProgress.filter((node) => node.status === "active" || node.status === "ativo").length;
-  const blockedNodes = nodesProgress.filter((node) => node.status === "blocked" || node.status === "bloqueado").length;
+  const finishedNodes = filteredProgressNodes.filter((node) => node.status === "done" || node.status === "concluido").length;
+  const activeNodes = filteredProgressNodes.filter((node) => node.status === "active" || node.status === "ativo").length;
+  const blockedNodes = filteredProgressNodes.filter((node) => node.status === "blocked" || node.status === "bloqueado").length;
+  const availableProgressStages = STAGES.filter((stage) => nodesProgress.some((node) => nodeStage(node) === stage));
   const intro = introCopy(ws.current_stage);
   const actionPlan = buildActionPlan(ws.current_stage, taskSignals, nodesProgress);
   const leanChecklist = buildLeanChecklist(ws.current_stage, taskSignals, nodesProgress);
