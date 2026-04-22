@@ -64,11 +64,11 @@ const CLIENT_BAR_Y = 0;
 const CLIENT_BAR_HEIGHT = 52;
 const CLIENT_BAR_GAP = 220;
 const CONTENT_TOP = CLIENT_BAR_HEIGHT + 12;
-const STAGE_BAND_HEIGHT = 1800; // long enough for many nodes
+const STAGE_BAND_HEIGHT = 2400; // long enough for many nodes
 const NODE_VERTICAL = 130;
 const NODE_X_OFFSET = 36; // x inside column
 const TOTAL_STAGE_WIDTH = STAGE_COLUMN_WIDTH * ACELERA_STAGES.length;
-const CANVAS_PADDING = 240;
+const CANVAS_PADDING = 640;
 const CANVAS_TRANSLATE_EXTENT: [[number, number], [number, number]] = [
   [-CANVAS_PADDING, -CANVAS_PADDING],
   [TOTAL_STAGE_WIDTH + CANVAS_PADDING, CONTENT_TOP + STAGE_BAND_HEIGHT + CANVAS_PADDING],
