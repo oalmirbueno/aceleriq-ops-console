@@ -640,19 +640,7 @@ function CanvasStudioInner({
 
       for (const tn of tpl.nodes) {
         const meta = getProjectTypeMeta(tn.kind);
-        const dbType = (() => {
-          switch (tn.kind) {
-            case "asset": return "asset";
-            case "metrica": return "metric";
-            case "before_after": return "before_after";
-            case "case": return "case";
-            case "briefing":
-            case "documento":
-            case "contato": return "context";
-            case "checklist": return "task";
-            default: return "front";
-          }
-        })();
+        const dbType = projectKindToDbNodeType(tn.kind);
         const pos_x = stageColumnX(tn.stage) + NODE_X_OFFSET;
         const pos_y = startYByStage[tn.stage] ?? CONTENT_TOP + 16;
         startYByStage[tn.stage] = pos_y + NODE_VERTICAL;
@@ -730,13 +718,28 @@ function CanvasStudioInner({
     if (targetNodes.length === 0) return;
     setBusyAction("layout");
     const byStage: Record<string, CanvasNodeRow[]> = {};
+    const incoming = new Map<string, number>();
+    const outgoing = new Map<string, number>();
+    dbEdges.forEach((e) => {
+      outgoing.set(e.source_node_id, (outgoing.get(e.source_node_id) ?? 0) + 1);
+      incoming.set(e.target_node_id, (incoming.get(e.target_node_id) ?? 0) + 1);
+    });
+    const flowRank: Record<string, number> = { contexto_ops: 0, briefing: 1, documento: 2, instrucao: 3, engine: 4, agente: 5, resultado: 6, decisao: 7 };
     targetNodes.forEach((n) => {
       const s = nodeStageOf(n);
       (byStage[s] ??= []).push(n);
     });
     const updates: Array<{ id: string; pos_x: number; pos_y: number }> = [];
     Object.entries(byStage).forEach(([stage, list]) => {
-      list.forEach((n, i) => {
+      list
+        .slice()
+        .sort((a, b) => {
+          const ar = flowRank[nodeKindOf(a)] ?? 20;
+          const br = flowRank[nodeKindOf(b)] ?? 20;
+          if (ar !== br) return ar - br;
+          return (incoming.get(a.id) ?? 0) - (incoming.get(b.id) ?? 0) || (outgoing.get(b.id) ?? 0) - (outgoing.get(a.id) ?? 0);
+        })
+        .forEach((n, i) => {
         updates.push({
           id: n.id,
           pos_x: stageColumnX(stage as AceleraStageKey) + NODE_X_OFFSET,
