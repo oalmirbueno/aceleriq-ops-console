@@ -95,9 +95,7 @@ function workspaceProgress(stage: string) {
 function calculateRealProgress(stage: string, nodes: WorkspaceNodeProgress[]) {
   if (nodes.length === 0) return workspaceProgress(stage);
   const done = nodes.filter((node) => node.status === "done" || node.status === "concluido").length;
-  const activeWeight = nodes.filter((node) => node.status === "active" || node.status === "ativo").length * 0.55;
-  const blockedPenalty = nodes.filter((node) => node.status === "blocked" || node.status === "bloqueado").length * 0.15;
-  return Math.max(5, Math.min(100, Math.round(((done + activeWeight) / nodes.length) * 100 - blockedPenalty)));
+  return Math.round((done / nodes.length) * 100);
 }
 
 function introCopy(stage: string) {
@@ -399,6 +397,7 @@ export default function WorkspaceDetailPage() {
   const finishedNodes = nodesProgress.filter((node) => node.status === "done" || node.status === "concluido").length;
   const activeNodes = nodesProgress.filter((node) => node.status === "active" || node.status === "ativo").length;
   const blockedNodes = nodesProgress.filter((node) => node.status === "blocked" || node.status === "bloqueado").length;
+  const otherNodes = Math.max(0, nodesProgress.length - finishedNodes - activeNodes - blockedNodes);
   const intro = introCopy(ws.current_stage);
   const actionPlan = buildActionPlan(ws.current_stage, taskSignals, nodesProgress);
   const leanChecklist = buildLeanChecklist(ws.current_stage, taskSignals, nodesProgress);
