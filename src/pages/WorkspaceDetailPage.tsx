@@ -274,7 +274,7 @@ export default function WorkspaceDetailPage({ mode = "preview" }: WorkspaceDetai
   const [movementDate, setMovementDate] = useState<Date | undefined>();
   const [movementSearch, setMovementSearch] = useState("");
   const [visibleMovements, setVisibleMovements] = useState(MOVEMENTS_PAGE_SIZE);
-  const [activeTab, setActiveTab] = useState(searchParams.get("tab") ?? "resumo");
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") ?? (showFullWorkspace ? "canvas" : "resumo"));
   const [canvasStatusShortcut, setCanvasStatusShortcut] = useState<string | null>(searchParams.get("status"));
   const [completedTriageKeys, setCompletedTriageKeys] = useState<string[]>([]);
   const [completedPreEntryActions, setCompletedPreEntryActions] = useState<string[]>([]);
@@ -361,9 +361,9 @@ export default function WorkspaceDetailPage({ mode = "preview" }: WorkspaceDetai
   }, [workspaceId, searchParams, navigate, mode]);
 
   useEffect(() => {
-    setActiveTab(searchParams.get("tab") ?? "resumo");
+    setActiveTab(searchParams.get("tab") ?? (showFullWorkspace ? "canvas" : "resumo"));
     setCanvasStatusShortcut(searchParams.get("status"));
-  }, [searchParams]);
+  }, [searchParams, showFullWorkspace]);
 
   const refreshNodeProgress = async () => {
     if (!workspaceId) return;
@@ -385,7 +385,7 @@ export default function WorkspaceDetailPage({ mode = "preview" }: WorkspaceDetai
 
   const handleWorkspaceEntry = () => {
     if (!workspaceId) return;
-    navigate(`/ops/workspaces/${workspaceId}/execution`);
+    navigate(`/ops/workspaces/${workspaceId}/execution?tab=canvas`);
   };
 
   const completeChecklistTask = async (item: LeanChecklistItem) => {
@@ -520,13 +520,13 @@ export default function WorkspaceDetailPage({ mode = "preview" }: WorkspaceDetai
 
   if (showFullWorkspace) {
     const executionTabs = [
-      { value: "resumo", label: "Resumo" },
-      { value: "tasks", label: "Tasks" },
       { value: "canvas", label: "Canvas" },
+      { value: "tasks", label: "Tasks" },
       { value: "producao", label: "Produção" },
       { value: "contexto", label: "Contexto" },
-      { value: "assets", label: "Assets" },
       { value: "conteudo", label: "Conteúdo" },
+      { value: "assets", label: "Assets" },
+      { value: "resumo", label: "Resumo" },
       { value: "metricas", label: "Métricas" },
       { value: "timeline", label: "Timeline" },
       { value: "dossie", label: "Dossiê" },
@@ -561,10 +561,10 @@ export default function WorkspaceDetailPage({ mode = "preview" }: WorkspaceDetai
 
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
             <div className="flex flex-wrap gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setActiveTab("tasks")}>Tasks</Button>
               <Button variant="secondary" size="sm" onClick={() => setActiveTab("canvas")}>Canvas</Button>
+              <Button variant="secondary" size="sm" onClick={() => setActiveTab("tasks")}>Tasks</Button>
               <Button variant="secondary" size="sm" onClick={() => setActiveTab("producao")}>Produção</Button>
-              <Button variant="secondary" size="sm" onClick={() => setActiveTab("metricas")}>Métricas</Button>
+              <Button variant="secondary" size="sm" onClick={() => setActiveTab("contexto")}>Contexto</Button>
             </div>
             <Button variant="outline" size="sm" onClick={() => navigate(`/ops/workspaces/${workspaceId}`)}>Pré-entrada</Button>
           </div>
