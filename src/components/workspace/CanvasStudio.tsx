@@ -3,7 +3,7 @@ import {
   ReactFlow, ReactFlowProvider, Background,
   applyNodeChanges, applyEdgeChanges,
   type Node, type Edge, type NodeChange, type EdgeChange, type Connection,
-  type ReactFlowInstance, type Viewport, SelectionMode,
+  type ReactFlowInstance, type Viewport, SelectionMode, MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow } from "lucide-react";
@@ -131,13 +131,13 @@ function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNodeRow) 
 }
 
 function edgeIntent(edge: CanvasEdgeRecord, nodesById: Map<string, CanvasNodeRow>) {
-  const sourceKind = edge.source_node_id ? nodeKindOf(nodesById.get(edge.source_node_id)!) : "";
-  const targetKind = edge.target_node_id ? nodeKindOf(nodesById.get(edge.target_node_id)!) : "";
-  if (PROOF_KINDS.has(targetKind) || PROOF_KINDS.has(sourceKind)) return { label: edge.label ?? "prova", stroke: "hsl(var(--node-proof))", animated: false };
-  if (targetKind === "engine") return { label: edge.label ?? "input", stroke: "hsl(var(--node-tech))", animated: true };
-  if (sourceKind === "engine") return { label: edge.label ?? "gera", stroke: "hsl(var(--node-build))", animated: true };
-  if (targetKind === "decisao" || sourceKind === "decisao") return { label: edge.label ?? "aprova", stroke: "hsl(var(--node-growth))", animated: false };
-  return { label: edge.label ?? undefined, stroke: "hsl(var(--primary))", animated: true };
+  const sourceKind = edge.source_node_id && nodesById.get(edge.source_node_id) ? nodeKindOf(nodesById.get(edge.source_node_id)!) : "";
+  const targetKind = edge.target_node_id && nodesById.get(edge.target_node_id) ? nodeKindOf(nodesById.get(edge.target_node_id)!) : "";
+  if (PROOF_KINDS.has(targetKind) || PROOF_KINDS.has(sourceKind)) return { label: edge.label ?? "prova", stroke: "hsl(var(--node-proof))", animated: false, className: "edge-proof", strokeWidth: 2.8 };
+  if (targetKind === "engine") return { label: edge.label ?? "input", stroke: "hsl(var(--node-tech))", animated: true, className: "edge-input", strokeWidth: 2.6 };
+  if (sourceKind === "engine") return { label: edge.label ?? "gera", stroke: "hsl(var(--node-build))", animated: true, className: "edge-engine", strokeWidth: 3 };
+  if (targetKind === "decisao" || sourceKind === "decisao") return { label: edge.label ?? "aprova", stroke: "hsl(var(--node-growth))", animated: false, className: "edge-decision", strokeWidth: 2.5 };
+  return { label: edge.label ?? undefined, stroke: "hsl(var(--primary))", animated: true, className: "edge-flow", strokeWidth: 2.3 };
 }
 
 function CanvasStudioInner({
@@ -426,9 +426,14 @@ function CanvasStudioInner({
           target: e.target_node_id,
           label: intent.label,
           animated: intent.animated,
-          style: { stroke: intent.stroke, strokeWidth: 2 },
-          labelStyle: { fill: "hsl(var(--muted-foreground))", fontSize: 10, fontWeight: 600 },
-          labelBgStyle: { fill: "hsl(var(--card))", fillOpacity: 0.92 },
+          type: "smoothstep",
+          className: intent.className,
+          markerEnd: { type: MarkerType.ArrowClosed, color: intent.stroke, width: 18, height: 18 },
+          style: { stroke: intent.stroke, strokeWidth: intent.strokeWidth },
+          labelStyle: { fill: "hsl(var(--foreground))", fontSize: 10, fontWeight: 700, letterSpacing: 0.2 },
+          labelBgPadding: [8, 4],
+          labelBgBorderRadius: 999,
+          labelBgStyle: { fill: "hsl(var(--card))", fillOpacity: 0.96, stroke: intent.stroke, strokeOpacity: 0.26 },
         };
       });
   }, [dbEdges, visibleCanvasNodes]);
@@ -687,6 +692,7 @@ function CanvasStudioInner({
       const missingSpecs: Array<{ ref: string; kind: ProjectNodeKind; title: string; stage: AceleraStageKey; x: number; y: number; description: string }> = [];
       const engineX = Number(engineNode.pos_x ?? stageColumnX("planejamento") + NODE_X_OFFSET);
       const engineY = Number(engineNode.pos_y ?? CONTENT_TOP + 16);
+      const proofY = engineY + 260;
 
       if (!incomingToEngine.some((node) => INPUT_KINDS.has(nodeKindOf(node)))) {
         missingSpecs.push({
@@ -694,8 +700,8 @@ function CanvasStudioInner({
           kind: "contexto_ops",
           title: "Contexto do hub",
           stage: "entrada",
-          x: engineX - 430,
-          y: engineY - 130,
+          x: engineX - 500,
+          y: engineY - 150,
           description: "Entradas estratégicas, ativos, briefing e restrições que alimentam a engine.",
         });
       }
@@ -706,8 +712,8 @@ function CanvasStudioInner({
           kind: "instrucao",
           title: "Instruções do hub",
           stage: "planejamento",
-          x: engineX - 430,
-          y: engineY + 40,
+          x: engineX - 500,
+          y: engineY + 90,
           description: "Regras, SOP, critérios de aceite e lógica do fluxo que entram na engine.",
         });
       }
@@ -718,8 +724,8 @@ function CanvasStudioInner({
           kind: "resultado",
           title: "Resultado do hub",
           stage: "producao",
-          x: engineX + 430,
-          y: engineY - 30,
+          x: engineX + 500,
+          y: engineY - 20,
           description: "Entregável principal que sai da engine já pronto para revisão, prova e aprovação.",
         });
       }
@@ -730,8 +736,8 @@ function CanvasStudioInner({
           kind: "agente",
           title: "Agente executor",
           stage: "producao",
-          x: engineX + 430,
-          y: engineY + 150,
+          x: engineX + 500,
+          y: engineY + 210,
           description: "Camada operacional que executa tarefas, handoffs e verificações a partir da engine.",
         });
       }
@@ -742,10 +748,28 @@ function CanvasStudioInner({
           kind: "decisao",
           title: "Decisão do hub",
           stage: "ativacao",
-          x: engineX + 790,
-          y: engineY - 30,
+          x: engineX + 940,
+          y: engineY - 20,
           description: "Node de aprovação, revisão ou próxima ação do fluxo disparado pela engine.",
         });
+      }
+
+      const existingProofKinds = new Set(
+        dbEdges
+          .filter((edge) => [engineNodeId, existingResult?.id, existingDecision?.id].filter(Boolean).includes(edge.source_node_id))
+          .map((edge) => dbNodes.find((node) => node.id === edge.target_node_id))
+          .filter(Boolean)
+          .map((node) => nodeKindOf(node as CanvasNodeRow)),
+      );
+
+      if (!existingProofKinds.has("metrica")) {
+        missingSpecs.push({ ref: "metric", kind: "metrica", title: `KPI: ${engineNode.title}`, stage: "ativacao", x: engineX + 500, y: proofY, description: "Medição quantitativa conectada ao resultado da engine." });
+      }
+      if (!existingProofKinds.has("before_after")) {
+        missingSpecs.push({ ref: "beforeAfter", kind: "before_after", title: `Before/After: ${engineNode.title}`, stage: "ativacao", x: engineX + 940, y: proofY, description: "Evidência visual comparando estado anterior e entrega realizada." });
+      }
+      if (!existingProofKinds.has("case")) {
+        missingSpecs.push({ ref: "case", kind: "case", title: `Case: ${engineNode.title}`, stage: "ativacao", x: engineX + 1380, y: proofY, description: "Narrativa comercial consolidada a partir de resultado, KPI e evidência visual." });
       }
 
       if (missingSpecs.length === 0) {
@@ -787,6 +811,9 @@ function CanvasStudioInner({
         createdByRef.agent ? { source_node_id: engineNodeId, target_node_id: createdByRef.agent.id, label: "aciona" } : null,
         createdByRef.result ? { source_node_id: engineNodeId, target_node_id: createdByRef.result.id, label: "gera" } : null,
         createdByRef.decision && resultNode ? { source_node_id: resultNode.id, target_node_id: createdByRef.decision.id, label: "aprovar" } : null,
+        createdByRef.metric && resultNode ? { source_node_id: resultNode.id, target_node_id: createdByRef.metric.id, label: "mede" } : null,
+        createdByRef.beforeAfter && (createdByRef.metric ?? resultNode) ? { source_node_id: (createdByRef.metric ?? resultNode).id, target_node_id: createdByRef.beforeAfter.id, label: "compara" } : null,
+        createdByRef.case && createdByRef.beforeAfter ? { source_node_id: createdByRef.beforeAfter.id, target_node_id: createdByRef.case.id, label: "vira case" } : null,
       ].filter(Boolean) as Array<{ source_node_id: string; target_node_id: string; label: string }>;
 
       const dedupedEdges = edgesToCreate.filter((edge, index, arr) => (
@@ -986,17 +1013,17 @@ function CanvasStudioInner({
     if (!parent) return;
     setBusyAction("ops-flow");
     try {
-      const blueprint: Array<{ ref: string; kind: ProjectNodeKind; title: string; stage: AceleraStageKey; description: string }> = [
-        { ref: "context", kind: "contexto_ops", title: "Contexto central", stage: "entrada", description: "Briefing, assets, acessos, links, oferta e regras que alimentam a operação." },
-        { ref: "instruction", kind: "instrucao", title: "Instruções e critérios", stage: "planejamento", description: "SOPs, prompts, regras de execução e critérios de aceite." },
-        { ref: "engine", kind: "engine", title: "Engine: Planejamento Ops", stage: "planejamento", description: "Hub que consolida entradas e transforma contexto em plano, tarefas e entregáveis." },
-        { ref: "agent", kind: "agente", title: "Agente: Orion Ops", stage: "producao", description: "Assistente operacional conectado ao contexto, instruções e outputs." },
-        { ref: "result", kind: "resultado", title: "Resultado: Plano operacional", stage: "producao", description: "Output versionado com owner, prazo, evidência e próximos passos." },
-        { ref: "decision", kind: "decisao", title: "Decisão: Aprovação / Revisão", stage: "ativacao", description: "Roteia aprovado para próxima etapa ou retorna para revisão." },
+      const blueprint: Array<{ ref: string; kind: ProjectNodeKind; title: string; stage: AceleraStageKey; x: number; y: number; description: string }> = [
+        { ref: "context", kind: "contexto_ops", title: "Contexto central", stage: "entrada", x: 140, y: CONTENT_TOP + 120, description: "Briefing, assets, acessos, links, oferta e regras que alimentam a operação." },
+        { ref: "instruction", kind: "instrucao", title: "Instruções e critérios", stage: "planejamento", x: 140, y: CONTENT_TOP + 330, description: "SOPs, prompts, regras de execução e critérios de aceite." },
+        { ref: "engine", kind: "engine", title: "Engine: Planejamento Ops", stage: "planejamento", x: 620, y: CONTENT_TOP + 210, description: "Hub que consolida entradas e transforma contexto em plano, tarefas e entregáveis." },
+        { ref: "agent", kind: "agente", title: "Agente: Orion Ops", stage: "producao", x: 1060, y: CONTENT_TOP + 360, description: "Assistente operacional conectado ao contexto, instruções e outputs." },
+        { ref: "result", kind: "resultado", title: "Resultado: Plano operacional", stage: "producao", x: 1060, y: CONTENT_TOP + 120, description: "Output versionado com owner, prazo, evidência e próximos passos." },
+        { ref: "decision", kind: "decisao", title: "Decisão: Aprovação / Revisão", stage: "ativacao", x: 1500, y: CONTENT_TOP + 120, description: "Roteia aprovado para próxima etapa ou retorna para revisão." },
       ];
       const created: Record<string, string> = {};
       const rows: CanvasNodeRow[] = [];
-      for (const [i, item] of blueprint.entries()) {
+      for (const item of blueprint) {
         const { data, error } = await supabase.from("canvas_nodes").insert({
           workspace_id: workspaceId,
           client_id: clientId,
@@ -1004,8 +1031,8 @@ function CanvasStudioInner({
           title: item.title,
           status: item.kind === "engine" ? "active" : "draft",
           description: item.description,
-          pos_x: stageColumnX(item.stage) + NODE_X_OFFSET,
-          pos_y: CONTENT_TOP + 16 + (i % 2) * NODE_VERTICAL,
+          pos_x: item.x,
+          pos_y: item.y,
           parent_node_id: parent,
           data: { kind: item.kind, stage: item.stage, checklist: getChecklistTemplate(item.kind) },
         }).select().single();
