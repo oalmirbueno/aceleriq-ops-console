@@ -3,7 +3,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ChevronLeft, ChevronRight, Building2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ACELERA_STAGES, PROJECT_TYPE_GROUPS, getProjectTypeMeta, getStageMeta, type ProjectNodeKind, type AceleraStageKey } from "./canvasProjectTypes";
+import { ACELERA_STAGES, PROJECT_TYPE_GROUPS, getProjectTypeMeta, getStageMeta, getNodeFamily, type ProjectNodeKind, type AceleraStageKey } from "./canvasProjectTypes";
 
 interface Props {
   collapsed: boolean;
@@ -39,12 +39,12 @@ export default function CanvasEsteiraPalette({
 
   return (
     <TooltipProvider delayDuration={200}>
-      <aside className="w-64 shrink-0 border-r border-border bg-background flex flex-col">
+      <aside className="w-60 shrink-0 border-r border-border/70 bg-background/95 flex flex-col">
         {/* Header */}
-        <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+        <div className="px-3 py-2 border-b border-border/70 flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Execução</p>
-            <p className="text-[11px] text-muted-foreground/80 leading-tight">Contexto → Engine → Entrega</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Esteira</p>
+            <p className="text-[11px] text-muted-foreground/80 leading-tight">Execução → prova</p>
           </div>
           <button
             onClick={onToggleCollapse}
@@ -56,7 +56,7 @@ export default function CanvasEsteiraPalette({
         </div>
 
         {/* Quick actions */}
-        <div className="p-2 space-y-1.5 border-b border-border">
+        <div className="p-2 space-y-1.5 border-b border-border/70">
           <Button
             size="sm"
             variant="outline"
@@ -107,17 +107,19 @@ export default function CanvasEsteiraPalette({
                         const meta = getProjectTypeMeta(kind);
                         if (!meta) return null;
                         const Icon = meta.icon;
+                        const isProof = getNodeFamily(kind) === "proof";
                         return (
                           <Tooltip key={kind}>
                             <TooltipTrigger asChild>
                               <button
                                 onClick={() => onAdd(kind, g.stage)}
-                                  className={`flex items-center gap-2 p-2 rounded-md border ${meta.color} ${meta.bg} hover:bg-muted/30 active:scale-[0.99] transition-transform text-left min-h-9`}
+                                  className={`flex items-center gap-2 p-2 rounded-md border ${isProof ? "border-primary/35 bg-primary/5 text-foreground" : `${meta.color} ${meta.bg}`} hover:bg-muted/30 active:scale-[0.99] transition-transform text-left min-h-9`}
                               >
                                 <Icon className="h-4 w-4 shrink-0" />
                                 <span className="text-[11px] font-medium leading-tight line-clamp-2">
                                   {meta.shortLabel}
                                 </span>
+                                {isProof && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary/70" />}
                               </button>
                             </TooltipTrigger>
                             <TooltipContent side="right" className="text-xs">
