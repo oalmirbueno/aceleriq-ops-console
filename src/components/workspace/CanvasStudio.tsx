@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, useDeferredValue } from "react";
 import {
   ReactFlow, ReactFlowProvider, Background, MiniMap, Panel,
   applyNodeChanges, applyEdgeChanges,
@@ -76,6 +76,7 @@ const NODE_VERTICAL = 130;
 const NODE_X_OFFSET = 36; // x inside column
 const TOTAL_STAGE_WIDTH = STAGE_COLUMN_WIDTH * ACELERA_STAGES.length;
 const CANVAS_PADDING = 640;
+const PREVIEWABLE_ATTACHMENT_TYPES = new Set(["image", "jpg", "jpeg", "png", "webp", "gif", "svg", "pdf", "video", "mp4", "mov", "webm"]);
 const CANVAS_TRANSLATE_EXTENT: [[number, number], [number, number]] = [
   [-CANVAS_PADDING, -CANVAS_PADDING],
   [TOTAL_STAGE_WIDTH + CANVAS_PADDING, CONTENT_TOP + STAGE_BAND_HEIGHT + CANVAS_PADDING],
@@ -157,6 +158,7 @@ function CanvasStudioInner({
   const [rfEdges, setRfEdges] = useState<Edge[]>([]);
 
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(initialStatusFilter ?? null);
   const [approvalFilter, setApprovalFilter] = useState<ApprovalStatus | "all">("all");
@@ -274,20 +276,29 @@ function CanvasStudioInner({
     return projectNodes.filter((n) => n.parent_node_id === activeClientId);
   }, [projectNodes, activeClientId]);
 
+  type QuickAddState = { open: boolean; sourceId: string | null; dir: "right" | "bottom" | null };
+  const [quickAddState, setQuickAddState] = useState<QuickAddState>({ open: false, sourceId: null, dir: null });
+
+  const quickConnectFromNode = useCallback((sourceId: string, dir: "right" | "bottom") => {
+    setQuickAddState({ open: true, sourceId, dir });
+  }, []);
+
+  const visibleCanvasNodes = useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
+    return scopedProjectNodes.filter((node) => {
+      if (typeFilter && nodeKindOf(node) !== typeFilter && node.node_type !== typeFilter) return false;
+      if (statusFilter && mapLegacyStatus(node.status) !== statusFilter) return false;
+      if (q && !node.title.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter]);
+
   const scopedProjectIds = useMemo(() => new Set(scopedProjectNodes.map((n) => n.id)), [scopedProjectNodes]);
   const scopedEdges = useMemo(
     () => dbEdges.filter((edge) => scopedProjectIds.has(edge.source_node_id) && scopedProjectIds.has(edge.target_node_id)),
     [dbEdges, scopedProjectIds],
   );
 
-
-  /* Quick connect helper */
-  const quickConnectFromNode = (sourceId: string, dir: "right" | "bottom") => {
-    setQuickAddState({ open: true, sourceId, dir });
-  };
-
-  type QuickAddState = { open: boolean; sourceId: string | null; dir: "right" | "bottom" | null };
-  const [quickAddState, setQuickAddState] = useState<QuickAddState>({ open: false, sourceId: null, dir: null });
 
   // Toggle MiniMap (persistido) — alguns usuários acham que polui
   const [showMiniMap, setShowMiniMap] = useState<boolean>(() => {
@@ -376,33 +387,13 @@ function CanvasStudioInner({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  /* DB → ReactFlow */
-  useEffect(() => {
-    const q = search.trim().toLowerCase();
-
-    // No more group nodes inside ReactFlow — pastas viraram abas no topo.
-    // Filtra projetos pelo cliente ativo (ou todos quando activeClientId === null).
-    const sourceProjects = activeClientId === null
-      ? projectNodes
-      : projectNodes.filter((n) => n.parent_node_id === activeClientId);
-
-    const visibleProjects = sourceProjects.filter((n) => {
-      if (typeFilter && nodeKindOf(n) !== typeFilter && n.node_type !== typeFilter) return false;
-      if (statusFilter && mapLegacyStatus(n.status) !== statusFilter) return false;
-      if (q && !n.title.toLowerCase().includes(q)) return false;
-      return true;
-    });
-
-    const visibleIds = new Set(visibleProjects.map((n) => n.id));
-    const visibleById = new Map(visibleProjects.map((n) => [n.id, n]));
-
-    const projRfNodes: Node[] = visibleProjects.map((n): Node => {
+  const reactFlowNodes = useMemo(() => {
+    return visibleCanvasNodes.map((n): Node => {
       const owner = n.parent_node_id ? groupMeta[n.parent_node_id] : null;
       const dataObj = (n.data as Record<string, unknown> | null) ?? {};
       const operationalMeta = (dataObj.operationalMeta ?? dataObj.operational_meta ?? {}) as CanvasOperationalMeta;
       const attachmentList = (dataObj.attachments as Array<{ url?: string; type?: string; label?: string }> | undefined) ?? [];
-      const PREVIEWABLE = new Set(["image","jpg","jpeg","png","webp","gif","svg","pdf","video","mp4","mov","webm"]);
-      const coverRaw = attachmentList.find((a) => a?.url && PREVIEWABLE.has((a.type ?? "").toLowerCase()))
+      const coverRaw = attachmentList.find((a) => a?.url && PREVIEWABLE_ATTACHMENT_TYPES.has((a.type ?? "").toLowerCase()))
         ?? attachmentList.find((a) => a?.url);
       const cover = coverRaw?.url
         ? { url: coverRaw.url, type: coverRaw.type, label: coverRaw.label }
@@ -431,27 +422,33 @@ function CanvasStudioInner({
         } satisfies ProjectNodeData,
       };
     });
+  }, [visibleCanvasNodes, groupMeta, quickConnectFromNode]);
 
-    setRfNodes(projRfNodes);
+  const reactFlowEdges = useMemo(() => {
+    const visibleIds = new Set(visibleCanvasNodes.map((n) => n.id));
+    const visibleById = new Map(visibleCanvasNodes.map((n) => [n.id, n]));
+    return dbEdges
+      .filter((e) => visibleIds.has(e.source_node_id) && visibleIds.has(e.target_node_id))
+      .map((e): Edge => {
+        const intent = edgeIntent(e, visibleById);
+        return {
+          id: e.id,
+          source: e.source_node_id,
+          target: e.target_node_id,
+          label: intent.label,
+          animated: intent.animated,
+          style: { stroke: intent.stroke, strokeWidth: 2 },
+          labelStyle: { fill: "hsl(var(--muted-foreground))", fontSize: 10, fontWeight: 600 },
+          labelBgStyle: { fill: "hsl(var(--card))", fillOpacity: 0.92 },
+        };
+      });
+  }, [dbEdges, visibleCanvasNodes]);
 
-    setRfEdges(
-      dbEdges
-        .filter((e) => visibleIds.has(e.source_node_id) && visibleIds.has(e.target_node_id))
-        .map((e): Edge => {
-          const intent = edgeIntent(e, visibleById);
-          return {
-            id: e.id,
-            source: e.source_node_id,
-            target: e.target_node_id,
-            label: intent.label,
-            animated: intent.animated,
-            style: { stroke: intent.stroke, strokeWidth: 2 },
-            labelStyle: { fill: "hsl(var(--muted-foreground))", fontSize: 10, fontWeight: 600 },
-            labelBgStyle: { fill: "hsl(var(--card))", fillOpacity: 0.92 },
-          };
-        }),
-    );
-  }, [projectNodes, dbEdges, search, typeFilter, statusFilter, activeClientId, groupMeta]);
+  /* DB → ReactFlow */
+  useEffect(() => {
+    setRfNodes(reactFlowNodes);
+    setRfEdges(reactFlowEdges);
+  }, [reactFlowNodes, reactFlowEdges]);
 
   /* ReactFlow handlers */
   const onNodesChange = useCallback((changes: NodeChange[]) => {

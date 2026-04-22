@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -34,7 +34,7 @@ interface Props {
   onToggleCollapse: () => void;
 }
 
-export default function CanvasInspector({
+function CanvasInspector({
   nodes, edges, search, onSearch,
   typeFilter, onTypeFilter, statusFilter, onStatusFilter,
   approvalFilter = "all", onApprovalFilter, blockedFilter = "all", onBlockedFilter, ownerFilter, onOwnerFilter, onOpenDependencies,
@@ -43,6 +43,7 @@ export default function CanvasInspector({
 }: Props) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    if (collapsed) return [];
     return nodes.filter((n) => {
       const kind = ((n.data as Record<string, unknown> | null)?.kind as string | undefined) ?? n.node_type;
       const meta = readCanvasOperationalMeta(n.data as Record<string, unknown> | null);
@@ -55,19 +56,20 @@ export default function CanvasInspector({
       if (q && !n.title.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [nodes, search, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter]);
+  }, [collapsed, nodes, search, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter]);
 
   const counts = useMemo(() => {
     const map: Record<string, number> = {};
+    if (collapsed) return map;
     nodes.forEach((n) => {
       const kind = ((n.data as Record<string, unknown> | null)?.kind as string | undefined) ?? n.node_type;
       map[kind] = (map[kind] ?? 0) + 1;
     });
     return map;
-  }, [nodes]);
+  }, [collapsed, nodes]);
 
-  const linkedCount = nodes.filter((n) => n.linked_entity_id).length;
-  const owners = useMemo(() => Array.from(new Set(nodes.map((n) => readCanvasOperationalMeta(n.data as Record<string, unknown> | null).ownerName).filter(Boolean))) as string[], [nodes]);
+  const linkedCount = useMemo(() => (collapsed ? 0 : nodes.filter((n) => n.linked_entity_id).length), [collapsed, nodes]);
+  const owners = useMemo(() => collapsed ? [] : Array.from(new Set(nodes.map((n) => readCanvasOperationalMeta(n.data as Record<string, unknown> | null).ownerName).filter(Boolean))) as string[], [collapsed, nodes]);
 
   if (collapsed) {
     return (
@@ -277,3 +279,5 @@ export default function CanvasInspector({
     </aside>
   );
 }
+
+export default memo(CanvasInspector);
