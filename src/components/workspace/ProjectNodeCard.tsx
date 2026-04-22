@@ -114,8 +114,8 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
       >
         <div className="mb-2 flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.08em] text-muted-foreground/70">
           <span>{NODE_FAMILY_LABELS[family]}</span>
-          {isEngine && <span className="text-sky-300">Hub central</span>}
-          {isProof && <span className="text-amber-300">Prova da entrega</span>}
+          {isEngine && <span className="node-engine-label">Hub central</span>}
+          {isProof && <span className="node-proof-label">Prova da entrega</span>}
         </div>
 
         <div className="mb-2.5 flex items-center gap-2.5">
@@ -132,7 +132,7 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
                 e.stopPropagation();
                 d.onExpandHub?.();
               }}
-              className="rounded-full border border-sky-400/30 bg-sky-400/10 px-2 py-0.5 text-[10px] font-medium text-sky-100 hover:bg-sky-400/15"
+              className="node-hub-button rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors"
               aria-label="Montar hub inteligente"
             >
               <span className="inline-flex items-center gap-1">
@@ -165,7 +165,7 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
               {proofSignals.map((signal) => (
                 <span
                   key={signal}
-                  className="rounded-full border border-amber-300/25 bg-amber-300/10 px-1.5 py-0.5 text-[9px] font-medium text-amber-100"
+                  className="node-proof-signal rounded-full border px-1.5 py-0.5 text-[9px] font-medium"
                 >
                   {signal}
                 </span>
