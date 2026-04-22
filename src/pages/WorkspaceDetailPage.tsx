@@ -445,6 +445,13 @@ export default function WorkspaceDetailPage() {
   const intro = introCopy(ws.current_stage);
   const actionPlan = buildActionPlan(ws.current_stage, taskSignals, nodesProgress);
   const leanChecklist = buildLeanChecklist(ws.current_stage, taskSignals, nodesProgress);
+  const lockedChecklist = leanChecklist.map((item, index) => ({
+    ...item,
+    key: triageItemKey(item, index),
+    lockedDone: Boolean(item.completed || completedTriageKeys.includes(triageItemKey(item, index))),
+  }));
+  const triageComplete = lockedChecklist.length > 0 && lockedChecklist.every((item) => item.lockedDone);
+  const triageProgress = lockedChecklist.length > 0 ? Math.round((lockedChecklist.filter((item) => item.lockedDone).length / lockedChecklist.length) * 100) : 0;
   const movementTypes = Array.from(new Set(timeline.map((event) => event.event_type))).sort();
   const movementQuery = movementSearch.trim().toLowerCase();
   const filteredMovements = timeline.filter((event) => {
