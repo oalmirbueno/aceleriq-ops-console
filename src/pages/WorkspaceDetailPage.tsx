@@ -480,16 +480,46 @@ export default function WorkspaceDetailPage() {
                   <p className="text-2xl font-semibold text-foreground">{progress}%</p>
                 </div>
                 <div className="text-right text-xs text-muted-foreground">
-                  <p>{finishedNodes}/{nodesProgress.length} nodes concluídos</p>
+                  <p>{finishedNodes}/{filteredProgressNodes.length} nodes concluídos</p>
                   <p>Etapa base: {stageProgress}%</p>
                 </div>
               </div>
               <Progress value={progress} className="h-2" />
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <Select value={progressTypeFilter} onValueChange={setProgressTypeFilter}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Tipo de node" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todos os tipos</SelectItem>
+                    {CANVAS_NODE_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={progressStageFilter} onValueChange={setProgressStageFilter}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Etapa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todas as etapas</SelectItem>
+                    {availableProgressStages.map((stage) => (
+                      <SelectItem key={stage} value={stage}>{getStagePremiumLabel(stage)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
                 Como calculamos: nodes <strong className="font-medium text-foreground">done/concluido</strong> valem 100%,
                 <strong className="font-medium text-foreground"> active/ativo</strong> valem 55% e
                 <strong className="font-medium text-foreground"> blocked/bloqueado</strong> aplicam penalidade de 15%. Sem nodes, usamos a etapa atual como base.
               </p>
+              {(progressTypeFilter !== "__all__" || progressStageFilter !== "__all__") && (
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Recorte atual: {progressTypeFilter === "__all__" ? "todos os tipos" : getCanvasTypeConfig(progressTypeFilter).label} · {progressStageFilter === "__all__" ? "todas as etapas" : getStagePremiumLabel(progressStageFilter)}
+                </p>
+              )}
               <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                 <div className="rounded-md border border-border bg-card/60 px-2.5 py-2">
                   <p className="text-muted-foreground">Concluídos</p>
