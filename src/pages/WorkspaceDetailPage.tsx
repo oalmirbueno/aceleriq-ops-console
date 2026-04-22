@@ -117,6 +117,7 @@ export default function WorkspaceDetailPage() {
   const navigate = useNavigate();
   const [ws, setWs] = useState<Workspace | null>(null);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [nodesProgress, setNodesProgress] = useState<WorkspaceNodeProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
   const [showFullWorkspace, setShowFullWorkspace] = useState(false);
@@ -142,6 +143,13 @@ export default function WorkspaceDetailPage() {
       .limit(100);
 
     if (events) setTimeline(events);
+
+    const { data: nodes } = await supabase
+      .from("canvas_nodes")
+      .select("id, status")
+      .eq("workspace_id", workspaceId);
+
+    if (nodes) setNodesProgress(nodes as WorkspaceNodeProgress[]);
     setLoading(false);
   };
 
@@ -200,7 +208,9 @@ export default function WorkspaceDetailPage() {
   const clientName = ws.clients?.name ?? "Cliente";
   const ownerName = ws.profiles?.full_name ?? ws.profiles?.email ?? null;
   const planName = ws.clients?.plan_name ?? null;
-  const progress = workspaceProgress(ws.current_stage);
+  const progress = calculateRealProgress(ws.current_stage, nodesProgress);
+  const stageProgress = workspaceProgress(ws.current_stage);
+  const finishedNodes = nodesProgress.filter((node) => node.status === "done" || node.status === "concluido").length;
   const intro = introCopy(ws.current_stage);
   const actionPlan = actionPlanFor(ws.current_stage);
   const movementTypes = Array.from(new Set(timeline.map((event) => event.event_type))).sort();
