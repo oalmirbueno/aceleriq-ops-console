@@ -355,10 +355,14 @@ export default function WorkspaceDetailPage() {
   const actionPlan = buildActionPlan(ws.current_stage, taskSignals, nodesProgress);
   const leanChecklist = buildLeanChecklist(ws.current_stage, taskSignals, nodesProgress);
   const movementTypes = Array.from(new Set(timeline.map((event) => event.event_type))).sort();
+  const movementQuery = movementSearch.trim().toLowerCase();
   const filteredMovements = timeline.filter((event) => {
     const matchesType = eventTypeFilter === "__all__" || event.event_type === eventTypeFilter;
     const matchesDate = !movementDate || sameDay(movementDate, event.happened_at);
-    return matchesType && matchesDate;
+    const matchesSearch = !movementQuery
+      || event.title.toLowerCase().includes(movementQuery)
+      || event.description?.toLowerCase().includes(movementQuery);
+    return matchesType && matchesDate && matchesSearch;
   });
   const paginatedMovements = filteredMovements.slice(0, visibleMovements);
   const hasMoreMovements = visibleMovements < filteredMovements.length;
