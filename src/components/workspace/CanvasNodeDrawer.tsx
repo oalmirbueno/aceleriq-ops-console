@@ -204,7 +204,7 @@ export default function CanvasNodeDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+      <SheetContent side="center" className="canvas-node-popup overflow-y-auto">
         <SheetHeader className="space-y-2">
           <div className="flex items-center gap-2">
             <Icon className="h-4 w-4" />
