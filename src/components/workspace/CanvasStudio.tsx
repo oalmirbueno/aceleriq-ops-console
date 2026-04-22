@@ -85,6 +85,43 @@ function nodeKindOf(row: CanvasNodeRow): string {
   return (data.kind as string | undefined) ?? row.node_type;
 }
 
+const INPUT_KINDS = new Set(["contexto_ops", "briefing", "documento", "reuniao", "ideia", "objetivo", "acessos", "contato", "asset"]);
+const INSTRUCTION_KINDS = new Set(["instrucao", "funil", "checklist"]);
+const ENGINE_KINDS = new Set(["engine", "automacao", "ia", "integracao", "agente"]);
+const RESULT_KINDS = new Set(["resultado", "landing_page", "site", "conteudo", "video", "imagem", "trafego", "email_mkt", "social", "crm", "lancamento", "metrica", "before_after", "case"]);
+const DECISION_KINDS = new Set(["decisao"]);
+
+function nodeLabel(row: CanvasNodeRow) {
+  const kind = nodeKindOf(row);
+  return getProjectTypeMeta(kind)?.shortLabel ?? row.title;
+}
+
+function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNodeRow) {
+  const sourceKind = nodeKindOf(source);
+  const targetKind = nodeKindOf(target);
+
+  if (source.parent_node_id && target.parent_node_id && source.parent_node_id !== target.parent_node_id) {
+    return { allowed: false, label: null, reason: "Conecte nodes dentro da mesma pasta de cliente para manter o fluxo limpo." };
+  }
+  if (INPUT_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return { allowed: true, label: "input", reason: null };
+  if (INPUT_KINDS.has(sourceKind) && INSTRUCTION_KINDS.has(targetKind)) return { allowed: true, label: "base", reason: null };
+  if (INSTRUCTION_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return { allowed: true, label: "regra", reason: null };
+  if (INSTRUCTION_KINDS.has(sourceKind) && RESULT_KINDS.has(targetKind)) return { allowed: true, label: "guia", reason: null };
+  if (ENGINE_KINDS.has(sourceKind) && RESULT_KINDS.has(targetKind)) return { allowed: true, label: "gera", reason: null };
+  if (ENGINE_KINDS.has(sourceKind) && DECISION_KINDS.has(targetKind)) return { allowed: true, label: "decide", reason: null };
+  if (RESULT_KINDS.has(sourceKind) && DECISION_KINDS.has(targetKind)) return { allowed: true, label: "aprovar", reason: null };
+  if (RESULT_KINDS.has(sourceKind) && INSTRUCTION_KINDS.has(targetKind)) return { allowed: true, label: "revisar", reason: null };
+  if (DECISION_KINDS.has(sourceKind) && INSTRUCTION_KINDS.has(targetKind)) return { allowed: true, label: "revisão", reason: null };
+  if (DECISION_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return { allowed: true, label: "próxima", reason: null };
+  if (DECISION_KINDS.has(sourceKind) && RESULT_KINDS.has(targetKind)) return { allowed: true, label: "próxima", reason: null };
+
+  return {
+    allowed: false,
+    label: null,
+    reason: `${nodeLabel(source)} não deve alimentar ${nodeLabel(target)} diretamente. Use Contexto/Instrução → Engine → Resultado → Decisão.`,
+  };
+}
+
 function edgeIntent(edge: CanvasEdgeRecord, nodesById: Map<string, CanvasNodeRow>) {
   const sourceKind = edge.source_node_id ? nodeKindOf(nodesById.get(edge.source_node_id)!) : "";
   const targetKind = edge.target_node_id ? nodeKindOf(nodesById.get(edge.target_node_id)!) : "";
@@ -423,13 +460,34 @@ function CanvasStudioInner({
 
   const onConnect = useCallback(async (conn: Connection) => {
     if (!conn.source || !conn.target || conn.source === conn.target) return;
+    const sourceNode = dbNodes.find((n) => n.id === conn.source);
+    const targetNode = dbNodes.find((n) => n.id === conn.target);
+    if (!sourceNode || !targetNode) return;
+
+    const validation = validateCanvasConnection(sourceNode, targetNode);
+    if (!validation.allowed) {
+      toast({
+        title: "Ligação incompatível",
+        description: validation.reason ?? "Essa conexão não segue o fluxo operacional do canvas.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const alreadyExists = dbEdges.some((edge) => edge.source_node_id === conn.source && edge.target_node_id === conn.target);
+    if (alreadyExists) {
+      toast({ title: "Conexão já existe", description: "Esses nodes já estão ligados no canvas." });
+      return;
+    }
+
     const { data, error } = await supabase
       .from("canvas_edges")
       .insert({
         workspace_id: workspaceId,
         source_node_id: conn.source,
         target_node_id: conn.target,
-        edge_type: "next",
+        edge_type: "ops",
+        label: validation.label,
       })
       .select()
       .single();
@@ -440,7 +498,7 @@ function CanvasStudioInner({
     }
     if (data) setDbEdges((prev) => [...prev, data as CanvasEdgeRecord]);
     await onTimelineRefresh?.();
-  }, [workspaceId, onTimelineRefresh]);
+  }, [workspaceId, onTimelineRefresh, dbNodes, dbEdges]);
 
   const onNodeClick = useCallback((_e: React.MouseEvent, node: Node) => {
     const found = dbNodes.find((n) => n.id === node.id);
