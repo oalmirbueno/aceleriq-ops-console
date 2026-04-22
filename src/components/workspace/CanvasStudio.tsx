@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, useDeferredValue } from "react";
 import {
   ReactFlow, ReactFlowProvider, Background, MiniMap, Panel,
   applyNodeChanges, applyEdgeChanges,
@@ -76,6 +76,7 @@ const NODE_VERTICAL = 130;
 const NODE_X_OFFSET = 36; // x inside column
 const TOTAL_STAGE_WIDTH = STAGE_COLUMN_WIDTH * ACELERA_STAGES.length;
 const CANVAS_PADDING = 640;
+const PREVIEWABLE_ATTACHMENT_TYPES = new Set(["image", "jpg", "jpeg", "png", "webp", "gif", "svg", "pdf", "video", "mp4", "mov", "webm"]);
 const CANVAS_TRANSLATE_EXTENT: [[number, number], [number, number]] = [
   [-CANVAS_PADDING, -CANVAS_PADDING],
   [TOTAL_STAGE_WIDTH + CANVAS_PADDING, CONTENT_TOP + STAGE_BAND_HEIGHT + CANVAS_PADDING],
