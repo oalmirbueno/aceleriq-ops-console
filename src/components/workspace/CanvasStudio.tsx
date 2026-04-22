@@ -1198,6 +1198,16 @@ function CanvasStudioInner({
             >
               <StageLanesBg height={STAGE_BAND_HEIGHT} offsetY={CONTENT_TOP - 12} />
               <Background gap={24} size={1} className="opacity-30" />
+              {featureFlags.canvasOperationalOverlayEnabled && (
+                <>
+                  <Panel position="top-center" className="!m-0 mt-4">
+                    <CanvasStageSummary nodes={scopedProjectNodes} />
+                  </Panel>
+                  <Panel position="top-left" className="!m-0 ml-4 mt-20">
+                    <CanvasOperationalSummary nodes={scopedProjectNodes} edges={scopedEdges} />
+                  </Panel>
+                </>
+              )}
               {showMiniMap && (
                 <MiniMap
                   nodeColor={() => "hsl(var(--primary))"}
@@ -1242,6 +1252,13 @@ function CanvasStudioInner({
           onTypeFilter={setTypeFilter}
           statusFilter={statusFilter}
           onStatusFilter={setStatusFilter}
+          approvalFilter={approvalFilter}
+          onApprovalFilter={setApprovalFilter}
+          blockedFilter={blockedFilter}
+          onBlockedFilter={setBlockedFilter}
+          ownerFilter={ownerFilter}
+          onOwnerFilter={setOwnerFilter}
+          onOpenDependencies={handleOpenDependencies}
           onPick={(n) => setSelectedNode(n)}
           selectedId={selectedNode?.id ?? null}
           collapsed={inspectorCollapsed}
