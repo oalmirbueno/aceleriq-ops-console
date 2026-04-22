@@ -74,10 +74,10 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
   const isProof = family === "proof";
   const widthClass = isEngine ? "w-[440px]" : isProof ? "w-[370px]" : "w-[340px]";
   const handleClass = isProof
-    ? "!bg-amber-400 !w-4 !h-4 !border-2 !border-background shadow-lg"
+    ? "node-handle node-handle-proof"
     : isEngine
-      ? "!bg-sky-400 !w-4 !h-4 !border-2 !border-background shadow-lg"
-      : "!bg-primary !w-4 !h-4 !border-2 !border-background shadow-lg";
+      ? "node-handle node-handle-engine"
+      : "node-handle node-handle-default";
 
   const proofSignals = useMemo(() => {
     if (d.kind === "metrica") return ["KPI", "Mede"]; 
@@ -176,7 +176,7 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
 
         {d.coverAttachment?.url && (
           <div
-            className="relative mb-2 overflow-hidden rounded-md border border-border/60 bg-black/30 h-24 w-full"
+            className="relative mb-2 h-24 w-full overflow-hidden rounded-md border border-border/60 bg-background/50"
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
