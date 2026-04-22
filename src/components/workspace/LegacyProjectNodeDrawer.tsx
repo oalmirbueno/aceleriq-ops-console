@@ -169,7 +169,7 @@ export default function ProjectNodeDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-xl p-0 flex flex-col">
+      <SheetContent side="center" className="canvas-node-popup p-0 flex flex-col overflow-hidden">
         {/* Header */}
         <div className={`px-5 py-4 border-b border-border ${meta?.bg ?? ""}`}>
           <div className="flex items-start gap-3">
