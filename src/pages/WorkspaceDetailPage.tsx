@@ -146,7 +146,10 @@ export default function WorkspaceDetailPage() {
   const [taskSignals, setTaskSignals] = useState<WorkspaceTaskSignal[]>([]);
   const [loading, setLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
-  const [showFullWorkspace, setShowFullWorkspace] = useState(false);
+  const [showFullWorkspace, setShowFullWorkspace] = useState(() => {
+    if (!workspaceId) return false;
+    return localStorage.getItem(`workspace-mode:${workspaceId}`) === "full";
+  });
   const [movementsOpen, setMovementsOpen] = useState(false);
   const [eventTypeFilter, setEventTypeFilter] = useState("__all__");
   const [movementDate, setMovementDate] = useState<Date | undefined>();
@@ -189,6 +192,16 @@ export default function WorkspaceDetailPage() {
   };
 
   useEffect(() => { fetchWorkspace(); }, [workspaceId]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    setShowFullWorkspace(localStorage.getItem(`workspace-mode:${workspaceId}`) === "full");
+  }, [workspaceId]);
+
+  const setWorkspaceMode = (mode: "preview" | "full") => {
+    if (workspaceId) localStorage.setItem(`workspace-mode:${workspaceId}`, mode);
+    setShowFullWorkspace(mode === "full");
+  };
 
   const handleStageChange = async (newStage: string) => {
     if (!ws || newStage === ws.current_stage) return;
