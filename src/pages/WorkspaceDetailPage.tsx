@@ -518,6 +518,142 @@ export default function WorkspaceDetailPage({ mode = "preview" }: WorkspaceDetai
     return groups;
   }, []);
 
+  if (showFullWorkspace) {
+    return (
+      <>
+        <AppHeader title={clientName} subtitle={`${ws.name} · Execução`} />
+
+        <div className="p-6 animate-fade-in space-y-5">
+          <Breadcrumb className="rounded-lg border border-border bg-card/70 px-4 py-3 shadow-sm">
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link to="/ops/workspaces">Hub de Workspaces</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link to={`/ops/workspaces/${ws.id}`}>Pré-entrada</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>Execução</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+
+          <div className="space-y-3">
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => navigate(`/ops/workspaces/${workspaceId}`)}>Voltar para pré-entrada</Button>
+            </div>
+            <WorkspaceHeader
+              clientName={clientName}
+              ownerName={ownerName}
+              status={ws.status}
+              currentStage={ws.current_stage}
+              changingStage={changingStage}
+              onStageChange={handleStageChange}
+              planName={planName}
+            />
+          </div>
+
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList>
+              <TabsTrigger value="resumo">Resumo</TabsTrigger>
+              <TabsTrigger value="dossie">Dossiê</TabsTrigger>
+              <TabsTrigger value="timeline">Timeline</TabsTrigger>
+              <TabsTrigger value="contexto">Contexto</TabsTrigger>
+              <TabsTrigger value="producao">Produção</TabsTrigger>
+              <TabsTrigger value="tasks">Tasks</TabsTrigger>
+              <TabsTrigger value="assets">Assets</TabsTrigger>
+              <TabsTrigger value="conteudo">Conteúdo</TabsTrigger>
+              <TabsTrigger value="metricas">Métricas</TabsTrigger>
+              <TabsTrigger value="before-after">Before/After</TabsTrigger>
+              <TabsTrigger value="case">Case</TabsTrigger>
+              <TabsTrigger value="canvas">Canvas</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="resumo">
+              <WorkspaceTabResumo
+                clientName={clientName}
+                companyName={ws.clients?.company_name ?? null}
+                workspaceName={ws.name}
+                status={ws.status}
+                currentStage={ws.current_stage}
+                ownerName={ownerName}
+                planName={planName}
+                segment={ws.clients?.segment ?? null}
+                createdAt={ws.created_at}
+                focusAreas={(ws.clients?.metadata as any)?.focus_areas ?? null}
+                summary={ws.summary ?? null}
+                recentEvents={timeline}
+                workspaceId={ws.id}
+              />
+            </TabsContent>
+
+            <TabsContent value="dossie">
+              <WorkspaceTabDossie
+                workspaceId={ws.id}
+                clientId={ws.client_id}
+                planName={planName}
+                clientMetadata={ws.clients?.metadata as Record<string, unknown> | null}
+                workspaceMetadata={ws.metadata}
+              />
+            </TabsContent>
+
+            <TabsContent value="timeline">
+              <WorkspaceTabTimeline events={timeline} />
+            </TabsContent>
+
+            <TabsContent value="contexto">
+              <WorkspaceTabContexto workspaceId={ws.id} clientId={ws.client_id} clientName={clientName} />
+            </TabsContent>
+
+            <TabsContent value="tasks">
+              <WorkspaceTabTasks workspaceId={ws.id} clientId={ws.client_id} planName={ws.clients?.plan_name} />
+            </TabsContent>
+
+            <TabsContent value="producao">
+              <WorkspaceTabProducao workspaceId={ws.id} clientId={ws.client_id} planName={ws.clients?.plan_name} />
+            </TabsContent>
+
+            <TabsContent value="assets">
+              <WorkspaceTabAssets workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
+            </TabsContent>
+
+            <TabsContent value="conteudo">
+              <WorkspaceTabConteudo workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
+            </TabsContent>
+
+            <TabsContent value="metricas">
+              <WorkspaceTabMetricas workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
+            </TabsContent>
+
+            <TabsContent value="before-after">
+              <WorkspaceTabBeforeAfter workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
+            </TabsContent>
+
+            <TabsContent value="case">
+              <WorkspaceTabCase workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
+            </TabsContent>
+
+            <TabsContent value="canvas">
+              <WorkspaceTabCanvas
+                workspaceId={ws.id}
+                clientId={ws.client_id}
+                clientName={clientName}
+                onTimelineRefresh={fetchWorkspace}
+                initialStatusFilter={canvasStatusShortcut}
+              />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <AppHeader title={clientName} subtitle={ws.name} />
