@@ -254,6 +254,8 @@ export default function WorkspaceDetailPage() {
   const [movementDate, setMovementDate] = useState<Date | undefined>();
   const [movementSearch, setMovementSearch] = useState("");
   const [visibleMovements, setVisibleMovements] = useState(MOVEMENTS_PAGE_SIZE);
+  const [progressTypeFilter, setProgressTypeFilter] = useState("__all__");
+  const [progressStageFilter, setProgressStageFilter] = useState("__all__");
 
   const fetchWorkspace = async () => {
     if (!workspaceId) return;
@@ -271,7 +273,7 @@ export default function WorkspaceDetailPage() {
 
     const { data: nodes } = await supabase
       .from("canvas_nodes")
-      .select("id, status")
+      .select("id, status, node_type, data")
       .eq("workspace_id", workspaceId);
 
     if (nodes) setNodesProgress(nodes as WorkspaceNodeProgress[]);
@@ -300,7 +302,7 @@ export default function WorkspaceDetailPage() {
         async () => {
           const { data: nodes } = await supabase
             .from("canvas_nodes")
-            .select("id, status")
+            .select("id, status, node_type, data")
             .eq("workspace_id", workspaceId);
 
           if (nodes) setNodesProgress(nodes as WorkspaceNodeProgress[]);
@@ -328,7 +330,7 @@ export default function WorkspaceDetailPage() {
     setRefreshingProgress(true);
     const { data: nodes, error } = await supabase
       .from("canvas_nodes")
-      .select("id, status")
+      .select("id, status, node_type, data")
       .eq("workspace_id", workspaceId);
 
     if (error) toast({ title: "Erro ao atualizar progresso", description: error.message, variant: "destructive" });
