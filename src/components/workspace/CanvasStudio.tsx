@@ -902,7 +902,9 @@ function CanvasStudioInner({
     clients: clientGroups.length,
     projects: projectNodes.length,
     edges: dbEdges.length,
-  }), [clientGroups, projectNodes, dbEdges]);
+    proof: scopedProjectNodes.filter((node) => ["measurement", "proof", "narrative"].includes(getNodeFlowRole(nodeKindOf(node)))).length,
+    pending: scopedProjectNodes.filter((node) => readCanvasOperationalMeta(node.data as Record<string, unknown> | null).approvalStatus === "pending").length,
+  }), [clientGroups.length, projectNodes.length, dbEdges.length, scopedProjectNodes]);
 
   const hasFilters = !!search || !!typeFilter || !!statusFilter || approvalFilter !== "all" || blockedFilter !== "all" || !!ownerFilter;
   const existingClientIds = useMemo(
@@ -926,17 +928,18 @@ function CanvasStudioInner({
   };
 
   return (
-    <div className={`flex flex-col bg-background ${fullscreen ? "h-full" : "h-[80vh] rounded-lg border border-border overflow-hidden"}`}>
+      <div className={`flex flex-col bg-background ${fullscreen ? "h-full" : "h-[80vh] rounded-lg border border-border/70 overflow-hidden"}`}>
       {/* Top bar */}
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-background/95">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/70 bg-background/95">
         <div className="flex items-center gap-2 min-w-0">
           <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
           <p className="text-sm font-semibold text-foreground truncate">Execução operacional</p>
           <span className="text-[11px] text-muted-foreground hidden sm:inline truncate">
             {activeClientId
-              ? `${clientGroups.find((c) => c.id === activeClientId)?.title ?? "Cliente"} · ${visibleCanvasNodes.length}/${scopedProjectNodes.length} passos`
+              ? `${clientGroups.find((c) => c.id === activeClientId)?.title ?? "Cliente"} · ${visibleCanvasNodes.length}/${scopedProjectNodes.length} passos · ${summary.proof} provas`
               : `Todos · ${summary.clients} cliente${summary.clients === 1 ? "" : "s"} · ${summary.projects} nodes`}
           </span>
+          {summary.pending > 0 && <span className="hidden lg:inline-flex rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">{summary.pending} aprovações pendentes</span>}
         </div>
         <div className="flex items-center gap-1">
           {hasFilters && (
