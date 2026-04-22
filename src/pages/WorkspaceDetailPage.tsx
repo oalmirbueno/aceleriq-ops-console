@@ -361,17 +361,25 @@ export default function WorkspaceDetailPage() {
   };
 
   const openCanvasByStatus = (status: string) => {
-    if (!showFullWorkspace) {
-      toast({ title: "Workspace completo bloqueado", description: "Finalize a triagem antes de navegar pelos nodes." });
-      return;
+    if (!showFullWorkspace && !triageComplete) {
+      toast({
+        title: "Abrindo workspace completo",
+        description: "A pré-entrada continua disponível para orientar contexto, prioridades e qualidade da execução.",
+      });
     }
     setWorkspaceMode("full");
     setCanvasStatusShortcut(status);
     setActiveTab("canvas");
   };
 
-  const handleLockedWorkspaceEntry = () => {
-    toast({ title: "Entrada ainda bloqueada", description: "Conclua as ações claras e trave todos os itens da triagem para liberar o workspace completo." });
+  const handleWorkspaceEntry = () => {
+    if (!showFullWorkspace && !triageComplete) {
+      toast({
+        title: "Pré-entrada em andamento",
+        description: "Você já pode entrar no workspace completo e executar; use a pré-entrada para alinhar contexto e prioridades.",
+      });
+    }
+    setWorkspaceMode("full");
   };
 
   const completeChecklistTask = async (item: LeanChecklistItem) => {
@@ -539,8 +547,8 @@ export default function WorkspaceDetailPage() {
                   {ws.status}
                 </span>
                 <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium", showFullWorkspace ? "border-primary/30 bg-primary/10 text-primary" : triageComplete ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-secondary text-muted-foreground")}>
-                  {showFullWorkspace ? <CheckCircle2 className="h-3.5 w-3.5" /> : triageComplete ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
-                  {showFullWorkspace ? "Workspace aberto" : triageComplete ? "Entrada liberada" : "Workspace bloqueado"}
+                  {showFullWorkspace ? <CheckCircle2 className="h-3.5 w-3.5" /> : triageComplete ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Info className="h-3.5 w-3.5" />}
+                  {showFullWorkspace ? "Workspace aberto" : triageComplete ? "Entrada preparada" : "Pré-entrada em andamento"}
                 </span>
                 <Button variant="outline" size="sm" className="gap-2" onClick={refreshNodeProgress} disabled={refreshingProgress}>
                   <RefreshCw className={cn("h-4 w-4", refreshingProgress && "animate-spin")} />
@@ -569,15 +577,15 @@ export default function WorkspaceDetailPage() {
                 <strong className="font-medium text-foreground"> total de nodes</strong>. Nodes ativos, bloqueados e demais statuses entram no total, mas não contam como concluídos. Sem nodes, usamos a etapa atual como base.
               </p>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                <button type="button" onClick={() => openCanvasByStatus("concluido")} disabled={!showFullWorkspace} title={!showFullWorkspace ? "Finalize a triagem para navegar pelos nodes." : "Abrir nodes concluídos"} className="rounded-md border border-border bg-card/60 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-border disabled:hover:text-inherit">
+                <button type="button" onClick={() => openCanvasByStatus("concluido")} title={!showFullWorkspace && !triageComplete ? "Abrir workspace completo filtrado pelos nodes concluídos." : "Abrir nodes concluídos"} className="rounded-md border border-border bg-card/60 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:text-primary">
                   <p className="text-muted-foreground">Concluídos</p>
                   <p className="mt-0.5 font-semibold text-foreground">{finishedNodes}</p>
                 </button>
-                <button type="button" onClick={() => openCanvasByStatus("ativo")} disabled={!showFullWorkspace} title={!showFullWorkspace ? "Finalize a triagem para navegar pelos nodes." : "Abrir nodes ativos"} className="rounded-md border border-border bg-card/60 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-border disabled:hover:text-inherit">
+                <button type="button" onClick={() => openCanvasByStatus("ativo")} title={!showFullWorkspace && !triageComplete ? "Abrir workspace completo filtrado pelos nodes ativos." : "Abrir nodes ativos"} className="rounded-md border border-border bg-card/60 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:text-primary">
                   <p className="text-muted-foreground">Ativos</p>
                   <p className="mt-0.5 font-semibold text-foreground">{activeNodes}</p>
                 </button>
-                <button type="button" onClick={() => openCanvasByStatus("bloqueado")} disabled={!showFullWorkspace} title={!showFullWorkspace ? "Finalize a triagem para navegar pelos nodes." : "Abrir nodes bloqueados"} className="rounded-md border border-border bg-card/60 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-border disabled:hover:text-inherit">
+                <button type="button" onClick={() => openCanvasByStatus("bloqueado")} title={!showFullWorkspace && !triageComplete ? "Abrir workspace completo filtrado pelos nodes bloqueados." : "Abrir nodes bloqueados"} className="rounded-md border border-border bg-card/60 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:text-primary">
                   <p className="text-muted-foreground">Bloqueados</p>
                   <p className="mt-0.5 font-semibold text-foreground">{blockedNodes}</p>
                 </button>
@@ -778,10 +786,10 @@ export default function WorkspaceDetailPage() {
               {!triageComplete && (
                 <div className="rounded-md border border-border bg-secondary/30 p-4 text-xs text-muted-foreground" role="status" aria-live="polite">
                   <div className="mb-2 flex items-center gap-2 text-foreground">
-                    {lockedChecklist.length === 0 ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Lock className="h-4 w-4 text-primary" />}
-                    <span className="font-medium">Triagem ainda bloqueando a entrada</span>
+                    {lockedChecklist.length === 0 ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Info className="h-4 w-4 text-primary" />}
+                    <span className="font-medium">Pré-entrada ainda em andamento</span>
                   </div>
-                  {lockedChecklist.length === 0 ? "Carregando ações de triagem..." : "Conclua as ações claras e trave todos os itens da triagem para liberar o workspace completo."}
+                  {lockedChecklist.length === 0 ? "Carregando ações de triagem..." : "Use este bloco para revisar contexto, confirmar prioridades e registrar progresso antes ou durante a execução no workspace completo."}
                 </div>
               )}
 
@@ -789,15 +797,15 @@ export default function WorkspaceDetailPage() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="block">
-                      <Button onClick={triageComplete ? () => setWorkspaceMode("full") : handleLockedWorkspaceEntry} className="h-11 w-full gap-2" disabled={showFullWorkspace} aria-disabled={!triageComplete || showFullWorkspace}>
-                        {triageComplete ? "Entrar no workspace completo" : "Workspace completo bloqueado"}
-                        {triageComplete ? <ArrowRight className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                      <Button onClick={handleWorkspaceEntry} className="h-11 w-full gap-2" disabled={showFullWorkspace} aria-disabled={showFullWorkspace}>
+                        {triageComplete ? "Entrar no workspace completo" : "Entrar e seguir com apoio da pré-entrada"}
+                        <ArrowRight className="h-4 w-4" />
                       </Button>
                     </span>
                   </TooltipTrigger>
-                  {!triageComplete && (
+                  {!triageComplete && !showFullWorkspace && (
                     <TooltipContent>
-                      <p>Finalize a triagem completa para liberar a entrada.</p>
+                      <p>Você pode entrar agora; a pré-entrada continua orientando o método e o progresso.</p>
                     </TooltipContent>
                   )}
                 </Tooltip>
