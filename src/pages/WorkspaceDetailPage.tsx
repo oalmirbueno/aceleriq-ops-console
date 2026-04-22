@@ -229,7 +229,62 @@ export default function WorkspaceDetailPage() {
           </div>
         </section>
 
-        <WorkspaceHeader
+        {!showFullWorkspace && (
+          <section className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+            <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <div>
+                  <p className="label-sm mb-2">Pré-entrada operacional</p>
+                  <h2 className="text-xl font-semibold tracking-tight text-foreground">Plano de ação antes de entrar no workspace completo</h2>
+                </div>
+                <div className="hidden h-10 w-10 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary md:flex">
+                  <ListChecks className="h-5 w-5" />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {actionPlan.map((item, index) => (
+                  <div key={item} className="flex gap-3 rounded-md border border-border bg-secondary/30 p-4">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-xs font-semibold text-primary">
+                      {index + 1}
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{item}</p>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        Atualiza automaticamente conforme a etapa do cliente avança no processo.
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <aside className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+              <div className="rounded-md border border-border bg-secondary/30 p-4">
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
+                  <CalendarDays className="h-4 w-4 text-primary" />
+                  Últimos movimentos
+                </div>
+                <div className="space-y-3">
+                  {timeline.slice(0, 4).map((event) => (
+                    <div key={event.id} className="border-l border-primary/30 pl-3">
+                      <p className="text-xs font-medium text-foreground">{event.title}</p>
+                      <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">{event.description ?? "Registro operacional"}</p>
+                    </div>
+                  ))}
+                  {timeline.length === 0 && <p className="text-xs text-muted-foreground">Ainda sem eventos registrados.</p>}
+                </div>
+              </div>
+
+              <Button onClick={() => setShowFullWorkspace(true)} className="h-11 w-full gap-2">
+                Entrar no workspace completo
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </aside>
+          </section>
+        )}
+
+        {showFullWorkspace && <WorkspaceHeader
           clientName={clientName}
           ownerName={ownerName}
           status={ws.status}
@@ -237,9 +292,9 @@ export default function WorkspaceDetailPage() {
           changingStage={changingStage}
           onStageChange={handleStageChange}
           planName={planName}
-        />
+        />}
 
-        <Tabs defaultValue="resumo" className="w-full">
+        {showFullWorkspace && <Tabs defaultValue="resumo" className="w-full">
           <TabsList>
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="dossie">Dossiê</TabsTrigger>
@@ -327,7 +382,7 @@ export default function WorkspaceDetailPage() {
               onTimelineRefresh={fetchWorkspace}
             />
           </TabsContent>
-        </Tabs>
+        </Tabs>}
       </div>
     </>
   );
