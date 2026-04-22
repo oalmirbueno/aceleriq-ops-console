@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ArrowRight, CalendarDays, CalendarIcon, CheckCircle2, FolderKanban, ListChecks, Search, Sparkles, Target, X } from "lucide-react";
+import { ArrowRight, CalendarDays, CalendarIcon, CheckCircle2, FolderKanban, ListChecks, RefreshCw, Search, Sparkles, Target, X } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingState from "@/components/LoadingState";
 import EmptyState from "@/components/EmptyState";
@@ -237,6 +237,7 @@ export default function WorkspaceDetailPage() {
   const [taskSignals, setTaskSignals] = useState<WorkspaceTaskSignal[]>([]);
   const [loading, setLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
+  const [refreshingProgress, setRefreshingProgress] = useState(false);
   const [showFullWorkspace, setShowFullWorkspace] = useState(() => {
     if (!workspaceId) return false;
     return localStorage.getItem(`workspace-mode:${workspaceId}`) === "full";
@@ -313,6 +314,19 @@ export default function WorkspaceDetailPage() {
   const setWorkspaceMode = (mode: "preview" | "full") => {
     if (workspaceId) localStorage.setItem(`workspace-mode:${workspaceId}`, mode);
     setShowFullWorkspace(mode === "full");
+  };
+
+  const refreshNodeProgress = async () => {
+    if (!workspaceId) return;
+    setRefreshingProgress(true);
+    const { data: nodes, error } = await supabase
+      .from("canvas_nodes")
+      .select("id, status")
+      .eq("workspace_id", workspaceId);
+
+    if (error) toast({ title: "Erro ao atualizar progresso", description: error.message, variant: "destructive" });
+    if (nodes) setNodesProgress(nodes as WorkspaceNodeProgress[]);
+    setRefreshingProgress(false);
   };
 
   useEffect(() => {
@@ -434,6 +448,10 @@ export default function WorkspaceDetailPage() {
                 <span className="rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
                   {ws.status}
                 </span>
+                <Button variant="outline" size="sm" className="gap-2" onClick={refreshNodeProgress} disabled={refreshingProgress}>
+                  <RefreshCw className={cn("h-4 w-4", refreshingProgress && "animate-spin")} />
+                  Atualizar progresso
+                </Button>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
                 Progresso real calculado por nodes concluídos/ativos no canvas; fallback pela etapa quando ainda não há nodes.
