@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ArrowRight, CalendarDays, CalendarIcon, CheckCircle2, FolderKanban, ListChecks, Sparkles, Target, X } from "lucide-react";
+import { ArrowRight, CalendarDays, CalendarIcon, CheckCircle2, FolderKanban, ListChecks, Search, Sparkles, Target, X } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingState from "@/components/LoadingState";
 import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -243,6 +244,7 @@ export default function WorkspaceDetailPage() {
   const [movementsOpen, setMovementsOpen] = useState(false);
   const [eventTypeFilter, setEventTypeFilter] = useState("__all__");
   const [movementDate, setMovementDate] = useState<Date | undefined>();
+  const [movementSearch, setMovementSearch] = useState("");
   const [visibleMovements, setVisibleMovements] = useState(MOVEMENTS_PAGE_SIZE);
 
   const fetchWorkspace = async () => {
@@ -291,7 +293,7 @@ export default function WorkspaceDetailPage() {
 
   useEffect(() => {
     setVisibleMovements(MOVEMENTS_PAGE_SIZE);
-  }, [movementsOpen, eventTypeFilter, movementDate]);
+  }, [movementsOpen, eventTypeFilter, movementDate, movementSearch]);
 
   const handleStageChange = async (newStage: string) => {
     if (!ws || newStage === ws.current_stage) return;
@@ -353,10 +355,14 @@ export default function WorkspaceDetailPage() {
   const actionPlan = buildActionPlan(ws.current_stage, taskSignals, nodesProgress);
   const leanChecklist = buildLeanChecklist(ws.current_stage, taskSignals, nodesProgress);
   const movementTypes = Array.from(new Set(timeline.map((event) => event.event_type))).sort();
+  const movementQuery = movementSearch.trim().toLowerCase();
   const filteredMovements = timeline.filter((event) => {
     const matchesType = eventTypeFilter === "__all__" || event.event_type === eventTypeFilter;
     const matchesDate = !movementDate || sameDay(movementDate, event.happened_at);
-    return matchesType && matchesDate;
+    const matchesSearch = !movementQuery
+      || event.title.toLowerCase().includes(movementQuery)
+      || event.description?.toLowerCase().includes(movementQuery);
+    return matchesType && matchesDate && matchesSearch;
   });
   const paginatedMovements = filteredMovements.slice(0, visibleMovements);
   const hasMoreMovements = visibleMovements < filteredMovements.length;
@@ -581,6 +587,16 @@ export default function WorkspaceDetailPage() {
             </DialogHeader>
 
             <div className="flex flex-wrap items-center gap-3">
+              <div className="relative min-w-[260px] flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={movementSearch}
+                  onChange={(event) => setMovementSearch(event.target.value)}
+                  placeholder="Buscar por título ou descrição..."
+                  className="pl-9"
+                />
+              </div>
+
               <Select value={eventTypeFilter} onValueChange={setEventTypeFilter}>
                 <SelectTrigger className="w-[220px]">
                   <SelectValue placeholder="Tipo de evento" />
@@ -614,8 +630,8 @@ export default function WorkspaceDetailPage() {
                 </PopoverContent>
               </Popover>
 
-              {(eventTypeFilter !== "__all__" || movementDate) && (
-                <Button variant="ghost" className="gap-2" onClick={() => { setEventTypeFilter("__all__"); setMovementDate(undefined); }}>
+              {(eventTypeFilter !== "__all__" || movementDate || movementSearch) && (
+                <Button variant="ghost" className="gap-2" onClick={() => { setEventTypeFilter("__all__"); setMovementDate(undefined); setMovementSearch(""); }}>
                   <X className="h-4 w-4" />
                   Limpar filtros
                 </Button>
