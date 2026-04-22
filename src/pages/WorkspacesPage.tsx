@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Filter, FolderKanban, Search, Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle2, Filter, FolderKanban, Search, Sparkles, Target } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import AppHeader from "@/components/AppHeader";
 import EmptyState from "@/components/EmptyState";
@@ -66,6 +66,18 @@ function recommendationFor(stage: string, nodeCount: number) {
   if (stage === "ativacao") return "Monitorar tráfego, CRM, pixel e timeline de lançamento diariamente.";
   if (stage === "otimizacao") return "Comparar métricas, priorizar experimentos e registrar aprendizados.";
   return "Empacotar cases, before/after e playbooks para replicar o que vingou.";
+}
+
+function completedNarrative(stage: string, nodeCount: number) {
+  if (nodeCount === 0) return "Workspace criado; canvas ainda não estruturado.";
+  if (stage === "entrada") return "Entrada aberta com primeiros insumos organizados.";
+  if (stage === "diagnostico") return "Briefing e sinais iniciais reunidos para diagnóstico.";
+  if (stage === "estrutura_base") return "Diagnóstico convertido em arquitetura operacional.";
+  if (stage === "planejamento") return "Base definida; plano diretor em montagem.";
+  if (stage === "producao") return "Plano aprovado e execução em andamento.";
+  if (stage === "ativacao") return "Produção conectada à ativação comercial.";
+  if (stage === "otimizacao") return "Dados de ativação prontos para melhoria contínua.";
+  return "Evidências consolidadas para escala e replicação.";
 }
 
 export default function WorkspacesPage() {
