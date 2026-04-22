@@ -775,7 +775,7 @@ export default function WorkspaceDetailPage() {
           </div>
         )}
 
-        {showFullWorkspace && <Tabs defaultValue="resumo" className="w-full">
+        {showFullWorkspace && <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList>
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="dossie">Dossiê</TabsTrigger>
@@ -861,6 +861,7 @@ export default function WorkspaceDetailPage() {
               clientId={ws.client_id}
               clientName={clientName}
               onTimelineRefresh={fetchWorkspace}
+              initialStatusFilter={canvasStatusShortcut}
             />
           </TabsContent>
         </Tabs>}
