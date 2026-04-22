@@ -590,7 +590,7 @@ export default function WorkspaceDetailPage() {
                 <div className="py-10 text-center text-sm text-muted-foreground">Nenhum movimento encontrado.</div>
               ) : (
                 <div className="space-y-3">
-                  {filteredMovements.map((event) => (
+                  {paginatedMovements.map((event) => (
                     <div key={event.id} className="rounded-md border border-border bg-card p-4">
                       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                         <p className="font-medium text-foreground">{event.title}</p>
@@ -605,6 +605,22 @@ export default function WorkspaceDetailPage() {
                 </div>
               )}
             </div>
+            {filteredMovements.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+                <span>
+                  Mostrando {paginatedMovements.length} de {filteredMovements.length} movimentos
+                </span>
+                {hasMoreMovements && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setVisibleMovements((current) => current + MOVEMENTS_PAGE_SIZE)}
+                  >
+                    Carregar mais {Math.min(MOVEMENTS_PAGE_SIZE, filteredMovements.length - visibleMovements)}
+                  </Button>
+                )}
+              </div>
+            )}
           </DialogContent>
         </Dialog>
 
