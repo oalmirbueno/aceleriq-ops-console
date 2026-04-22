@@ -1159,7 +1159,7 @@ function CanvasStudioInner({
               multiSelectionKeyCode={["Meta", "Control"]}
               selectionMode={SelectionMode.Partial}
               proOptions={{ hideAttribution: true }}
-              className="bg-background canvas-flow"
+              className="bg-background canvas-flow gravyx-flow"
               defaultEdgeOptions={{ type: "smoothstep", animated: true }}
               onPaneContextMenu={(event) => event.preventDefault()}
             >
