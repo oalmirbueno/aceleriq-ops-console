@@ -1,11 +1,15 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowRight, CalendarDays, CheckCircle2, FolderKanban, ListChecks, Sparkles, Target } from "lucide-react";
+import { ArrowRight, CalendarDays, CalendarIcon, CheckCircle2, FolderKanban, ListChecks, Sparkles, Target, X } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingState from "@/components/LoadingState";
 import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Calendar } from "@/components/ui/calendar";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ClientAvatar from "@/components/workspace/ClientAvatar";
 import WorkspaceHeader from "@/components/workspace/WorkspaceHeader";
 import WorkspaceTabResumo from "@/components/workspace/WorkspaceTabResumo";
@@ -24,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { getStagePremiumLabel } from "@/components/workspace/aceleraConstants";
+import { cn } from "@/lib/utils";
 
 interface Workspace {
   id: string;
@@ -77,6 +82,15 @@ function actionPlanFor(stage: string) {
   return ["Fechar Case PASTA", "Criar Before/After com métricas", "Derivar playbook replicável"];
 }
 
+function sameDay(a: Date, iso: string) {
+  const b = new Date(iso);
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function formatMovementDate(iso: string) {
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+}
+
 export default function WorkspaceDetailPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const navigate = useNavigate();
@@ -85,6 +99,9 @@ export default function WorkspaceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
   const [showFullWorkspace, setShowFullWorkspace] = useState(false);
+  const [movementsOpen, setMovementsOpen] = useState(false);
+  const [eventTypeFilter, setEventTypeFilter] = useState("__all__");
+  const [movementDate, setMovementDate] = useState<Date | undefined>();
 
   const fetchWorkspace = async () => {
     if (!workspaceId) return;
@@ -101,7 +118,7 @@ export default function WorkspaceDetailPage() {
       .select("id, event_type, title, description, happened_at, created_at")
       .eq("workspace_id", workspaceId)
       .order("happened_at", { ascending: false })
-      .limit(20);
+      .limit(100);
 
     if (events) setTimeline(events);
     setLoading(false);
