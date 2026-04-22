@@ -7,6 +7,7 @@ import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -259,6 +260,7 @@ export default function WorkspaceDetailPage() {
   const [nodesProgress, setNodesProgress] = useState<WorkspaceNodeProgress[]>([]);
   const [taskSignals, setTaskSignals] = useState<WorkspaceTaskSignal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [triageLoading, setTriageLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
   const [refreshingProgress, setRefreshingProgress] = useState(false);
   const [showFullWorkspace, setShowFullWorkspace] = useState(false);
@@ -274,6 +276,7 @@ export default function WorkspaceDetailPage() {
 
   const fetchWorkspace = async () => {
     if (!workspaceId) return;
+    setTriageLoading(true);
     const { data, error } = await supabase
       .from("workspaces")
       .select("id, name, status, current_stage, primary_owner_id, client_id, summary, created_at, metadata, clients(id, name, company_name, segment, plan_name, logo_url, metadata), profiles:primary_owner_id(full_name, email)")
@@ -292,6 +295,7 @@ export default function WorkspaceDetailPage() {
       .eq("workspace_id", workspaceId);
 
     if (nodes) setNodesProgress(nodes as WorkspaceNodeProgress[]);
+    setLoading(false);
 
     const { data: tasks } = await supabase
       .from("tasks")
@@ -301,7 +305,7 @@ export default function WorkspaceDetailPage() {
       .limit(200);
 
     if (tasks) setTaskSignals(tasks as WorkspaceTaskSignal[]);
-    setLoading(false);
+    setTriageLoading(false);
   };
 
   useEffect(() => { fetchWorkspace(); }, [workspaceId]);
@@ -650,23 +654,37 @@ export default function WorkspaceDetailPage() {
                 </div>
               </div>
 
-              <div className="space-y-3">
-                {actionPlan.map((item, index) => (
-                  <div key={`${item.title}-${index}`} className="flex gap-3 rounded-md border border-border bg-secondary/30 p-4">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-xs font-semibold text-primary">
-                      {index + 1}
-                    </span>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{item.title}</p>
-                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                        {item.detail}
-                      </p>
+              {triageLoading ? (
+                <div className="space-y-3" aria-label="Carregando triagem">
+                  {[0, 1, 2].map((item) => (
+                    <div key={item} className="flex gap-3 rounded-md border border-border bg-secondary/30 p-4">
+                      <Skeleton className="h-7 w-7 shrink-0 rounded-md" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-2/3" />
+                        <Skeleton className="h-3 w-full" />
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {actionPlan.map((item, index) => (
+                    <div key={`${item.title}-${index}`} className="flex gap-3 rounded-md border border-border bg-secondary/30 p-4">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-xs font-semibold text-primary">
+                        {index + 1}
+                      </span>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{item.title}</p>
+                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                          {item.detail}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-              <div className="mt-5 grid gap-2 md:grid-cols-3">
+              {!triageLoading && <div className="mt-5 grid gap-2 md:grid-cols-3">
                 {PRE_ENTRY_ACTIONS.map((action, index) => {
                   const done = completedPreEntryActions.includes(action.key);
                   return (
@@ -686,9 +704,9 @@ export default function WorkspaceDetailPage() {
                     </button>
                   );
                 })}
-              </div>
+              </div>}
 
-              <div className="mt-5 rounded-lg border border-primary/30 bg-primary/10 p-4">
+              {!triageLoading && <div className="mt-5 rounded-lg border border-primary/30 bg-primary/10 p-4">
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="label-sm mb-1">Checklist lean de execução</p>
@@ -723,7 +741,7 @@ export default function WorkspaceDetailPage() {
                     </div>
                   ))}
                 </div>
-              </div>
+              </div>}
             </div>
 
             <aside className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
