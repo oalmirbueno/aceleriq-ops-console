@@ -269,6 +269,7 @@ export default function WorkspaceDetailPage() {
   const [activeTab, setActiveTab] = useState("resumo");
   const [canvasStatusShortcut, setCanvasStatusShortcut] = useState<string | null>(null);
   const [completedTriageKeys, setCompletedTriageKeys] = useState<string[]>([]);
+  const [completedPreEntryActions, setCompletedPreEntryActions] = useState<string[]>([]);
 
   const fetchWorkspace = async () => {
     if (!workspaceId) return;
@@ -382,6 +383,10 @@ export default function WorkspaceDetailPage() {
       return;
     }
     setCompletedTriageKeys((current) => current.includes(key) ? current.filter((value) => value !== key) : [...current, key]);
+  };
+
+  const togglePreEntryAction = (key: string) => {
+    setCompletedPreEntryActions((current) => current.includes(key) ? current.filter((value) => value !== key) : [...current, key]);
   };
 
   useEffect(() => {
