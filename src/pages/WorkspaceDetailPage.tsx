@@ -448,6 +448,10 @@ export default function WorkspaceDetailPage() {
                 <span className="rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
                   {ws.status}
                 </span>
+                <Button variant="outline" size="sm" className="gap-2" onClick={refreshNodeProgress} disabled={refreshingProgress}>
+                  <RefreshCw className={cn("h-4 w-4", refreshingProgress && "animate-spin")} />
+                  Atualizar progresso
+                </Button>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
                 Progresso real calculado por nodes concluídos/ativos no canvas; fallback pela etapa quando ainda não há nodes.
