@@ -622,9 +622,15 @@ export default function WorkspaceDetailPage() {
                 <div className="grid gap-2">
                   {leanChecklist.map((item, index) => (
                     <div key={`${item.title}-${index}`} className="flex items-start gap-3 rounded-md border border-border bg-card/70 p-3">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-primary/40 text-[10px] font-semibold text-primary">
-                        {index + 1}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => completeChecklistTask(item)}
+                        disabled={!item.taskId}
+                        className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-primary/40 text-primary transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground"
+                        aria-label={item.taskId ? `Concluir ${item.title}` : item.title}
+                      >
+                        {item.taskId ? <CheckCircle2 className="h-3.5 w-3.5" /> : <span className="text-[10px] font-semibold">{index + 1}</span>}
+                      </button>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-sm font-medium text-foreground">{item.title}</p>
