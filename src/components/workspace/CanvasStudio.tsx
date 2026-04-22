@@ -754,6 +754,24 @@ function CanvasStudioInner({
         });
       }
 
+      const existingProofKinds = new Set(
+        dbEdges
+          .filter((edge) => [engineNodeId, existingResult?.id, existingDecision?.id].filter(Boolean).includes(edge.source_node_id))
+          .map((edge) => dbNodes.find((node) => node.id === edge.target_node_id))
+          .filter(Boolean)
+          .map((node) => nodeKindOf(node as CanvasNodeRow)),
+      );
+
+      if (!existingProofKinds.has("metrica")) {
+        missingSpecs.push({ ref: "metric", kind: "metrica", title: `KPI: ${engineNode.title}`, stage: "ativacao", x: engineX + 500, y: proofY, description: "Medição quantitativa conectada ao resultado da engine." });
+      }
+      if (!existingProofKinds.has("before_after")) {
+        missingSpecs.push({ ref: "beforeAfter", kind: "before_after", title: `Before/After: ${engineNode.title}`, stage: "ativacao", x: engineX + 940, y: proofY, description: "Evidência visual comparando estado anterior e entrega realizada." });
+      }
+      if (!existingProofKinds.has("case")) {
+        missingSpecs.push({ ref: "case", kind: "case", title: `Case: ${engineNode.title}`, stage: "escala", x: engineX + 1380, y: proofY, description: "Narrativa comercial consolidada a partir de resultado, KPI e evidência visual." });
+      }
+
       if (missingSpecs.length === 0) {
         toast({ title: "Hub já montado", description: "Esse Engine já tem entradas e saídas principais conectadas." });
         return;
@@ -793,6 +811,9 @@ function CanvasStudioInner({
         createdByRef.agent ? { source_node_id: engineNodeId, target_node_id: createdByRef.agent.id, label: "aciona" } : null,
         createdByRef.result ? { source_node_id: engineNodeId, target_node_id: createdByRef.result.id, label: "gera" } : null,
         createdByRef.decision && resultNode ? { source_node_id: resultNode.id, target_node_id: createdByRef.decision.id, label: "aprovar" } : null,
+        createdByRef.metric && resultNode ? { source_node_id: resultNode.id, target_node_id: createdByRef.metric.id, label: "mede" } : null,
+        createdByRef.beforeAfter && (createdByRef.metric ?? resultNode) ? { source_node_id: (createdByRef.metric ?? resultNode).id, target_node_id: createdByRef.beforeAfter.id, label: "compara" } : null,
+        createdByRef.case && createdByRef.beforeAfter ? { source_node_id: createdByRef.beforeAfter.id, target_node_id: createdByRef.case.id, label: "vira case" } : null,
       ].filter(Boolean) as Array<{ source_node_id: string; target_node_id: string; label: string }>;
 
       const dedupedEdges = edgesToCreate.filter((edge, index, arr) => (
