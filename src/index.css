@@ -318,6 +318,8 @@
   background-size: auto, auto, 96px 96px, 96px 96px, auto, auto;
 }
 .canvas-node-popup {
+  height: min(88vh, calc(100vh - 48px));
+  min-height: 0;
   background:
     radial-gradient(circle at top left, hsl(var(--primary) / 0.08), transparent 34%),
     linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%);

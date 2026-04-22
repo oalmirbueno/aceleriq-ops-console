@@ -152,7 +152,7 @@ export default function SpecializedNodeDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="center" className="canvas-node-popup p-0 flex flex-col overflow-hidden">
+      <SheetContent side="center" className="canvas-node-popup p-0 flex min-h-0 flex-col overflow-hidden">
         {/* ─── Header ─── */}
         <div className="px-5 pt-5 pb-3 border-b border-border space-y-3">
           <div className="flex items-start justify-between gap-3">
@@ -227,7 +227,7 @@ export default function SpecializedNodeDrawer({
         </div>
 
         {/* ─── Body ─── */}
-        <ScrollArea className="flex-1">
+        <ScrollArea className="min-h-0 flex-1">
           <div className="px-5 py-4 space-y-4">
             <NodePrefillStatus
               status={status === "ready" ? "ready" : status === "generating" || status === "loading" ? "generating" : status === "error" ? "error" : "empty"}
