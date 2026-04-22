@@ -328,6 +328,26 @@
   transition: transform .18s cubic-bezier(.4,0,.2,1),
               border-color .18s, box-shadow .18s;
 }
+.node-family-proof .node-card {
+  background:
+    linear-gradient(180deg, hsl(var(--node-proof) / 0.085), transparent 46%),
+    hsl(var(--card) / 0.94);
+  border-left-color: hsl(var(--node-proof) / 0.95);
+}
+.node-proof-pill {
+  color: hsl(var(--node-proof));
+  border-color: hsl(var(--node-proof) / 0.28);
+  background: hsl(var(--node-proof) / 0.08);
+}
+.node-flow-strip {
+  border-radius: 999px;
+  color: hsl(var(--muted-foreground));
+}
+.node-flow-measurement .node-flow-strip,
+.node-flow-proof .node-flow-strip,
+.node-flow-narrative .node-flow-strip {
+  color: hsl(var(--node-proof) / 0.86);
+}
 .node-card:hover {
   transform: translateY(-1px);
   border-color: hsl(var(--foreground) / 0.16);
