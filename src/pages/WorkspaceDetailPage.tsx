@@ -460,8 +460,12 @@ export default function WorkspaceDetailPage() {
     key: triageItemKey(item, index),
     lockedDone: Boolean(item.completed || completedTriageKeys.includes(triageItemKey(item, index))),
   }));
-  const triageComplete = lockedChecklist.length > 0 && lockedChecklist.every((item) => item.lockedDone);
-  const triageProgress = lockedChecklist.length > 0 ? Math.round((lockedChecklist.filter((item) => item.lockedDone).length / lockedChecklist.length) * 100) : 0;
+  const completedChecklistCount = lockedChecklist.filter((item) => item.lockedDone).length;
+  const completedPreEntryCount = PRE_ENTRY_ACTIONS.filter((action) => completedPreEntryActions.includes(action.key)).length;
+  const triageDoneCount = completedChecklistCount + completedPreEntryCount;
+  const triageTotalCount = lockedChecklist.length + PRE_ENTRY_ACTIONS.length;
+  const triageComplete = triageTotalCount > 0 && triageDoneCount === triageTotalCount;
+  const triageProgress = triageTotalCount > 0 ? Math.round((triageDoneCount / triageTotalCount) * 100) : 0;
   const movementTypes = Array.from(new Set(timeline.map((event) => event.event_type))).sort();
   const movementQuery = movementSearch.trim().toLowerCase();
   const filteredMovements = timeline.filter((event) => {
