@@ -21,9 +21,11 @@ import ProjectNodeDrawer from "./ProjectNodeDrawer";
 import CanvasEsteiraPalette from "./CanvasEsteiraPalette";
 import CanvasInspector from "./CanvasInspector";
 import CanvasHorizontalScroller from "./CanvasHorizontalScroller";
+import CanvasQuickDock from "./CanvasQuickDock";
 import CanvasClientPicker from "./CanvasClientPicker";
 import CanvasClientTabs, { type CanvasClientTab } from "./CanvasClientTabs";
 import GenerateEsteiraDialog from "./GenerateEsteiraDialog";
+import { featureFlags } from "@/config/featureFlags";
 import type { EsteiraTemplate } from "./esteiraTemplates";
 import {
   ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH, STAGE_HEADER_HEIGHT,
@@ -905,6 +907,11 @@ function CanvasStudioInner({
     setAdvancedOpen(false);
   };
 
+  const quickDockAdd = (kind: ProjectNodeKind) => {
+    const meta = getProjectTypeMeta(kind);
+    if (meta) addProjectNode(kind, meta.defaultStage);
+  };
+
   /* Quick add from inline + on a node */
   const quickAddFromNode = (kind: ProjectNodeKind) => {
     const src = dbNodes.find((n) => n.id === quickAddState.sourceId);
@@ -1179,6 +1186,11 @@ function CanvasStudioInner({
               <Panel position="bottom-center" className="!m-0 mb-2 w-[min(70%,640px)]">
                 <CanvasHorizontalScroller />
               </Panel>
+              {featureFlags.canvasBottomDockEnabled && (
+                <Panel position="bottom-center" className="!m-0 mb-14">
+                  <CanvasQuickDock activeKind={typeFilter} onCreate={quickDockAdd} />
+                </Panel>
+              )}
               {/* Toggles cluster — sobreposto, canto inferior direito */}
               <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-md border border-border bg-card/95 backdrop-blur-sm shadow-md p-0.5">
                 <button
