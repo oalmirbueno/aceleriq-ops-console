@@ -434,7 +434,7 @@ export default function WorkspaceDetailPage() {
                 </div>
               </div>
 
-              <Button onClick={() => setShowFullWorkspace(true)} className="h-11 w-full gap-2">
+              <Button onClick={() => setWorkspaceMode("full")} className="h-11 w-full gap-2">
                 Entrar no workspace completo
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -514,15 +514,22 @@ export default function WorkspaceDetailPage() {
           </DialogContent>
         </Dialog>
 
-        {showFullWorkspace && <WorkspaceHeader
-          clientName={clientName}
-          ownerName={ownerName}
-          status={ws.status}
-          currentStage={ws.current_stage}
-          changingStage={changingStage}
-          onStageChange={handleStageChange}
-          planName={planName}
-        />}
+        {showFullWorkspace && (
+          <div className="space-y-3">
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => setWorkspaceMode("preview")}>Voltar para prévia</Button>
+            </div>
+            <WorkspaceHeader
+              clientName={clientName}
+              ownerName={ownerName}
+              status={ws.status}
+              currentStage={ws.current_stage}
+              changingStage={changingStage}
+              onStageChange={handleStageChange}
+              planName={planName}
+            />
+          </div>
+        )}
 
         {showFullWorkspace && <Tabs defaultValue="resumo" className="w-full">
           <TabsList>
