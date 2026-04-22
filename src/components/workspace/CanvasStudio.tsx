@@ -6,10 +6,9 @@ import {
   type ReactFlowInstance, type Viewport, SelectionMode,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Settings2, Check, Workflow } from "lucide-react";
+import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,7 +26,7 @@ import { featureFlags } from "@/config/featureFlags";
 import type { EsteiraTemplate } from "./esteiraTemplates";
 import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalMeta } from "./canvasOperationalMeta";
 import {
-  ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH, STAGE_HEADER_HEIGHT,
+  ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH,
   getProjectTypeMeta, getStageMeta, stageColumnX, getChecklistTemplate,
   projectKindToDbNodeType, type ProjectNodeKind, type AceleraStageKey,
 } from "./canvasProjectTypes";
