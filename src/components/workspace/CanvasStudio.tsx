@@ -876,6 +876,10 @@ function CanvasStudioInner({
             {busyAction === "layout" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LayoutGrid className="h-3.5 w-3.5" />}
             <span className="hidden md:inline ml-1 text-xs">Reorganizar</span>
           </Button>
+          <Button size="sm" variant="secondary" className="h-8" onClick={applyOpsFlowBlueprint} disabled={busyAction === "ops-flow"}>
+            {busyAction === "ops-flow" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Workflow className="h-3.5 w-3.5" />}
+            <span className="hidden md:inline ml-1 text-xs">Fluxo Ops</span>
+          </Button>
           <Button size="sm" variant="outline" className="h-8" onClick={() => setGenerateDialogOpen(true)} disabled={busyAction === "base"}>
             {busyAction === "base" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
             <span className="hidden md:inline ml-1 text-xs">Gerar esteira</span>
@@ -1064,6 +1068,9 @@ function CanvasStudioInner({
               <div className="flex gap-2 mt-2 flex-wrap justify-center">
                 <Button size="sm" onClick={() => setAdvancedOpen(true)}>
                   <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar primeiro node
+                </Button>
+                <Button size="sm" variant="secondary" onClick={applyOpsFlowBlueprint} disabled={busyAction === "ops-flow"}>
+                  <Workflow className="h-3.5 w-3.5 mr-1" /> Criar fluxo Ops
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => setGenerateDialogOpen(true)} disabled={busyAction === "base"}>
                   <Sparkles className="h-3.5 w-3.5 mr-1" /> Gerar esteira do plano
