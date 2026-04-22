@@ -185,7 +185,8 @@ export const NODE_FLOW_ROLE_LABELS: Record<NodeFlowRole, string> = {
 export function getNodeFlowRole(kind: string): NodeFlowRole {
   if (["contexto_ops", "briefing", "documento", "reuniao", "ideia", "objetivo", "acessos", "contato"].includes(kind)) return "context";
   if (["instrucao", "funil", "checklist"].includes(kind)) return "instruction";
-  if (["engine", "automacao", "ia", "integracao", "agente"].includes(kind)) return "engine";
+  if (["engine", "automacao", "ia", "integracao"].includes(kind)) return "engine";
+  if (["agente"].includes(kind)) return "execution";
   if (["decisao"].includes(kind)) return "decision";
   if (["metrica", "crm", "trafego", "email_mkt", "social"].includes(kind)) return "measurement";
   if (["before_after"].includes(kind)) return "proof";
