@@ -1,10 +1,9 @@
-import { memo, useState } from "react";
+import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { AlertTriangle, CheckCircle2, Clock3, GitBranch, Plus, Link2, Paperclip, ListChecks, Maximize2, XCircle } from "lucide-react";
 import { getProjectTypeMeta, getNodeFamily } from "./canvasProjectTypes";
 import { getEsteiraStatus, mapLegacyStatus } from "./canvasEsteiraStatus";
 import ClientAvatar from "./ClientAvatar";
-import AttachmentPreview from "./AttachmentPreview";
 import {
   countOperationalDependencies,
   countOperationalEvidence,
@@ -65,14 +64,8 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
   const overdue = isOperationalOverdue(opMeta);
   const blocked = !!opMeta?.blockedReason || d.status === "blocked" || d.status === "bloqueado";
 
-  const [hover, setHover] = useState(false);
-
   return (
-    <div
-      className={`relative group node-family-${family}`}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-    >
+    <div className={`relative group node-family-${family}`}>
       <Handle type="target" position={Position.Left} className="!bg-primary !w-2 !h-2 !border-background" />
 
       <div
@@ -111,24 +104,6 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
             )}
           </div>
         </div>
-
-        {/* Cover thumbnail (first previewable attachment) */}
-        {d.coverAttachment?.url && (
-          <div
-            className="relative mb-2 rounded-md overflow-hidden border border-border/60 bg-black/30 h-24 w-full"
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="absolute inset-0 [&>div]:!h-full [&>div]:!w-full [&>button]:!h-full [&>button]:!w-full [&>button]:!rounded-md [&_img]:!object-cover [&_canvas]:!object-contain">
-              <AttachmentPreview
-                url={d.coverAttachment.url}
-                type={d.coverAttachment.type}
-                label={d.coverAttachment.label}
-                className="!h-full !w-full !rounded-md"
-              />
-            </div>
-          </div>
-        )}
 
         {/* Title — strong hierarchy */}
         <p className="text-[15px] font-semibold text-foreground leading-[1.25] line-clamp-2 mb-1.5">
@@ -203,18 +178,18 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
       </div>
 
       {/* Inline + buttons (right & bottom) */}
-      {hover && d.onQuickConnect && (
+      {d.onQuickConnect && (
         <>
           <button
             onClick={(e) => { e.stopPropagation(); d.onQuickConnect?.("right"); }}
-            className="absolute top-1/2 -right-3 -translate-y-1/2 h-5 w-5 rounded-full bg-foreground/90 text-background shadow-lg flex items-center justify-center hover:scale-110 hover:bg-foreground transition-all z-10"
+            className="absolute top-1/2 -right-3 -translate-y-1/2 h-5 w-5 rounded-full bg-foreground/90 text-background shadow-lg flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-110 hover:bg-foreground transition-all z-10"
             aria-label="Adicionar próximo node à direita"
           >
             <Plus className="h-3 w-3" strokeWidth={2.5} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); d.onQuickConnect?.("bottom"); }}
-            className="absolute -bottom-3 left-1/2 -translate-x-1/2 h-5 w-5 rounded-full bg-foreground/90 text-background shadow-lg flex items-center justify-center hover:scale-110 hover:bg-foreground transition-all z-10"
+            className="absolute -bottom-3 left-1/2 -translate-x-1/2 h-5 w-5 rounded-full bg-foreground/90 text-background shadow-lg flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-110 hover:bg-foreground transition-all z-10"
             aria-label="Adicionar próximo node abaixo"
           >
             <Plus className="h-3 w-3" strokeWidth={2.5} />
