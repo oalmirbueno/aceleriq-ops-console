@@ -338,6 +338,7 @@ function CanvasStudioInner({
     });
 
     const visibleIds = new Set(visibleProjects.map((n) => n.id));
+    const visibleById = new Map(visibleProjects.map((n) => [n.id, n]));
 
     const projRfNodes: Node[] = visibleProjects.map((n): Node => {
       const owner = n.parent_node_id ? groupMeta[n.parent_node_id] : null;
@@ -378,14 +379,19 @@ function CanvasStudioInner({
     setRfEdges(
       dbEdges
         .filter((e) => visibleIds.has(e.source_node_id) && visibleIds.has(e.target_node_id))
-        .map((e): Edge => ({
-          id: e.id,
-          source: e.source_node_id,
-          target: e.target_node_id,
-          label: e.label ?? undefined,
-          animated: true,
-          style: { stroke: "hsl(var(--primary))", strokeWidth: 1.5 },
-        })),
+        .map((e): Edge => {
+          const intent = edgeIntent(e, visibleById);
+          return {
+            id: e.id,
+            source: e.source_node_id,
+            target: e.target_node_id,
+            label: intent.label,
+            animated: intent.animated,
+            style: { stroke: intent.stroke, strokeWidth: 2 },
+            labelStyle: { fill: "hsl(var(--muted-foreground))", fontSize: 10, fontWeight: 600 },
+            labelBgStyle: { fill: "hsl(var(--card))", fillOpacity: 0.92 },
+          };
+        }),
     );
   }, [projectNodes, dbEdges, search, typeFilter, statusFilter, activeClientId, groupMeta]);
 
@@ -478,19 +484,7 @@ function CanvasStudioInner({
     if (!ensureActiveClient()) return;
     const meta = getProjectTypeMeta(kind);
     if (!meta) return;
-    const dbType = (() => {
-      switch (kind) {
-        case "asset": return "asset";
-        case "metrica": return "metric";
-        case "before_after": return "before_after";
-        case "case": return "case";
-        case "briefing":
-        case "documento":
-        case "contato": return "context";
-        case "checklist": return "task";
-        default: return "front";
-      }
-    })();
+    const dbType = projectKindToDbNodeType(kind);
 
     // Compute position: based on source if connecting, else stack inside stage column
     let pos_x = stageColumnX(stage) + NODE_X_OFFSET;
