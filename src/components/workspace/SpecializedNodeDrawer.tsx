@@ -106,7 +106,7 @@ export default function SpecializedNodeDrawer({
   if (!blueprint) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-2xl p-6">
+        <SheetContent side="center" className="canvas-node-popup p-6 overflow-hidden">
           <p className="text-sm text-muted-foreground">
             Sem blueprint para este tipo. Use o drawer genérico.
           </p>
@@ -121,7 +121,7 @@ export default function SpecializedNodeDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-2xl p-0 flex flex-col">
+      <SheetContent side="center" className="canvas-node-popup p-0 flex flex-col overflow-hidden">
         {/* ─── Header ─── */}
         <div className="px-5 pt-5 pb-3 border-b border-border space-y-3">
           <div className="flex items-start justify-between gap-3">
