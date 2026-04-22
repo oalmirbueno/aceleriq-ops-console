@@ -81,6 +81,7 @@ interface LeanChecklistItem {
   detail: string;
   size: "grande" | "media" | "pequena";
   source: "task" | "engine";
+  taskId?: string;
 }
 
 const STAGES = ["entrada", "diagnostico", "estrutura_base", "planejamento", "producao", "ativacao", "otimizacao", "expansao"];
@@ -152,6 +153,7 @@ function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: 
     detail: "Maior alavanca: destravar antes de criar trabalho novo. Resolver, delegar ou cortar o bloqueio.",
     size: "grande",
     source: "task",
+    taskId: task.id,
   }));
 
   priorityTasks.filter((task) => !blocked.some((b) => b.id === task.id)).slice(0, 2).forEach((task) => checklist.push({
@@ -159,6 +161,7 @@ function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: 
     detail: "Entrega pesada primeiro: só entra se mover o cliente de etapa ou remover risco real.",
     size: "grande",
     source: "task",
+    taskId: task.id,
   }));
 
   stageTasks.filter((task) => !checklist.some((item) => item.title === task.title)).slice(0, 2).forEach((task) => checklist.push({
@@ -166,6 +169,7 @@ function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: 
     detail: `Tarefa da etapa atual (${getStagePremiumLabel(stage)}). Executar em bloco, não como rotina diária.`,
     size: "media",
     source: "task",
+    taskId: task.id,
   }));
 
   if (checklist.length < 5) checklist.push({
