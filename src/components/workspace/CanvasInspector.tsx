@@ -4,12 +4,13 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Search, Link2, Filter, ChevronRight, ChevronLeft, PanelRight } from "lucide-react";
+import { AlertTriangle, GitBranch, Search, Link2, Filter, ChevronRight, ChevronLeft, PanelRight } from "lucide-react";
 import {
   CANVAS_STATUS_OPTIONS, getCanvasTypeConfig, getCanvasStatusConfig,
 } from "./canvasConstants";
 import { PROJECT_TYPES, getProjectTypeMeta } from "./canvasProjectTypes";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
+import { isCanvasNodeBlocked, readCanvasOperationalMeta, type ApprovalStatus } from "./canvasOperationalMeta";
 
 interface Props {
   nodes: CanvasNodeRecord[];
@@ -20,6 +21,13 @@ interface Props {
   onTypeFilter: (v: string | null) => void;
   statusFilter: string | null;
   onStatusFilter: (v: string | null) => void;
+  approvalFilter?: ApprovalStatus | "all" | null;
+  onApprovalFilter?: (v: ApprovalStatus | "all" | null) => void;
+  blockedFilter?: "all" | "blocked" | "clear";
+  onBlockedFilter?: (v: "all" | "blocked" | "clear") => void;
+  ownerFilter?: string | null;
+  onOwnerFilter?: (v: string | null) => void;
+  onOpenDependencies?: (n: CanvasNodeRecord) => void;
   onPick: (n: CanvasNodeRecord) => void;
   selectedId: string | null;
   collapsed: boolean;
@@ -29,6 +37,7 @@ interface Props {
 export default function CanvasInspector({
   nodes, edges, search, onSearch,
   typeFilter, onTypeFilter, statusFilter, onStatusFilter,
+  approvalFilter = "all", onApprovalFilter, blockedFilter = "all", onBlockedFilter, ownerFilter, onOwnerFilter, onOpenDependencies,
   onPick, selectedId,
   collapsed, onToggleCollapse,
 }: Props) {
@@ -36,12 +45,17 @@ export default function CanvasInspector({
     const q = search.trim().toLowerCase();
     return nodes.filter((n) => {
       const kind = ((n.data as Record<string, unknown> | null)?.kind as string | undefined) ?? n.node_type;
+      const meta = readCanvasOperationalMeta(n.data as Record<string, unknown> | null);
       if (typeFilter && kind !== typeFilter && n.node_type !== typeFilter) return false;
       if (statusFilter && n.status !== statusFilter) return false;
+      if (approvalFilter && approvalFilter !== "all" && meta.approvalStatus !== approvalFilter) return false;
+      if (blockedFilter === "blocked" && !isCanvasNodeBlocked(n.status, meta)) return false;
+      if (blockedFilter === "clear" && isCanvasNodeBlocked(n.status, meta)) return false;
+      if (ownerFilter && meta.ownerName !== ownerFilter) return false;
       if (q && !n.title.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [nodes, search, typeFilter, statusFilter]);
+  }, [nodes, search, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter]);
 
   const counts = useMemo(() => {
     const map: Record<string, number> = {};
@@ -53,6 +67,7 @@ export default function CanvasInspector({
   }, [nodes]);
 
   const linkedCount = nodes.filter((n) => n.linked_entity_id).length;
+  const owners = useMemo(() => Array.from(new Set(nodes.map((n) => readCanvasOperationalMeta(n.data as Record<string, unknown> | null).ownerName).filter(Boolean))) as string[], [nodes]);
 
   if (collapsed) {
     return (
@@ -174,6 +189,39 @@ export default function CanvasInspector({
             );
           })}
         </div>
+
+        <div className="grid grid-cols-2 gap-1.5 pt-1">
+          <select
+            value={approvalFilter ?? "all"}
+            onChange={(e) => onApprovalFilter?.(e.target.value as ApprovalStatus | "all")}
+            className="h-7 rounded-md border border-border bg-background px-2 text-[10px] text-foreground"
+          >
+            <option value="all">Aprovação</option>
+            <option value="pending">Pendente</option>
+            <option value="approved">Aprovado</option>
+            <option value="rejected">Reprovado</option>
+            <option value="not_required">Sem aprovação</option>
+          </select>
+          <select
+            value={blockedFilter}
+            onChange={(e) => onBlockedFilter?.(e.target.value as "all" | "blocked" | "clear")}
+            className="h-7 rounded-md border border-border bg-background px-2 text-[10px] text-foreground"
+          >
+            <option value="all">Bloqueio</option>
+            <option value="blocked">Bloqueados</option>
+            <option value="clear">Sem bloqueio</option>
+          </select>
+        </div>
+        {owners.length > 0 && (
+          <select
+            value={ownerFilter ?? ""}
+            onChange={(e) => onOwnerFilter?.(e.target.value || null)}
+            className="h-7 w-full rounded-md border border-border bg-background px-2 text-[10px] text-foreground"
+          >
+            <option value="">Owner</option>
+            {owners.map((owner) => <option key={owner} value={owner}>{owner}</option>)}
+          </select>
+        )}
       </div>
 
       <ScrollArea className="flex-1">
@@ -185,6 +233,9 @@ export default function CanvasInspector({
               const kind = ((n.data as Record<string, unknown> | null)?.kind as string | undefined) ?? n.node_type;
               const tc = getProjectTypeMeta(kind) ?? getCanvasTypeConfig(n.node_type);
               const sc = getCanvasStatusConfig(n.status);
+              const opMeta = readCanvasOperationalMeta(n.data as Record<string, unknown> | null);
+              const dependencyCount = opMeta.dependencyNodeIds?.filter(Boolean).length ?? 0;
+              const blocked = isCanvasNodeBlocked(n.status, opMeta);
               const Icon = tc.icon;
               const active = selectedId === n.id;
               return (
@@ -198,10 +249,25 @@ export default function CanvasInspector({
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <Icon className={`h-3 w-3 ${tc.color.split(" ")[1] ?? ""}`} />
                     <span className="text-[9px] uppercase tracking-wide text-muted-foreground">{"shortLabel" in tc ? tc.shortLabel : tc.label}</span>
-                    {n.linked_entity_id && <Link2 className="h-2.5 w-2.5 ml-auto text-primary" />}
+                    <span className="ml-auto inline-flex items-center gap-1">
+                      {blocked && <AlertTriangle className="h-2.5 w-2.5 text-destructive" />}
+                      {dependencyCount > 0 && <GitBranch className="h-2.5 w-2.5 text-muted-foreground" />}
+                      {n.linked_entity_id && <Link2 className="h-2.5 w-2.5 text-primary" />}
+                    </span>
                   </div>
                   <p className="text-xs font-medium truncate text-foreground">{n.title}</p>
-                  <Badge variant="outline" className={`text-[9px] mt-1 ${sc.color}`}>{sc.label}</Badge>
+                  <div className="mt-1 flex items-center gap-1">
+                    <Badge variant="outline" className={`text-[9px] ${sc.color}`}>{sc.label}</Badge>
+                    {dependencyCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onOpenDependencies?.(n); }}
+                        className="rounded border border-border px-1.5 py-0.5 text-[9px] text-muted-foreground hover:bg-muted/60"
+                      >
+                        deps {dependencyCount}
+                      </button>
+                    )}
+                  </div>
                 </button>
               );
             })

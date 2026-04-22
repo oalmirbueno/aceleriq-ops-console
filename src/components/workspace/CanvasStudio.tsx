@@ -22,12 +22,14 @@ import CanvasEsteiraPalette from "./CanvasEsteiraPalette";
 import CanvasInspector from "./CanvasInspector";
 import CanvasHorizontalScroller from "./CanvasHorizontalScroller";
 import CanvasQuickDock from "./CanvasQuickDock";
+import CanvasStageSummary from "./CanvasStageSummary";
+import CanvasOperationalSummary from "./CanvasOperationalSummary";
 import CanvasClientPicker from "./CanvasClientPicker";
 import CanvasClientTabs, { type CanvasClientTab } from "./CanvasClientTabs";
 import GenerateEsteiraDialog from "./GenerateEsteiraDialog";
 import { featureFlags } from "@/config/featureFlags";
 import type { EsteiraTemplate } from "./esteiraTemplates";
-import type { CanvasOperationalMeta } from "./canvasOperationalMeta";
+import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalMeta } from "./canvasOperationalMeta";
 import {
   ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH, STAGE_HEADER_HEIGHT,
   getProjectTypeMeta, getStageMeta, stageColumnX, getChecklistTemplate,
@@ -154,6 +156,9 @@ function CanvasStudioInner({
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(initialStatusFilter ?? null);
+  const [approvalFilter, setApprovalFilter] = useState<ApprovalStatus | "all">("all");
+  const [blockedFilter, setBlockedFilter] = useState<"all" | "blocked" | "clear">("all");
+  const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const [paletteCollapsed, setPaletteCollapsed] = useState(false);
@@ -265,6 +270,12 @@ function CanvasStudioInner({
     if (activeClientId === null) return projectNodes;
     return projectNodes.filter((n) => n.parent_node_id === activeClientId);
   }, [projectNodes, activeClientId]);
+
+  const scopedProjectIds = useMemo(() => new Set(scopedProjectNodes.map((n) => n.id)), [scopedProjectNodes]);
+  const scopedEdges = useMemo(
+    () => dbEdges.filter((edge) => scopedProjectIds.has(edge.source_node_id) && scopedProjectIds.has(edge.target_node_id)),
+    [dbEdges, scopedProjectIds],
+  );
 
 
   /* Quick connect helper */
@@ -873,6 +884,16 @@ function CanvasStudioInner({
     setSearch("");
     setTypeFilter(null);
     setStatusFilter(null);
+    setApprovalFilter("all");
+    setBlockedFilter("all");
+    setOwnerFilter(null);
+  };
+
+  const handleOpenDependencies = (node: CanvasNodeRow) => {
+    const deps = readCanvasOperationalMeta(node.data as Record<string, unknown> | null).dependencyNodeIds ?? [];
+    const firstDependency = deps.map((id) => dbNodes.find((n) => n.id === id)).find(Boolean) as CanvasNodeRow | undefined;
+    if (firstDependency) setSelectedNode(firstDependency);
+    else toast({ title: "Dependências registradas", description: "Nenhuma dependência relacionada está visível neste escopo." });
   };
 
   const handleDeleteNode = async (id: string) => {
@@ -897,7 +918,7 @@ function CanvasStudioInner({
     edges: dbEdges.length,
   }), [clientGroups, projectNodes, dbEdges]);
 
-  const hasFilters = !!search || !!typeFilter || !!statusFilter;
+  const hasFilters = !!search || !!typeFilter || !!statusFilter || approvalFilter !== "all" || blockedFilter !== "all" || !!ownerFilter;
   const existingClientIds = useMemo(
     () => clientGroups.filter((n) => n.linked_entity_id).map((n) => n.linked_entity_id as string),
     [clientGroups],
@@ -1177,6 +1198,16 @@ function CanvasStudioInner({
             >
               <StageLanesBg height={STAGE_BAND_HEIGHT} offsetY={CONTENT_TOP - 12} />
               <Background gap={24} size={1} className="opacity-30" />
+              {featureFlags.canvasOperationalOverlayEnabled && (
+                <>
+                  <Panel position="top-center" className="!m-0 mt-4">
+                    <CanvasStageSummary nodes={scopedProjectNodes} />
+                  </Panel>
+                  <Panel position="top-left" className="!m-0 ml-4 mt-20">
+                    <CanvasOperationalSummary nodes={scopedProjectNodes} edges={scopedEdges} />
+                  </Panel>
+                </>
+              )}
               {showMiniMap && (
                 <MiniMap
                   nodeColor={() => "hsl(var(--primary))"}
@@ -1221,6 +1252,13 @@ function CanvasStudioInner({
           onTypeFilter={setTypeFilter}
           statusFilter={statusFilter}
           onStatusFilter={setStatusFilter}
+          approvalFilter={approvalFilter}
+          onApprovalFilter={setApprovalFilter}
+          blockedFilter={blockedFilter}
+          onBlockedFilter={setBlockedFilter}
+          ownerFilter={ownerFilter}
+          onOwnerFilter={setOwnerFilter}
+          onOpenDependencies={handleOpenDependencies}
           onPick={(n) => setSelectedNode(n)}
           selectedId={selectedNode?.id ?? null}
           collapsed={inspectorCollapsed}
