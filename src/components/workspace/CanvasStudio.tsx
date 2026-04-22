@@ -422,7 +422,7 @@ function CanvasStudioInner({
         } satisfies ProjectNodeData,
       };
     });
-  }, [visibleCanvasNodes, groupMeta]);
+  }, [visibleCanvasNodes, groupMeta, quickConnectFromNode]);
 
   const reactFlowEdges = useMemo(() => {
     const visibleIds = new Set(visibleCanvasNodes.map((n) => n.id));
