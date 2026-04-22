@@ -341,6 +341,22 @@ export default function WorkspaceDetailPage() {
     setActiveTab("canvas");
   };
 
+  const completeChecklistTask = async (item: LeanChecklistItem) => {
+    if (!item.taskId) return;
+    const { error } = await supabase
+      .from("tasks")
+      .update({ status: "done" })
+      .eq("id", item.taskId);
+
+    if (error) {
+      toast({ title: "Erro ao concluir task", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    setTaskSignals((current) => current.map((task) => task.id === item.taskId ? { ...task, status: "done" } : task));
+    toast({ title: "Task concluída", description: item.title });
+  };
+
   useEffect(() => {
     setVisibleMovements(MOVEMENTS_PAGE_SIZE);
   }, [movementsOpen, eventTypeFilter, movementDate, movementSearch]);
