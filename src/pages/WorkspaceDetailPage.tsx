@@ -525,6 +525,10 @@ export default function WorkspaceDetailPage() {
                 <span className="rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
                   {ws.status}
                 </span>
+                <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium", showFullWorkspace ? "border-primary/30 bg-primary/10 text-primary" : triageComplete ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-secondary text-muted-foreground")}>
+                  {showFullWorkspace ? <CheckCircle2 className="h-3.5 w-3.5" /> : triageComplete ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+                  {showFullWorkspace ? "Workspace aberto" : triageComplete ? "Entrada liberada" : "Workspace bloqueado"}
+                </span>
                 <Button variant="outline" size="sm" className="gap-2" onClick={refreshNodeProgress} disabled={refreshingProgress}>
                   <RefreshCw className={cn("h-4 w-4", refreshingProgress && "animate-spin")} />
                   Atualizar progresso
