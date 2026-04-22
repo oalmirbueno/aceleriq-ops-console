@@ -6,7 +6,7 @@ import {
   type ReactFlowInstance, type Viewport, SelectionMode,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Settings2, Check } from "lucide-react";
+import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Settings2, Check, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -28,7 +28,7 @@ import type { EsteiraTemplate } from "./esteiraTemplates";
 import {
   ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH, STAGE_HEADER_HEIGHT,
   getProjectTypeMeta, getStageMeta, stageColumnX, getChecklistTemplate,
-  type ProjectNodeKind, type AceleraStageKey,
+  projectKindToDbNodeType, type ProjectNodeKind, type AceleraStageKey,
 } from "./canvasProjectTypes";
 import { mapLegacyStatus, premiumStatusToDb } from "./canvasEsteiraStatus";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
@@ -83,6 +83,15 @@ function nodeStageOf(row: CanvasNodeRow): AceleraStageKey {
 function nodeKindOf(row: CanvasNodeRow): string {
   const data = (row.data ?? {}) as Record<string, unknown>;
   return (data.kind as string | undefined) ?? row.node_type;
+}
+
+function edgeIntent(edge: CanvasEdgeRecord, nodesById: Map<string, CanvasNodeRow>) {
+  const sourceKind = edge.source_node_id ? nodeKindOf(nodesById.get(edge.source_node_id)!) : "";
+  const targetKind = edge.target_node_id ? nodeKindOf(nodesById.get(edge.target_node_id)!) : "";
+  if (targetKind === "engine") return { label: edge.label ?? "input", stroke: "hsl(var(--node-tech))", animated: true };
+  if (sourceKind === "engine") return { label: edge.label ?? "gera", stroke: "hsl(var(--node-build))", animated: true };
+  if (targetKind === "decisao" || sourceKind === "decisao") return { label: edge.label ?? "aprova", stroke: "hsl(var(--node-growth))", animated: false };
+  return { label: edge.label ?? undefined, stroke: "hsl(var(--primary))", animated: true };
 }
 
 function CanvasStudioInner({
@@ -329,6 +338,7 @@ function CanvasStudioInner({
     });
 
     const visibleIds = new Set(visibleProjects.map((n) => n.id));
+    const visibleById = new Map(visibleProjects.map((n) => [n.id, n]));
 
     const projRfNodes: Node[] = visibleProjects.map((n): Node => {
       const owner = n.parent_node_id ? groupMeta[n.parent_node_id] : null;
@@ -369,14 +379,19 @@ function CanvasStudioInner({
     setRfEdges(
       dbEdges
         .filter((e) => visibleIds.has(e.source_node_id) && visibleIds.has(e.target_node_id))
-        .map((e): Edge => ({
-          id: e.id,
-          source: e.source_node_id,
-          target: e.target_node_id,
-          label: e.label ?? undefined,
-          animated: true,
-          style: { stroke: "hsl(var(--primary))", strokeWidth: 1.5 },
-        })),
+        .map((e): Edge => {
+          const intent = edgeIntent(e, visibleById);
+          return {
+            id: e.id,
+            source: e.source_node_id,
+            target: e.target_node_id,
+            label: intent.label,
+            animated: intent.animated,
+            style: { stroke: intent.stroke, strokeWidth: 2 },
+            labelStyle: { fill: "hsl(var(--muted-foreground))", fontSize: 10, fontWeight: 600 },
+            labelBgStyle: { fill: "hsl(var(--card))", fillOpacity: 0.92 },
+          };
+        }),
     );
   }, [projectNodes, dbEdges, search, typeFilter, statusFilter, activeClientId, groupMeta]);
 
@@ -469,19 +484,7 @@ function CanvasStudioInner({
     if (!ensureActiveClient()) return;
     const meta = getProjectTypeMeta(kind);
     if (!meta) return;
-    const dbType = (() => {
-      switch (kind) {
-        case "asset": return "asset";
-        case "metrica": return "metric";
-        case "before_after": return "before_after";
-        case "case": return "case";
-        case "briefing":
-        case "documento":
-        case "contato": return "context";
-        case "checklist": return "task";
-        default: return "front";
-      }
-    })();
+    const dbType = projectKindToDbNodeType(kind);
 
     // Compute position: based on source if connecting, else stack inside stage column
     let pos_x = stageColumnX(stage) + NODE_X_OFFSET;
@@ -637,19 +640,7 @@ function CanvasStudioInner({
 
       for (const tn of tpl.nodes) {
         const meta = getProjectTypeMeta(tn.kind);
-        const dbType = (() => {
-          switch (tn.kind) {
-            case "asset": return "asset";
-            case "metrica": return "metric";
-            case "before_after": return "before_after";
-            case "case": return "case";
-            case "briefing":
-            case "documento":
-            case "contato": return "context";
-            case "checklist": return "task";
-            default: return "front";
-          }
-        })();
+        const dbType = projectKindToDbNodeType(tn.kind);
         const pos_x = stageColumnX(tn.stage) + NODE_X_OFFSET;
         const pos_y = startYByStage[tn.stage] ?? CONTENT_TOP + 16;
         startYByStage[tn.stage] = pos_y + NODE_VERTICAL;
@@ -718,6 +709,53 @@ function CanvasStudioInner({
     activeClientId, clientGroups, projectNodes, workspaceId, clientId, clientName, fetchData,
   ]);
 
+  const applyOpsFlowBlueprint = useCallback(async () => {
+    if (!ensureActiveClient()) return;
+    const parent = pickParentGroup();
+    if (!parent) return;
+    setBusyAction("ops-flow");
+    try {
+      const blueprint: Array<{ ref: string; kind: ProjectNodeKind; title: string; stage: AceleraStageKey; description: string }> = [
+        { ref: "context", kind: "contexto_ops", title: "Contexto central", stage: "entrada", description: "Briefing, assets, acessos, links, oferta e regras que alimentam a operação." },
+        { ref: "instruction", kind: "instrucao", title: "Instruções e critérios", stage: "planejamento", description: "SOPs, prompts, regras de execução e critérios de aceite." },
+        { ref: "engine", kind: "engine", title: "Engine: Planejamento Ops", stage: "planejamento", description: "Hub que consolida entradas e transforma contexto em plano, tarefas e entregáveis." },
+        { ref: "agent", kind: "agente", title: "Agente: Orion Ops", stage: "producao", description: "Assistente operacional conectado ao contexto, instruções e outputs." },
+        { ref: "result", kind: "resultado", title: "Resultado: Plano operacional", stage: "producao", description: "Output versionado com owner, prazo, evidência e próximos passos." },
+        { ref: "decision", kind: "decisao", title: "Decisão: Aprovação / Revisão", stage: "ativacao", description: "Roteia aprovado para próxima etapa ou retorna para revisão." },
+      ];
+      const created: Record<string, string> = {};
+      const rows: CanvasNodeRow[] = [];
+      for (const [i, item] of blueprint.entries()) {
+        const { data, error } = await supabase.from("canvas_nodes").insert({
+          workspace_id: workspaceId,
+          client_id: clientId,
+          node_type: projectKindToDbNodeType(item.kind),
+          title: item.title,
+          status: item.kind === "engine" ? "active" : "draft",
+          description: item.description,
+          pos_x: stageColumnX(item.stage) + NODE_X_OFFSET,
+          pos_y: CONTENT_TOP + 16 + (i % 2) * NODE_VERTICAL,
+          parent_node_id: parent,
+          data: { kind: item.kind, stage: item.stage, checklist: getChecklistTemplate(item.kind) },
+        }).select().single();
+        if (error) throw error;
+        created[item.ref] = (data as CanvasNodeRow).id;
+        rows.push(data as CanvasNodeRow);
+      }
+      const edges = [
+        ["context", "engine", "contexto"], ["instruction", "engine", "regra"], ["engine", "agent", "aciona"],
+        ["engine", "result", "gera"], ["result", "decision", "aprovar"], ["decision", "instruction", "revisar"],
+      ].map(([from, to, label]) => ({ workspace_id: workspaceId, source_node_id: created[from], target_node_id: created[to], edge_type: "ops", label }));
+      await supabase.from("canvas_edges").insert(edges);
+      toast({ title: "Fluxo Ops criado", description: `${rows.length} nodes · ${edges.length} conexões inteligentes` });
+      await fetchData();
+    } catch (err) {
+      toast({ title: "Erro ao criar fluxo", description: err instanceof Error ? err.message : "Tente novamente.", variant: "destructive" });
+    } finally {
+      setBusyAction(null);
+    }
+  }, [workspaceId, clientId, fetchData, activeClientId, clientGroups]);
+
 
   /* Auto-layout: por etapa, empilha vertical (apenas nodes do cliente ativo) */
   const handleAutoLayout = async () => {
@@ -727,13 +765,28 @@ function CanvasStudioInner({
     if (targetNodes.length === 0) return;
     setBusyAction("layout");
     const byStage: Record<string, CanvasNodeRow[]> = {};
+    const incoming = new Map<string, number>();
+    const outgoing = new Map<string, number>();
+    dbEdges.forEach((e) => {
+      outgoing.set(e.source_node_id, (outgoing.get(e.source_node_id) ?? 0) + 1);
+      incoming.set(e.target_node_id, (incoming.get(e.target_node_id) ?? 0) + 1);
+    });
+    const flowRank: Record<string, number> = { contexto_ops: 0, briefing: 1, documento: 2, instrucao: 3, engine: 4, agente: 5, resultado: 6, decisao: 7 };
     targetNodes.forEach((n) => {
       const s = nodeStageOf(n);
       (byStage[s] ??= []).push(n);
     });
     const updates: Array<{ id: string; pos_x: number; pos_y: number }> = [];
     Object.entries(byStage).forEach(([stage, list]) => {
-      list.forEach((n, i) => {
+      list
+        .slice()
+        .sort((a, b) => {
+          const ar = flowRank[nodeKindOf(a)] ?? 20;
+          const br = flowRank[nodeKindOf(b)] ?? 20;
+          if (ar !== br) return ar - br;
+          return (incoming.get(a.id) ?? 0) - (incoming.get(b.id) ?? 0) || (outgoing.get(b.id) ?? 0) - (outgoing.get(a.id) ?? 0);
+        })
+        .forEach((n, i) => {
         updates.push({
           id: n.id,
           pos_x: stageColumnX(stage as AceleraStageKey) + NODE_X_OFFSET,
@@ -822,6 +875,10 @@ function CanvasStudioInner({
           <Button size="sm" variant="ghost" className="h-8" onClick={handleAutoLayout} disabled={busyAction === "layout" || projectNodes.length === 0}>
             {busyAction === "layout" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LayoutGrid className="h-3.5 w-3.5" />}
             <span className="hidden md:inline ml-1 text-xs">Reorganizar</span>
+          </Button>
+          <Button size="sm" variant="secondary" className="h-8" onClick={applyOpsFlowBlueprint} disabled={busyAction === "ops-flow"}>
+            {busyAction === "ops-flow" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Workflow className="h-3.5 w-3.5" />}
+            <span className="hidden md:inline ml-1 text-xs">Fluxo Ops</span>
           </Button>
           <Button size="sm" variant="outline" className="h-8" onClick={() => setGenerateDialogOpen(true)} disabled={busyAction === "base"}>
             {busyAction === "base" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
@@ -1011,6 +1068,9 @@ function CanvasStudioInner({
               <div className="flex gap-2 mt-2 flex-wrap justify-center">
                 <Button size="sm" onClick={() => setAdvancedOpen(true)}>
                   <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar primeiro node
+                </Button>
+                <Button size="sm" variant="secondary" onClick={applyOpsFlowBlueprint} disabled={busyAction === "ops-flow"}>
+                  <Workflow className="h-3.5 w-3.5 mr-1" /> Criar fluxo Ops
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => setGenerateDialogOpen(true)} disabled={busyAction === "base"}>
                   <Sparkles className="h-3.5 w-3.5 mr-1" /> Gerar esteira do plano

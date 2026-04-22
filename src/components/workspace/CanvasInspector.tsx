@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Search, Link2, Filter, ChevronRight, ChevronLeft, PanelRight } from "lucide-react";
 import {
-  CANVAS_NODE_TYPES, CANVAS_STATUS_OPTIONS,
-  getCanvasTypeConfig, getCanvasStatusConfig,
+  CANVAS_STATUS_OPTIONS, getCanvasTypeConfig, getCanvasStatusConfig,
 } from "./canvasConstants";
+import { PROJECT_TYPES, getProjectTypeMeta } from "./canvasProjectTypes";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 
 interface Props {
@@ -35,7 +35,8 @@ export default function CanvasInspector({
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return nodes.filter((n) => {
-      if (typeFilter && n.node_type !== typeFilter) return false;
+      const kind = ((n.data as Record<string, unknown> | null)?.kind as string | undefined) ?? n.node_type;
+      if (typeFilter && kind !== typeFilter && n.node_type !== typeFilter) return false;
       if (statusFilter && n.status !== statusFilter) return false;
       if (q && !n.title.toLowerCase().includes(q)) return false;
       return true;
@@ -44,7 +45,10 @@ export default function CanvasInspector({
 
   const counts = useMemo(() => {
     const map: Record<string, number> = {};
-    nodes.forEach((n) => { map[n.node_type] = (map[n.node_type] ?? 0) + 1; });
+    nodes.forEach((n) => {
+      const kind = ((n.data as Record<string, unknown> | null)?.kind as string | undefined) ?? n.node_type;
+      map[kind] = (map[kind] ?? 0) + 1;
+    });
     return map;
   }, [nodes]);
 
@@ -127,18 +131,19 @@ export default function CanvasInspector({
           )}
         </div>
         <div className="flex flex-wrap gap-1">
-          {CANVAS_NODE_TYPES.map((t) => {
-            const active = typeFilter === t.value;
-            const c = counts[t.value] ?? 0;
+          {PROJECT_TYPES.map((t) => {
+            const active = typeFilter === t.kind;
+            const c = counts[t.kind] ?? 0;
+            const Icon = t.icon;
             return (
               <button
-                key={t.value}
-                onClick={() => onTypeFilter(active ? null : t.value)}
+                key={t.kind}
+                onClick={() => onTypeFilter(active ? null : t.kind)}
                 className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
                   active ? `${t.color} ${t.bg}` : "border-border text-muted-foreground hover:bg-muted/60"
                 }`}
               >
-                {t.label} {c > 0 && <span className="opacity-60">({c})</span>}
+                <Icon className="inline h-2.5 w-2.5 mr-1" />{t.shortLabel} {c > 0 && <span className="opacity-60">({c})</span>}
               </button>
             );
           })}
@@ -177,7 +182,8 @@ export default function CanvasInspector({
             <p className="text-[11px] text-muted-foreground text-center p-4">Nenhum node encontrado</p>
           ) : (
             filtered.map((n) => {
-              const tc = getCanvasTypeConfig(n.node_type);
+              const kind = ((n.data as Record<string, unknown> | null)?.kind as string | undefined) ?? n.node_type;
+              const tc = getProjectTypeMeta(kind) ?? getCanvasTypeConfig(n.node_type);
               const sc = getCanvasStatusConfig(n.status);
               const Icon = tc.icon;
               const active = selectedId === n.id;
@@ -191,7 +197,7 @@ export default function CanvasInspector({
                 >
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <Icon className={`h-3 w-3 ${tc.color.split(" ")[1] ?? ""}`} />
-                    <span className="text-[9px] uppercase tracking-wide text-muted-foreground">{tc.label}</span>
+                    <span className="text-[9px] uppercase tracking-wide text-muted-foreground">{"shortLabel" in tc ? tc.shortLabel : tc.label}</span>
                     {n.linked_entity_id && <Link2 className="h-2.5 w-2.5 ml-auto text-primary" />}
                   </div>
                   <p className="text-xs font-medium truncate text-foreground">{n.title}</p>

@@ -7,7 +7,7 @@ import {
   PenTool, Megaphone, Mail, Database, Lightbulb, Calendar, Paperclip,
   BarChart3, Trophy, Sparkles, Building2, FolderKanban, ListChecks,
   PackageCheck, type LucideIcon, Image as ImageIcon, Video, Phone,
-  Target, Rocket, KeyRound,
+  Target, Rocket, KeyRound, BrainCircuit, GitBranch, ClipboardCheck,
 } from "lucide-react";
 
 export type AceleraStageKey =
@@ -58,6 +58,7 @@ export function stageFromX(x: number, offsetX = 0): AceleraStageKey {
 /* ─── Project / deliverable types (RICH catalog) ─── */
 
 export type ProjectNodeKind =
+  | "contexto_ops" | "instrucao" | "engine" | "resultado" | "decisao" | "agente"
   | "briefing" | "ideia" | "reuniao" | "documento" | "acessos"
   | "landing_page" | "site" | "funil"
   | "automacao" | "ia" | "integracao"
@@ -86,6 +87,14 @@ export interface ProjectNodeTypeMeta {
 }
 
 export const PROJECT_TYPES: ProjectNodeTypeMeta[] = [
+  // Gramática operacional do Canvas — contexto → instrução → engine → resultado → decisão
+  { kind: "contexto_ops", label: "Contexto operacional", shortLabel: "Contexto", icon: Paperclip,       color: "border-border text-foreground/60", bg: "bg-transparent", defaultStage: "entrada",        sections: ["overview","links","attachments","notes"],           titleTemplate: "Contexto" },
+  { kind: "instrucao",    label: "Instrução / SOP",       shortLabel: "Instrução", icon: ClipboardCheck, color: "border-border text-foreground/60", bg: "bg-transparent", defaultStage: "planejamento",   sections: ["overview","copy","checklist","notes"],              titleTemplate: "Instrução" },
+  { kind: "engine",       label: "Engine de orquestração", shortLabel: "Engine",    icon: BrainCircuit,   color: "border-border text-foreground/60", bg: "bg-transparent", defaultStage: "planejamento",   sections: ["overview","links","checklist","notes"],             titleTemplate: "Engine" },
+  { kind: "resultado",    label: "Resultado / Output",    shortLabel: "Resultado", icon: PackageCheck,    color: "border-border text-foreground/60", bg: "bg-transparent", defaultStage: "producao",       sections: ["overview","links","attachments","metrics","notes"], titleTemplate: "Resultado" },
+  { kind: "decisao",      label: "Decisão / Aprovação",   shortLabel: "Decisão",   icon: GitBranch,       color: "border-border text-foreground/60", bg: "bg-transparent", defaultStage: "ativacao",       sections: ["overview","checklist","notes"],                      titleTemplate: "Decisão" },
+  { kind: "agente",       label: "Agente operacional",    shortLabel: "Agente",    icon: Bot,             color: "border-border text-foreground/60", bg: "bg-transparent", defaultStage: "producao",       sections: ["overview","links","copy","checklist","notes"],     titleTemplate: "Agente" },
+
   // Entrada
   { kind: "briefing",     label: "Briefing",            shortLabel: "Briefing",     icon: FileText,        color: "border-border text-foreground/60",     bg: "bg-transparent",    defaultStage: "entrada",        sections: ["overview","links","notes","attachments"],                       titleTemplate: "Briefing" },
   { kind: "reuniao",      label: "Reunião / Call",      shortLabel: "Reunião",      icon: Phone,           color: "border-border text-foreground/60",     bg: "bg-transparent",    defaultStage: "entrada",        sections: ["overview","notes","attachments"],                                titleTemplate: "Reunião" },
@@ -131,6 +140,7 @@ export function getProjectTypeMeta(kind: string): ProjectNodeTypeMeta | null {
 
 /* ─── Family mapping ─── */
 const KIND_TO_FAMILY: Record<ProjectNodeKind, NodeFamily> = {
+  contexto_ops: "entry", instrucao: "plan", engine: "tech", resultado: "build", decisao: "growth", agente: "tech",
   briefing: "entry", reuniao: "entry", ideia: "entry", objetivo: "entry", acessos: "entry",
   documento: "structure", checklist: "structure", contato: "structure",
   funil: "plan",
@@ -160,12 +170,12 @@ export const NODE_FAMILY_LABELS: Record<NodeFamily, string> = {
 
 /** Group catalog into bands for the palette */
 export const PROJECT_TYPE_GROUPS: Array<{ stage: AceleraStageKey; types: ProjectNodeKind[] }> = [
-  { stage: "entrada",        types: ["briefing","reuniao","ideia","objetivo","acessos"] },
+  { stage: "entrada",        types: ["contexto_ops","briefing","reuniao","ideia","objetivo","acessos"] },
   { stage: "diagnostico",    types: ["documento","contato"] },
   { stage: "estrutura_base", types: ["checklist"] },
-  { stage: "planejamento",   types: ["funil"] },
-  { stage: "producao",       types: ["landing_page","site","automacao","ia","integracao","conteudo","video","imagem","asset"] },
-  { stage: "ativacao",       types: ["lancamento","trafego","email_mkt","social"] },
+  { stage: "planejamento",   types: ["engine","instrucao","funil"] },
+  { stage: "producao",       types: ["resultado","agente","landing_page","site","automacao","ia","integracao","conteudo","video","imagem","asset"] },
+  { stage: "ativacao",       types: ["decisao","lancamento","trafego","email_mkt","social"] },
   { stage: "otimizacao",     types: ["crm","metrica"] },
   { stage: "expansao",       types: ["before_after","case"] },
 ];
@@ -178,6 +188,7 @@ export function projectKindToDbNodeType(kind: ProjectNodeKind): string {
     case "before_after": return "before_after";
     case "case": return "case";
     case "briefing":
+    case "contexto_ops":
     case "documento":
     case "contato": return "context";
     case "checklist": return "task";
@@ -212,6 +223,42 @@ export function resolveProjectNodeKind(input: {
  * Pode ser editado/removido livremente depois.
  */
 export const CHECKLIST_TEMPLATES: Partial<Record<ProjectNodeKind, string[]>> = {
+  contexto_ops: [
+    "Vincular briefing, assets e referências",
+    "Registrar regras de marca e restrições",
+    "Marcar origem e validade da informação",
+    "Conectar ao engine que vai usar este contexto",
+  ],
+  instrucao: [
+    "Definir objetivo operacional",
+    "Escrever SOP / prompt / regra de execução",
+    "Definir critérios de aceite",
+    "Conectar à engine ou resultado específico",
+  ],
+  engine: [
+    "Listar entradas obrigatórias",
+    "Definir saída esperada",
+    "Mapear automações e handoffs",
+    "Conectar outputs e decisões",
+  ],
+  resultado: [
+    "Definir owner e prazo",
+    "Produzir versão inicial",
+    "Anexar evidência / link final",
+    "Enviar para decisão ou revisão",
+  ],
+  decisao: [
+    "Definir condição de aprovação",
+    "Mapear caminho se aprovado",
+    "Mapear caminho se reprovado",
+    "Registrar decisão e responsável",
+  ],
+  agente: [
+    "Definir papel do agente",
+    "Configurar instrução padrão",
+    "Conectar fontes de contexto",
+    "Testar ação/handoff principal",
+  ],
   briefing: [
     "Coletar objetivo do cliente",
     "Mapear público-alvo e dores",
