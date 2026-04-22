@@ -23,6 +23,7 @@ import { ESTEIRA_STATUSES, getEsteiraStatus, mapLegacyStatus, premiumStatusToDb 
 import AttachmentUploader, { type AttachmentItem } from "./AttachmentUploader";
 import ClientAvatar from "./ClientAvatar";
 import BriefingConsolidatedView from "./BriefingConsolidatedView";
+import CanvasNodeOperationalFields from "./CanvasNodeOperationalFields";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 
 export interface ClientFolderOption {
@@ -43,6 +44,7 @@ interface Props {
   clientFolders?: ClientFolderOption[];
   /** Move the node to another client folder (or null to detach). */
   onMoveToFolder?: (nodeId: string, targetFolderId: string | null) => Promise<void> | void;
+  availableNodes?: Array<CanvasNodeRecord & { parent_node_id?: string | null }>;
 }
 
 type LinkItem = { label: string; url: string };
@@ -69,7 +71,7 @@ function uid() {
 
 export default function ProjectNodeDrawer({
   node, open, onOpenChange, workspaceId, onUpdated, onDelete,
-  clientFolders = [], onMoveToFolder,
+  clientFolders = [], onMoveToFolder, availableNodes = [],
 }: Props) {
   const [title, setTitle] = useState("");
   const [statusPremium, setStatusPremium] = useState("ideia");
@@ -108,6 +110,8 @@ export default function ProjectNodeDrawer({
   const stageMeta = getStageMeta(stage);
   const Icon = meta?.icon ?? FileText;
   const sections = meta?.sections ?? ["overview","links","copy","checklist","attachments","notes","metrics"];
+  const parentFolder = clientFolders.find((f) => f.id === node.parent_node_id);
+  const clientId = parentFolder?.linkedClientId ?? null;
 
   const handleSave = async () => {
     setSaving(true);
@@ -340,6 +344,7 @@ export default function ProjectNodeDrawer({
             {sections.includes("attachments") && <TabsTrigger value="attachments" className="text-xs"><Paperclip className="h-3 w-3 mr-1" />Anexos {attachments.length > 0 && <span className="ml-1 opacity-60">({attachments.length})</span>}</TabsTrigger>}
             {sections.includes("metrics") && <TabsTrigger value="metrics" className="text-xs"><BarChart3 className="h-3 w-3 mr-1" />Métricas</TabsTrigger>}
             {sections.includes("notes") && <TabsTrigger value="notes" className="text-xs"><MessageSquare className="h-3 w-3 mr-1" />Notas</TabsTrigger>}
+            <TabsTrigger value="operational" className="text-xs"><ListChecks className="h-3 w-3 mr-1" />Operação</TabsTrigger>
           </TabsList>
 
           <ScrollArea className="flex-1">
@@ -455,6 +460,16 @@ export default function ProjectNodeDrawer({
                   onChange={(e) => setNotes(e.target.value)}
                   rows={12}
                   placeholder="Notas, decisões, links de contexto, comentários internos…"
+                />
+              </TabsContent>
+
+              <TabsContent value="operational" className="m-0">
+                <CanvasNodeOperationalFields
+                  node={node}
+                  workspaceId={workspaceId}
+                  clientId={clientId}
+                  availableNodes={availableNodes}
+                  onUpdated={onUpdated}
                 />
               </TabsContent>
             </div>

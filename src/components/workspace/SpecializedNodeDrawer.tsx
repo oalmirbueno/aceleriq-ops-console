@@ -25,6 +25,7 @@ import NodeSection from "./drawerPrimitives/NodeSection";
 import NodeQuickActions from "./drawerPrimitives/NodeQuickActions";
 import NodePrefillStatus from "./drawerPrimitives/NodePrefillStatus";
 import AccessVaultDrawer from "./AccessVaultDrawer";
+import CanvasNodeOperationalFields from "./CanvasNodeOperationalFields";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 import type { PrefillFieldValue } from "./nodePrefillTypes";
 
@@ -63,12 +64,14 @@ interface Props {
   ) => (sectionId: string, fieldId: string, next: PrefillFieldValue) => void;
   /** Callback chamado quando prefill carrega/atualiza — útil pra wrappers reagirem (ex: snapshot inicial). */
   onPrefillChanged?: (prefill: ReturnType<typeof useNodePrefill>["prefill"]) => void;
+  availableNodes?: Array<CanvasNodeRecord & { parent_node_id?: string | null }>;
+  onUpdated?: () => Promise<void> | void;
 }
 
 export default function SpecializedNodeDrawer({
   node, open, onOpenChange, workspaceId, clientId, clientName,
   blueprintOverride, quickActionHandlers = {}, onDelete, extraSlot,
-  renderFieldExtra, wrapUpdateField, onPrefillChanged,
+  renderFieldExtra, wrapUpdateField, onPrefillChanged, availableNodes = [], onUpdated,
 }: Props) {
   const [vaultOpen, setVaultOpen] = useState(false);
   const kind = resolveProjectNodeKind({
@@ -190,6 +193,15 @@ export default function SpecializedNodeDrawer({
               state={methodState}
               onToggle={updateMethod}
               disabled={isGenerating}
+            />
+
+            <Separator />
+            <CanvasNodeOperationalFields
+              node={node}
+              workspaceId={workspaceId}
+              clientId={clientId}
+              availableNodes={availableNodes}
+              onUpdated={onUpdated}
             />
 
             {extraSlot && (

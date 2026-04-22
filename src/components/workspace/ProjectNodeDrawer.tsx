@@ -38,6 +38,7 @@ function SpecializedGenericDrawer(args: {
   clientName?: string;
   onDelete?: (id: string) => Promise<void> | void;
   onUpdated?: () => Promise<void> | void;
+  availableNodes?: Array<CanvasNodeRecord & { parent_node_id?: string | null }>;
 }) {
   const { handlers, dialogs } = useNodeQuickActions({
     node: args.node, open: args.open,
@@ -55,6 +56,8 @@ function SpecializedGenericDrawer(args: {
         clientName={args.clientName}
         quickActionHandlers={handlers}
         onDelete={args.onDelete}
+        availableNodes={args.availableNodes}
+        onUpdated={args.onUpdated}
       />
       {dialogs}
     </>
@@ -70,6 +73,7 @@ interface Props {
   onDelete: (id: string) => Promise<void> | void;
   clientFolders?: ClientFolderOption[];
   onMoveToFolder?: (nodeId: string, targetFolderId: string | null) => Promise<void> | void;
+  availableNodes?: Array<CanvasNodeRecord & { parent_node_id?: string | null }>;
 }
 
 export default function ProjectNodeDrawer(props: Props) {
@@ -236,6 +240,7 @@ export default function ProjectNodeDrawer(props: Props) {
         clientName={clientName}
         onDelete={props.onDelete}
         onUpdated={props.onUpdated}
+        availableNodes={props.availableNodes}
       />
     );
   }

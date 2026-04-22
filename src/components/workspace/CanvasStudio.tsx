@@ -1315,6 +1315,7 @@ function CanvasStudioInner({
         workspaceId={workspaceId}
         onUpdated={fetchData}
         onDelete={handleDeleteNode}
+        availableNodes={scopedProjectNodes}
         clientFolders={clientGroups.map((c) => ({
           id: c.id,
           name: c.title,
