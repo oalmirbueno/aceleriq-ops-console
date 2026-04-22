@@ -484,18 +484,18 @@ export default function WorkspaceDetailPage() {
                 <strong className="font-medium text-foreground"> blocked/bloqueado</strong> aplicam penalidade de 15%. Sem nodes, usamos a etapa atual como base.
               </p>
               <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                <div className="rounded-md border border-border bg-card/60 px-2.5 py-2">
+                <button type="button" onClick={() => openCanvasByStatus("concluido")} className="rounded-md border border-border bg-card/60 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:text-primary">
                   <p className="text-muted-foreground">Concluídos</p>
                   <p className="mt-0.5 font-semibold text-foreground">{finishedNodes}</p>
-                </div>
-                <div className="rounded-md border border-border bg-card/60 px-2.5 py-2">
+                </button>
+                <button type="button" onClick={() => openCanvasByStatus("ativo")} className="rounded-md border border-border bg-card/60 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:text-primary">
                   <p className="text-muted-foreground">Ativos</p>
                   <p className="mt-0.5 font-semibold text-foreground">{activeNodes}</p>
-                </div>
-                <div className="rounded-md border border-border bg-card/60 px-2.5 py-2">
+                </button>
+                <button type="button" onClick={() => openCanvasByStatus("bloqueado")} className="rounded-md border border-border bg-card/60 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:text-primary">
                   <p className="text-muted-foreground">Bloqueados</p>
                   <p className="mt-0.5 font-semibold text-foreground">{blockedNodes}</p>
-                </div>
+                </button>
               </div>
             </div>
           </div>
