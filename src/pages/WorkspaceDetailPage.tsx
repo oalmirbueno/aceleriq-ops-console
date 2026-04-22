@@ -22,20 +22,6 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import ClientAvatar from "@/components/workspace/ClientAvatar";
-import WorkspaceHeader from "@/components/workspace/WorkspaceHeader";
-import WorkspaceTabResumo from "@/components/workspace/WorkspaceTabResumo";
-import WorkspaceTabTimeline from "@/components/workspace/WorkspaceTabTimeline";
-import WorkspaceTabContexto from "@/components/workspace/WorkspaceTabContexto";
-import WorkspaceTabTasks from "@/components/workspace/WorkspaceTabTasks";
-import WorkspaceTabDossie from "@/components/workspace/WorkspaceTabDossie";
-import WorkspaceTabProducao from "@/components/workspace/WorkspaceTabProducao";
-import WorkspaceTabAssets from "@/components/workspace/WorkspaceTabAssets";
-import WorkspaceTabMetricas from "@/components/workspace/WorkspaceTabMetricas";
-import WorkspaceTabBeforeAfter from "@/components/workspace/WorkspaceTabBeforeAfter";
-import WorkspaceTabCase from "@/components/workspace/WorkspaceTabCase";
-import WorkspaceTabCanvas from "@/components/workspace/WorkspaceTabCanvas";
-import WorkspaceTabConteudo from "@/components/workspace/WorkspaceTabConteudo";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { getStagePremiumLabel } from "@/components/workspace/aceleraConstants";
@@ -264,14 +250,11 @@ export default function WorkspaceDetailPage() {
   const [triageLoading, setTriageLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
   const [refreshingProgress, setRefreshingProgress] = useState(false);
-  const [showFullWorkspace, setShowFullWorkspace] = useState(false);
   const [movementsOpen, setMovementsOpen] = useState(false);
   const [eventTypeFilter, setEventTypeFilter] = useState("__all__");
   const [movementDate, setMovementDate] = useState<Date | undefined>();
   const [movementSearch, setMovementSearch] = useState("");
   const [visibleMovements, setVisibleMovements] = useState(MOVEMENTS_PAGE_SIZE);
-  const [activeTab, setActiveTab] = useState("resumo");
-  const [canvasStatusShortcut, setCanvasStatusShortcut] = useState<string | null>(null);
   const [completedTriageKeys, setCompletedTriageKeys] = useState<string[]>([]);
   const [completedPreEntryActions, setCompletedPreEntryActions] = useState<string[]>([]);
 
@@ -341,18 +324,20 @@ export default function WorkspaceDetailPage() {
   }, [workspaceId]);
 
   useEffect(() => {
-    const shouldOpenFullWorkspace = searchParams.get("view") === "full";
-    setShowFullWorkspace(shouldOpenFullWorkspace);
+    if (!workspaceId || searchParams.get("view") !== "full") return;
 
+    const nextParams = new URLSearchParams();
     const tab = searchParams.get("tab");
-    if (tab) setActiveTab(tab);
+    const status = searchParams.get("status");
 
-    setCanvasStatusShortcut(searchParams.get("status"));
-  }, [workspaceId, searchParams]);
+    if (tab) nextParams.set("tab", tab);
+    if (status) nextParams.set("status", status);
 
-  const setWorkspaceMode = (mode: "preview" | "full") => {
-    setShowFullWorkspace(mode === "full");
-  };
+    navigate(
+      `/ops/workspaces/${workspaceId}/execution${nextParams.toString() ? `?${nextParams.toString()}` : ""}`,
+      { replace: true },
+    );
+  }, [workspaceId, searchParams, navigate]);
 
   const refreshNodeProgress = async () => {
     if (!workspaceId) return;
@@ -369,12 +354,12 @@ export default function WorkspaceDetailPage() {
 
   const openCanvasByStatus = (status: string) => {
     if (!workspaceId) return;
-    navigate(`/ops/workspaces/${workspaceId}?view=full&tab=canvas&status=${encodeURIComponent(status)}`);
+    navigate(`/ops/workspaces/${workspaceId}/execution?tab=canvas&status=${encodeURIComponent(status)}`);
   };
 
   const handleWorkspaceEntry = () => {
     if (!workspaceId) return;
-    navigate(`/ops/workspaces/${workspaceId}?view=full`);
+    navigate(`/ops/workspaces/${workspaceId}/execution`);
   };
 
   const completeChecklistTask = async (item: LeanChecklistItem) => {
