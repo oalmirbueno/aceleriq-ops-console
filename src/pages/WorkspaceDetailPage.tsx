@@ -369,12 +369,12 @@ export default function WorkspaceDetailPage() {
 
   const openCanvasByStatus = (status: string) => {
     if (!workspaceId) return;
-    window.open(`/ops/workspaces/${workspaceId}?view=full&tab=canvas&status=${encodeURIComponent(status)}`, "_blank", "noopener,noreferrer");
+    navigate(`/ops/workspaces/${workspaceId}?view=full&tab=canvas&status=${encodeURIComponent(status)}`);
   };
 
   const handleWorkspaceEntry = () => {
     if (!workspaceId) return;
-    window.open(`/ops/workspaces/${workspaceId}?view=full`, "_blank", "noopener,noreferrer");
+    navigate(`/ops/workspaces/${workspaceId}?view=full`);
   };
 
   const completeChecklistTask = async (item: LeanChecklistItem) => {
