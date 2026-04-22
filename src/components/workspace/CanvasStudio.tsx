@@ -919,11 +919,6 @@ function CanvasStudioInner({
     setAdvancedOpen(false);
   };
 
-  const quickDockAdd = (kind: ProjectNodeKind) => {
-    const meta = getProjectTypeMeta(kind);
-    if (meta) addProjectNode(kind, meta.defaultStage);
-  };
-
   /* Quick add from inline + on a node */
   const quickAddFromNode = (kind: ProjectNodeKind) => {
     const src = dbNodes.find((n) => n.id === quickAddState.sourceId);
@@ -935,13 +930,13 @@ function CanvasStudioInner({
   return (
     <div className={`flex flex-col bg-background ${fullscreen ? "h-full" : "h-[80vh] rounded-lg border border-border overflow-hidden"}`}>
       {/* Top bar */}
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-card/40 backdrop-blur-sm">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-background/95">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="h-2 w-2 rounded-full bg-primary shrink-0 animate-pulse" />
-          <p className="text-sm font-semibold text-foreground truncate">Esteira de produção</p>
+          <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+          <p className="text-sm font-semibold text-foreground truncate">Execução operacional</p>
           <span className="text-[11px] text-muted-foreground hidden sm:inline truncate">
             {activeClientId
-              ? `${clientGroups.find((c) => c.id === activeClientId)?.title ?? "Cliente"} · ${scopedProjectNodes.length} nodes`
+              ? `${clientGroups.find((c) => c.id === activeClientId)?.title ?? "Cliente"} · ${visibleCanvasNodes.length}/${scopedProjectNodes.length} passos`
               : `Todos · ${summary.clients} cliente${summary.clients === 1 ? "" : "s"} · ${summary.projects} nodes`}
           </span>
         </div>
@@ -1180,7 +1175,7 @@ function CanvasStudioInner({
               multiSelectionKeyCode={["Meta", "Control"]}
               selectionMode={SelectionMode.Partial}
               proOptions={{ hideAttribution: true }}
-              className="bg-background canvas-flow gravyx-flow"
+              className="bg-background canvas-flow acelera-ops-flow"
               defaultEdgeOptions={{ type: "smoothstep", animated: true }}
               onPaneContextMenu={(event) => event.preventDefault()}
             >
