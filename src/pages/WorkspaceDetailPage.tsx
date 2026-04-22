@@ -61,11 +61,24 @@ interface TimelineEvent {
   created_at: string;
 }
 
+interface WorkspaceNodeProgress {
+  id: string;
+  status: string | null;
+}
+
 const STAGES = ["entrada", "diagnostico", "estrutura_base", "planejamento", "producao", "ativacao", "otimizacao", "expansao"];
 
 function workspaceProgress(stage: string) {
   const index = Math.max(0, STAGES.indexOf(stage));
   return Math.round(((index + 1) / STAGES.length) * 100);
+}
+
+function calculateRealProgress(stage: string, nodes: WorkspaceNodeProgress[]) {
+  if (nodes.length === 0) return workspaceProgress(stage);
+  const done = nodes.filter((node) => node.status === "done" || node.status === "concluido").length;
+  const activeWeight = nodes.filter((node) => node.status === "active" || node.status === "ativo").length * 0.55;
+  const blockedPenalty = nodes.filter((node) => node.status === "blocked" || node.status === "bloqueado").length * 0.15;
+  return Math.max(5, Math.min(100, Math.round(((done + activeWeight) / nodes.length) * 100 - blockedPenalty)));
 }
 
 function introCopy(stage: string) {
@@ -104,6 +117,7 @@ export default function WorkspaceDetailPage() {
   const navigate = useNavigate();
   const [ws, setWs] = useState<Workspace | null>(null);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [nodesProgress, setNodesProgress] = useState<WorkspaceNodeProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
   const [showFullWorkspace, setShowFullWorkspace] = useState(false);
@@ -129,6 +143,13 @@ export default function WorkspaceDetailPage() {
       .limit(100);
 
     if (events) setTimeline(events);
+
+    const { data: nodes } = await supabase
+      .from("canvas_nodes")
+      .select("id, status")
+      .eq("workspace_id", workspaceId);
+
+    if (nodes) setNodesProgress(nodes as WorkspaceNodeProgress[]);
     setLoading(false);
   };
 
@@ -187,7 +208,9 @@ export default function WorkspaceDetailPage() {
   const clientName = ws.clients?.name ?? "Cliente";
   const ownerName = ws.profiles?.full_name ?? ws.profiles?.email ?? null;
   const planName = ws.clients?.plan_name ?? null;
-  const progress = workspaceProgress(ws.current_stage);
+  const progress = calculateRealProgress(ws.current_stage, nodesProgress);
+  const stageProgress = workspaceProgress(ws.current_stage);
+  const finishedNodes = nodesProgress.filter((node) => node.status === "done" || node.status === "concluido").length;
   const intro = introCopy(ws.current_stage);
   const actionPlan = actionPlanFor(ws.current_stage);
   const movementTypes = Array.from(new Set(timeline.map((event) => event.event_type))).sort();
@@ -221,6 +244,37 @@ export default function WorkspaceDetailPage() {
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
+
+        <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <p className="label-sm mb-2">Resumo operacional</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-xl font-semibold tracking-tight text-foreground">{getStagePremiumLabel(ws.current_stage)}</h2>
+                <span className="rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                  {ws.status}
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Progresso real calculado por nodes concluídos/ativos no canvas; fallback pela etapa quando ainda não há nodes.
+              </p>
+            </div>
+
+            <div className="w-full max-w-xl rounded-md border border-border bg-secondary/30 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Avanço real</p>
+                  <p className="text-2xl font-semibold text-foreground">{progress}%</p>
+                </div>
+                <div className="text-right text-xs text-muted-foreground">
+                  <p>{finishedNodes}/{nodesProgress.length} nodes concluídos</p>
+                  <p>Etapa base: {stageProgress}%</p>
+                </div>
+              </div>
+              <Progress value={progress} className="h-2" />
+            </div>
+          </div>
+        </section>
 
         <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <div className="relative border-b border-border bg-secondary/40 p-6">
