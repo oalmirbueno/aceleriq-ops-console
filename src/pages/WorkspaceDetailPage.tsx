@@ -84,6 +84,7 @@ interface LeanChecklistItem {
 
 const STAGES = ["entrada", "diagnostico", "estrutura_base", "planejamento", "producao", "ativacao", "otimizacao", "expansao"];
 const MOVEMENTS_PAGE_SIZE = 20;
+const TIMELINE_FETCH_PAGE_SIZE = 500;
 
 function workspaceProgress(stage: string) {
   const index = Math.max(0, STAGES.indexOf(stage));
@@ -198,6 +199,31 @@ function formatMovementDay(iso: string) {
 
 function movementDayKey(iso: string) {
   return new Date(iso).toISOString().slice(0, 10);
+}
+
+async function fetchAllTimelineEvents(workspaceId: string) {
+  const all: TimelineEvent[] = [];
+  let total = 0;
+  let from = 0;
+
+  while (true) {
+    const to = from + TIMELINE_FETCH_PAGE_SIZE - 1;
+    const { data, count, error } = await supabase
+      .from("timeline_events")
+      .select("id, event_type, title, description, happened_at, created_at", { count: from === 0 ? "exact" : undefined })
+      .eq("workspace_id", workspaceId)
+      .order("happened_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
+    if (error) throw error;
+    if (from === 0) total = count ?? data?.length ?? 0;
+    all.push(...((data ?? []) as TimelineEvent[]));
+    if (!data || data.length < TIMELINE_FETCH_PAGE_SIZE || all.length >= total) break;
+    from += TIMELINE_FETCH_PAGE_SIZE;
+  }
+
+  return { events: all, total };
 }
 
 export default function WorkspaceDetailPage() {
