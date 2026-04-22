@@ -27,6 +27,7 @@ import CanvasClientTabs, { type CanvasClientTab } from "./CanvasClientTabs";
 import GenerateEsteiraDialog from "./GenerateEsteiraDialog";
 import { featureFlags } from "@/config/featureFlags";
 import type { EsteiraTemplate } from "./esteiraTemplates";
+import type { CanvasOperationalMeta } from "./canvasOperationalMeta";
 import {
   ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH, STAGE_HEADER_HEIGHT,
   getProjectTypeMeta, getStageMeta, stageColumnX, getChecklistTemplate,
@@ -384,6 +385,7 @@ function CanvasStudioInner({
     const projRfNodes: Node[] = visibleProjects.map((n): Node => {
       const owner = n.parent_node_id ? groupMeta[n.parent_node_id] : null;
       const dataObj = (n.data as Record<string, unknown> | null) ?? {};
+      const operationalMeta = (dataObj.operationalMeta ?? dataObj.operational_meta ?? {}) as CanvasOperationalMeta;
       const attachmentList = (dataObj.attachments as Array<{ url?: string; type?: string; label?: string }> | undefined) ?? [];
       const PREVIEWABLE = new Set(["image","jpg","jpeg","png","webp","gif","svg","pdf","video","mp4","mov","webm"]);
       const coverRaw = attachmentList.find((a) => a?.url && PREVIEWABLE.has((a.type ?? "").toLowerCase()))
@@ -410,6 +412,7 @@ function CanvasStudioInner({
           clientName: owner?.name ?? null,
           clientSeed: owner?.seed ?? null,
           clientLogoUrl: owner?.logoUrl ?? null,
+          operationalMeta,
           onQuickConnect: (dir: "right" | "bottom") => quickConnectFromNode(n.id, dir),
         } satisfies ProjectNodeData,
       };

@@ -1,10 +1,17 @@
 import { memo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Plus, Link2, Paperclip, ListChecks, Maximize2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, GitBranch, Plus, Link2, Paperclip, ListChecks, Maximize2, XCircle } from "lucide-react";
 import { getProjectTypeMeta, getNodeFamily } from "./canvasProjectTypes";
 import { getEsteiraStatus, mapLegacyStatus } from "./canvasEsteiraStatus";
 import ClientAvatar from "./ClientAvatar";
 import AttachmentPreview from "./AttachmentPreview";
+import {
+  countOperationalDependencies,
+  countOperationalEvidence,
+  isOperationalOverdue,
+  type ApprovalStatus,
+  type CanvasOperationalMeta,
+} from "./canvasOperationalMeta";
 
 export interface ProjectNodeCoverAttachment {
   url: string;
@@ -29,8 +36,16 @@ export interface ProjectNodeData extends Record<string, unknown> {
   clientName?: string | null;
   clientSeed?: string | null;
   clientLogoUrl?: string | null;
+  operationalMeta?: CanvasOperationalMeta | null;
   /** Callback to open quick-add at a relative direction */
   onQuickConnect?: (dir: "right" | "bottom") => void;
+}
+
+function getApprovalSignal(status?: ApprovalStatus) {
+  if (status === "pending") return { icon: Clock3, label: "Aprovação pendente", className: "text-muted-foreground" };
+  if (status === "approved") return { icon: CheckCircle2, label: "Aprovado", className: "text-primary" };
+  if (status === "rejected") return { icon: XCircle, label: "Reprovado", className: "text-destructive" };
+  return null;
 }
 
 function ProjectNodeCardComp({ data, selected }: NodeProps) {
@@ -43,6 +58,12 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
     d.checklistTotal && d.checklistTotal > 0
       ? Math.round(((d.checklistDone ?? 0) / d.checklistTotal) * 100)
       : null;
+  const opMeta = d.operationalMeta ?? null;
+  const approvalSignal = getApprovalSignal(opMeta?.approvalStatus);
+  const evidenceCount = countOperationalEvidence(opMeta);
+  const dependencyCount = countOperationalDependencies(opMeta);
+  const overdue = isOperationalOverdue(opMeta);
+  const blocked = !!opMeta?.blockedReason || d.status === "blocked" || d.status === "bloqueado";
 
   const [hover, setHover] = useState(false);
 
@@ -68,6 +89,15 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
           </span>
           <div className="ml-auto flex items-center gap-1.5">
             <Maximize2 className="h-3 w-3 text-foreground/35 opacity-0 transition-opacity group-hover:opacity-100" aria-label="Abrir popup" />
+            {approvalSignal && (
+              <approvalSignal.icon className={`h-3 w-3 ${approvalSignal.className}`} aria-label={approvalSignal.label} />
+            )}
+            {blocked && (
+              <AlertTriangle className="h-3 w-3 text-destructive" aria-label="Bloqueado" />
+            )}
+            {overdue && (
+              <Clock3 className="h-3 w-3 text-destructive" aria-label="Prazo vencido" />
+            )}
             {d.hasLinkedEntity && (
               <Link2 className="h-3 w-3 text-foreground/40" aria-label="Vinculado" />
             )}
@@ -154,6 +184,18 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
               <span className="inline-flex items-center gap-0.5">
                 <Paperclip className="h-2.5 w-2.5" />
                 {d.attachments}
+              </span>
+            )}
+            {evidenceCount > 0 && (
+              <span className="inline-flex items-center gap-0.5" aria-label={`${evidenceCount} evidências`}>
+                <CheckCircle2 className="h-2.5 w-2.5" />
+                {evidenceCount}
+              </span>
+            )}
+            {dependencyCount > 0 && (
+              <span className="inline-flex items-center gap-0.5" aria-label={`${dependencyCount} dependências`}>
+                <GitBranch className="h-2.5 w-2.5" />
+                {dependencyCount}
               </span>
             )}
           </div>
