@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { BarChart3, Link2, ListPlus, Loader2, Save, Sparkles, Trophy, Wand2, X } from "lucide-react";
+import { BarChart3, Link2, ListPlus, Loader2, Save, Sparkles, Trophy, Wand2, X, type LucideIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
@@ -41,7 +41,9 @@ const approvalOptions: Array<{ value: ApprovalStatus; label: string }> = [
   { value: "rejected", label: "Reprovada" },
 ];
 
-const proofButtons: Array<{ kind: ProjectNodeKind; label: string; icon: typeof BarChart3 }> = [
+type ProofNodeKind = "metrica" | "before_after" | "case";
+
+const proofButtons: Array<{ kind: ProofNodeKind; label: string; icon: LucideIcon }> = [
   { kind: "metrica", label: "Criar KPI", icon: BarChart3 },
   { kind: "before_after", label: "Criar before/after", icon: Sparkles },
   { kind: "case", label: "Criar case", icon: Trophy },
