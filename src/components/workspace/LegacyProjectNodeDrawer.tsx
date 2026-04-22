@@ -173,7 +173,7 @@ export default function ProjectNodeDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="center" className="canvas-node-popup p-0 flex flex-col overflow-hidden">
+      <SheetContent side="center" className="canvas-node-popup p-0 flex min-h-0 flex-col overflow-hidden">
         {/* Header */}
         <div className={`px-5 py-4 border-b border-border ${meta?.bg ?? ""}`}>
           <div className="flex items-start gap-3">
@@ -335,7 +335,7 @@ export default function ProjectNodeDrawer({
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="overview" className="flex-1 flex flex-col min-h-0">
+        <Tabs defaultValue="overview" className="flex min-h-0 flex-1 flex-col">
           <TabsList className="rounded-none w-full justify-start px-3 border-b border-border bg-card/40 h-9 overflow-x-auto">
             {sections.includes("overview") && <TabsTrigger value="overview" className="text-xs"><FileText className="h-3 w-3 mr-1" />Visão geral</TabsTrigger>}
             {sections.includes("links") && <TabsTrigger value="links" className="text-xs"><Link2 className="h-3 w-3 mr-1" />Links {links.length > 0 && <span className="ml-1 opacity-60">({links.length})</span>}</TabsTrigger>}
@@ -347,7 +347,7 @@ export default function ProjectNodeDrawer({
             <TabsTrigger value="operational" className="text-xs"><ListChecks className="h-3 w-3 mr-1" />Operação</TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="flex-1">
+          <ScrollArea className="min-h-0 flex-1">
             <div className="p-5">
               <TabsContent value="overview" className="m-0 space-y-3">
                 <div className="space-y-1.5">
