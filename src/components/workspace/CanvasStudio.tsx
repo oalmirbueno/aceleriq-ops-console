@@ -460,13 +460,34 @@ function CanvasStudioInner({
 
   const onConnect = useCallback(async (conn: Connection) => {
     if (!conn.source || !conn.target || conn.source === conn.target) return;
+    const sourceNode = dbNodes.find((n) => n.id === conn.source);
+    const targetNode = dbNodes.find((n) => n.id === conn.target);
+    if (!sourceNode || !targetNode) return;
+
+    const validation = validateCanvasConnection(sourceNode, targetNode);
+    if (!validation.allowed) {
+      toast({
+        title: "Ligação incompatível",
+        description: validation.reason ?? "Essa conexão não segue o fluxo operacional do canvas.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const alreadyExists = dbEdges.some((edge) => edge.source_node_id === conn.source && edge.target_node_id === conn.target);
+    if (alreadyExists) {
+      toast({ title: "Conexão já existe", description: "Esses nodes já estão ligados no canvas." });
+      return;
+    }
+
     const { data, error } = await supabase
       .from("canvas_edges")
       .insert({
         workspace_id: workspaceId,
         source_node_id: conn.source,
         target_node_id: conn.target,
-        edge_type: "next",
+        edge_type: "ops",
+        label: validation.label,
       })
       .select()
       .single();
@@ -477,7 +498,7 @@ function CanvasStudioInner({
     }
     if (data) setDbEdges((prev) => [...prev, data as CanvasEdgeRecord]);
     await onTimelineRefresh?.();
-  }, [workspaceId, onTimelineRefresh]);
+  }, [workspaceId, onTimelineRefresh, dbNodes, dbEdges]);
 
   const onNodeClick = useCallback((_e: React.MouseEvent, node: Node) => {
     const found = dbNodes.find((n) => n.id === node.id);
