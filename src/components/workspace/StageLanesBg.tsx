@@ -10,7 +10,7 @@ interface Props {
 
 /**
  * Monochrome stage lanes — vertical dividers follow the canvas,
- * while ACELERA headers stay pinned to the viewport top.
+ * while ACELERA headers stay pinned, readable, and complete at the viewport top.
  */
 function StageLanesBgComp({ height, offsetX = 0, offsetY = 0 }: Props) {
   const totalWidth = STAGE_COLUMN_WIDTH * ACELERA_STAGES.length;
@@ -46,35 +46,27 @@ function StageLanesBgComp({ height, offsetX = 0, offsetY = 0 }: Props) {
         </div>
       </div>
 
-      <div
-        className="absolute left-0 top-0 z-20"
-        style={{
-          width: totalWidth,
-          transform: `translateX(${viewportX}px) scale(${safeZoom})`,
-          transformOrigin: "0 0",
-        }}
-      >
-        <div className="flex h-14 border-b border-border/30 bg-background/85 shadow-lg shadow-background/40 backdrop-blur-md">
+      <div className="absolute inset-x-0 top-0 z-20">
+        <div className="grid h-16 border-b border-border/30 bg-background/90 shadow-lg shadow-background/40 backdrop-blur-md" style={{ gridTemplateColumns: `repeat(${ACELERA_STAGES.length}, minmax(0, 1fr))` }}>
           {ACELERA_STAGES.map((s, idx) => (
             <div
               key={s.key}
-              className={`relative flex h-14 items-center gap-2.5 px-3.5 ${idx > 0 ? "border-l border-dashed border-border/25" : ""}`}
-              style={{ width: STAGE_COLUMN_WIDTH }}
+              className={`relative flex h-16 min-w-0 items-center gap-2.5 px-3.5 ${idx > 0 ? "border-l border-dashed border-border/25" : ""}`}
             >
-                <div className="h-9 w-9 rounded-lg border border-border flex items-center justify-center font-bold text-base font-mono text-foreground/50">
-                  {s.letter}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-semibold leading-tight tracking-tight text-foreground/60">
-                    {s.short}
-                  </p>
-                  <p className="text-[9px] text-muted-foreground/60 truncate leading-tight uppercase tracking-wider mt-0.5">
-                    {s.label}
-                  </p>
-                </div>
-                <div className="text-[9px] font-mono text-muted-foreground/30 tabular-nums">
-                  {String(idx + 1).padStart(2, "0")}
-                </div>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border font-mono text-base font-bold text-foreground/60">
+                {s.letter}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[12px] font-semibold leading-tight text-foreground/70">
+                  {s.short}
+                </p>
+                <p className="mt-0.5 truncate text-[9px] uppercase leading-tight tracking-wider text-muted-foreground/65">
+                  {s.label}
+                </p>
+              </div>
+              <div className="shrink-0 font-mono text-[9px] tabular-nums text-muted-foreground/35">
+                {String(idx + 1).padStart(2, "0")}
+              </div>
             </div>
           ))}
         </div>
