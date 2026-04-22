@@ -33,6 +33,7 @@ import WorkspaceTabBeforeAfter from "@/components/workspace/WorkspaceTabBeforeAf
 import WorkspaceTabCase from "@/components/workspace/WorkspaceTabCase";
 import WorkspaceTabCanvas from "@/components/workspace/WorkspaceTabCanvas";
 import WorkspaceTabConteudo from "@/components/workspace/WorkspaceTabConteudo";
+import { CANVAS_NODE_TYPES, getCanvasTypeConfig } from "@/components/workspace/canvasConstants";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -65,6 +66,8 @@ interface TimelineEvent {
 interface WorkspaceNodeProgress {
   id: string;
   status: string | null;
+  node_type: string | null;
+  data: Record<string, unknown> | null;
 }
 
 interface WorkspaceTaskSignal {
@@ -200,6 +203,10 @@ function formatMovementDay(iso: string) {
 
 function movementDayKey(iso: string) {
   return new Date(iso).toISOString().slice(0, 10);
+}
+
+function nodeStage(node: WorkspaceNodeProgress) {
+  return ((node.data?.stage ?? node.data?.acelera_stage) as string | undefined) ?? "__none__";
 }
 
 async function fetchAllTimelineEvents(workspaceId: string) {
