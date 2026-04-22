@@ -43,6 +43,7 @@ const App = () => (
               <Route path="clients" element={<ClientsPage />} />
               <Route path="clients/:id/vault" element={<ClientVaultPage />} />
               <Route path="workspaces" element={<WorkspacesPage />} />
+              <Route path="workspaces/:workspaceId/execution" element={<WorkspaceDetailPage mode="execution" />} />
               <Route path="workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="ai" element={<AdminRoute><AiManagementPage /></AdminRoute>} />

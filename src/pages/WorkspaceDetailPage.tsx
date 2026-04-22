@@ -251,7 +251,11 @@ async function fetchAllTimelineEvents(workspaceId: string) {
   return { events: all, total };
 }
 
-export default function WorkspaceDetailPage() {
+interface WorkspaceDetailPageProps {
+  mode?: "preview" | "execution";
+}
+
+export default function WorkspaceDetailPage({ mode = "preview" }: WorkspaceDetailPageProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -264,14 +268,14 @@ export default function WorkspaceDetailPage() {
   const [triageLoading, setTriageLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
   const [refreshingProgress, setRefreshingProgress] = useState(false);
-  const [showFullWorkspace, setShowFullWorkspace] = useState(false);
+  const showFullWorkspace = mode === "execution";
   const [movementsOpen, setMovementsOpen] = useState(false);
   const [eventTypeFilter, setEventTypeFilter] = useState("__all__");
   const [movementDate, setMovementDate] = useState<Date | undefined>();
   const [movementSearch, setMovementSearch] = useState("");
   const [visibleMovements, setVisibleMovements] = useState(MOVEMENTS_PAGE_SIZE);
-  const [activeTab, setActiveTab] = useState("resumo");
-  const [canvasStatusShortcut, setCanvasStatusShortcut] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") ?? "resumo");
+  const [canvasStatusShortcut, setCanvasStatusShortcut] = useState<string | null>(searchParams.get("status"));
   const [completedTriageKeys, setCompletedTriageKeys] = useState<string[]>([]);
   const [completedPreEntryActions, setCompletedPreEntryActions] = useState<string[]>([]);
 
@@ -341,18 +345,25 @@ export default function WorkspaceDetailPage() {
   }, [workspaceId]);
 
   useEffect(() => {
-    const shouldOpenFullWorkspace = searchParams.get("view") === "full";
-    setShowFullWorkspace(shouldOpenFullWorkspace);
+    if (!workspaceId || mode !== "preview" || searchParams.get("view") !== "full") return;
 
+    const nextParams = new URLSearchParams();
     const tab = searchParams.get("tab");
-    if (tab) setActiveTab(tab);
+    const status = searchParams.get("status");
 
+    if (tab) nextParams.set("tab", tab);
+    if (status) nextParams.set("status", status);
+
+    navigate(
+      `/ops/workspaces/${workspaceId}/execution${nextParams.toString() ? `?${nextParams.toString()}` : ""}`,
+      { replace: true },
+    );
+  }, [workspaceId, searchParams, navigate, mode]);
+
+  useEffect(() => {
+    setActiveTab(searchParams.get("tab") ?? "resumo");
     setCanvasStatusShortcut(searchParams.get("status"));
-  }, [workspaceId, searchParams]);
-
-  const setWorkspaceMode = (mode: "preview" | "full") => {
-    setShowFullWorkspace(mode === "full");
-  };
+  }, [searchParams]);
 
   const refreshNodeProgress = async () => {
     if (!workspaceId) return;
@@ -369,12 +380,12 @@ export default function WorkspaceDetailPage() {
 
   const openCanvasByStatus = (status: string) => {
     if (!workspaceId) return;
-    navigate(`/ops/workspaces/${workspaceId}?view=full&tab=canvas&status=${encodeURIComponent(status)}`);
+    navigate(`/ops/workspaces/${workspaceId}/execution?tab=canvas&status=${encodeURIComponent(status)}`);
   };
 
   const handleWorkspaceEntry = () => {
     if (!workspaceId) return;
-    navigate(`/ops/workspaces/${workspaceId}?view=full`);
+    navigate(`/ops/workspaces/${workspaceId}/execution`);
   };
 
   const completeChecklistTask = async (item: LeanChecklistItem) => {
@@ -919,7 +930,7 @@ export default function WorkspaceDetailPage() {
         {showFullWorkspace && (
           <div className="space-y-3">
             <div className="flex justify-end">
-              <Button variant="outline" size="sm" onClick={() => setWorkspaceMode("preview")}>Voltar para prévia</Button>
+              <Button variant="outline" size="sm" onClick={() => navigate(`/ops/workspaces/${workspaceId}`)}>Voltar para pré-entrada</Button>
             </div>
             <WorkspaceHeader
               clientName={clientName}
