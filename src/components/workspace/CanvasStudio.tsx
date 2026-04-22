@@ -69,7 +69,6 @@ const NODE_VERTICAL = 130;
 const NODE_X_OFFSET = 36; // x inside column
 const TOTAL_STAGE_WIDTH = STAGE_COLUMN_WIDTH * ACELERA_STAGES.length;
 const CANVAS_PADDING = 640;
-const PREVIEWABLE_ATTACHMENT_TYPES = new Set(["image", "jpg", "jpeg", "png", "webp", "gif", "svg", "pdf", "video", "mp4", "mov", "webm"]);
 const CANVAS_TRANSLATE_EXTENT: [[number, number], [number, number]] = [
   [-CANVAS_PADDING, -CANVAS_PADDING],
   [TOTAL_STAGE_WIDTH + CANVAS_PADDING, CONTENT_TOP + STAGE_BAND_HEIGHT + CANVAS_PADDING],
@@ -381,11 +380,6 @@ function CanvasStudioInner({
       const dataObj = (n.data as Record<string, unknown> | null) ?? {};
       const operationalMeta = (dataObj.operationalMeta ?? dataObj.operational_meta ?? {}) as CanvasOperationalMeta;
       const attachmentList = (dataObj.attachments as Array<{ url?: string; type?: string; label?: string }> | undefined) ?? [];
-      const coverRaw = attachmentList.find((a) => a?.url && PREVIEWABLE_ATTACHMENT_TYPES.has((a.type ?? "").toLowerCase()))
-        ?? attachmentList.find((a) => a?.url);
-      const cover = coverRaw?.url
-        ? { url: coverRaw.url, type: coverRaw.type, label: coverRaw.label }
-        : null;
 
       return {
         id: n.id,
@@ -401,7 +395,6 @@ function CanvasStudioInner({
           attachments: attachmentList.length,
           checklistTotal: (dataObj.checklist as Array<{ done?: boolean }> | undefined)?.length ?? 0,
           checklistDone: (dataObj.checklist as Array<{ done?: boolean }> | undefined)?.filter((c) => c.done).length ?? 0,
-          coverAttachment: cover,
           clientName: owner?.name ?? null,
           clientSeed: owner?.seed ?? null,
           clientLogoUrl: owner?.logoUrl ?? null,
