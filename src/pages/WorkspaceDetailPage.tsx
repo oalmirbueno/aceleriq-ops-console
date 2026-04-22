@@ -150,12 +150,72 @@ export default function WorkspaceDetailPage() {
   const clientName = ws.clients?.name ?? "Cliente";
   const ownerName = ws.profiles?.full_name ?? ws.profiles?.email ?? null;
   const planName = ws.clients?.plan_name ?? null;
+  const progress = workspaceProgress(ws.current_stage);
+  const intro = introCopy(ws.current_stage);
 
   return (
     <>
       <AppHeader title={clientName} subtitle={ws.name} />
 
       <div className="p-6 animate-fade-in space-y-5">
+        <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+          <div className="relative border-b border-border bg-secondary/40 p-6">
+            <div className="absolute inset-0 tech-grid-bg opacity-60" aria-hidden />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_hsl(var(--primary)/0.18),_transparent_58%)]" aria-hidden />
+            <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div className="flex min-w-0 items-center gap-4">
+                <div className="flex h-20 w-20 items-center justify-center rounded-lg border border-border bg-card/80 shadow-lg backdrop-blur">
+                  <ClientAvatar
+                    name={clientName}
+                    seed={ws.client_id}
+                    logoUrl={ws.clients?.logo_url}
+                    size="lg"
+                    className="h-16 w-16 text-xl"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <p className="label-sm mb-2">Hub operacional do cliente</p>
+                  <h1 className="truncate text-3xl font-semibold tracking-tight text-foreground">{clientName}</h1>
+                  <p className="mt-1 text-sm text-muted-foreground">{ws.clients?.company_name ?? ws.name}</p>
+                </div>
+              </div>
+
+              <div className="min-w-[260px] rounded-lg border border-border bg-card/70 p-4 backdrop-blur">
+                <div className="mb-2 flex items-center justify-between text-xs">
+                  <span className="font-medium uppercase text-muted-foreground">Processo</span>
+                  <span className="font-semibold text-primary">{progress}%</span>
+                </div>
+                <p className="mb-3 text-base font-semibold text-foreground">{getStagePremiumLabel(ws.current_stage)}</p>
+                <Progress value={progress} className="h-2" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 p-5 md:grid-cols-3">
+            <div className="rounded-md border border-border bg-secondary/30 p-4">
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+                O que foi feito
+              </div>
+              <p className="text-sm leading-relaxed text-muted-foreground">{intro.done}</p>
+            </div>
+            <div className="rounded-md border border-border bg-secondary/30 p-4">
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
+                <Target className="h-4 w-4 text-primary" />
+                O que precisa
+              </div>
+              <p className="text-sm leading-relaxed text-muted-foreground">{intro.need}</p>
+            </div>
+            <div className="rounded-md border border-primary/30 bg-primary/10 p-4">
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Recomendação
+              </div>
+              <p className="text-sm leading-relaxed text-muted-foreground">{intro.next}</p>
+            </div>
+          </div>
+        </section>
+
         <WorkspaceHeader
           clientName={clientName}
           ownerName={ownerName}
