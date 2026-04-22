@@ -66,6 +66,15 @@ interface WorkspaceNodeProgress {
   status: string | null;
 }
 
+interface WorkspaceTaskSignal {
+  id: string;
+  title: string;
+  status: string;
+  priority: string | null;
+  stage: string | null;
+  due_date: string | null;
+}
+
 const STAGES = ["entrada", "diagnostico", "estrutura_base", "planejamento", "producao", "ativacao", "otimizacao", "expansao"];
 
 function workspaceProgress(stage: string) {
@@ -92,15 +101,31 @@ function introCopy(stage: string) {
   return { done: "Aprendizados consolidados em ativos comerciais e operacionais.", need: "Fechar case, before/after e playbook replicável.", next: "Escalar padrões vencedores para novos ciclos e clientes." };
 }
 
-function actionPlanFor(stage: string) {
-  if (stage === "entrada") return ["Revisar briefing e contexto do cliente", "Mapear objetivos, restrições e acessos", "Criar os nodes iniciais do canvas"];
-  if (stage === "diagnostico") return ["Separar fatos, hipóteses e lacunas", "Priorizar gargalos por impacto operacional", "Fechar diagnóstico antes da arquitetura"];
-  if (stage === "estrutura_base") return ["Validar estrutura de funil, CRM e canais", "Organizar assets e documentos críticos", "Definir setup mínimo de execução"];
-  if (stage === "planejamento") return ["Converter estratégia em milestones", "Distribuir responsáveis e dependências", "Gerar tasks operacionais da próxima etapa"];
-  if (stage === "producao") return ["Checar entregáveis em produção", "Remover bloqueios de assets e aprovação", "Preparar checklist de ativação"];
-  if (stage === "ativacao") return ["Conferir pixel, tráfego e CRM", "Acompanhar timeline T-7 → T+1", "Registrar sinais para otimização"];
-  if (stage === "otimizacao") return ["Comparar métricas antes/depois", "Escolher próximos experimentos", "Documentar aprendizados com evidência"];
-  return ["Fechar Case PASTA", "Criar Before/After com métricas", "Derivar playbook replicável"];
+function buildActionPlan(stage: string, tasks: WorkspaceTaskSignal[], nodes: WorkspaceNodeProgress[]) {
+  const activeTasks = tasks.filter((task) => task.status !== "done" && task.status !== "canceled");
+  const blocked = tasks.filter((task) => task.status === "blocked");
+  const currentStageTasks = activeTasks.filter((task) => task.stage === stage);
+  const urgent = activeTasks.filter((task) => task.priority === "urgent" || task.priority === "high");
+  const done = tasks.filter((task) => task.status === "done").length;
+  const plan = [];
+
+  if (blocked.length > 0) {
+    plan.push({ title: `Desbloquear ${blocked.length} tarefa${blocked.length > 1 ? "s" : ""} crítica${blocked.length > 1 ? "s" : ""}`, detail: blocked.slice(0, 2).map((task) => task.title).join(" · ") });
+  }
+  if (urgent.length > 0) {
+    plan.push({ title: `Priorizar ${urgent.length} entrega${urgent.length > 1 ? "s" : ""} de alta prioridade`, detail: urgent.slice(0, 2).map((task) => task.title).join(" · ") });
+  }
+  if (currentStageTasks.length > 0) {
+    plan.push({ title: `Executar pendências da etapa ${getStagePremiumLabel(stage)}`, detail: `${currentStageTasks.length} task${currentStageTasks.length > 1 ? "s" : ""} aberta${currentStageTasks.length > 1 ? "s" : ""} nesta etapa.` });
+  }
+  if (plan.length < 3) {
+    plan.push({ title: `Consolidar avanço real: ${done}/${tasks.length} tasks concluídas`, detail: nodes.length > 0 ? `${nodes.length} nodes no canvas sustentam o progresso atual.` : "Canvas ainda sem nodes suficientes para leitura operacional." });
+  }
+  if (plan.length < 3) {
+    plan.push({ title: "Gerar próximas tasks a partir do plano operacional", detail: `Use a aba completa para criar entregáveis conectados à etapa ${getStagePremiumLabel(stage)}.` });
+  }
+
+  return plan.slice(0, 3);
 }
 
 function sameDay(a: Date, iso: string) {
