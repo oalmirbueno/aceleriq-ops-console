@@ -251,10 +251,7 @@ export default function WorkspaceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
   const [refreshingProgress, setRefreshingProgress] = useState(false);
-  const [showFullWorkspace, setShowFullWorkspace] = useState(() => {
-    if (!workspaceId) return false;
-    return localStorage.getItem(`workspace-mode:${workspaceId}`) === "full";
-  });
+  const [showFullWorkspace, setShowFullWorkspace] = useState(false);
   const [movementsOpen, setMovementsOpen] = useState(false);
   const [eventTypeFilter, setEventTypeFilter] = useState("__all__");
   const [movementDate, setMovementDate] = useState<Date | undefined>();
@@ -322,12 +319,10 @@ export default function WorkspaceDetailPage() {
   }, [workspaceId]);
 
   useEffect(() => {
-    if (!workspaceId) return;
-    setShowFullWorkspace(localStorage.getItem(`workspace-mode:${workspaceId}`) === "full");
+    setShowFullWorkspace(false);
   }, [workspaceId]);
 
   const setWorkspaceMode = (mode: "preview" | "full") => {
-    if (workspaceId) localStorage.setItem(`workspace-mode:${workspaceId}`, mode);
     setShowFullWorkspace(mode === "full");
   };
 
@@ -345,6 +340,10 @@ export default function WorkspaceDetailPage() {
   };
 
   const openCanvasByStatus = (status: string) => {
+    if (!showFullWorkspace) {
+      toast({ title: "Entre no workspace completo", description: "Use o botão de entrada para abrir as abas e navegar pelos nodes." });
+      return;
+    }
     setWorkspaceMode("full");
     setCanvasStatusShortcut(status);
     setActiveTab("canvas");
