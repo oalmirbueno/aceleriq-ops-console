@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { AlertTriangle, CheckCircle2, Clock3, GitBranch, Plus, Link2, Paperclip, ListChecks, Maximize2, XCircle } from "lucide-react";
-import { getProjectTypeMeta, getNodeFamily } from "./canvasProjectTypes";
+import { AlertTriangle, BarChart3, CheckCircle2, Clock3, GitBranch, Plus, Link2, Paperclip, ListChecks, Maximize2, Sparkles, Trophy, XCircle } from "lucide-react";
+import { getProjectTypeMeta, getNodeFamily, getNodeFlowRole, NODE_FLOW_ROLE_LABELS } from "./canvasProjectTypes";
 import { getEsteiraStatus, mapLegacyStatus } from "./canvasEsteiraStatus";
 import ClientAvatar from "./ClientAvatar";
 import {
@@ -53,6 +53,7 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
   const Icon = meta?.icon ?? Link2;
   const statusMeta = getEsteiraStatus(mapLegacyStatus(d.status));
   const family = getNodeFamily(d.kind);
+  const flowRole = getNodeFlowRole(d.kind);
   const checklistPct =
     d.checklistTotal && d.checklistTotal > 0
       ? Math.round(((d.checklistDone ?? 0) / d.checklistTotal) * 100)
@@ -65,7 +66,7 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
   const blocked = !!opMeta?.blockedReason || d.status === "blocked" || d.status === "bloqueado";
 
   return (
-    <div className={`relative group node-family-${family}`}>
+    <div className={`relative group node-family-${family} node-flow-${flowRole}`}>
       <Handle type="target" position={Position.Left} className="!bg-primary !w-2 !h-2 !border-background" />
 
       <div
@@ -80,6 +81,14 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
           <span className="node-kind-label text-[11px] uppercase tracking-[0.08em] font-semibold truncate">
             {meta?.shortLabel ?? d.kind}
           </span>
+          {family === "proof" && (
+            <span className="node-proof-pill inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-medium">
+              {flowRole === "measurement" && <BarChart3 className="h-2.5 w-2.5" />}
+              {flowRole === "proof" && <Sparkles className="h-2.5 w-2.5" />}
+              {flowRole === "narrative" && <Trophy className="h-2.5 w-2.5" />}
+              {NODE_FLOW_ROLE_LABELS[flowRole]}
+            </span>
+          )}
           <div className="ml-auto flex items-center gap-1.5">
             <Maximize2 className="h-3 w-3 text-foreground/35 opacity-0 transition-opacity group-hover:opacity-100" aria-label="Abrir popup" />
             {approvalSignal && (
@@ -116,6 +125,12 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
             {d.description}
           </p>
         )}
+
+        <div className="node-flow-strip mb-2.5 flex items-center gap-1.5 text-[10px] text-muted-foreground/70">
+          <span className="h-1 w-1 rounded-full bg-current" />
+          <span>{NODE_FLOW_ROLE_LABELS[flowRole]}</span>
+          {approvalSignal && <span className="ml-auto">{approvalSignal.label}</span>}
+        </div>
 
         {/* Checklist progress bar — only if there's a checklist */}
         {checklistPct !== null && (

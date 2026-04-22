@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Link2, ListPlus, Loader2, Save, X } from "lucide-react";
+import { GitBranch, Link2, ListPlus, Loader2, PackageCheck, Save, ShieldCheck, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
@@ -137,8 +137,17 @@ export default function CanvasNodeOperationalFields({ node, workspaceId, clientI
   };
 
   return (
-    <div className="space-y-5">
-      <div className="grid gap-3 md:grid-cols-2">
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <ShieldCheck className="h-4 w-4 text-primary" />
+        <div>
+          <p className="text-sm font-medium text-foreground">Operação do node</p>
+          <p className="text-[11px] text-muted-foreground">Responsável, bloqueios, dependências, tasks e prova da entrega.</p>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border/70 bg-card/35 p-3 space-y-3">
+        <div className="grid gap-3 md:grid-cols-2">
         <div className="space-y-1.5"><Label className="text-xs">Owner</Label><Input value={meta.ownerName ?? ""} onChange={(e) => updateMeta({ ownerName: e.target.value })} placeholder="Responsável" /></div>
         <div className="space-y-1.5"><Label className="text-xs">Prazo</Label><Input type="date" value={meta.dueDate ?? ""} onChange={(e) => updateMeta({ dueDate: e.target.value || null })} /></div>
         <div className="space-y-1.5"><Label className="text-xs">Aprovação</Label><Select value={meta.approvalStatus ?? "not_required"} onValueChange={(v) => updateMeta({ approvalStatus: v as ApprovalStatus })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{approvalOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
@@ -146,15 +155,16 @@ export default function CanvasNodeOperationalFields({ node, workspaceId, clientI
       </div>
 
       <div className="space-y-1.5"><Label className="text-xs">Handoff / observação operacional</Label><Textarea value={handoff} onChange={(e) => setHandoff(e.target.value)} rows={4} placeholder="O que a próxima pessoa precisa saber para continuar sem ruído..." /></div>
+      </div>
 
-      <div className="space-y-2"><Label className="text-xs">Evidências</Label><div className="flex gap-2"><Input value={evidenceDraft} onChange={(e) => setEvidenceDraft(e.target.value)} placeholder="https://..." /><Button type="button" variant="outline" onClick={addEvidence}>Adicionar</Button></div><div className="flex flex-wrap gap-1">{(meta.evidenceLinks ?? []).map((url) => <Badge key={url} variant="outline" className="gap-1 text-[10px]"><Link2 className="h-2.5 w-2.5" />{url.slice(0, 32)}<button onClick={() => removeEvidence(url)}><X className="h-2.5 w-2.5" /></button></Badge>)}</div></div>
+      <div className="rounded-lg border border-border/70 bg-card/25 p-3 space-y-2"><div className="flex items-center gap-2"><PackageCheck className="h-4 w-4 text-primary" /><Label className="text-sm font-medium">Evidência / prova da entrega</Label></div><div className="flex gap-2"><Input value={evidenceDraft} onChange={(e) => setEvidenceDraft(e.target.value)} placeholder="https://..." /><Button type="button" variant="outline" onClick={addEvidence}>Adicionar</Button></div><div className="flex flex-wrap gap-1">{(meta.evidenceLinks ?? []).map((url) => <Badge key={url} variant="outline" className="gap-1 text-[10px]"><Link2 className="h-2.5 w-2.5" />{url.slice(0, 32)}<button onClick={() => removeEvidence(url)}><X className="h-2.5 w-2.5" /></button></Badge>)}</div></div>
 
-      <div className="space-y-2"><Label className="text-xs">Dependências</Label><div className="flex flex-wrap gap-1">{availableNodes.filter((item) => item.id !== node.id).map((item) => { const active = (meta.dependencyNodeIds ?? []).includes(item.id); return <button key={item.id} type="button" onClick={() => toggleDependency(item.id)} className={`rounded-md border px-2 py-1 text-[10px] transition-colors ${active ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted/60"}`}>{item.title}</button>; })}</div></div>
+      <div className="rounded-lg border border-border/70 bg-card/25 p-3 space-y-2"><div className="flex items-center gap-2"><GitBranch className="h-4 w-4 text-muted-foreground" /><Label className="text-sm font-medium">Dependências</Label></div><div className="flex flex-wrap gap-1">{availableNodes.filter((item) => item.id !== node.id).map((item) => { const active = (meta.dependencyNodeIds ?? []).includes(item.id); return <button key={item.id} type="button" onClick={() => toggleDependency(item.id)} className={`rounded-md border px-2 py-1 text-[10px] transition-colors ${active ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted/60"}`}>{item.title}</button>; })}</div></div>
 
       <Button size="sm" onClick={saveOperational} disabled={saving}>{saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1 h-3.5 w-3.5" />}Salvar operação</Button>
 
       <Separator />
-      <div className="space-y-3"><div className="flex items-center gap-2"><ListPlus className="h-4 w-4 text-primary" /><Label className="text-sm font-medium">Tasks relacionadas</Label></div><div className="space-y-1">{relatedTasks.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma task vinculada.</p> : relatedTasks.map((task) => <div key={task.id} className="flex items-center justify-between rounded-md border border-border px-2 py-1.5 text-xs"><span className="truncate">{task.title}</span><Badge variant="outline" className="text-[9px]">{task.status}</Badge></div>)}</div><div className="flex gap-2"><Input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder={`Task: ${node.title}`} /><Button onClick={createTaskFromNode} disabled={taskBusy}>{taskBusy ? "..." : "Criar"}</Button></div><div className="flex gap-2"><Select value={selectedTaskId} onValueChange={setSelectedTaskId}><SelectTrigger><SelectValue placeholder="Vincular task existente" /></SelectTrigger><SelectContent>{unlinkedTasks.map((task) => <SelectItem key={task.id} value={task.id}>{task.title}</SelectItem>)}</SelectContent></Select><Button variant="outline" onClick={linkExistingTask} disabled={!selectedTaskId || taskBusy}>Vincular</Button></div></div>
+      <div className="rounded-lg border border-border/70 bg-card/25 p-3 space-y-3"><div className="flex items-center gap-2"><ListPlus className="h-4 w-4 text-primary" /><Label className="text-sm font-medium">Tasks relacionadas</Label></div><div className="space-y-1">{relatedTasks.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma task vinculada.</p> : relatedTasks.map((task) => <div key={task.id} className="flex items-center justify-between rounded-md border border-border/70 px-2 py-1.5 text-xs"><span className="truncate">{task.title}</span><Badge variant="outline" className="text-[9px]">{task.status}</Badge></div>)}</div><div className="flex gap-2"><Input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder={`Task: ${node.title}`} /><Button onClick={createTaskFromNode} disabled={taskBusy}>{taskBusy ? "..." : "Criar"}</Button></div><div className="flex gap-2"><Select value={selectedTaskId} onValueChange={setSelectedTaskId}><SelectTrigger><SelectValue placeholder="Vincular task existente" /></SelectTrigger><SelectContent>{unlinkedTasks.map((task) => <SelectItem key={task.id} value={task.id}>{task.title}</SelectItem>)}</SelectContent></Select><Button variant="outline" onClick={linkExistingTask} disabled={!selectedTaskId || taskBusy}>Vincular</Button></div></div>
     </div>
   );
 }
