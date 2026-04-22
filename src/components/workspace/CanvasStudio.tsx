@@ -52,6 +52,7 @@ interface Props {
   fullscreen: boolean;
   onToggleFullscreen: () => void;
   onTimelineRefresh?: () => Promise<void> | void;
+  initialStatusFilter?: string | null;
 }
 
 const nodeTypes = {
@@ -86,7 +87,7 @@ function nodeKindOf(row: CanvasNodeRow): string {
 
 function CanvasStudioInner({
   workspaceId, clientId, clientName,
-  fullscreen, onToggleFullscreen, onTimelineRefresh,
+  fullscreen, onToggleFullscreen, onTimelineRefresh, initialStatusFilter,
 }: Props) {
   
   const [dbNodes, setDbNodes] = useState<CanvasNodeRow[]>([]);
@@ -101,7 +102,7 @@ function CanvasStudioInner({
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>(initialStatusFilter ?? null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const [paletteCollapsed, setPaletteCollapsed] = useState(false);
@@ -109,6 +110,10 @@ function CanvasStudioInner({
 
   // Active client folder (null = "Todos")
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setStatusFilter(initialStatusFilter ?? null);
+  }, [initialStatusFilter]);
 
   // Quick add menu (advanced)
   const [advancedOpen, setAdvancedOpen] = useState(false);
