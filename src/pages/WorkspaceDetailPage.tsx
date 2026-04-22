@@ -655,7 +655,7 @@ export default function WorkspaceDetailPage() {
             {filteredMovements.length > 0 && (
               <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
                 <span>
-                  Mostrando {paginatedMovements.length} de {filteredMovements.length} movimentos
+                  Mostrando {paginatedMovements.length} de {filteredMovements.length} filtrados · {timelineTotal} no total
                 </span>
                 {hasMoreMovements && (
                   <Button
