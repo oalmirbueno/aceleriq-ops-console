@@ -280,21 +280,40 @@
 .react-flow__edge-path {
   stroke: hsl(var(--border));
 }
+.react-flow__edge {
+  outline: none;
+}
 .react-flow__edge.selected .react-flow__edge-path,
 .react-flow__edge:focus .react-flow__edge-path {
   stroke: hsl(var(--primary));
 }
 .react-flow__edge-path {
-  filter: drop-shadow(0 0 6px hsl(var(--background) / 0.8));
+  filter: drop-shadow(0 0 7px hsl(var(--background) / 0.92));
+}
+.edge-engine .react-flow__edge-path,
+.edge-input .react-flow__edge-path {
+  filter: drop-shadow(0 0 10px hsl(var(--node-tech) / 0.22));
+}
+.edge-proof .react-flow__edge-path {
+  stroke-dasharray: 7 5;
+  filter: drop-shadow(0 0 10px hsl(var(--node-proof) / 0.28));
+}
+.edge-decision .react-flow__edge-path {
+  stroke-dasharray: 3 4;
 }
 .react-flow__edge-textbg {
-  rx: 5px;
-  ry: 5px;
+  rx: 999px;
+  ry: 999px;
   stroke: hsl(var(--border));
   stroke-width: 1px;
 }
 .canvas-flow.acelera-ops-flow {
-  background: hsl(var(--background));
+  background:
+    linear-gradient(90deg, hsl(var(--border) / 0.28) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(var(--border) / 0.2) 1px, transparent 1px),
+    radial-gradient(circle at 50% 36%, hsl(var(--node-tech) / 0.08), transparent 30%),
+    hsl(var(--background));
+  background-size: 96px 96px, 96px 96px, auto, auto;
 }
 .canvas-node-popup {
   background:
@@ -333,6 +352,41 @@
     linear-gradient(180deg, hsl(var(--node-proof) / 0.085), transparent 46%),
     hsl(var(--card) / 0.94);
   border-left-color: hsl(var(--node-proof) / 0.95);
+}
+.node-card-engine {
+  background:
+    radial-gradient(circle at 50% 0%, hsl(var(--node-tech) / 0.14), transparent 44%),
+    hsl(var(--card) / 0.96);
+  border-left-color: hsl(var(--node-tech) / 0.95);
+  box-shadow:
+    0 0 0 1px hsl(var(--node-tech) / 0.24),
+    0 18px 42px -26px hsl(var(--node-tech) / 0.5),
+    0 14px 34px -24px hsl(var(--background) / 0.95);
+}
+.node-card-proof {
+  box-shadow:
+    0 0 0 1px hsl(var(--node-proof) / 0.2),
+    0 14px 34px -24px hsl(var(--node-proof) / 0.38),
+    0 12px 28px -24px hsl(var(--background) / 0.95);
+}
+.node-engine-label,
+.node-hub-button {
+  color: hsl(var(--node-tech));
+}
+.node-proof-label,
+.node-proof-signal {
+  color: hsl(var(--node-proof));
+}
+.node-hub-button {
+  border-color: hsl(var(--node-tech) / 0.3);
+  background: hsl(var(--node-tech) / 0.1);
+}
+.node-hub-button:hover {
+  background: hsl(var(--node-tech) / 0.16);
+}
+.node-proof-signal {
+  border-color: hsl(var(--node-proof) / 0.28);
+  background: hsl(var(--node-proof) / 0.08);
 }
 .node-proof-pill {
   color: hsl(var(--node-proof));
