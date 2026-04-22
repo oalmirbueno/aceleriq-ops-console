@@ -143,6 +143,7 @@ export default function WorkspaceDetailPage() {
   const [ws, setWs] = useState<Workspace | null>(null);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [nodesProgress, setNodesProgress] = useState<WorkspaceNodeProgress[]>([]);
+  const [taskSignals, setTaskSignals] = useState<WorkspaceTaskSignal[]>([]);
   const [loading, setLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
   const [showFullWorkspace, setShowFullWorkspace] = useState(false);
@@ -175,6 +176,15 @@ export default function WorkspaceDetailPage() {
       .eq("workspace_id", workspaceId);
 
     if (nodes) setNodesProgress(nodes as WorkspaceNodeProgress[]);
+
+    const { data: tasks } = await supabase
+      .from("tasks")
+      .select("id, title, status, priority, stage, due_date")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+
+    if (tasks) setTaskSignals(tasks as WorkspaceTaskSignal[]);
     setLoading(false);
   };
 
@@ -237,7 +247,7 @@ export default function WorkspaceDetailPage() {
   const stageProgress = workspaceProgress(ws.current_stage);
   const finishedNodes = nodesProgress.filter((node) => node.status === "done" || node.status === "concluido").length;
   const intro = introCopy(ws.current_stage);
-  const actionPlan = actionPlanFor(ws.current_stage);
+  const actionPlan = buildActionPlan(ws.current_stage, taskSignals, nodesProgress);
   const movementTypes = Array.from(new Set(timeline.map((event) => event.event_type))).sort();
   const filteredMovements = timeline.filter((event) => {
     const matchesType = eventTypeFilter === "__all__" || event.event_type === eventTypeFilter;
