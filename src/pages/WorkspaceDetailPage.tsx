@@ -263,6 +263,7 @@ export default function WorkspaceDetailPage() {
   const [visibleMovements, setVisibleMovements] = useState(MOVEMENTS_PAGE_SIZE);
   const [activeTab, setActiveTab] = useState("resumo");
   const [canvasStatusShortcut, setCanvasStatusShortcut] = useState<string | null>(null);
+  const [completedTriageKeys, setCompletedTriageKeys] = useState<string[]>([]);
 
   const fetchWorkspace = async () => {
     if (!workspaceId) return;
@@ -367,6 +368,15 @@ export default function WorkspaceDetailPage() {
 
     setTaskSignals((current) => current.map((task) => task.id === item.taskId ? { ...task, status: "done" } : task));
     toast({ title: "Task concluída", description: item.title });
+  };
+
+  const toggleTriageItem = (item: LeanChecklistItem, index: number) => {
+    const key = triageItemKey(item, index);
+    if (item.taskId && !item.completed) {
+      completeChecklistTask(item);
+      return;
+    }
+    setCompletedTriageKeys((current) => current.includes(key) ? current.filter((value) => value !== key) : [...current, key]);
   };
 
   useEffect(() => {
