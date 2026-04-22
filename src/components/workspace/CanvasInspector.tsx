@@ -189,6 +189,39 @@ export default function CanvasInspector({
             );
           })}
         </div>
+
+        <div className="grid grid-cols-2 gap-1.5 pt-1">
+          <select
+            value={approvalFilter ?? "all"}
+            onChange={(e) => onApprovalFilter?.(e.target.value as ApprovalStatus | "all")}
+            className="h-7 rounded-md border border-border bg-background px-2 text-[10px] text-foreground"
+          >
+            <option value="all">Aprovação</option>
+            <option value="pending">Pendente</option>
+            <option value="approved">Aprovado</option>
+            <option value="rejected">Reprovado</option>
+            <option value="not_required">Sem aprovação</option>
+          </select>
+          <select
+            value={blockedFilter}
+            onChange={(e) => onBlockedFilter?.(e.target.value as "all" | "blocked" | "clear")}
+            className="h-7 rounded-md border border-border bg-background px-2 text-[10px] text-foreground"
+          >
+            <option value="all">Bloqueio</option>
+            <option value="blocked">Bloqueados</option>
+            <option value="clear">Sem bloqueio</option>
+          </select>
+        </div>
+        {owners.length > 0 && (
+          <select
+            value={ownerFilter ?? ""}
+            onChange={(e) => onOwnerFilter?.(e.target.value || null)}
+            className="h-7 w-full rounded-md border border-border bg-background px-2 text-[10px] text-foreground"
+          >
+            <option value="">Owner</option>
+            {owners.map((owner) => <option key={owner} value={owner}>{owner}</option>)}
+          </select>
+        )}
       </div>
 
       <ScrollArea className="flex-1">
@@ -200,6 +233,9 @@ export default function CanvasInspector({
               const kind = ((n.data as Record<string, unknown> | null)?.kind as string | undefined) ?? n.node_type;
               const tc = getProjectTypeMeta(kind) ?? getCanvasTypeConfig(n.node_type);
               const sc = getCanvasStatusConfig(n.status);
+              const opMeta = readCanvasOperationalMeta(n.data as Record<string, unknown> | null);
+              const dependencyCount = opMeta.dependencyNodeIds?.filter(Boolean).length ?? 0;
+              const blocked = isCanvasNodeBlocked(n.status, opMeta);
               const Icon = tc.icon;
               const active = selectedId === n.id;
               return (
@@ -213,10 +249,25 @@ export default function CanvasInspector({
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <Icon className={`h-3 w-3 ${tc.color.split(" ")[1] ?? ""}`} />
                     <span className="text-[9px] uppercase tracking-wide text-muted-foreground">{"shortLabel" in tc ? tc.shortLabel : tc.label}</span>
-                    {n.linked_entity_id && <Link2 className="h-2.5 w-2.5 ml-auto text-primary" />}
+                    <span className="ml-auto inline-flex items-center gap-1">
+                      {blocked && <AlertTriangle className="h-2.5 w-2.5 text-destructive" />}
+                      {dependencyCount > 0 && <GitBranch className="h-2.5 w-2.5 text-muted-foreground" />}
+                      {n.linked_entity_id && <Link2 className="h-2.5 w-2.5 text-primary" />}
+                    </span>
                   </div>
                   <p className="text-xs font-medium truncate text-foreground">{n.title}</p>
-                  <Badge variant="outline" className={`text-[9px] mt-1 ${sc.color}`}>{sc.label}</Badge>
+                  <div className="mt-1 flex items-center gap-1">
+                    <Badge variant="outline" className={`text-[9px] ${sc.color}`}>{sc.label}</Badge>
+                    {dependencyCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onOpenDependencies?.(n); }}
+                        className="rounded border border-border px-1.5 py-0.5 text-[9px] text-muted-foreground hover:bg-muted/60"
+                      >
+                        deps {dependencyCount}
+                      </button>
+                    )}
+                  </div>
                 </button>
               );
             })
