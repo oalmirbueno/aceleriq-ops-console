@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowRight, CheckCircle2, FolderKanban, Sparkles, Target } from "lucide-react";
+import { ArrowRight, CalendarDays, CheckCircle2, FolderKanban, ListChecks, Sparkles, Target } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingState from "@/components/LoadingState";
 import EmptyState from "@/components/EmptyState";
@@ -66,6 +66,17 @@ function introCopy(stage: string) {
   return { done: "Aprendizados consolidados em ativos comerciais e operacionais.", need: "Fechar case, before/after e playbook replicável.", next: "Escalar padrões vencedores para novos ciclos e clientes." };
 }
 
+function actionPlanFor(stage: string) {
+  if (stage === "entrada") return ["Revisar briefing e contexto do cliente", "Mapear objetivos, restrições e acessos", "Criar os nodes iniciais do canvas"];
+  if (stage === "diagnostico") return ["Separar fatos, hipóteses e lacunas", "Priorizar gargalos por impacto operacional", "Fechar diagnóstico antes da arquitetura"];
+  if (stage === "estrutura_base") return ["Validar estrutura de funil, CRM e canais", "Organizar assets e documentos críticos", "Definir setup mínimo de execução"];
+  if (stage === "planejamento") return ["Converter estratégia em milestones", "Distribuir responsáveis e dependências", "Gerar tasks operacionais da próxima etapa"];
+  if (stage === "producao") return ["Checar entregáveis em produção", "Remover bloqueios de assets e aprovação", "Preparar checklist de ativação"];
+  if (stage === "ativacao") return ["Conferir pixel, tráfego e CRM", "Acompanhar timeline T-7 → T+1", "Registrar sinais para otimização"];
+  if (stage === "otimizacao") return ["Comparar métricas antes/depois", "Escolher próximos experimentos", "Documentar aprendizados com evidência"];
+  return ["Fechar Case PASTA", "Criar Before/After com métricas", "Derivar playbook replicável"];
+}
+
 export default function WorkspaceDetailPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const navigate = useNavigate();
@@ -73,6 +84,7 @@ export default function WorkspaceDetailPage() {
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
+  const [showFullWorkspace, setShowFullWorkspace] = useState(false);
 
   const fetchWorkspace = async () => {
     if (!workspaceId) return;
@@ -152,6 +164,7 @@ export default function WorkspaceDetailPage() {
   const planName = ws.clients?.plan_name ?? null;
   const progress = workspaceProgress(ws.current_stage);
   const intro = introCopy(ws.current_stage);
+  const actionPlan = actionPlanFor(ws.current_stage);
 
   return (
     <>
