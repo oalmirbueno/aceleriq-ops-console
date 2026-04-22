@@ -152,7 +152,6 @@ export default function ProjectNodeDrawer(props: Props) {
         clientName={clientName}
         onDelete={props.onDelete}
         onUpdated={props.onUpdated}
-        availableNodes={props.availableNodes}
       />
     );
   }
@@ -241,6 +240,7 @@ export default function ProjectNodeDrawer(props: Props) {
         clientName={clientName}
         onDelete={props.onDelete}
         onUpdated={props.onUpdated}
+        availableNodes={props.availableNodes}
       />
     );
   }
