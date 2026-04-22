@@ -5,7 +5,7 @@ export default function AppLayout() {
   return (
     <div className="tech-grid-bg min-h-screen flex flex-col">
       <AppTopNav />
-      <main className="relative flex-1 pt-24">
+      <main className="relative flex-1 pt-28">
         <Outlet />
       </main>
     </div>
