@@ -89,6 +89,15 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
           </span>
           <div className="ml-auto flex items-center gap-1.5">
             <Maximize2 className="h-3 w-3 text-foreground/35 opacity-0 transition-opacity group-hover:opacity-100" aria-label="Abrir popup" />
+            {approvalSignal && (
+              <approvalSignal.icon className={`h-3 w-3 ${approvalSignal.className}`} aria-label={approvalSignal.label} />
+            )}
+            {blocked && (
+              <AlertTriangle className="h-3 w-3 text-destructive" aria-label="Bloqueado" />
+            )}
+            {overdue && (
+              <Clock3 className="h-3 w-3 text-destructive" aria-label="Prazo vencido" />
+            )}
             {d.hasLinkedEntity && (
               <Link2 className="h-3 w-3 text-foreground/40" aria-label="Vinculado" />
             )}
@@ -175,6 +184,18 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
               <span className="inline-flex items-center gap-0.5">
                 <Paperclip className="h-2.5 w-2.5" />
                 {d.attachments}
+              </span>
+            )}
+            {evidenceCount > 0 && (
+              <span className="inline-flex items-center gap-0.5" aria-label={`${evidenceCount} evidências`}>
+                <CheckCircle2 className="h-2.5 w-2.5" />
+                {evidenceCount}
+              </span>
+            )}
+            {dependencyCount > 0 && (
+              <span className="inline-flex items-center gap-0.5" aria-label={`${dependencyCount} dependências`}>
+                <GitBranch className="h-2.5 w-2.5" />
+                {dependencyCount}
               </span>
             )}
           </div>
