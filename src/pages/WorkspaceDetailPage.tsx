@@ -7,6 +7,7 @@ import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -259,6 +260,7 @@ export default function WorkspaceDetailPage() {
   const [nodesProgress, setNodesProgress] = useState<WorkspaceNodeProgress[]>([]);
   const [taskSignals, setTaskSignals] = useState<WorkspaceTaskSignal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [triageLoading, setTriageLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
   const [refreshingProgress, setRefreshingProgress] = useState(false);
   const [showFullWorkspace, setShowFullWorkspace] = useState(false);
@@ -274,6 +276,7 @@ export default function WorkspaceDetailPage() {
 
   const fetchWorkspace = async () => {
     if (!workspaceId) return;
+    setTriageLoading(true);
     const { data, error } = await supabase
       .from("workspaces")
       .select("id, name, status, current_stage, primary_owner_id, client_id, summary, created_at, metadata, clients(id, name, company_name, segment, plan_name, logo_url, metadata), profiles:primary_owner_id(full_name, email)")
@@ -292,6 +295,7 @@ export default function WorkspaceDetailPage() {
       .eq("workspace_id", workspaceId);
 
     if (nodes) setNodesProgress(nodes as WorkspaceNodeProgress[]);
+    setLoading(false);
 
     const { data: tasks } = await supabase
       .from("tasks")
@@ -301,7 +305,7 @@ export default function WorkspaceDetailPage() {
       .limit(200);
 
     if (tasks) setTaskSignals(tasks as WorkspaceTaskSignal[]);
-    setLoading(false);
+    setTriageLoading(false);
   };
 
   useEffect(() => { fetchWorkspace(); }, [workspaceId]);
