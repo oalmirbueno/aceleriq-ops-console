@@ -657,6 +657,28 @@ export default function WorkspaceDetailPage() {
                 ))}
               </div>
 
+              <div className="mt-5 grid gap-2 md:grid-cols-3">
+                {PRE_ENTRY_ACTIONS.map((action, index) => {
+                  const done = completedPreEntryActions.includes(action.key);
+                  return (
+                    <button
+                      key={action.key}
+                      type="button"
+                      onClick={() => togglePreEntryAction(action.key)}
+                      className={cn("rounded-md border border-border bg-secondary/30 p-4 text-left transition-colors hover:border-primary/40", done && "border-primary/30 bg-primary/10")}
+                    >
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <span className="text-sm font-medium text-foreground">{action.label}</span>
+                        <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded border border-primary/40 text-[10px] font-semibold text-primary", done && "border-primary bg-primary text-primary-foreground")}>
+                          {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : index + 1}
+                        </span>
+                      </div>
+                      <p className="text-xs leading-relaxed text-muted-foreground">{action.detail}</p>
+                    </button>
+                  );
+                })}
+              </div>
+
               <div className="mt-5 rounded-lg border border-primary/30 bg-primary/10 p-4">
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -664,7 +686,7 @@ export default function WorkspaceDetailPage() {
                     <h3 className="text-base font-semibold text-foreground">Maiores primeiro, menores só para fechar ciclo</h3>
                   </div>
                   <span className="rounded-md border border-border bg-card/70 px-2 py-1 text-[11px] text-muted-foreground">
-                    {triageProgress}% travado · {lockedChecklist.filter((item) => item.lockedDone).length}/{lockedChecklist.length}
+                    {triageProgress}% travado · {triageDoneCount}/{triageTotalCount}
                   </span>
                 </div>
 
