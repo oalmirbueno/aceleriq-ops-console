@@ -709,6 +709,53 @@ function CanvasStudioInner({
     activeClientId, clientGroups, projectNodes, workspaceId, clientId, clientName, fetchData,
   ]);
 
+  const applyOpsFlowBlueprint = useCallback(async () => {
+    if (!ensureActiveClient()) return;
+    const parent = pickParentGroup();
+    if (!parent) return;
+    setBusyAction("ops-flow");
+    try {
+      const blueprint: Array<{ ref: string; kind: ProjectNodeKind; title: string; stage: AceleraStageKey; description: string }> = [
+        { ref: "context", kind: "contexto_ops", title: "Contexto central", stage: "entrada", description: "Briefing, assets, acessos, links, oferta e regras que alimentam a operação." },
+        { ref: "instruction", kind: "instrucao", title: "Instruções e critérios", stage: "planejamento", description: "SOPs, prompts, regras de execução e critérios de aceite." },
+        { ref: "engine", kind: "engine", title: "Engine: Planejamento Ops", stage: "planejamento", description: "Hub que consolida entradas e transforma contexto em plano, tarefas e entregáveis." },
+        { ref: "agent", kind: "agente", title: "Agente: Orion Ops", stage: "producao", description: "Assistente operacional conectado ao contexto, instruções e outputs." },
+        { ref: "result", kind: "resultado", title: "Resultado: Plano operacional", stage: "producao", description: "Output versionado com owner, prazo, evidência e próximos passos." },
+        { ref: "decision", kind: "decisao", title: "Decisão: Aprovação / Revisão", stage: "ativacao", description: "Roteia aprovado para próxima etapa ou retorna para revisão." },
+      ];
+      const created: Record<string, string> = {};
+      const rows: CanvasNodeRow[] = [];
+      for (const [i, item] of blueprint.entries()) {
+        const { data, error } = await supabase.from("canvas_nodes").insert({
+          workspace_id: workspaceId,
+          client_id: clientId,
+          node_type: projectKindToDbNodeType(item.kind),
+          title: item.title,
+          status: item.kind === "engine" ? "active" : "draft",
+          description: item.description,
+          pos_x: stageColumnX(item.stage) + NODE_X_OFFSET,
+          pos_y: CONTENT_TOP + 16 + (i % 2) * NODE_VERTICAL,
+          parent_node_id: parent,
+          data: { kind: item.kind, stage: item.stage, checklist: getChecklistTemplate(item.kind) },
+        }).select().single();
+        if (error) throw error;
+        created[item.ref] = (data as CanvasNodeRow).id;
+        rows.push(data as CanvasNodeRow);
+      }
+      const edges = [
+        ["context", "engine", "contexto"], ["instruction", "engine", "regra"], ["engine", "agent", "aciona"],
+        ["engine", "result", "gera"], ["result", "decision", "aprovar"], ["decision", "instruction", "revisar"],
+      ].map(([from, to, label]) => ({ workspace_id: workspaceId, source_node_id: created[from], target_node_id: created[to], edge_type: "ops", label }));
+      await supabase.from("canvas_edges").insert(edges);
+      toast({ title: "Fluxo Ops criado", description: `${rows.length} nodes · ${edges.length} conexões inteligentes` });
+      await fetchData();
+    } catch (err) {
+      toast({ title: "Erro ao criar fluxo", description: err instanceof Error ? err.message : "Tente novamente.", variant: "destructive" });
+    } finally {
+      setBusyAction(null);
+    }
+  }, [workspaceId, clientId, fetchData, activeClientId, clientGroups]);
+
 
   /* Auto-layout: por etapa, empilha vertical (apenas nodes do cliente ativo) */
   const handleAutoLayout = async () => {
