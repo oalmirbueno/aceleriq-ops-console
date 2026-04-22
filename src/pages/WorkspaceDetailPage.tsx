@@ -604,18 +604,28 @@ export default function WorkspaceDetailPage() {
               {filteredMovements.length === 0 ? (
                 <div className="py-10 text-center text-sm text-muted-foreground">Nenhum movimento encontrado.</div>
               ) : (
-                <div className="space-y-3">
-                  {paginatedMovements.map((event) => (
-                    <div key={event.id} className="rounded-md border border-border bg-card p-4">
-                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-medium text-foreground">{event.title}</p>
-                        <span className="text-xs text-muted-foreground">{formatMovementDate(event.happened_at)}</span>
+                <div className="space-y-4">
+                  {groupedMovements.map((group) => (
+                    <section key={group.key} className="rounded-lg border border-border bg-card/70 p-3">
+                      <div className="mb-3 flex items-center justify-between gap-3 border-b border-border pb-2">
+                        <h3 className="text-sm font-semibold capitalize text-foreground">{group.label}</h3>
+                        <span className="text-[11px] text-muted-foreground">{group.events.length} movimento{group.events.length > 1 ? "s" : ""}</span>
                       </div>
-                      <p className="text-sm leading-relaxed text-muted-foreground">{event.description ?? "Registro operacional sem descrição."}</p>
-                      <span className="mt-3 inline-flex rounded-md border border-border bg-secondary px-2 py-1 text-[11px] text-muted-foreground">
-                        {event.event_type}
-                      </span>
-                    </div>
+                      <div className="space-y-3">
+                        {group.events.map((event) => (
+                          <div key={event.id} className="rounded-md border border-border bg-secondary/30 p-4">
+                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                              <p className="font-medium text-foreground">{event.title}</p>
+                              <span className="text-xs text-muted-foreground">{formatMovementDate(event.happened_at)}</span>
+                            </div>
+                            <p className="text-sm leading-relaxed text-muted-foreground">{event.description ?? "Registro operacional sem descrição."}</p>
+                            <span className="mt-3 inline-flex rounded-md border border-border bg-card px-2 py-1 text-[11px] text-muted-foreground">
+                              {event.event_type}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
                   ))}
                 </div>
               )}
