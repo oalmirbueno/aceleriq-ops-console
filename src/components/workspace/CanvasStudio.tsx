@@ -92,6 +92,17 @@ const RESULT_KINDS = new Set(["resultado", "landing_page", "site", "conteudo", "
 const DECISION_KINDS = new Set(["decisao"]);
 const PROOF_KINDS = new Set(["metrica", "before_after", "case"]);
 const FLOW_GRAMMAR = ["Contexto", "Instrução", "Engine", "Resultado", "Decisão", "Prova"];
+const OPS_FLOW_X: Record<string, number> = {
+  context: 120,
+  instruction: 120,
+  engine: 620,
+  result: 1080,
+  decision: 1520,
+  proof: 1080,
+  narrative: 1960,
+  execution: 1080,
+  measurement: 1080,
+};
 
 type ConnectionValidation = { allowed: boolean; label: string | null; reason: string | null };
 const allowConnection = (label: string): ConnectionValidation => ({ allowed: true, label, reason: null });
