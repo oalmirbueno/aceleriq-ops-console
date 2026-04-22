@@ -28,7 +28,7 @@ import type { EsteiraTemplate } from "./esteiraTemplates";
 import {
   ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH, STAGE_HEADER_HEIGHT,
   getProjectTypeMeta, getStageMeta, stageColumnX, getChecklistTemplate,
-  type ProjectNodeKind, type AceleraStageKey,
+  projectKindToDbNodeType, type ProjectNodeKind, type AceleraStageKey,
 } from "./canvasProjectTypes";
 import { mapLegacyStatus, premiumStatusToDb } from "./canvasEsteiraStatus";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
@@ -83,6 +83,15 @@ function nodeStageOf(row: CanvasNodeRow): AceleraStageKey {
 function nodeKindOf(row: CanvasNodeRow): string {
   const data = (row.data ?? {}) as Record<string, unknown>;
   return (data.kind as string | undefined) ?? row.node_type;
+}
+
+function edgeIntent(edge: CanvasEdgeRecord, nodesById: Map<string, CanvasNodeRow>) {
+  const sourceKind = edge.source_node_id ? nodeKindOf(nodesById.get(edge.source_node_id)!) : "";
+  const targetKind = edge.target_node_id ? nodeKindOf(nodesById.get(edge.target_node_id)!) : "";
+  if (targetKind === "engine") return { label: edge.label ?? "input", stroke: "hsl(var(--node-tech))", animated: true };
+  if (sourceKind === "engine") return { label: edge.label ?? "gera", stroke: "hsl(var(--node-build))", animated: true };
+  if (targetKind === "decisao" || sourceKind === "decisao") return { label: edge.label ?? "aprova", stroke: "hsl(var(--node-growth))", animated: false };
+  return { label: edge.label ?? undefined, stroke: "hsl(var(--primary))", animated: true };
 }
 
 function CanvasStudioInner({
