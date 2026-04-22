@@ -98,7 +98,7 @@ function CanvasInspector({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <PanelRight className="h-3 w-3 text-muted-foreground" />
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Inspector</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Operação</p>
           </div>
           <div className="flex items-center gap-1">
             <Badge variant="outline" className="text-[10px]">{filtered.length}/{nodes.length}</Badge>
@@ -111,20 +111,7 @@ function CanvasInspector({
             </button>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-1.5 text-center">
-          <div className="rounded-md bg-muted/40 p-2">
-            <p className="text-[9px] uppercase text-muted-foreground">Nodes</p>
-            <p className="text-sm font-bold text-foreground">{nodes.length}</p>
-          </div>
-          <div className="rounded-md bg-muted/40 p-2">
-            <p className="text-[9px] uppercase text-muted-foreground">Edges</p>
-            <p className="text-sm font-bold text-foreground">{edges}</p>
-          </div>
-          <div className="rounded-md bg-muted/40 p-2">
-            <p className="text-[9px] uppercase text-muted-foreground">Vínculos</p>
-            <p className="text-sm font-bold text-primary">{linkedCount}</p>
-          </div>
-        </div>
+        <p className="text-[11px] text-muted-foreground">{nodes.length} passos · {edges} conexões · {linkedCount} vínculos reais</p>
 
         <div className="relative">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

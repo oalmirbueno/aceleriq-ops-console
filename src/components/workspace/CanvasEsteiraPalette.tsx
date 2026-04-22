@@ -20,7 +20,7 @@ export default function CanvasEsteiraPalette({
 
   if (collapsed) {
     return (
-      <div className="w-7 shrink-0 border-r border-border bg-card/40 backdrop-blur-sm flex items-start justify-center pt-3">
+      <div className="w-7 shrink-0 border-r border-border bg-background flex items-start justify-center pt-3">
         <Tooltip>
           <TooltipTrigger asChild>
             <button
@@ -39,12 +39,12 @@ export default function CanvasEsteiraPalette({
 
   return (
     <TooltipProvider delayDuration={200}>
-      <aside className="w-72 shrink-0 border-r border-border bg-card/60 backdrop-blur-sm flex flex-col">
+      <aside className="w-64 shrink-0 border-r border-border bg-background flex flex-col">
         {/* Header */}
         <div className="px-3 py-2 border-b border-border flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Canvas Ops</p>
-            <p className="text-[11px] text-muted-foreground/80 leading-tight">Contexto → Engine → Resultado</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Execução</p>
+            <p className="text-[11px] text-muted-foreground/80 leading-tight">Contexto → Engine → Entrega</p>
           </div>
           <button
             onClick={onToggleCollapse}
@@ -80,7 +80,7 @@ export default function CanvasEsteiraPalette({
         {/* Stage groups */}
         <ScrollArea className="flex-1">
           <div className="p-1.5 space-y-1">
-            {PROJECT_TYPE_GROUPS.map((g) => {
+            {PROJECT_TYPE_GROUPS.filter((g) => g.types.length > 0).map((g) => {
               const stage = getStageMeta(g.stage);
               const isOpen = openStage === g.stage;
               return (
@@ -102,7 +102,7 @@ export default function CanvasEsteiraPalette({
                   </button>
 
                   {isOpen && (
-                    <div className="px-1.5 pb-2 pt-1 grid grid-cols-2 gap-1.5">
+                    <div className="px-1.5 pb-2 pt-1 grid grid-cols-1 gap-1">
                       {g.types.map((kind) => {
                         const meta = getProjectTypeMeta(kind);
                         if (!meta) return null;
@@ -112,7 +112,7 @@ export default function CanvasEsteiraPalette({
                             <TooltipTrigger asChild>
                               <button
                                 onClick={() => onAdd(kind, g.stage)}
-                                className={`flex items-center gap-2 p-2.5 rounded-md border ${meta.color} ${meta.bg} hover:bg-muted/30 hover:scale-[1.02] active:scale-95 transition-transform text-left min-h-12`}
+                                  className={`flex items-center gap-2 p-2 rounded-md border ${meta.color} ${meta.bg} hover:bg-muted/30 active:scale-[0.99] transition-transform text-left min-h-9`}
                               >
                                 <Icon className="h-4 w-4 shrink-0" />
                                 <span className="text-[11px] font-medium leading-tight line-clamp-2">
