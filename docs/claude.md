@@ -37,5 +37,6 @@ documentation_signals: string[]
 3. Dossiê prioriza sinais estruturados; briefing bruto excluído dos blocos quando há sinais válidos
 4. Não criar tabela nova para sinais
 5. Não reintroduzir IA opaca como núcleo
-6. Canvas desabilitado
-7. Não mexer em módulos fora do escopo solicitado
+6. Canvas existe como feature controlada por flag; é camada visual operacional complementar e não substitui briefing, dossiê ou wizard
+7. Manter cautela no Canvas: não criar nova lógica/tabela de sinais estruturados e não tratar o Canvas como fonte primária do briefing mestre
+8. Não mexer em módulos fora do escopo solicitado

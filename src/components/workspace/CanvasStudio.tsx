@@ -33,6 +33,8 @@ import {
 import { mapLegacyStatus, premiumStatusToDb } from "./canvasEsteiraStatus";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 
+// CanvasStudio é uma camada visual operacional complementar: não substitui o briefing mestre,
+// não cria nova lógica/tabela de sinais estruturados e não usa IA opaca como núcleo decisório.
 
 interface CanvasEdgeRecord {
   id: string;
