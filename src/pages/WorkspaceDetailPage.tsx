@@ -353,12 +353,16 @@ export default function WorkspaceDetailPage() {
 
   const openCanvasByStatus = (status: string) => {
     if (!showFullWorkspace) {
-      toast({ title: "Entre no workspace completo", description: "Use o botão de entrada para abrir as abas e navegar pelos nodes." });
+      toast({ title: "Workspace completo bloqueado", description: "Finalize a triagem antes de navegar pelos nodes." });
       return;
     }
     setWorkspaceMode("full");
     setCanvasStatusShortcut(status);
     setActiveTab("canvas");
+  };
+
+  const handleLockedWorkspaceEntry = () => {
+    toast({ title: "Entrada ainda bloqueada", description: "Conclua as ações claras e trave todos os itens da triagem para liberar o workspace completo." });
   };
 
   const completeChecklistTask = async (item: LeanChecklistItem) => {
