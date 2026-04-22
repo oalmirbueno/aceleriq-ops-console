@@ -71,6 +71,8 @@ export type NodeFamily =
   | "entry" | "structure" | "plan" | "build"
   | "tech" | "content" | "launch" | "growth" | "proof";
 
+export type NodeFlowRole = "context" | "instruction" | "engine" | "result" | "decision" | "measurement" | "proof" | "narrative" | "execution";
+
 export interface ProjectNodeTypeMeta {
   kind: ProjectNodeKind;
   label: string;
@@ -148,7 +150,7 @@ const KIND_TO_FAMILY: Record<ProjectNodeKind, NodeFamily> = {
   automacao: "tech", ia: "tech", integracao: "tech",
   conteudo: "content", video: "content", imagem: "content",
   lancamento: "launch", trafego: "launch", email_mkt: "launch", social: "launch",
-  crm: "growth", metrica: "growth",
+  crm: "growth", metrica: "proof",
   before_after: "proof", case: "proof",
 };
 
@@ -167,6 +169,30 @@ export const NODE_FAMILY_LABELS: Record<NodeFamily, string> = {
   growth: "Crescimento",
   proof: "Prova",
 };
+
+export const NODE_FLOW_ROLE_LABELS: Record<NodeFlowRole, string> = {
+  context: "Contexto",
+  instruction: "Instrução",
+  engine: "Engine",
+  result: "Entrega",
+  decision: "Decisão",
+  measurement: "Medição",
+  proof: "Prova",
+  narrative: "Case",
+  execution: "Execução",
+};
+
+export function getNodeFlowRole(kind: string): NodeFlowRole {
+  if (["contexto_ops", "briefing", "documento", "reuniao", "ideia", "objetivo", "acessos", "contato"].includes(kind)) return "context";
+  if (["instrucao", "funil", "checklist"].includes(kind)) return "instruction";
+  if (["engine", "automacao", "ia", "integracao", "agente"].includes(kind)) return "engine";
+  if (["decisao"].includes(kind)) return "decision";
+  if (["metrica", "crm", "trafego", "email_mkt", "social"].includes(kind)) return "measurement";
+  if (["before_after"].includes(kind)) return "proof";
+  if (["case"].includes(kind)) return "narrative";
+  if (["resultado", "landing_page", "site", "conteudo", "video", "imagem", "asset", "lancamento"].includes(kind)) return "result";
+  return "execution";
+}
 
 /** Group catalog into bands for the palette */
 export const PROJECT_TYPE_GROUPS: Array<{ stage: AceleraStageKey; types: ProjectNodeKind[] }> = [
