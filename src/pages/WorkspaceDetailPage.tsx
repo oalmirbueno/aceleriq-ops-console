@@ -375,6 +375,8 @@ export default function WorkspaceDetailPage() {
   const progress = calculateRealProgress(ws.current_stage, nodesProgress);
   const stageProgress = workspaceProgress(ws.current_stage);
   const finishedNodes = nodesProgress.filter((node) => node.status === "done" || node.status === "concluido").length;
+  const activeNodes = nodesProgress.filter((node) => node.status === "active" || node.status === "ativo").length;
+  const blockedNodes = nodesProgress.filter((node) => node.status === "blocked" || node.status === "bloqueado").length;
   const intro = introCopy(ws.current_stage);
   const actionPlan = buildActionPlan(ws.current_stage, taskSignals, nodesProgress);
   const leanChecklist = buildLeanChecklist(ws.current_stage, taskSignals, nodesProgress);
