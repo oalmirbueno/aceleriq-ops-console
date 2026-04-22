@@ -75,6 +75,13 @@ interface WorkspaceTaskSignal {
   due_date: string | null;
 }
 
+interface LeanChecklistItem {
+  title: string;
+  detail: string;
+  size: "grande" | "media" | "pequena";
+  source: "task" | "engine";
+}
+
 const STAGES = ["entrada", "diagnostico", "estrutura_base", "planejamento", "producao", "ativacao", "otimizacao", "expansao"];
 
 function workspaceProgress(stage: string) {
@@ -126,6 +133,53 @@ function buildActionPlan(stage: string, tasks: WorkspaceTaskSignal[], nodes: Wor
   }
 
   return plan.slice(0, 3);
+}
+
+function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: WorkspaceNodeProgress[]): LeanChecklistItem[] {
+  const active = tasks.filter((task) => task.status !== "done" && task.status !== "canceled");
+  const blocked = active.filter((task) => task.status === "blocked");
+  const stageTasks = active.filter((task) => task.stage === stage);
+  const priorityTasks = active
+    .filter((task) => task.priority === "urgent" || task.priority === "high")
+    .sort((a, b) => (a.status === "blocked" ? -1 : 0) - (b.status === "blocked" ? -1 : 0));
+  const checklist: LeanChecklistItem[] = [];
+
+  blocked.slice(0, 2).forEach((task) => checklist.push({
+    title: task.title,
+    detail: "Maior alavanca: destravar antes de criar trabalho novo. Resolver, delegar ou cortar o bloqueio.",
+    size: "grande",
+    source: "task",
+  }));
+
+  priorityTasks.filter((task) => !blocked.some((b) => b.id === task.id)).slice(0, 2).forEach((task) => checklist.push({
+    title: task.title,
+    detail: "Entrega pesada primeiro: só entra se mover o cliente de etapa ou remover risco real.",
+    size: "grande",
+    source: "task",
+  }));
+
+  stageTasks.filter((task) => !checklist.some((item) => item.title === task.title)).slice(0, 2).forEach((task) => checklist.push({
+    title: task.title,
+    detail: `Tarefa da etapa atual (${getStagePremiumLabel(stage)}). Executar em bloco, não como rotina diária.`,
+    size: "media",
+    source: "task",
+  }));
+
+  if (checklist.length < 5) checklist.push({
+    title: "Fechar um único avanço verificável do workspace",
+    detail: nodes.length > 0 ? `Escolher 1 node ativo e levar até conclusão antes de abrir novas frentes.` : "Criar apenas o node mínimo que destrava a próxima decisão.",
+    size: "media",
+    source: "engine",
+  });
+
+  if (checklist.length < 6) checklist.push({
+    title: "Registrar decisão e próxima ação em 5 minutos",
+    detail: "Micro-ação final: deixar claro o que foi decidido, quem depende disso e qual é o próximo passo.",
+    size: "pequena",
+    source: "engine",
+  });
+
+  return checklist.slice(0, 6);
 }
 
 function sameDay(a: Date, iso: string) {
@@ -261,6 +315,7 @@ export default function WorkspaceDetailPage() {
   const finishedNodes = nodesProgress.filter((node) => node.status === "done" || node.status === "concluido").length;
   const intro = introCopy(ws.current_stage);
   const actionPlan = buildActionPlan(ws.current_stage, taskSignals, nodesProgress);
+  const leanChecklist = buildLeanChecklist(ws.current_stage, taskSignals, nodesProgress);
   const movementTypes = Array.from(new Set(timeline.map((event) => event.event_type))).sort();
   const filteredMovements = timeline.filter((event) => {
     const matchesType = eventTypeFilter === "__all__" || event.event_type === eventTypeFilter;
@@ -409,6 +464,37 @@ export default function WorkspaceDetailPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              <div className="mt-5 rounded-lg border border-primary/30 bg-primary/10 p-4">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="label-sm mb-1">Checklist lean de execução</p>
+                    <h3 className="text-base font-semibold text-foreground">Maiores primeiro, menores só para fechar ciclo</h3>
+                  </div>
+                  <span className="rounded-md border border-border bg-card/70 px-2 py-1 text-[11px] text-muted-foreground">
+                    {leanChecklist.length} ações · não diário
+                  </span>
+                </div>
+
+                <div className="grid gap-2">
+                  {leanChecklist.map((item, index) => (
+                    <div key={`${item.title}-${index}`} className="flex items-start gap-3 rounded-md border border-border bg-card/70 p-3">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-primary/40 text-[10px] font-semibold text-primary">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-medium text-foreground">{item.title}</p>
+                          <span className="rounded border border-border bg-secondary px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                            {item.size}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
