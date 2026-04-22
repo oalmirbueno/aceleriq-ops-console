@@ -81,6 +81,7 @@ interface LeanChecklistItem {
   detail: string;
   size: "grande" | "media" | "pequena";
   source: "task" | "engine";
+  taskId?: string;
 }
 
 const STAGES = ["entrada", "diagnostico", "estrutura_base", "planejamento", "producao", "ativacao", "otimizacao", "expansao"];
@@ -150,6 +151,7 @@ function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: 
     detail: "Maior alavanca: destravar antes de criar trabalho novo. Resolver, delegar ou cortar o bloqueio.",
     size: "grande",
     source: "task",
+    taskId: task.id,
   }));
 
   priorityTasks.filter((task) => !blocked.some((b) => b.id === task.id)).slice(0, 2).forEach((task) => checklist.push({
@@ -157,6 +159,7 @@ function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: 
     detail: "Entrega pesada primeiro: só entra se mover o cliente de etapa ou remover risco real.",
     size: "grande",
     source: "task",
+    taskId: task.id,
   }));
 
   stageTasks.filter((task) => !checklist.some((item) => item.title === task.title)).slice(0, 2).forEach((task) => checklist.push({
@@ -164,6 +167,7 @@ function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: 
     detail: `Tarefa da etapa atual (${getStagePremiumLabel(stage)}). Executar em bloco, não como rotina diária.`,
     size: "media",
     source: "task",
+    taskId: task.id,
   }));
 
   if (checklist.length < 5) checklist.push({
@@ -333,6 +337,22 @@ export default function WorkspaceDetailPage() {
     setWorkspaceMode("full");
     setCanvasStatusShortcut(status);
     setActiveTab("canvas");
+  };
+
+  const completeChecklistTask = async (item: LeanChecklistItem) => {
+    if (!item.taskId) return;
+    const { error } = await supabase
+      .from("tasks")
+      .update({ status: "done" })
+      .eq("id", item.taskId);
+
+    if (error) {
+      toast({ title: "Erro ao concluir task", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    setTaskSignals((current) => current.map((task) => task.id === item.taskId ? { ...task, status: "done" } : task));
+    toast({ title: "Task concluída", description: item.title });
   };
 
   useEffect(() => {
@@ -604,9 +624,15 @@ export default function WorkspaceDetailPage() {
                 <div className="grid gap-2">
                   {leanChecklist.map((item, index) => (
                     <div key={`${item.title}-${index}`} className="flex items-start gap-3 rounded-md border border-border bg-card/70 p-3">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-primary/40 text-[10px] font-semibold text-primary">
-                        {index + 1}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => completeChecklistTask(item)}
+                        disabled={!item.taskId}
+                        className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-primary/40 text-primary transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground"
+                        aria-label={item.taskId ? `Concluir ${item.title}` : item.title}
+                      >
+                        {item.taskId ? <CheckCircle2 className="h-3.5 w-3.5" /> : <span className="text-[10px] font-semibold">{index + 1}</span>}
+                      </button>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-sm font-medium text-foreground">{item.title}</p>
