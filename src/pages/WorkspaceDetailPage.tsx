@@ -95,9 +95,7 @@ function workspaceProgress(stage: string) {
 function calculateRealProgress(stage: string, nodes: WorkspaceNodeProgress[]) {
   if (nodes.length === 0) return workspaceProgress(stage);
   const done = nodes.filter((node) => node.status === "done" || node.status === "concluido").length;
-  const activeWeight = nodes.filter((node) => node.status === "active" || node.status === "ativo").length * 0.55;
-  const blockedPenalty = nodes.filter((node) => node.status === "blocked" || node.status === "bloqueado").length * 0.15;
-  return Math.max(5, Math.min(100, Math.round(((done + activeWeight) / nodes.length) * 100 - blockedPenalty)));
+  return Math.round((done / nodes.length) * 100);
 }
 
 function introCopy(stage: string) {
@@ -399,6 +397,7 @@ export default function WorkspaceDetailPage() {
   const finishedNodes = nodesProgress.filter((node) => node.status === "done" || node.status === "concluido").length;
   const activeNodes = nodesProgress.filter((node) => node.status === "active" || node.status === "ativo").length;
   const blockedNodes = nodesProgress.filter((node) => node.status === "blocked" || node.status === "bloqueado").length;
+  const otherNodes = Math.max(0, nodesProgress.length - finishedNodes - activeNodes - blockedNodes);
   const intro = introCopy(ws.current_stage);
   const actionPlan = buildActionPlan(ws.current_stage, taskSignals, nodesProgress);
   const leanChecklist = buildLeanChecklist(ws.current_stage, taskSignals, nodesProgress);
@@ -462,7 +461,7 @@ export default function WorkspaceDetailPage() {
                 </Button>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
-                Progresso real calculado por nodes concluídos/ativos no canvas; fallback pela etapa quando ainda não há nodes.
+                Progresso real calculado por nodes concluídos sobre o total do canvas; fallback pela etapa quando ainda não há nodes.
               </p>
             </div>
 
@@ -479,11 +478,10 @@ export default function WorkspaceDetailPage() {
               </div>
               <Progress value={progress} className="h-2" />
               <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-                Como calculamos: nodes <strong className="font-medium text-foreground">done/concluido</strong> valem 100%,
-                <strong className="font-medium text-foreground"> active/ativo</strong> valem 55% e
-                <strong className="font-medium text-foreground"> blocked/bloqueado</strong> aplicam penalidade de 15%. Sem nodes, usamos a etapa atual como base.
+                Como calculamos: progresso = <strong className="font-medium text-foreground">nodes done/concluido</strong> ÷
+                <strong className="font-medium text-foreground"> total de nodes</strong>. Nodes ativos, bloqueados e demais statuses entram no total, mas não contam como concluídos. Sem nodes, usamos a etapa atual como base.
               </p>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                 <button type="button" onClick={() => openCanvasByStatus("concluido")} className="rounded-md border border-border bg-card/60 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:text-primary">
                   <p className="text-muted-foreground">Concluídos</p>
                   <p className="mt-0.5 font-semibold text-foreground">{finishedNodes}</p>
@@ -496,6 +494,10 @@ export default function WorkspaceDetailPage() {
                   <p className="text-muted-foreground">Bloqueados</p>
                   <p className="mt-0.5 font-semibold text-foreground">{blockedNodes}</p>
                 </button>
+                <div className="rounded-md border border-border bg-card/60 px-2.5 py-2 text-left">
+                  <p className="text-muted-foreground">Outros</p>
+                  <p className="mt-0.5 font-semibold text-foreground">{otherNodes}</p>
+                </div>
               </div>
             </div>
           </div>
