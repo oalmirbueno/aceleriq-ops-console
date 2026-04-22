@@ -930,7 +930,7 @@ export default function WorkspaceDetailPage({ mode = "preview" }: WorkspaceDetai
         {showFullWorkspace && (
           <div className="space-y-3">
             <div className="flex justify-end">
-              <Button variant="outline" size="sm" onClick={() => setWorkspaceMode("preview")}>Voltar para prévia</Button>
+              <Button variant="outline" size="sm" onClick={() => navigate(`/ops/workspaces/${workspaceId}`)}>Voltar para pré-entrada</Button>
             </div>
             <WorkspaceHeader
               clientName={clientName}
