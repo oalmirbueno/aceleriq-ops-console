@@ -88,6 +88,11 @@ interface LeanChecklistItem {
 const STAGES = ["entrada", "diagnostico", "estrutura_base", "planejamento", "producao", "ativacao", "otimizacao", "expansao"];
 const MOVEMENTS_PAGE_SIZE = 20;
 const TIMELINE_FETCH_PAGE_SIZE = 500;
+const PRE_ENTRY_ACTIONS = [
+  { key: "review-context", label: "Revisar contexto", detail: "Validar briefing, histórico, sinais e restrições antes de produzir." },
+  { key: "confirm-plan", label: "Confirmar plano gradual", detail: "Checar sequência, prioridades e critérios de avanço do workspace." },
+  { key: "start-execution", label: "Iniciar execução", detail: "Assumir o próximo bloco de produção com foco e sem abrir frentes soltas." },
+];
 
 function workspaceProgress(stage: string) {
   const index = Math.max(0, STAGES.indexOf(stage));
@@ -264,6 +269,7 @@ export default function WorkspaceDetailPage() {
   const [activeTab, setActiveTab] = useState("resumo");
   const [canvasStatusShortcut, setCanvasStatusShortcut] = useState<string | null>(null);
   const [completedTriageKeys, setCompletedTriageKeys] = useState<string[]>([]);
+  const [completedPreEntryActions, setCompletedPreEntryActions] = useState<string[]>([]);
 
   const fetchWorkspace = async () => {
     if (!workspaceId) return;
@@ -379,6 +385,10 @@ export default function WorkspaceDetailPage() {
     setCompletedTriageKeys((current) => current.includes(key) ? current.filter((value) => value !== key) : [...current, key]);
   };
 
+  const togglePreEntryAction = (key: string) => {
+    setCompletedPreEntryActions((current) => current.includes(key) ? current.filter((value) => value !== key) : [...current, key]);
+  };
+
   useEffect(() => {
     setVisibleMovements(MOVEMENTS_PAGE_SIZE);
   }, [movementsOpen, eventTypeFilter, movementDate, movementSearch]);
@@ -450,8 +460,12 @@ export default function WorkspaceDetailPage() {
     key: triageItemKey(item, index),
     lockedDone: Boolean(item.completed || completedTriageKeys.includes(triageItemKey(item, index))),
   }));
-  const triageComplete = lockedChecklist.length > 0 && lockedChecklist.every((item) => item.lockedDone);
-  const triageProgress = lockedChecklist.length > 0 ? Math.round((lockedChecklist.filter((item) => item.lockedDone).length / lockedChecklist.length) * 100) : 0;
+  const completedChecklistCount = lockedChecklist.filter((item) => item.lockedDone).length;
+  const completedPreEntryCount = PRE_ENTRY_ACTIONS.filter((action) => completedPreEntryActions.includes(action.key)).length;
+  const triageDoneCount = completedChecklistCount + completedPreEntryCount;
+  const triageTotalCount = lockedChecklist.length + PRE_ENTRY_ACTIONS.length;
+  const triageComplete = triageTotalCount > 0 && triageDoneCount === triageTotalCount;
+  const triageProgress = triageTotalCount > 0 ? Math.round((triageDoneCount / triageTotalCount) * 100) : 0;
   const movementTypes = Array.from(new Set(timeline.map((event) => event.event_type))).sort();
   const movementQuery = movementSearch.trim().toLowerCase();
   const filteredMovements = timeline.filter((event) => {
@@ -643,6 +657,28 @@ export default function WorkspaceDetailPage() {
                 ))}
               </div>
 
+              <div className="mt-5 grid gap-2 md:grid-cols-3">
+                {PRE_ENTRY_ACTIONS.map((action, index) => {
+                  const done = completedPreEntryActions.includes(action.key);
+                  return (
+                    <button
+                      key={action.key}
+                      type="button"
+                      onClick={() => togglePreEntryAction(action.key)}
+                      className={cn("rounded-md border border-border bg-secondary/30 p-4 text-left transition-colors hover:border-primary/40", done && "border-primary/30 bg-primary/10")}
+                    >
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <span className="text-sm font-medium text-foreground">{action.label}</span>
+                        <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded border border-primary/40 text-[10px] font-semibold text-primary", done && "border-primary bg-primary text-primary-foreground")}>
+                          {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : index + 1}
+                        </span>
+                      </div>
+                      <p className="text-xs leading-relaxed text-muted-foreground">{action.detail}</p>
+                    </button>
+                  );
+                })}
+              </div>
+
               <div className="mt-5 rounded-lg border border-primary/30 bg-primary/10 p-4">
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -650,7 +686,7 @@ export default function WorkspaceDetailPage() {
                     <h3 className="text-base font-semibold text-foreground">Maiores primeiro, menores só para fechar ciclo</h3>
                   </div>
                   <span className="rounded-md border border-border bg-card/70 px-2 py-1 text-[11px] text-muted-foreground">
-                    {triageProgress}% travado · {lockedChecklist.filter((item) => item.lockedDone).length}/{lockedChecklist.length}
+                    {triageProgress}% travado · {triageDoneCount}/{triageTotalCount}
                   </span>
                 </div>
 
@@ -709,7 +745,7 @@ export default function WorkspaceDetailPage() {
                     {lockedChecklist.length === 0 ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Lock className="h-4 w-4 text-primary" />}
                     <span className="font-medium">Triagem ainda bloqueando a entrada</span>
                   </div>
-                  {lockedChecklist.length === 0 ? "Carregando ações de triagem..." : "Conclua e trave todos os itens do checklist para liberar o workspace completo."}
+                  {lockedChecklist.length === 0 ? "Carregando ações de triagem..." : "Conclua as ações claras e trave todos os itens do checklist para liberar o workspace completo."}
                 </div>
               )}
 
