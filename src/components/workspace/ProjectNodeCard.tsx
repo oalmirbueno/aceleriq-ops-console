@@ -56,14 +56,14 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
 
       <div
         data-selected={selected ? "true" : "false"}
-        className="node-card relative rounded-lg w-[240px] px-3 py-2.5"
+        className="node-card relative rounded-lg w-[268px] px-4 py-3"
       >
         {/* Top row: icon · kind label · indicators */}
-        <div className="flex items-center gap-2 mb-2">
-          <div className="node-icon h-6 w-6 rounded-md flex items-center justify-center shrink-0">
-            <Icon className="h-3.5 w-3.5" strokeWidth={2} />
+        <div className="flex items-center gap-2.5 mb-2.5">
+          <div className="node-icon h-8 w-8 rounded-md flex items-center justify-center shrink-0">
+            <Icon className="h-4 w-4" strokeWidth={2} />
           </div>
-          <span className="node-kind-label text-[10px] uppercase tracking-[0.08em] font-semibold truncate">
+          <span className="node-kind-label text-[11px] uppercase tracking-[0.08em] font-semibold truncate">
             {meta?.shortLabel ?? d.kind}
           </span>
           <div className="ml-auto flex items-center gap-1.5">
@@ -100,13 +100,13 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
         )}
 
         {/* Title — strong hierarchy */}
-        <p className="text-[13.5px] font-semibold text-foreground leading-[1.25] tracking-[-0.01em] line-clamp-2 mb-1">
+        <p className="text-[15px] font-semibold text-foreground leading-[1.25] line-clamp-2 mb-1.5">
           {d.title}
         </p>
 
         {/* Description — secondary */}
         {d.description && (
-          <p className="text-[11px] text-muted-foreground/80 line-clamp-2 leading-snug mb-2">
+          <p className="text-xs text-muted-foreground/80 line-clamp-2 leading-snug mb-2.5">
             {d.description}
           </p>
         )}
@@ -134,8 +134,8 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
         )}
 
         {/* Footer: status dot + meta counts (compact, low contrast) */}
-        <div className="flex items-center gap-2 pt-1.5 border-t border-white/[0.04]">
-          <span className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground">
+        <div className="flex items-center gap-2 pt-2 border-t border-border/40">
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <span
               className="h-1.5 w-1.5 rounded-full"
               style={{ background: "hsl(var(--node-accent, var(--muted-foreground)) / 0.9)" }}
