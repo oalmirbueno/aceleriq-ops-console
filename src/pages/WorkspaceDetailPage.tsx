@@ -146,7 +146,10 @@ export default function WorkspaceDetailPage() {
   const [taskSignals, setTaskSignals] = useState<WorkspaceTaskSignal[]>([]);
   const [loading, setLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
-  const [showFullWorkspace, setShowFullWorkspace] = useState(false);
+  const [showFullWorkspace, setShowFullWorkspace] = useState(() => {
+    if (!workspaceId) return false;
+    return localStorage.getItem(`workspace-mode:${workspaceId}`) === "full";
+  });
   const [movementsOpen, setMovementsOpen] = useState(false);
   const [eventTypeFilter, setEventTypeFilter] = useState("__all__");
   const [movementDate, setMovementDate] = useState<Date | undefined>();
@@ -189,6 +192,16 @@ export default function WorkspaceDetailPage() {
   };
 
   useEffect(() => { fetchWorkspace(); }, [workspaceId]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    setShowFullWorkspace(localStorage.getItem(`workspace-mode:${workspaceId}`) === "full");
+  }, [workspaceId]);
+
+  const setWorkspaceMode = (mode: "preview" | "full") => {
+    if (workspaceId) localStorage.setItem(`workspace-mode:${workspaceId}`, mode);
+    setShowFullWorkspace(mode === "full");
+  };
 
   const handleStageChange = async (newStage: string) => {
     if (!ws || newStage === ws.current_stage) return;
@@ -421,7 +434,7 @@ export default function WorkspaceDetailPage() {
                 </div>
               </div>
 
-              <Button onClick={() => setShowFullWorkspace(true)} className="h-11 w-full gap-2">
+              <Button onClick={() => setWorkspaceMode("full")} className="h-11 w-full gap-2">
                 Entrar no workspace completo
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -501,15 +514,22 @@ export default function WorkspaceDetailPage() {
           </DialogContent>
         </Dialog>
 
-        {showFullWorkspace && <WorkspaceHeader
-          clientName={clientName}
-          ownerName={ownerName}
-          status={ws.status}
-          currentStage={ws.current_stage}
-          changingStage={changingStage}
-          onStageChange={handleStageChange}
-          planName={planName}
-        />}
+        {showFullWorkspace && (
+          <div className="space-y-3">
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => setWorkspaceMode("preview")}>Voltar para prévia</Button>
+            </div>
+            <WorkspaceHeader
+              clientName={clientName}
+              ownerName={ownerName}
+              status={ws.status}
+              currentStage={ws.current_stage}
+              changingStage={changingStage}
+              onStageChange={handleStageChange}
+              planName={planName}
+            />
+          </div>
+        )}
 
         {showFullWorkspace && <Tabs defaultValue="resumo" className="w-full">
           <TabsList>
