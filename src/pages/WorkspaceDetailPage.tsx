@@ -82,6 +82,7 @@ interface LeanChecklistItem {
   size: "grande" | "media" | "pequena";
   source: "task" | "engine";
   taskId?: string;
+  completed?: boolean;
 }
 
 const STAGES = ["entrada", "diagnostico", "estrutura_base", "planejamento", "producao", "ativacao", "otimizacao", "expansao"];
@@ -139,6 +140,7 @@ function buildActionPlan(stage: string, tasks: WorkspaceTaskSignal[], nodes: Wor
 
 function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: WorkspaceNodeProgress[]): LeanChecklistItem[] {
   const active = tasks.filter((task) => task.status !== "done" && task.status !== "canceled");
+  const completedStageTasks = tasks.filter((task) => task.status === "done" && task.stage === stage);
   const blocked = active.filter((task) => task.status === "blocked");
   const stageTasks = active.filter((task) => task.stage === stage);
   const priorityTasks = active
@@ -146,7 +148,16 @@ function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: 
     .sort((a, b) => (a.status === "blocked" ? -1 : 0) - (b.status === "blocked" ? -1 : 0));
   const checklist: LeanChecklistItem[] = [];
 
-  blocked.slice(0, 2).forEach((task) => checklist.push({
+  completedStageTasks.slice(0, 2).forEach((task) => checklist.push({
+    title: task.title,
+    detail: "Concluída neste ciclo de pré-entrada.",
+    size: "pequena",
+    source: "task",
+    taskId: task.id,
+    completed: true,
+  }));
+
+  blocked.filter((task) => !checklist.some((item) => item.taskId === task.id)).slice(0, 2).forEach((task) => checklist.push({
     title: task.title,
     detail: "Maior alavanca: destravar antes de criar trabalho novo. Resolver, delegar ou cortar o bloqueio.",
     size: "grande",
@@ -154,7 +165,7 @@ function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: 
     taskId: task.id,
   }));
 
-  priorityTasks.filter((task) => !blocked.some((b) => b.id === task.id)).slice(0, 2).forEach((task) => checklist.push({
+  priorityTasks.filter((task) => !blocked.some((b) => b.id === task.id) && !checklist.some((item) => item.taskId === task.id)).slice(0, 2).forEach((task) => checklist.push({
     title: task.title,
     detail: "Entrega pesada primeiro: só entra se mover o cliente de etapa ou remover risco real.",
     size: "grande",
@@ -162,7 +173,7 @@ function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: 
     taskId: task.id,
   }));
 
-  stageTasks.filter((task) => !checklist.some((item) => item.title === task.title)).slice(0, 2).forEach((task) => checklist.push({
+  stageTasks.filter((task) => !checklist.some((item) => item.taskId === task.id)).slice(0, 2).forEach((task) => checklist.push({
     title: task.title,
     detail: `Tarefa da etapa atual (${getStagePremiumLabel(stage)}). Executar em bloco, não como rotina diária.`,
     size: "media",
