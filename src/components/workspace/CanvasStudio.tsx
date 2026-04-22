@@ -1001,7 +1001,7 @@ function CanvasStudioInner({
       ];
       const created: Record<string, string> = {};
       const rows: CanvasNodeRow[] = [];
-      for (const [i, item] of blueprint.entries()) {
+      for (const item of blueprint) {
         const { data, error } = await supabase.from("canvas_nodes").insert({
           workspace_id: workspaceId,
           client_id: clientId,
