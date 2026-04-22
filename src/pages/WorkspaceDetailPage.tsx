@@ -786,10 +786,10 @@ export default function WorkspaceDetailPage() {
               {!triageComplete && (
                 <div className="rounded-md border border-border bg-secondary/30 p-4 text-xs text-muted-foreground" role="status" aria-live="polite">
                   <div className="mb-2 flex items-center gap-2 text-foreground">
-                    {lockedChecklist.length === 0 ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Lock className="h-4 w-4 text-primary" />}
-                    <span className="font-medium">Triagem ainda bloqueando a entrada</span>
+                    {lockedChecklist.length === 0 ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Info className="h-4 w-4 text-primary" />}
+                    <span className="font-medium">Pré-entrada ainda em andamento</span>
                   </div>
-                  {lockedChecklist.length === 0 ? "Carregando ações de triagem..." : "Conclua as ações claras e trave todos os itens da triagem para liberar o workspace completo."}
+                  {lockedChecklist.length === 0 ? "Carregando ações de triagem..." : "Use este bloco para revisar contexto, confirmar prioridades e registrar progresso antes ou durante a execução no workspace completo."}
                 </div>
               )}
 
@@ -797,15 +797,15 @@ export default function WorkspaceDetailPage() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="block">
-                      <Button onClick={triageComplete ? () => setWorkspaceMode("full") : handleLockedWorkspaceEntry} className="h-11 w-full gap-2" disabled={showFullWorkspace} aria-disabled={!triageComplete || showFullWorkspace}>
-                        {triageComplete ? "Entrar no workspace completo" : "Workspace completo bloqueado"}
-                        {triageComplete ? <ArrowRight className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                      <Button onClick={handleWorkspaceEntry} className="h-11 w-full gap-2" disabled={showFullWorkspace} aria-disabled={showFullWorkspace}>
+                        {triageComplete ? "Entrar no workspace completo" : "Entrar e seguir com apoio da pré-entrada"}
+                        <ArrowRight className="h-4 w-4" />
                       </Button>
                     </span>
                   </TooltipTrigger>
-                  {!triageComplete && (
+                  {!triageComplete && !showFullWorkspace && (
                     <TooltipContent>
-                      <p>Finalize a triagem completa para liberar a entrada.</p>
+                      <p>Você pode entrar agora; a pré-entrada continua orientando o método e o progresso.</p>
                     </TooltipContent>
                   )}
                 </Tooltip>
