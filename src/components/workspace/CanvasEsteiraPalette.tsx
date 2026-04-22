@@ -39,10 +39,13 @@ export default function CanvasEsteiraPalette({
 
   return (
     <TooltipProvider delayDuration={200}>
-      <aside className="w-60 shrink-0 border-r border-border bg-card/40 backdrop-blur-sm flex flex-col">
+      <aside className="w-72 shrink-0 border-r border-border bg-card/60 backdrop-blur-sm flex flex-col">
         {/* Header */}
         <div className="px-3 py-2 border-b border-border flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Esteira</p>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Canvas Ops</p>
+            <p className="text-[11px] text-muted-foreground/80 leading-tight">Contexto → Engine → Resultado</p>
+          </div>
           <button
             onClick={onToggleCollapse}
             className="h-6 w-6 rounded hover:bg-muted/60 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
@@ -84,7 +87,7 @@ export default function CanvasEsteiraPalette({
                 <div key={g.stage} className={`rounded-md border ${isOpen ? "border-border" : "border-transparent"} overflow-hidden`}>
                   <button
                     onClick={() => setOpenStage(isOpen ? null : g.stage)}
-                    className={`w-full flex items-center gap-2 px-2 py-1.5 text-left transition-colors ${
+                    className={`w-full flex items-center gap-2 px-2.5 py-2 text-left transition-colors ${
                       isOpen ? "bg-muted/40" : "hover:bg-muted/20"
                     }`}
                   >
@@ -92,13 +95,14 @@ export default function CanvasEsteiraPalette({
                       {stage.letter}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className={`text-[11px] font-semibold leading-tight ${stage.color.split(" ")[0]}`}>{stage.short}</p>
+                      <p className={`text-xs font-semibold leading-tight ${stage.color.split(" ")[0]}`}>{stage.short}</p>
+                      <p className="text-[10px] text-muted-foreground/70 leading-tight">{g.types.length} tipos</p>
                     </div>
                     <ChevronRight className={`h-3 w-3 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`} />
                   </button>
 
                   {isOpen && (
-                    <div className="px-1.5 pb-2 pt-1 grid grid-cols-2 gap-1">
+                    <div className="px-1.5 pb-2 pt-1 grid grid-cols-2 gap-1.5">
                       {g.types.map((kind) => {
                         const meta = getProjectTypeMeta(kind);
                         if (!meta) return null;
@@ -108,10 +112,10 @@ export default function CanvasEsteiraPalette({
                             <TooltipTrigger asChild>
                               <button
                                 onClick={() => onAdd(kind, g.stage)}
-                                className={`flex flex-col items-center justify-center gap-1 p-2 rounded-md border ${meta.color} ${meta.bg} hover:scale-[1.04] active:scale-95 transition-transform`}
+                                className={`flex items-center gap-2 p-2.5 rounded-md border ${meta.color} ${meta.bg} hover:bg-muted/30 hover:scale-[1.02] active:scale-95 transition-transform text-left min-h-12`}
                               >
-                                <Icon className="h-3.5 w-3.5" />
-                                <span className="text-[9px] font-medium leading-tight text-center line-clamp-1">
+                                <Icon className="h-4 w-4 shrink-0" />
+                                <span className="text-[11px] font-medium leading-tight line-clamp-2">
                                   {meta.shortLabel}
                                 </span>
                               </button>
