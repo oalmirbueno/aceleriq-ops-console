@@ -247,6 +247,8 @@ export default function WorkspaceDetailPage() {
   const [movementDate, setMovementDate] = useState<Date | undefined>();
   const [movementSearch, setMovementSearch] = useState("");
   const [visibleMovements, setVisibleMovements] = useState(MOVEMENTS_PAGE_SIZE);
+  const [activeTab, setActiveTab] = useState("resumo");
+  const [canvasStatusShortcut, setCanvasStatusShortcut] = useState<string | null>(null);
 
   const fetchWorkspace = async () => {
     if (!workspaceId) return;
@@ -327,6 +329,12 @@ export default function WorkspaceDetailPage() {
     if (error) toast({ title: "Erro ao atualizar progresso", description: error.message, variant: "destructive" });
     if (nodes) setNodesProgress(nodes as WorkspaceNodeProgress[]);
     setRefreshingProgress(false);
+  };
+
+  const openCanvasByStatus = (status: string) => {
+    setWorkspaceMode("full");
+    setCanvasStatusShortcut(status);
+    setActiveTab("canvas");
   };
 
   useEffect(() => {
