@@ -223,6 +223,42 @@ export function resolveProjectNodeKind(input: {
  * Pode ser editado/removido livremente depois.
  */
 export const CHECKLIST_TEMPLATES: Partial<Record<ProjectNodeKind, string[]>> = {
+  contexto_ops: [
+    "Vincular briefing, assets e referências",
+    "Registrar regras de marca e restrições",
+    "Marcar origem e validade da informação",
+    "Conectar ao engine que vai usar este contexto",
+  ],
+  instrucao: [
+    "Definir objetivo operacional",
+    "Escrever SOP / prompt / regra de execução",
+    "Definir critérios de aceite",
+    "Conectar à engine ou resultado específico",
+  ],
+  engine: [
+    "Listar entradas obrigatórias",
+    "Definir saída esperada",
+    "Mapear automações e handoffs",
+    "Conectar outputs e decisões",
+  ],
+  resultado: [
+    "Definir owner e prazo",
+    "Produzir versão inicial",
+    "Anexar evidência / link final",
+    "Enviar para decisão ou revisão",
+  ],
+  decisao: [
+    "Definir condição de aprovação",
+    "Mapear caminho se aprovado",
+    "Mapear caminho se reprovado",
+    "Registrar decisão e responsável",
+  ],
+  agente: [
+    "Definir papel do agente",
+    "Configurar instrução padrão",
+    "Conectar fontes de contexto",
+    "Testar ação/handoff principal",
+  ],
   briefing: [
     "Coletar objetivo do cliente",
     "Mapear público-alvo e dores",
