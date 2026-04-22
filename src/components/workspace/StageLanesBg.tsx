@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useStore } from "@xyflow/react";
 import { ACELERA_STAGES, STAGE_COLUMN_WIDTH } from "./canvasProjectTypes";
 
 interface Props {
@@ -13,6 +14,7 @@ interface Props {
  */
 function StageLanesBgComp({ height, offsetX = 0, offsetY = 0 }: Props) {
   const totalWidth = STAGE_COLUMN_WIDTH * ACELERA_STAGES.length;
+  const [x, y, zoom] = useStore((s) => s.transform);
 
   return (
     <div
@@ -26,6 +28,8 @@ function StageLanesBgComp({ height, offsetX = 0, offsetY = 0 }: Props) {
           top: offsetY,
           width: totalWidth,
           height,
+          transform: `translate(${x / Math.max(zoom, 0.0001)}px, ${y / Math.max(zoom, 0.0001)}px) scale(${zoom})`,
+          transformOrigin: "0 0",
         }}
       >
         <div className="flex h-full">
