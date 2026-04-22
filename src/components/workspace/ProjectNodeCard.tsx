@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Plus, Link2, Paperclip, ListChecks } from "lucide-react";
+import { Plus, Link2, Paperclip, ListChecks, Maximize2 } from "lucide-react";
 import { getProjectTypeMeta, getNodeFamily } from "./canvasProjectTypes";
 import { getEsteiraStatus, mapLegacyStatus } from "./canvasEsteiraStatus";
 import ClientAvatar from "./ClientAvatar";
@@ -56,7 +56,7 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
 
       <div
         data-selected={selected ? "true" : "false"}
-        className="node-card relative rounded-lg w-[268px] px-4 py-3"
+        className="node-card relative rounded-lg w-[292px] px-4 py-3.5"
       >
         {/* Top row: icon · kind label · indicators */}
         <div className="flex items-center gap-2.5 mb-2.5">
@@ -67,6 +67,7 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
             {meta?.shortLabel ?? d.kind}
           </span>
           <div className="ml-auto flex items-center gap-1.5">
+            <Maximize2 className="h-3 w-3 text-foreground/35 opacity-0 transition-opacity group-hover:opacity-100" aria-label="Abrir popup" />
             {d.hasLinkedEntity && (
               <Link2 className="h-3 w-3 text-foreground/40" aria-label="Vinculado" />
             )}
@@ -113,7 +114,7 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
 
         {/* Checklist progress bar — only if there's a checklist */}
         {checklistPct !== null && (
-          <div className="mb-2">
+          <div className="mb-2.5">
             <div className="flex items-center justify-between text-[9.5px] text-muted-foreground/70 mb-0.5">
               <span className="inline-flex items-center gap-1">
                 <ListChecks className="h-2.5 w-2.5" />
@@ -121,7 +122,7 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
               </span>
               <span className="font-mono tabular-nums">{checklistPct}%</span>
             </div>
-            <div className="h-[3px] w-full rounded-full bg-white/[0.04] overflow-hidden">
+            <div className="h-1 w-full rounded-full bg-muted/40 overflow-hidden">
               <div
                 className="h-full rounded-full transition-[width] duration-300"
                 style={{
