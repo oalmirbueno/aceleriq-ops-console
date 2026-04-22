@@ -426,9 +426,14 @@ function CanvasStudioInner({
           target: e.target_node_id,
           label: intent.label,
           animated: intent.animated,
-          style: { stroke: intent.stroke, strokeWidth: 2 },
-          labelStyle: { fill: "hsl(var(--muted-foreground))", fontSize: 10, fontWeight: 600 },
-          labelBgStyle: { fill: "hsl(var(--card))", fillOpacity: 0.92 },
+          type: "smoothstep",
+          className: intent.className,
+          markerEnd: { type: MarkerType.ArrowClosed, color: intent.stroke, width: 18, height: 18 },
+          style: { stroke: intent.stroke, strokeWidth: intent.strokeWidth },
+          labelStyle: { fill: "hsl(var(--foreground))", fontSize: 10, fontWeight: 700, letterSpacing: 0.2 },
+          labelBgPadding: [8, 4],
+          labelBgBorderRadius: 999,
+          labelBgStyle: { fill: "hsl(var(--card))", fillOpacity: 0.96, stroke: intent.stroke, strokeOpacity: 0.26 },
         };
       });
   }, [dbEdges, visibleCanvasNodes]);
