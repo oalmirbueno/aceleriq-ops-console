@@ -88,6 +88,11 @@ interface LeanChecklistItem {
 const STAGES = ["entrada", "diagnostico", "estrutura_base", "planejamento", "producao", "ativacao", "otimizacao", "expansao"];
 const MOVEMENTS_PAGE_SIZE = 20;
 const TIMELINE_FETCH_PAGE_SIZE = 500;
+const PRE_ENTRY_ACTIONS = [
+  { key: "review-context", label: "Revisar contexto", detail: "Validar briefing, histórico, sinais e restrições antes de produzir." },
+  { key: "confirm-plan", label: "Confirmar plano gradual", detail: "Checar sequência, prioridades e critérios de avanço do workspace." },
+  { key: "start-execution", label: "Iniciar execução", detail: "Assumir o próximo bloco de produção com foco e sem abrir frentes soltas." },
+];
 
 function workspaceProgress(stage: string) {
   const index = Math.max(0, STAGES.indexOf(stage));
