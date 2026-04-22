@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ArrowRight, CalendarDays, CalendarIcon, CheckCircle2, FolderKanban, ListChecks, Loader2, Lock, RefreshCw, Search, Sparkles, Target, X } from "lucide-react";
+import { ArrowRight, CalendarDays, CalendarIcon, CheckCircle2, FolderKanban, Info, ListChecks, Loader2, Lock, RefreshCw, Search, Sparkles, Target, X } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingState from "@/components/LoadingState";
 import EmptyState from "@/components/EmptyState";
@@ -11,6 +11,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Breadcrumb,
   BreadcrumbItem,
