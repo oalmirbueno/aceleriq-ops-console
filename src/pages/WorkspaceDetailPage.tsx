@@ -82,6 +82,7 @@ interface LeanChecklistItem {
   size: "grande" | "media" | "pequena";
   source: "task" | "engine";
   taskId?: string;
+  completed?: boolean;
 }
 
 const STAGES = ["entrada", "diagnostico", "estrutura_base", "planejamento", "producao", "ativacao", "otimizacao", "expansao"];
@@ -139,6 +140,7 @@ function buildActionPlan(stage: string, tasks: WorkspaceTaskSignal[], nodes: Wor
 
 function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: WorkspaceNodeProgress[]): LeanChecklistItem[] {
   const active = tasks.filter((task) => task.status !== "done" && task.status !== "canceled");
+  const completedStageTasks = tasks.filter((task) => task.status === "done" && task.stage === stage);
   const blocked = active.filter((task) => task.status === "blocked");
   const stageTasks = active.filter((task) => task.stage === stage);
   const priorityTasks = active
@@ -146,7 +148,16 @@ function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: 
     .sort((a, b) => (a.status === "blocked" ? -1 : 0) - (b.status === "blocked" ? -1 : 0));
   const checklist: LeanChecklistItem[] = [];
 
-  blocked.slice(0, 2).forEach((task) => checklist.push({
+  completedStageTasks.slice(0, 2).forEach((task) => checklist.push({
+    title: task.title,
+    detail: "Concluída neste ciclo de pré-entrada.",
+    size: "pequena",
+    source: "task",
+    taskId: task.id,
+    completed: true,
+  }));
+
+  blocked.filter((task) => !checklist.some((item) => item.taskId === task.id)).slice(0, 2).forEach((task) => checklist.push({
     title: task.title,
     detail: "Maior alavanca: destravar antes de criar trabalho novo. Resolver, delegar ou cortar o bloqueio.",
     size: "grande",
@@ -154,7 +165,7 @@ function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: 
     taskId: task.id,
   }));
 
-  priorityTasks.filter((task) => !blocked.some((b) => b.id === task.id)).slice(0, 2).forEach((task) => checklist.push({
+  priorityTasks.filter((task) => !blocked.some((b) => b.id === task.id) && !checklist.some((item) => item.taskId === task.id)).slice(0, 2).forEach((task) => checklist.push({
     title: task.title,
     detail: "Entrega pesada primeiro: só entra se mover o cliente de etapa ou remover risco real.",
     size: "grande",
@@ -162,7 +173,7 @@ function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: 
     taskId: task.id,
   }));
 
-  stageTasks.filter((task) => !checklist.some((item) => item.title === task.title)).slice(0, 2).forEach((task) => checklist.push({
+  stageTasks.filter((task) => !checklist.some((item) => item.taskId === task.id)).slice(0, 2).forEach((task) => checklist.push({
     title: task.title,
     detail: `Tarefa da etapa atual (${getStagePremiumLabel(stage)}). Executar em bloco, não como rotina diária.`,
     size: "media",
@@ -581,8 +592,7 @@ export default function WorkspaceDetailPage() {
           </div>
         </section>
 
-        {!showFullWorkspace && (
-          <section className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+        <section className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
             <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
               <div className="mb-5 flex items-center justify-between gap-4">
                 <div>
@@ -623,19 +633,19 @@ export default function WorkspaceDetailPage() {
 
                 <div className="grid gap-2">
                   {leanChecklist.map((item, index) => (
-                    <div key={`${item.title}-${index}`} className="flex items-start gap-3 rounded-md border border-border bg-card/70 p-3">
+                    <div key={`${item.title}-${index}`} className={cn("flex items-start gap-3 rounded-md border border-border bg-card/70 p-3", item.completed && "border-primary/30 bg-primary/10")}>
                       <button
                         type="button"
                         onClick={() => completeChecklistTask(item)}
-                        disabled={!item.taskId}
-                        className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-primary/40 text-primary transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground"
-                        aria-label={item.taskId ? `Concluir ${item.title}` : item.title}
+                        disabled={!item.taskId || item.completed}
+                        className={cn("mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-primary/40 text-primary transition-colors hover:bg-primary/10 disabled:cursor-not-allowed", (!item.taskId || item.completed) && "disabled:border-border disabled:text-muted-foreground", item.completed && "border-primary bg-primary text-primary-foreground")}
+                        aria-label={item.completed ? `${item.title} concluída` : item.taskId ? `Concluir ${item.title}` : item.title}
                       >
-                        {item.taskId ? <CheckCircle2 className="h-3.5 w-3.5" /> : <span className="text-[10px] font-semibold">{index + 1}</span>}
+                        {item.taskId || item.completed ? <CheckCircle2 className="h-3.5 w-3.5" /> : <span className="text-[10px] font-semibold">{index + 1}</span>}
                       </button>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-medium text-foreground">{item.title}</p>
+                          <p className={cn("text-sm font-medium text-foreground", item.completed && "text-muted-foreground line-through")}>{item.title}</p>
                           <span className="rounded border border-border bg-secondary px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
                             {item.size}
                           </span>
@@ -676,7 +686,6 @@ export default function WorkspaceDetailPage() {
               </Button>
             </aside>
           </section>
-        )}
 
         <Dialog open={movementsOpen} onOpenChange={setMovementsOpen}>
           <DialogContent className="max-w-3xl">
