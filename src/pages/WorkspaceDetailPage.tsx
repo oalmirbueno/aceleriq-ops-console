@@ -363,8 +363,8 @@ export default function WorkspaceDetailPage() {
   const openCanvasByStatus = (status: string) => {
     if (!showFullWorkspace && !triageComplete) {
       toast({
-        title: "Abrindo workspace completo",
-        description: "A pré-entrada continua disponível para orientar contexto, prioridades e qualidade da execução.",
+        title: "Workspace completo aberto",
+        description: "A pré-entrada fica como apoio para contexto, prioridades e qualidade da execução.",
       });
     }
     setWorkspaceMode("full");
@@ -375,8 +375,8 @@ export default function WorkspaceDetailPage() {
   const handleWorkspaceEntry = () => {
     if (!showFullWorkspace && !triageComplete) {
       toast({
-        title: "Pré-entrada em andamento",
-        description: "Você já pode entrar no workspace completo e executar; use a pré-entrada para alinhar contexto e prioridades.",
+        title: "Workspace completo aberto",
+        description: "A pré-entrada fica como apoio para alinhar contexto, prioridades e próximos passos.",
       });
     }
     setWorkspaceMode("full");
@@ -548,7 +548,7 @@ export default function WorkspaceDetailPage() {
                 </span>
                 <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium", showFullWorkspace ? "border-primary/30 bg-primary/10 text-primary" : triageComplete ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-secondary text-muted-foreground")}>
                   {showFullWorkspace ? <CheckCircle2 className="h-3.5 w-3.5" /> : triageComplete ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Info className="h-3.5 w-3.5" />}
-                  {showFullWorkspace ? "Workspace aberto" : triageComplete ? "Entrada preparada" : "Pré-entrada em andamento"}
+                  {showFullWorkspace ? "Workspace aberto" : triageComplete ? "Roteiro pronto" : "Roteiro em progresso"}
                 </span>
                 <Button variant="outline" size="sm" className="gap-2" onClick={refreshNodeProgress} disabled={refreshingProgress}>
                   <RefreshCw className={cn("h-4 w-4", refreshingProgress && "animate-spin")} />
@@ -663,7 +663,7 @@ export default function WorkspaceDetailPage() {
                   <p className="label-sm mb-2">Pré-entrada operacional</p>
                   <h2 className="text-xl font-semibold tracking-tight text-foreground">Triagem completa, contexto e plano gradual de produção</h2>
                   <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                    Este bloco organiza contexto, prioridades e próximas ações antes de abrir o workspace completo, para evitar perda de tempo e manter o avanço visível.
+                    Este bloco organiza contexto, prioridades e próximas ações para apoiar a execução no workspace completo, sem travar o trabalho.
                   </p>
                 </div>
                 <div className="hidden h-10 w-10 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary md:flex">
@@ -730,7 +730,7 @@ export default function WorkspaceDetailPage() {
                     <h3 className="text-base font-semibold text-foreground">Maiores primeiro, menores só para fechar ciclo</h3>
                   </div>
                   <span className="rounded-md border border-border bg-card/70 px-2 py-1 text-[11px] text-muted-foreground">
-                    {triageProgress}% travado · {triageDoneCount}/{triageTotalCount}
+                    {triageProgress}% alinhado · {triageDoneCount}/{triageTotalCount}
                   </span>
                 </div>
 
@@ -741,9 +741,9 @@ export default function WorkspaceDetailPage() {
                         type="button"
                         onClick={() => toggleTriageItem(item, index)}
                         className={cn("mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-primary/40 text-primary transition-colors hover:bg-primary/10", item.lockedDone && "border-primary bg-primary text-primary-foreground")}
-                        aria-label={item.lockedDone ? `${item.title} travado como feito` : `Marcar ${item.title}`}
+                        aria-label={item.lockedDone ? `${item.title} marcado como feito` : `Marcar ${item.title}`}
                       >
-                        {item.lockedDone ? <Lock className="h-3 w-3" /> : item.taskId ? <CheckCircle2 className="h-3.5 w-3.5" /> : <span className="text-[10px] font-semibold">{index + 1}</span>}
+                        {item.lockedDone ? <CheckCircle2 className="h-3 w-3" /> : item.taskId ? <CheckCircle2 className="h-3.5 w-3.5" /> : <span className="text-[10px] font-semibold">{index + 1}</span>}
                       </button>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -787,9 +787,9 @@ export default function WorkspaceDetailPage() {
                 <div className="rounded-md border border-border bg-secondary/30 p-4 text-xs text-muted-foreground" role="status" aria-live="polite">
                   <div className="mb-2 flex items-center gap-2 text-foreground">
                     {lockedChecklist.length === 0 ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Info className="h-4 w-4 text-primary" />}
-                    <span className="font-medium">Pré-entrada ainda em andamento</span>
+                    <span className="font-medium">Roteiro de entrada em progresso</span>
                   </div>
-                  {lockedChecklist.length === 0 ? "Carregando ações de triagem..." : "Use este bloco para revisar contexto, confirmar prioridades e registrar progresso antes ou durante a execução no workspace completo."}
+                  {lockedChecklist.length === 0 ? "Carregando ações de triagem..." : "Use este bloco para revisar contexto, confirmar prioridades e registrar progresso enquanto executa no workspace completo."}
                 </div>
               )}
 
@@ -798,14 +798,14 @@ export default function WorkspaceDetailPage() {
                   <TooltipTrigger asChild>
                     <span className="block">
                       <Button onClick={handleWorkspaceEntry} className="h-11 w-full gap-2" disabled={showFullWorkspace} aria-disabled={showFullWorkspace}>
-                        {triageComplete ? "Entrar no workspace completo" : "Entrar e seguir com apoio da pré-entrada"}
+                        {triageComplete ? "Entrar no workspace completo" : "Entrar no workspace completo"}
                         <ArrowRight className="h-4 w-4" />
                       </Button>
                     </span>
                   </TooltipTrigger>
                   {!triageComplete && !showFullWorkspace && (
                     <TooltipContent>
-                      <p>Você pode entrar agora; a pré-entrada continua orientando o método e o progresso.</p>
+                      <p>A pré-entrada é apenas um apoio para contexto, método e progresso.</p>
                     </TooltipContent>
                   )}
                 </Tooltip>
