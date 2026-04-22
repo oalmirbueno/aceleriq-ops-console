@@ -39,6 +39,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { getStagePremiumLabel } from "@/components/workspace/aceleraConstants";
+import { featureFlags } from "@/config/featureFlags";
 import { cn } from "@/lib/utils";
 
 interface Workspace {
@@ -655,13 +656,24 @@ export default function WorkspaceDetailPage({ mode = "preview" }: WorkspaceDetai
             </TabsContent>
 
             <TabsContent value="canvas">
-              <WorkspaceTabCanvas
-                workspaceId={ws.id}
-                clientId={ws.client_id}
-                clientName={clientName}
-                onTimelineRefresh={fetchWorkspace}
-                initialStatusFilter={canvasStatusShortcut}
-              />
+              {featureFlags.canvasOpsEnabled ? (
+                <WorkspaceTabCanvas
+                  workspaceId={ws.id}
+                  clientId={ws.client_id}
+                  clientName={clientName}
+                  onTimelineRefresh={fetchWorkspace}
+                  initialStatusFilter={canvasStatusShortcut}
+                />
+              ) : (
+                <div className="rounded-lg border border-border bg-card p-8 text-center shadow-sm">
+                  <Info className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+                  <h3 className="text-base font-semibold text-foreground">Canvas temporariamente desativado</h3>
+                  <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
+                    A rota e a aba continuam disponíveis, mas a camada visual operacional está pausada por feature flag.
+                    Briefing, dossiê, tasks e produção seguem como fluxo principal.
+                  </p>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </div>
