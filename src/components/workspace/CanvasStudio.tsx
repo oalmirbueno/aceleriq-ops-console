@@ -388,33 +388,13 @@ function CanvasStudioInner({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  /* DB → ReactFlow */
-  useEffect(() => {
-    const q = search.trim().toLowerCase();
-
-    // No more group nodes inside ReactFlow — pastas viraram abas no topo.
-    // Filtra projetos pelo cliente ativo (ou todos quando activeClientId === null).
-    const sourceProjects = activeClientId === null
-      ? projectNodes
-      : projectNodes.filter((n) => n.parent_node_id === activeClientId);
-
-    const visibleProjects = sourceProjects.filter((n) => {
-      if (typeFilter && nodeKindOf(n) !== typeFilter && n.node_type !== typeFilter) return false;
-      if (statusFilter && mapLegacyStatus(n.status) !== statusFilter) return false;
-      if (q && !n.title.toLowerCase().includes(q)) return false;
-      return true;
-    });
-
-    const visibleIds = new Set(visibleProjects.map((n) => n.id));
-    const visibleById = new Map(visibleProjects.map((n) => [n.id, n]));
-
-    const projRfNodes: Node[] = visibleProjects.map((n): Node => {
+  const reactFlowNodes = useMemo(() => {
+    return visibleCanvasNodes.map((n): Node => {
       const owner = n.parent_node_id ? groupMeta[n.parent_node_id] : null;
       const dataObj = (n.data as Record<string, unknown> | null) ?? {};
       const operationalMeta = (dataObj.operationalMeta ?? dataObj.operational_meta ?? {}) as CanvasOperationalMeta;
       const attachmentList = (dataObj.attachments as Array<{ url?: string; type?: string; label?: string }> | undefined) ?? [];
-      const PREVIEWABLE = new Set(["image","jpg","jpeg","png","webp","gif","svg","pdf","video","mp4","mov","webm"]);
-      const coverRaw = attachmentList.find((a) => a?.url && PREVIEWABLE.has((a.type ?? "").toLowerCase()))
+      const coverRaw = attachmentList.find((a) => a?.url && PREVIEWABLE_ATTACHMENT_TYPES.has((a.type ?? "").toLowerCase()))
         ?? attachmentList.find((a) => a?.url);
       const cover = coverRaw?.url
         ? { url: coverRaw.url, type: coverRaw.type, label: coverRaw.label }
@@ -443,27 +423,33 @@ function CanvasStudioInner({
         } satisfies ProjectNodeData,
       };
     });
+  }, [visibleCanvasNodes, groupMeta]);
 
-    setRfNodes(projRfNodes);
+  const reactFlowEdges = useMemo(() => {
+    const visibleIds = new Set(visibleCanvasNodes.map((n) => n.id));
+    const visibleById = new Map(visibleCanvasNodes.map((n) => [n.id, n]));
+    return dbEdges
+      .filter((e) => visibleIds.has(e.source_node_id) && visibleIds.has(e.target_node_id))
+      .map((e): Edge => {
+        const intent = edgeIntent(e, visibleById);
+        return {
+          id: e.id,
+          source: e.source_node_id,
+          target: e.target_node_id,
+          label: intent.label,
+          animated: intent.animated,
+          style: { stroke: intent.stroke, strokeWidth: 2 },
+          labelStyle: { fill: "hsl(var(--muted-foreground))", fontSize: 10, fontWeight: 600 },
+          labelBgStyle: { fill: "hsl(var(--card))", fillOpacity: 0.92 },
+        };
+      });
+  }, [dbEdges, visibleCanvasNodes]);
 
-    setRfEdges(
-      dbEdges
-        .filter((e) => visibleIds.has(e.source_node_id) && visibleIds.has(e.target_node_id))
-        .map((e): Edge => {
-          const intent = edgeIntent(e, visibleById);
-          return {
-            id: e.id,
-            source: e.source_node_id,
-            target: e.target_node_id,
-            label: intent.label,
-            animated: intent.animated,
-            style: { stroke: intent.stroke, strokeWidth: 2 },
-            labelStyle: { fill: "hsl(var(--muted-foreground))", fontSize: 10, fontWeight: 600 },
-            labelBgStyle: { fill: "hsl(var(--card))", fillOpacity: 0.92 },
-          };
-        }),
-    );
-  }, [projectNodes, dbEdges, search, typeFilter, statusFilter, activeClientId, groupMeta]);
+  /* DB → ReactFlow */
+  useEffect(() => {
+    setRfNodes(reactFlowNodes);
+    setRfEdges(reactFlowEdges);
+  }, [reactFlowNodes, reactFlowEdges]);
 
   /* ReactFlow handlers */
   const onNodesChange = useCallback((changes: NodeChange[]) => {
