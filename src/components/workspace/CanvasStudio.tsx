@@ -156,6 +156,9 @@ function CanvasStudioInner({
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(initialStatusFilter ?? null);
+  const [approvalFilter, setApprovalFilter] = useState<ApprovalStatus | "all">("all");
+  const [blockedFilter, setBlockedFilter] = useState<"all" | "blocked" | "clear">("all");
+  const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const [paletteCollapsed, setPaletteCollapsed] = useState(false);
@@ -267,6 +270,12 @@ function CanvasStudioInner({
     if (activeClientId === null) return projectNodes;
     return projectNodes.filter((n) => n.parent_node_id === activeClientId);
   }, [projectNodes, activeClientId]);
+
+  const scopedProjectIds = useMemo(() => new Set(scopedProjectNodes.map((n) => n.id)), [scopedProjectNodes]);
+  const scopedEdges = useMemo(
+    () => dbEdges.filter((edge) => scopedProjectIds.has(edge.source_node_id) && scopedProjectIds.has(edge.target_node_id)),
+    [dbEdges, scopedProjectIds],
+  );
 
 
   /* Quick connect helper */
