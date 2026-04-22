@@ -465,6 +465,37 @@ export default function WorkspaceDetailPage() {
                   </div>
                 ))}
               </div>
+
+              <div className="mt-5 rounded-lg border border-primary/30 bg-primary/10 p-4">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="label-sm mb-1">Checklist lean de execução</p>
+                    <h3 className="text-base font-semibold text-foreground">Maiores primeiro, menores só para fechar ciclo</h3>
+                  </div>
+                  <span className="rounded-md border border-border bg-card/70 px-2 py-1 text-[11px] text-muted-foreground">
+                    {leanChecklist.length} ações · não diário
+                  </span>
+                </div>
+
+                <div className="grid gap-2">
+                  {leanChecklist.map((item, index) => (
+                    <div key={`${item.title}-${index}`} className="flex items-start gap-3 rounded-md border border-border bg-card/70 p-3">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-primary/40 text-[10px] font-semibold text-primary">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-medium text-foreground">{item.title}</p>
+                          <span className="rounded border border-border bg-secondary px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                            {item.size}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <aside className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
