@@ -1,11 +1,15 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowRight, CalendarDays, CheckCircle2, FolderKanban, ListChecks, Sparkles, Target } from "lucide-react";
+import { ArrowRight, CalendarDays, CalendarIcon, CheckCircle2, FolderKanban, ListChecks, Sparkles, Target, X } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingState from "@/components/LoadingState";
 import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Calendar } from "@/components/ui/calendar";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ClientAvatar from "@/components/workspace/ClientAvatar";
 import WorkspaceHeader from "@/components/workspace/WorkspaceHeader";
 import WorkspaceTabResumo from "@/components/workspace/WorkspaceTabResumo";
@@ -24,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { getStagePremiumLabel } from "@/components/workspace/aceleraConstants";
+import { cn } from "@/lib/utils";
 
 interface Workspace {
   id: string;
@@ -77,6 +82,15 @@ function actionPlanFor(stage: string) {
   return ["Fechar Case PASTA", "Criar Before/After com métricas", "Derivar playbook replicável"];
 }
 
+function sameDay(a: Date, iso: string) {
+  const b = new Date(iso);
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function formatMovementDate(iso: string) {
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+}
+
 export default function WorkspaceDetailPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const navigate = useNavigate();
@@ -85,6 +99,9 @@ export default function WorkspaceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
   const [showFullWorkspace, setShowFullWorkspace] = useState(false);
+  const [movementsOpen, setMovementsOpen] = useState(false);
+  const [eventTypeFilter, setEventTypeFilter] = useState("__all__");
+  const [movementDate, setMovementDate] = useState<Date | undefined>();
 
   const fetchWorkspace = async () => {
     if (!workspaceId) return;
@@ -101,7 +118,7 @@ export default function WorkspaceDetailPage() {
       .select("id, event_type, title, description, happened_at, created_at")
       .eq("workspace_id", workspaceId)
       .order("happened_at", { ascending: false })
-      .limit(20);
+      .limit(100);
 
     if (events) setTimeline(events);
     setLoading(false);
@@ -165,6 +182,12 @@ export default function WorkspaceDetailPage() {
   const progress = workspaceProgress(ws.current_stage);
   const intro = introCopy(ws.current_stage);
   const actionPlan = actionPlanFor(ws.current_stage);
+  const movementTypes = Array.from(new Set(timeline.map((event) => event.event_type))).sort();
+  const filteredMovements = timeline.filter((event) => {
+    const matchesType = eventTypeFilter === "__all__" || event.event_type === eventTypeFilter;
+    const matchesDate = !movementDate || sameDay(movementDate, event.happened_at);
+    return matchesType && matchesDate;
+  });
 
   return (
     <>
@@ -261,9 +284,14 @@ export default function WorkspaceDetailPage() {
 
             <aside className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
               <div className="rounded-md border border-border bg-secondary/30 p-4">
-                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
-                  <CalendarDays className="h-4 w-4 text-primary" />
-                  Últimos movimentos
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    <CalendarDays className="h-4 w-4 text-primary" />
+                    Últimos movimentos
+                  </div>
+                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setMovementsOpen(true)}>
+                    Ver todos
+                  </Button>
                 </div>
                 <div className="space-y-3">
                   {timeline.slice(0, 4).map((event) => (
@@ -283,6 +311,78 @@ export default function WorkspaceDetailPage() {
             </aside>
           </section>
         )}
+
+        <Dialog open={movementsOpen} onOpenChange={setMovementsOpen}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Últimos movimentos</DialogTitle>
+              <DialogDescription>Histórico operacional completo deste workspace.</DialogDescription>
+            </DialogHeader>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Select value={eventTypeFilter} onValueChange={setEventTypeFilter}>
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue placeholder="Tipo de evento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Todos os tipos</SelectItem>
+                  {movementTypes.map((type) => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn("w-[220px] justify-start gap-2 text-left font-normal", !movementDate && "text-muted-foreground")}
+                  >
+                    <CalendarIcon className="h-4 w-4" />
+                    {movementDate ? movementDate.toLocaleDateString("pt-BR") : "Filtrar por data"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={movementDate}
+                    onSelect={setMovementDate}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+
+              {(eventTypeFilter !== "__all__" || movementDate) && (
+                <Button variant="ghost" className="gap-2" onClick={() => { setEventTypeFilter("__all__"); setMovementDate(undefined); }}>
+                  <X className="h-4 w-4" />
+                  Limpar filtros
+                </Button>
+              )}
+            </div>
+
+            <div className="max-h-[56vh] overflow-y-auto rounded-lg border border-border bg-secondary/20 p-3">
+              {filteredMovements.length === 0 ? (
+                <div className="py-10 text-center text-sm text-muted-foreground">Nenhum movimento encontrado.</div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredMovements.map((event) => (
+                    <div key={event.id} className="rounded-md border border-border bg-card p-4">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium text-foreground">{event.title}</p>
+                        <span className="text-xs text-muted-foreground">{formatMovementDate(event.happened_at)}</span>
+                      </div>
+                      <p className="text-sm leading-relaxed text-muted-foreground">{event.description ?? "Registro operacional sem descrição."}</p>
+                      <span className="mt-3 inline-flex rounded-md border border-border bg-secondary px-2 py-1 text-[11px] text-muted-foreground">
+                        {event.event_type}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {showFullWorkspace && <WorkspaceHeader
           clientName={clientName}
