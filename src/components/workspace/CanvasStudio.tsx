@@ -1084,10 +1084,11 @@ function CanvasStudioInner({
       outgoing.set(e.source_node_id, (outgoing.get(e.source_node_id) ?? 0) + 1);
       incoming.set(e.target_node_id, (incoming.get(e.target_node_id) ?? 0) + 1);
     });
-    const flowRank: Record<string, number> = { contexto_ops: 0, briefing: 1, documento: 2, instrucao: 3, engine: 4, agente: 5, resultado: 6, decisao: 7 };
+    const flowRank: Record<string, number> = { contexto_ops: 0, briefing: 1, documento: 2, instrucao: 3, engine: 4, agente: 5, resultado: 6, decisao: 7, metrica: 8, before_after: 9, case: 10 };
     targetNodes.forEach((n) => {
-      const s = nodeStageOf(n);
-      (byStage[s] ??= []).push(n);
+      const role = getNodeFlowRole(nodeKindOf(n));
+      const lane = role === "measurement" || role === "proof" || role === "narrative" ? "proof" : nodeStageOf(n);
+      (byStage[lane] ??= []).push(n);
     });
     const updates: Array<{ id: string; pos_x: number; pos_y: number }> = [];
     Object.entries(byStage).forEach(([stage, list]) => {
@@ -1100,10 +1101,13 @@ function CanvasStudioInner({
           return (incoming.get(a.id) ?? 0) - (incoming.get(b.id) ?? 0) || (outgoing.get(b.id) ?? 0) - (outgoing.get(a.id) ?? 0);
         })
         .forEach((n, i) => {
+        const role = getNodeFlowRole(nodeKindOf(n));
+        const laneX = OPS_FLOW_X[role] ?? stageColumnX(stage as AceleraStageKey) + NODE_X_OFFSET;
+        const baseY = stage === "proof" ? CONTENT_TOP + 580 : CONTENT_TOP + 96;
         updates.push({
           id: n.id,
-          pos_x: stageColumnX(stage as AceleraStageKey) + NODE_X_OFFSET,
-          pos_y: CONTENT_TOP + 16 + i * NODE_VERTICAL,
+          pos_x: laneX,
+          pos_y: baseY + i * (NODE_VERTICAL + 28),
         });
       });
     });
