@@ -884,6 +884,16 @@ function CanvasStudioInner({
     setSearch("");
     setTypeFilter(null);
     setStatusFilter(null);
+    setApprovalFilter("all");
+    setBlockedFilter("all");
+    setOwnerFilter(null);
+  };
+
+  const handleOpenDependencies = (node: CanvasNodeRow) => {
+    const deps = readCanvasOperationalMeta(node.data as Record<string, unknown> | null).dependencyNodeIds ?? [];
+    const firstDependency = deps.map((id) => dbNodes.find((n) => n.id === id)).find(Boolean) as CanvasNodeRow | undefined;
+    if (firstDependency) setSelectedNode(firstDependency);
+    else toast({ title: "Dependências registradas", description: "Nenhuma dependência relacionada está visível neste escopo." });
   };
 
   const handleDeleteNode = async (id: string) => {
@@ -908,7 +918,7 @@ function CanvasStudioInner({
     edges: dbEdges.length,
   }), [clientGroups, projectNodes, dbEdges]);
 
-  const hasFilters = !!search || !!typeFilter || !!statusFilter;
+  const hasFilters = !!search || !!typeFilter || !!statusFilter || approvalFilter !== "all" || blockedFilter !== "all" || !!ownerFilter;
   const existingClientIds = useMemo(
     () => clientGroups.filter((n) => n.linked_entity_id).map((n) => n.linked_entity_id as string),
     [clientGroups],
