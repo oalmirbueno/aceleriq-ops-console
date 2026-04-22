@@ -283,6 +283,30 @@ export default function WorkspaceDetailPage() {
 
   useEffect(() => {
     if (!workspaceId) return;
+
+    const channel = supabase
+      .channel(`workspace-node-progress:${workspaceId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "canvas_nodes", filter: `workspace_id=eq.${workspaceId}` },
+        async () => {
+          const { data: nodes } = await supabase
+            .from("canvas_nodes")
+            .select("id, status")
+            .eq("workspace_id", workspaceId);
+
+          if (nodes) setNodesProgress(nodes as WorkspaceNodeProgress[]);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [workspaceId]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
     setShowFullWorkspace(localStorage.getItem(`workspace-mode:${workspaceId}`) === "full");
   }, [workspaceId]);
 
