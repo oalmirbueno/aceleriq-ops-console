@@ -276,6 +276,13 @@ function CanvasStudioInner({
     return projectNodes.filter((n) => n.parent_node_id === activeClientId);
   }, [projectNodes, activeClientId]);
 
+  type QuickAddState = { open: boolean; sourceId: string | null; dir: "right" | "bottom" | null };
+  const [quickAddState, setQuickAddState] = useState<QuickAddState>({ open: false, sourceId: null, dir: null });
+
+  const quickConnectFromNode = useCallback((sourceId: string, dir: "right" | "bottom") => {
+    setQuickAddState({ open: true, sourceId, dir });
+  }, []);
+
   const visibleCanvasNodes = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
     return scopedProjectNodes.filter((node) => {
@@ -292,14 +299,6 @@ function CanvasStudioInner({
     [dbEdges, scopedProjectIds],
   );
 
-
-  /* Quick connect helper */
-  const quickConnectFromNode = (sourceId: string, dir: "right" | "bottom") => {
-    setQuickAddState({ open: true, sourceId, dir });
-  };
-
-  type QuickAddState = { open: boolean; sourceId: string | null; dir: "right" | "bottom" | null };
-  const [quickAddState, setQuickAddState] = useState<QuickAddState>({ open: false, sourceId: null, dir: null });
 
   // Toggle MiniMap (persistido) — alguns usuários acham que polui
   const [showMiniMap, setShowMiniMap] = useState<boolean>(() => {
