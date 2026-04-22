@@ -745,7 +745,7 @@ export default function WorkspaceDetailPage() {
                     {lockedChecklist.length === 0 ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Lock className="h-4 w-4 text-primary" />}
                     <span className="font-medium">Triagem ainda bloqueando a entrada</span>
                   </div>
-                  {lockedChecklist.length === 0 ? "Carregando ações de triagem..." : "Conclua e trave todos os itens do checklist para liberar o workspace completo."}
+                  {lockedChecklist.length === 0 ? "Carregando ações de triagem..." : "Conclua as ações claras e trave todos os itens do checklist para liberar o workspace completo."}
                 </div>
               )}
 
