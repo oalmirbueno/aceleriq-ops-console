@@ -98,6 +98,10 @@ const ENGINE_KINDS = new Set(["engine", "automacao", "ia", "integracao", "agente
 const RESULT_KINDS = new Set(["resultado", "landing_page", "site", "conteudo", "video", "imagem", "trafego", "email_mkt", "social", "crm", "lancamento", "metrica", "before_after", "case"]);
 const DECISION_KINDS = new Set(["decisao"]);
 
+type ConnectionValidation = { allowed: boolean; label: string | null; reason: string | null };
+const allowConnection = (label: string): ConnectionValidation => ({ allowed: true, label, reason: null });
+const blockConnection = (reason: string): ConnectionValidation => ({ allowed: false, label: null, reason });
+
 function nodeLabel(row: CanvasNodeRow) {
   const kind = nodeKindOf(row);
   return getProjectTypeMeta(kind)?.shortLabel ?? row.title;
@@ -106,27 +110,26 @@ function nodeLabel(row: CanvasNodeRow) {
 function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNodeRow) {
   const sourceKind = nodeKindOf(source);
   const targetKind = nodeKindOf(target);
+  const sourceLabel = nodeLabel(source);
+  const targetLabel = nodeLabel(target);
 
   if (source.parent_node_id && target.parent_node_id && source.parent_node_id !== target.parent_node_id) {
-    return { allowed: false, label: null, reason: "Conecte nodes dentro da mesma pasta de cliente para manter o fluxo limpo." };
+    return blockConnection("Conecte nodes dentro da mesma pasta de cliente para manter rastreabilidade e evitar fluxo cruzado.");
   }
-  if (INPUT_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return { allowed: true, label: "input", reason: null };
-  if (INPUT_KINDS.has(sourceKind) && INSTRUCTION_KINDS.has(targetKind)) return { allowed: true, label: "base", reason: null };
-  if (INSTRUCTION_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return { allowed: true, label: "regra", reason: null };
-  if (INSTRUCTION_KINDS.has(sourceKind) && RESULT_KINDS.has(targetKind)) return { allowed: true, label: "guia", reason: null };
-  if (ENGINE_KINDS.has(sourceKind) && RESULT_KINDS.has(targetKind)) return { allowed: true, label: "gera", reason: null };
-  if (ENGINE_KINDS.has(sourceKind) && DECISION_KINDS.has(targetKind)) return { allowed: true, label: "decide", reason: null };
-  if (RESULT_KINDS.has(sourceKind) && DECISION_KINDS.has(targetKind)) return { allowed: true, label: "aprovar", reason: null };
-  if (RESULT_KINDS.has(sourceKind) && INSTRUCTION_KINDS.has(targetKind)) return { allowed: true, label: "revisar", reason: null };
-  if (DECISION_KINDS.has(sourceKind) && INSTRUCTION_KINDS.has(targetKind)) return { allowed: true, label: "revisão", reason: null };
-  if (DECISION_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return { allowed: true, label: "próxima", reason: null };
-  if (DECISION_KINDS.has(sourceKind) && RESULT_KINDS.has(targetKind)) return { allowed: true, label: "próxima", reason: null };
 
-  return {
-    allowed: false,
-    label: null,
-    reason: `${nodeLabel(source)} não deve alimentar ${nodeLabel(target)} diretamente. Use Contexto/Instrução → Engine → Resultado → Decisão.`,
-  };
+  if (INPUT_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return allowConnection("input");
+  if (INSTRUCTION_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return allowConnection("regra");
+  if (ENGINE_KINDS.has(sourceKind) && RESULT_KINDS.has(targetKind)) return allowConnection("gera");
+  if (RESULT_KINDS.has(sourceKind) && DECISION_KINDS.has(targetKind)) return allowConnection("aprovar");
+  if (DECISION_KINDS.has(sourceKind) && (INSTRUCTION_KINDS.has(targetKind) || ENGINE_KINDS.has(targetKind) || RESULT_KINDS.has(targetKind))) return allowConnection("próxima");
+
+  if (INPUT_KINDS.has(sourceKind) && INSTRUCTION_KINDS.has(targetKind)) return allowConnection("base");
+  if (INSTRUCTION_KINDS.has(sourceKind) && RESULT_KINDS.has(targetKind)) return allowConnection("guia");
+  if (INPUT_KINDS.has(sourceKind) && RESULT_KINDS.has(targetKind)) return allowConnection("referência");
+  if (ENGINE_KINDS.has(sourceKind) && DECISION_KINDS.has(targetKind)) return allowConnection("decide");
+  if (RESULT_KINDS.has(sourceKind) && INSTRUCTION_KINDS.has(targetKind)) return allowConnection("revisar");
+
+  return blockConnection(`${sourceLabel} não deve alimentar ${targetLabel} diretamente. Fluxo esperado: Contexto/Instrução → Engine → Resultado → Decisão → Próxima ação.`);
 }
 
 function edgeIntent(edge: CanvasEdgeRecord, nodesById: Map<string, CanvasNodeRow>) {
