@@ -1024,13 +1024,16 @@ function CanvasStudioInner({
     if (!parent) return;
     setBusyAction("ops-flow");
     try {
-      const blueprint: Array<{ ref: string; kind: ProjectNodeKind; title: string; stage: AceleraStageKey; x: number; y: number; description: string }> = [
-        { ref: "context", kind: "contexto_ops", title: "Contexto central", stage: "entrada", x: 140, y: CONTENT_TOP + 120, description: "Briefing, assets, acessos, links, oferta e regras que alimentam a operação." },
-        { ref: "instruction", kind: "instrucao", title: "Instruções e critérios", stage: "planejamento", x: 140, y: CONTENT_TOP + 330, description: "SOPs, prompts, regras de execução e critérios de aceite." },
-        { ref: "engine", kind: "engine", title: "Engine: Planejamento Ops", stage: "planejamento", x: 620, y: CONTENT_TOP + 210, description: "Hub que consolida entradas e transforma contexto em plano, tarefas e entregáveis." },
-        { ref: "agent", kind: "agente", title: "Agente: Orion Ops", stage: "producao", x: 1060, y: CONTENT_TOP + 360, description: "Assistente operacional conectado ao contexto, instruções e outputs." },
-        { ref: "result", kind: "resultado", title: "Resultado: Plano operacional", stage: "producao", x: 1060, y: CONTENT_TOP + 120, description: "Output versionado com owner, prazo, evidência e próximos passos." },
-        { ref: "decision", kind: "decisao", title: "Decisão: Aprovação / Revisão", stage: "ativacao", x: 1500, y: CONTENT_TOP + 120, description: "Roteia aprovado para próxima etapa ou retorna para revisão." },
+      const blueprint: Array<{ ref: string; kind: ProjectNodeKind; title: string; stage: AceleraStageKey; x: number; y: number; status?: string; description: string }> = [
+        { ref: "context", kind: "contexto_ops", title: "Contexto central", stage: "entrada", x: OPS_FLOW_X.context, y: CONTENT_TOP + 120, description: "Briefing, assets, acessos, links, oferta e regras que alimentam a operação." },
+        { ref: "instruction", kind: "instrucao", title: "Instruções e critérios", stage: "planejamento", x: OPS_FLOW_X.instruction, y: CONTENT_TOP + 340, description: "SOPs, prompts, regras de execução e critérios de aceite." },
+        { ref: "engine", kind: "engine", title: "Engine: Planejamento Ops", stage: "planejamento", x: OPS_FLOW_X.engine, y: CONTENT_TOP + 220, status: "active", description: "Hub que consolida entradas e transforma contexto em plano, tarefas e entregáveis." },
+        { ref: "result", kind: "resultado", title: "Resultado: Plano operacional", stage: "producao", x: OPS_FLOW_X.result, y: CONTENT_TOP + 120, description: "Output versionado com owner, prazo, evidência e próximos passos." },
+        { ref: "agent", kind: "agente", title: "Agente: Orion Ops", stage: "producao", x: OPS_FLOW_X.execution, y: CONTENT_TOP + 340, description: "Assistente operacional conectado ao contexto, instruções e outputs." },
+        { ref: "decision", kind: "decisao", title: "Decisão: Aprovação / Revisão", stage: "ativacao", x: OPS_FLOW_X.decision, y: CONTENT_TOP + 120, description: "Roteia aprovado para próxima etapa ou retorna para revisão." },
+        { ref: "metric", kind: "metrica", title: "KPI da entrega", stage: "ativacao", x: OPS_FLOW_X.proof, y: CONTENT_TOP + 590, description: "Medição quantitativa que comprova impacto da entrega." },
+        { ref: "beforeAfter", kind: "before_after", title: "Before/After visual", stage: "ativacao", x: OPS_FLOW_X.decision, y: CONTENT_TOP + 590, description: "Evidência visual do estado anterior versus entrega concluída." },
+        { ref: "case", kind: "case", title: "Case comercial", stage: "ativacao", x: OPS_FLOW_X.narrative, y: CONTENT_TOP + 590, description: "Narrativa consolidada para reaproveitar prova em venda, retenção e expansão." },
       ];
       const created: Record<string, string> = {};
       const rows: CanvasNodeRow[] = [];
@@ -1040,7 +1043,7 @@ function CanvasStudioInner({
           client_id: clientId,
           node_type: projectKindToDbNodeType(item.kind),
           title: item.title,
-          status: item.kind === "engine" ? "active" : "draft",
+          status: item.status ?? "draft",
           description: item.description,
           pos_x: item.x,
           pos_y: item.y,
@@ -1054,6 +1057,7 @@ function CanvasStudioInner({
       const edges = [
         ["context", "engine", "contexto"], ["instruction", "engine", "regra"], ["engine", "agent", "aciona"],
         ["engine", "result", "gera"], ["result", "decision", "aprovar"], ["decision", "instruction", "revisar"],
+        ["result", "metric", "mede"], ["metric", "beforeAfter", "compara"], ["beforeAfter", "case", "vira case"],
       ].map(([from, to, label]) => ({ workspace_id: workspaceId, source_node_id: created[from], target_node_id: created[to], edge_type: "ops", label }));
       await supabase.from("canvas_edges").insert(edges);
       toast({ title: "Fluxo Ops criado", description: `${rows.length} nodes · ${edges.length} conexões inteligentes` });
