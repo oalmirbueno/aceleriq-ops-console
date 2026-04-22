@@ -245,6 +245,37 @@ export default function WorkspaceDetailPage() {
           </BreadcrumbList>
         </Breadcrumb>
 
+        <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <p className="label-sm mb-2">Resumo operacional</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-xl font-semibold tracking-tight text-foreground">{getStagePremiumLabel(ws.current_stage)}</h2>
+                <span className="rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                  {ws.status}
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Progresso real calculado por nodes concluídos/ativos no canvas; fallback pela etapa quando ainda não há nodes.
+              </p>
+            </div>
+
+            <div className="w-full max-w-xl rounded-md border border-border bg-secondary/30 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Avanço real</p>
+                  <p className="text-2xl font-semibold text-foreground">{progress}%</p>
+                </div>
+                <div className="text-right text-xs text-muted-foreground">
+                  <p>{finishedNodes}/{nodesProgress.length} nodes concluídos</p>
+                  <p>Etapa base: {stageProgress}%</p>
+                </div>
+              </div>
+              <Progress value={progress} className="h-2" />
+            </div>
+          </div>
+        </section>
+
         <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <div className="relative border-b border-border bg-secondary/40 p-6">
             <div className="absolute inset-0 tech-grid-bg opacity-60" aria-hidden />
