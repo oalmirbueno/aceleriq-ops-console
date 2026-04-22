@@ -192,6 +192,14 @@ function formatMovementDate(iso: string) {
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
 }
 
+function formatMovementDay(iso: string) {
+  return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(new Date(iso));
+}
+
+function movementDayKey(iso: string) {
+  return new Date(iso).toISOString().slice(0, 10);
+}
+
 export default function WorkspaceDetailPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const navigate = useNavigate();
@@ -330,6 +338,13 @@ export default function WorkspaceDetailPage() {
   });
   const paginatedMovements = filteredMovements.slice(0, visibleMovements);
   const hasMoreMovements = visibleMovements < filteredMovements.length;
+  const groupedMovements = paginatedMovements.reduce<Array<{ key: string; label: string; events: TimelineEvent[] }>>((groups, event) => {
+    const key = movementDayKey(event.happened_at);
+    const current = groups.find((group) => group.key === key);
+    if (current) current.events.push(event);
+    else groups.push({ key, label: formatMovementDay(event.happened_at), events: [event] });
+    return groups;
+  }, []);
 
   return (
     <>
