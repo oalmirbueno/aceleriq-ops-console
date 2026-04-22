@@ -1,10 +1,17 @@
 import { memo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Plus, Link2, Paperclip, ListChecks, Maximize2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, GitBranch, Plus, Link2, Paperclip, ListChecks, Maximize2, XCircle } from "lucide-react";
 import { getProjectTypeMeta, getNodeFamily } from "./canvasProjectTypes";
 import { getEsteiraStatus, mapLegacyStatus } from "./canvasEsteiraStatus";
 import ClientAvatar from "./ClientAvatar";
 import AttachmentPreview from "./AttachmentPreview";
+import {
+  countOperationalDependencies,
+  countOperationalEvidence,
+  isOperationalOverdue,
+  type ApprovalStatus,
+  type CanvasOperationalMeta,
+} from "./canvasOperationalMeta";
 
 export interface ProjectNodeCoverAttachment {
   url: string;
@@ -29,8 +36,16 @@ export interface ProjectNodeData extends Record<string, unknown> {
   clientName?: string | null;
   clientSeed?: string | null;
   clientLogoUrl?: string | null;
+  operationalMeta?: CanvasOperationalMeta | null;
   /** Callback to open quick-add at a relative direction */
   onQuickConnect?: (dir: "right" | "bottom") => void;
+}
+
+function getApprovalSignal(status?: ApprovalStatus) {
+  if (status === "pending") return { icon: Clock3, label: "Aprovação pendente", className: "text-muted-foreground" };
+  if (status === "approved") return { icon: CheckCircle2, label: "Aprovado", className: "text-primary" };
+  if (status === "rejected") return { icon: XCircle, label: "Reprovado", className: "text-destructive" };
+  return null;
 }
 
 function ProjectNodeCardComp({ data, selected }: NodeProps) {
@@ -43,6 +58,12 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
     d.checklistTotal && d.checklistTotal > 0
       ? Math.round(((d.checklistDone ?? 0) / d.checklistTotal) * 100)
       : null;
+  const opMeta = d.operationalMeta ?? null;
+  const approvalSignal = getApprovalSignal(opMeta?.approvalStatus);
+  const evidenceCount = countOperationalEvidence(opMeta);
+  const dependencyCount = countOperationalDependencies(opMeta);
+  const overdue = isOperationalOverdue(opMeta);
+  const blocked = !!opMeta?.blockedReason || d.status === "blocked" || d.status === "bloqueado";
 
   const [hover, setHover] = useState(false);
 
