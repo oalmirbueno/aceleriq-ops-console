@@ -176,7 +176,7 @@ export default function WorkspacesPage() {
             description={workspaces.length === 0 ? "Crie ou selecione clientes para iniciar os hubs de projeto." : "Ajuste busca ou filtro de etapa."}
           />
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {filtered.map((workspace) => {
               const client = workspace.clients;
               const progress = progressFor(workspace.current_stage);
@@ -187,28 +187,33 @@ export default function WorkspacesPage() {
                   key={workspace.id}
                   type="button"
                   onClick={() => navigate(`/ops/workspaces/${workspace.id}`)}
-                  className="group flex min-h-[280px] flex-col rounded-lg border border-border bg-card/70 p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:bg-card hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="group relative flex min-h-[390px] overflow-hidden rounded-lg border border-border bg-card text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/40"
                 >
-                  <div className="mb-5 flex items-start justify-between gap-4">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <ClientAvatar
-                        name={client?.name ?? workspace.name}
-                        seed={client?.id ?? workspace.id}
-                        logoUrl={client?.logo_url}
-                        size="lg"
-                        ring
-                      />
-                      <div className="min-w-0">
-                        <h2 className="truncate text-base font-semibold text-foreground">{client?.name ?? workspace.name}</h2>
-                        <p className="truncate text-xs text-muted-foreground">{client?.company_name ?? workspace.name}</p>
+                  <div className="flex w-full flex-col">
+                    <div className="relative h-28 border-b border-border bg-secondary/40">
+                      <div className="absolute inset-0 tech-grid-bg opacity-70" aria-hidden />
+                      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_hsl(var(--primary)/0.16),_transparent_58%)]" aria-hidden />
+                      <div className="absolute left-5 top-5 flex h-16 w-16 items-center justify-center rounded-lg border border-border bg-card/80 shadow-lg backdrop-blur">
+                        <ClientAvatar
+                          name={client?.name ?? workspace.name}
+                          seed={client?.id ?? workspace.id}
+                          logoUrl={client?.logo_url}
+                          size="lg"
+                          className="h-12 w-12 text-base"
+                        />
                       </div>
+                      <Badge variant="outline" className="absolute right-5 top-5 border-primary/30 bg-primary/10 text-primary backdrop-blur">
+                        {statusLabel[workspace.status] ?? workspace.status}
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className="shrink-0 border-primary/30 bg-primary/10 text-primary">
-                      {statusLabel[workspace.status] ?? workspace.status}
-                    </Badge>
-                  </div>
 
-                  <div className="space-y-4">
+                    <div className="flex flex-1 flex-col p-5">
+                      <div className="mb-5 min-w-0">
+                        <h2 className="truncate text-xl font-semibold tracking-tight text-foreground">{client?.name ?? workspace.name}</h2>
+                        <p className="mt-1 truncate text-sm text-muted-foreground">{client?.company_name ?? workspace.name}</p>
+                      </div>
+
+                      <div className="space-y-4">
                     <div>
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <span className="text-xs font-medium uppercase text-muted-foreground">Estamos em</span>
@@ -216,6 +221,28 @@ export default function WorkspacesPage() {
                       </div>
                       <p className="text-lg font-semibold leading-tight text-foreground">{getStagePremiumLabel(workspace.current_stage)}</p>
                       <Progress value={progress} className="mt-3 h-2" />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <div className="rounded-md border border-border bg-secondary/30 p-3">
+                        <div className="mb-1.5 flex items-center gap-2 text-xs font-medium text-foreground">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+                          O que já foi feito
+                        </div>
+                        <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                          {completedNarrative(workspace.current_stage, nodeCount)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-md border border-border bg-secondary/30 p-3">
+                        <div className="mb-1.5 flex items-center gap-2 text-xs font-medium text-foreground">
+                          <Target className="h-3.5 w-3.5 text-primary" />
+                          Próximo movimento
+                        </div>
+                        <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                          {recommendationFor(workspace.current_stage, nodeCount)}
+                        </p>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2">
@@ -233,7 +260,7 @@ export default function WorkspacesPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-md border border-border bg-secondary/30 p-3">
+                    <div className="hidden rounded-md border border-border bg-secondary/30 p-3">
                       <div className="mb-2 flex items-center gap-2 text-xs font-medium text-foreground">
                         <Sparkles className="h-3.5 w-3.5 text-primary" />
                         Recomendação
@@ -242,7 +269,7 @@ export default function WorkspacesPage() {
                         {recommendationFor(workspace.current_stage, nodeCount)}
                       </p>
                     </div>
-                  </div>
+                      </div>
 
                   <div className="mt-auto flex items-center justify-between pt-5">
                     <span className={cn("text-xs text-muted-foreground", workspace.summary && "truncate pr-4")}>
@@ -251,6 +278,8 @@ export default function WorkspacesPage() {
                     <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-secondary text-foreground transition-colors group-hover:border-primary/40 group-hover:text-primary">
                       <ArrowRight className="h-4 w-4" />
                     </span>
+                  </div>
+                    </div>
                   </div>
                 </button>
               );
