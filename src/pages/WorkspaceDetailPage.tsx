@@ -519,12 +519,27 @@ export default function WorkspaceDetailPage({ mode = "preview" }: WorkspaceDetai
   }, []);
 
   if (showFullWorkspace) {
+    const executionTabs = [
+      { value: "resumo", label: "Resumo" },
+      { value: "tasks", label: "Tasks" },
+      { value: "canvas", label: "Canvas" },
+      { value: "producao", label: "Produção" },
+      { value: "contexto", label: "Contexto" },
+      { value: "assets", label: "Assets" },
+      { value: "conteudo", label: "Conteúdo" },
+      { value: "metricas", label: "Métricas" },
+      { value: "timeline", label: "Timeline" },
+      { value: "dossie", label: "Dossiê" },
+      { value: "before-after", label: "Before/After" },
+      { value: "case", label: "Case" },
+    ];
+
     return (
       <>
         <AppHeader title={clientName} subtitle={`${ws.name} · Execução`} />
 
-        <div className="p-6 animate-fade-in space-y-5">
-          <Breadcrumb className="rounded-lg border border-border bg-card/70 px-4 py-3 shadow-sm">
+        <div className="mx-auto max-w-[1680px] p-6 animate-fade-in space-y-5">
+          <Breadcrumb className="rounded-lg border border-border bg-card/60 px-4 py-3">
             <BreadcrumbList>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
@@ -544,10 +559,17 @@ export default function WorkspaceDetailPage({ mode = "preview" }: WorkspaceDetai
             </BreadcrumbList>
           </Breadcrumb>
 
-          <div className="space-y-3">
-            <div className="flex justify-end">
-              <Button variant="outline" size="sm" onClick={() => navigate(`/ops/workspaces/${workspaceId}`)}>Voltar para pré-entrada</Button>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setActiveTab("tasks")}>Tasks</Button>
+              <Button variant="secondary" size="sm" onClick={() => setActiveTab("canvas")}>Canvas</Button>
+              <Button variant="secondary" size="sm" onClick={() => setActiveTab("producao")}>Produção</Button>
+              <Button variant="secondary" size="sm" onClick={() => setActiveTab("metricas")}>Métricas</Button>
             </div>
+            <Button variant="outline" size="sm" onClick={() => navigate(`/ops/workspaces/${workspaceId}`)}>Pré-entrada</Button>
+          </div>
+
+          <div className="space-y-4">
             <WorkspaceHeader
               clientName={clientName}
               ownerName={ownerName}
@@ -559,20 +581,13 @@ export default function WorkspaceDetailPage({ mode = "preview" }: WorkspaceDetai
             />
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList>
-              <TabsTrigger value="resumo">Resumo</TabsTrigger>
-              <TabsTrigger value="dossie">Dossiê</TabsTrigger>
-              <TabsTrigger value="timeline">Timeline</TabsTrigger>
-              <TabsTrigger value="contexto">Contexto</TabsTrigger>
-              <TabsTrigger value="producao">Produção</TabsTrigger>
-              <TabsTrigger value="tasks">Tasks</TabsTrigger>
-              <TabsTrigger value="assets">Assets</TabsTrigger>
-              <TabsTrigger value="conteudo">Conteúdo</TabsTrigger>
-              <TabsTrigger value="metricas">Métricas</TabsTrigger>
-              <TabsTrigger value="before-after">Before/After</TabsTrigger>
-              <TabsTrigger value="case">Case</TabsTrigger>
-              <TabsTrigger value="canvas">Canvas</TabsTrigger>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4">
+            <TabsList className="h-auto w-full justify-start overflow-x-auto rounded-lg border border-border bg-card p-1.5">
+              {executionTabs.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value} className="h-10 shrink-0 px-4 text-sm">
+                  {tab.label}
+                </TabsTrigger>
+              ))}
             </TabsList>
 
             <TabsContent value="resumo">
