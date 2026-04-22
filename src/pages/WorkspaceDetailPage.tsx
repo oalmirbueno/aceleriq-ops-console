@@ -375,6 +375,8 @@ export default function WorkspaceDetailPage() {
   const progress = calculateRealProgress(ws.current_stage, nodesProgress);
   const stageProgress = workspaceProgress(ws.current_stage);
   const finishedNodes = nodesProgress.filter((node) => node.status === "done" || node.status === "concluido").length;
+  const activeNodes = nodesProgress.filter((node) => node.status === "active" || node.status === "ativo").length;
+  const blockedNodes = nodesProgress.filter((node) => node.status === "blocked" || node.status === "bloqueado").length;
   const intro = introCopy(ws.current_stage);
   const actionPlan = buildActionPlan(ws.current_stage, taskSignals, nodesProgress);
   const leanChecklist = buildLeanChecklist(ws.current_stage, taskSignals, nodesProgress);
@@ -450,6 +452,20 @@ export default function WorkspaceDetailPage() {
                 </div>
               </div>
               <Progress value={progress} className="h-2" />
+              <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                <div className="rounded-md border border-border bg-card/60 px-2.5 py-2">
+                  <p className="text-muted-foreground">Concluídos</p>
+                  <p className="mt-0.5 font-semibold text-foreground">{finishedNodes}</p>
+                </div>
+                <div className="rounded-md border border-border bg-card/60 px-2.5 py-2">
+                  <p className="text-muted-foreground">Ativos</p>
+                  <p className="mt-0.5 font-semibold text-foreground">{activeNodes}</p>
+                </div>
+                <div className="rounded-md border border-border bg-card/60 px-2.5 py-2">
+                  <p className="text-muted-foreground">Bloqueados</p>
+                  <p className="mt-0.5 font-semibold text-foreground">{blockedNodes}</p>
+                </div>
+              </div>
             </div>
           </div>
         </section>
