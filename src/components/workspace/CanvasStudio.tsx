@@ -692,6 +692,7 @@ function CanvasStudioInner({
       const missingSpecs: Array<{ ref: string; kind: ProjectNodeKind; title: string; stage: AceleraStageKey; x: number; y: number; description: string }> = [];
       const engineX = Number(engineNode.pos_x ?? stageColumnX("planejamento") + NODE_X_OFFSET);
       const engineY = Number(engineNode.pos_y ?? CONTENT_TOP + 16);
+      const proofY = engineY + 260;
 
       if (!incomingToEngine.some((node) => INPUT_KINDS.has(nodeKindOf(node)))) {
         missingSpecs.push({
@@ -699,8 +700,8 @@ function CanvasStudioInner({
           kind: "contexto_ops",
           title: "Contexto do hub",
           stage: "entrada",
-          x: engineX - 430,
-          y: engineY - 130,
+          x: engineX - 500,
+          y: engineY - 150,
           description: "Entradas estratégicas, ativos, briefing e restrições que alimentam a engine.",
         });
       }
@@ -711,8 +712,8 @@ function CanvasStudioInner({
           kind: "instrucao",
           title: "Instruções do hub",
           stage: "planejamento",
-          x: engineX - 430,
-          y: engineY + 40,
+          x: engineX - 500,
+          y: engineY + 90,
           description: "Regras, SOP, critérios de aceite e lógica do fluxo que entram na engine.",
         });
       }
@@ -723,8 +724,8 @@ function CanvasStudioInner({
           kind: "resultado",
           title: "Resultado do hub",
           stage: "producao",
-          x: engineX + 430,
-          y: engineY - 30,
+          x: engineX + 500,
+          y: engineY - 20,
           description: "Entregável principal que sai da engine já pronto para revisão, prova e aprovação.",
         });
       }
@@ -735,8 +736,8 @@ function CanvasStudioInner({
           kind: "agente",
           title: "Agente executor",
           stage: "producao",
-          x: engineX + 430,
-          y: engineY + 150,
+          x: engineX + 500,
+          y: engineY + 210,
           description: "Camada operacional que executa tarefas, handoffs e verificações a partir da engine.",
         });
       }
@@ -747,8 +748,8 @@ function CanvasStudioInner({
           kind: "decisao",
           title: "Decisão do hub",
           stage: "ativacao",
-          x: engineX + 790,
-          y: engineY - 30,
+          x: engineX + 940,
+          y: engineY - 20,
           description: "Node de aprovação, revisão ou próxima ação do fluxo disparado pela engine.",
         });
       }
