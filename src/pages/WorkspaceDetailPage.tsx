@@ -703,7 +703,17 @@ export default function WorkspaceDetailPage() {
                 </div>
               </div>
 
-              <Button onClick={() => setWorkspaceMode("full")} className="h-11 w-full gap-2" disabled={showFullWorkspace}>
+              {!triageComplete && (
+                <div className="rounded-md border border-border bg-secondary/30 p-4 text-xs text-muted-foreground">
+                  <div className="mb-2 flex items-center gap-2 text-foreground">
+                    {lockedChecklist.length === 0 ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Lock className="h-4 w-4 text-primary" />}
+                    <span className="font-medium">Triagem ainda bloqueando a entrada</span>
+                  </div>
+                  {lockedChecklist.length === 0 ? "Carregando ações de triagem..." : "Conclua e trave todos os itens do checklist para liberar o workspace completo."}
+                </div>
+              )}
+
+              <Button onClick={() => setWorkspaceMode("full")} className="h-11 w-full gap-2" disabled={showFullWorkspace || !triageComplete}>
                 Entrar no workspace completo
                 <ArrowRight className="h-4 w-4" />
               </Button>
