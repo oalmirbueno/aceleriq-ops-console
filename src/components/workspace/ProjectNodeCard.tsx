@@ -72,7 +72,7 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
 
   const isEngine = d.kind === "engine";
   const isProof = family === "proof";
-  const widthClass = isEngine ? "w-[420px]" : isProof ? "w-[360px]" : "w-[340px]";
+  const widthClass = isEngine ? "w-[440px]" : isProof ? "w-[370px]" : "w-[340px]";
   const handleClass = isProof
     ? "!bg-amber-400 !w-4 !h-4 !border-2 !border-background shadow-lg"
     : isEngine
@@ -88,7 +88,7 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
 
   return (
     <div
-      className={`relative group node-family-${family}`}
+      className={`relative group node-family-${family} node-flow-${flowRole}`}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
@@ -110,7 +110,7 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
 
       <div
         data-selected={selected ? "true" : "false"}
-        className={`node-card relative rounded-xl ${widthClass} px-5 py-4 shadow-sm ${isEngine ? "ring-1 ring-sky-400/30" : isProof ? "ring-1 ring-amber-400/30" : ""}`}
+        className={`node-card relative rounded-xl ${widthClass} px-5 py-4 shadow-sm ${isEngine ? "node-card-engine" : isProof ? "node-card-proof" : ""}`}
       >
         <div className="mb-2 flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.08em] text-muted-foreground/70">
           <span>{NODE_FAMILY_LABELS[family]}</span>

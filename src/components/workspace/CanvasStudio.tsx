@@ -769,7 +769,7 @@ function CanvasStudioInner({
         missingSpecs.push({ ref: "beforeAfter", kind: "before_after", title: `Before/After: ${engineNode.title}`, stage: "ativacao", x: engineX + 940, y: proofY, description: "Evidência visual comparando estado anterior e entrega realizada." });
       }
       if (!existingProofKinds.has("case")) {
-        missingSpecs.push({ ref: "case", kind: "case", title: `Case: ${engineNode.title}`, stage: "escala", x: engineX + 1380, y: proofY, description: "Narrativa comercial consolidada a partir de resultado, KPI e evidência visual." });
+        missingSpecs.push({ ref: "case", kind: "case", title: `Case: ${engineNode.title}`, stage: "ativacao", x: engineX + 1380, y: proofY, description: "Narrativa comercial consolidada a partir de resultado, KPI e evidência visual." });
       }
 
       if (missingSpecs.length === 0) {
