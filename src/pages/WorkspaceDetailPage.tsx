@@ -384,14 +384,14 @@ export default function WorkspaceDetailPage() {
 
               <div className="space-y-3">
                 {actionPlan.map((item, index) => (
-                  <div key={item} className="flex gap-3 rounded-md border border-border bg-secondary/30 p-4">
+                  <div key={`${item.title}-${index}`} className="flex gap-3 rounded-md border border-border bg-secondary/30 p-4">
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-xs font-semibold text-primary">
                       {index + 1}
                     </span>
                     <div>
-                      <p className="text-sm font-medium text-foreground">{item}</p>
+                      <p className="text-sm font-medium text-foreground">{item.title}</p>
                       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                        Atualiza automaticamente conforme a etapa do cliente avança no processo.
+                        {item.detail}
                       </p>
                     </div>
                   </div>
