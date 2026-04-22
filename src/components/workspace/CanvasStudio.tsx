@@ -26,7 +26,7 @@ import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalM
 import {
   ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH,
   getProjectTypeMeta, getStageMeta, stageColumnX, getChecklistTemplate,
-  projectKindToDbNodeType, type ProjectNodeKind, type AceleraStageKey,
+  projectKindToDbNodeType, getNodeFlowRole, type ProjectNodeKind, type AceleraStageKey,
 } from "./canvasProjectTypes";
 import { mapLegacyStatus, premiumStatusToDb } from "./canvasEsteiraStatus";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
@@ -90,6 +90,7 @@ const INSTRUCTION_KINDS = new Set(["instrucao", "funil", "checklist"]);
 const ENGINE_KINDS = new Set(["engine", "automacao", "ia", "integracao", "agente"]);
 const RESULT_KINDS = new Set(["resultado", "landing_page", "site", "conteudo", "video", "imagem", "trafego", "email_mkt", "social", "crm", "lancamento", "metrica", "before_after", "case"]);
 const DECISION_KINDS = new Set(["decisao"]);
+const PROOF_KINDS = new Set(["metrica", "before_after", "case"]);
 
 type ConnectionValidation = { allowed: boolean; label: string | null; reason: string | null };
 const allowConnection = (label: string): ConnectionValidation => ({ allowed: true, label, reason: null });
@@ -114,6 +115,9 @@ function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNodeRow) 
   if (INSTRUCTION_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return allowConnection("regra");
   if (ENGINE_KINDS.has(sourceKind) && RESULT_KINDS.has(targetKind)) return allowConnection("gera");
   if (RESULT_KINDS.has(sourceKind) && DECISION_KINDS.has(targetKind)) return allowConnection("aprovar");
+  if ((RESULT_KINDS.has(sourceKind) || DECISION_KINDS.has(sourceKind)) && PROOF_KINDS.has(targetKind)) return allowConnection("prova");
+  if (sourceKind === "metrica" && targetKind === "before_after") return allowConnection("compara");
+  if (sourceKind === "before_after" && targetKind === "case") return allowConnection("vira case");
   if (DECISION_KINDS.has(sourceKind) && (INSTRUCTION_KINDS.has(targetKind) || ENGINE_KINDS.has(targetKind) || RESULT_KINDS.has(targetKind))) return allowConnection("próxima");
 
   if (INPUT_KINDS.has(sourceKind) && INSTRUCTION_KINDS.has(targetKind)) return allowConnection("base");
@@ -128,6 +132,7 @@ function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNodeRow) 
 function edgeIntent(edge: CanvasEdgeRecord, nodesById: Map<string, CanvasNodeRow>) {
   const sourceKind = edge.source_node_id ? nodeKindOf(nodesById.get(edge.source_node_id)!) : "";
   const targetKind = edge.target_node_id ? nodeKindOf(nodesById.get(edge.target_node_id)!) : "";
+  if (PROOF_KINDS.has(targetKind) || PROOF_KINDS.has(sourceKind)) return { label: edge.label ?? "prova", stroke: "hsl(var(--node-proof))", animated: false };
   if (targetKind === "engine") return { label: edge.label ?? "input", stroke: "hsl(var(--node-tech))", animated: true };
   if (sourceKind === "engine") return { label: edge.label ?? "gera", stroke: "hsl(var(--node-build))", animated: true };
   if (targetKind === "decisao" || sourceKind === "decisao") return { label: edge.label ?? "aprova", stroke: "hsl(var(--node-growth))", animated: false };
