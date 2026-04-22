@@ -8,7 +8,7 @@ import { AlertTriangle, GitBranch, Search, Link2, Filter, ChevronRight, ChevronL
 import {
   CANVAS_STATUS_OPTIONS, getCanvasTypeConfig, getCanvasStatusConfig,
 } from "./canvasConstants";
-import { PROJECT_TYPES, getProjectTypeMeta } from "./canvasProjectTypes";
+import { PROJECT_TYPES, getProjectTypeMeta, getNodeFlowRole } from "./canvasProjectTypes";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 import { isCanvasNodeBlocked, readCanvasOperationalMeta, type ApprovalStatus } from "./canvasOperationalMeta";
 
@@ -70,6 +70,7 @@ function CanvasInspector({
 
   const linkedCount = useMemo(() => (collapsed ? 0 : nodes.filter((n) => n.linked_entity_id).length), [collapsed, nodes]);
   const owners = useMemo(() => collapsed ? [] : Array.from(new Set(nodes.map((n) => readCanvasOperationalMeta(n.data as Record<string, unknown> | null).ownerName).filter(Boolean))) as string[], [collapsed, nodes]);
+  const proofCount = useMemo(() => collapsed ? 0 : nodes.filter((n) => ["measurement", "proof", "narrative"].includes(getNodeFlowRole(((n.data as Record<string, unknown> | null)?.kind as string | undefined) ?? n.node_type))).length, [collapsed, nodes]);
 
   if (collapsed) {
     return (
@@ -93,8 +94,8 @@ function CanvasInspector({
   }
 
   return (
-    <aside className="w-72 shrink-0 border-l border-border bg-card/40 backdrop-blur-sm flex flex-col">
-      <div className="p-3 border-b border-border space-y-2">
+    <aside className="w-72 shrink-0 border-l border-border/70 bg-card/35 backdrop-blur-sm flex flex-col">
+      <div className="p-3 border-b border-border/70 space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <PanelRight className="h-3 w-3 text-muted-foreground" />
@@ -111,7 +112,7 @@ function CanvasInspector({
             </button>
           </div>
         </div>
-        <p className="text-[11px] text-muted-foreground">{nodes.length} passos · {edges} conexões · {linkedCount} vínculos reais</p>
+        <p className="text-[11px] text-muted-foreground">{nodes.length} passos · {edges} conexões · {linkedCount} vínculos · {proofCount} provas</p>
 
         <div className="relative">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -124,7 +125,7 @@ function CanvasInspector({
         </div>
       </div>
 
-      <div className="p-3 border-b border-border space-y-2">
+      <div className="p-3 border-b border-border/70 space-y-2">
         <div className="flex items-center gap-1.5">
           <Filter className="h-3 w-3 text-muted-foreground" />
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Tipo</p>
