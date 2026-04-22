@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ArrowRight, CalendarDays, CalendarIcon, CheckCircle2, FolderKanban, ListChecks, RefreshCw, Search, Sparkles, Target, X } from "lucide-react";
+import { ArrowRight, CalendarDays, CalendarIcon, CheckCircle2, FolderKanban, ListChecks, Loader2, Lock, RefreshCw, Search, Sparkles, Target, X } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingState from "@/components/LoadingState";
 import EmptyState from "@/components/EmptyState";
@@ -196,6 +196,10 @@ function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: 
   });
 
   return checklist.slice(0, 6);
+}
+
+function triageItemKey(item: LeanChecklistItem, index: number) {
+  return item.taskId ?? `${item.source}:${index}:${item.title}`;
 }
 
 function sameDay(a: Date, iso: string) {
