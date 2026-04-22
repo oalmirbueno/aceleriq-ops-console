@@ -7,6 +7,7 @@ interface Props {
   clientId: string;
   clientName: string;
   onTimelineRefresh?: () => Promise<void> | void;
+  initialStatusFilter?: string | null;
 }
 
 export default function WorkspaceTabCanvas(props: Props) {
