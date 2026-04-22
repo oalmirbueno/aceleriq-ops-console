@@ -991,13 +991,13 @@ function CanvasStudioInner({
     if (!parent) return;
     setBusyAction("ops-flow");
     try {
-      const blueprint: Array<{ ref: string; kind: ProjectNodeKind; title: string; stage: AceleraStageKey; description: string }> = [
-        { ref: "context", kind: "contexto_ops", title: "Contexto central", stage: "entrada", description: "Briefing, assets, acessos, links, oferta e regras que alimentam a operação." },
-        { ref: "instruction", kind: "instrucao", title: "Instruções e critérios", stage: "planejamento", description: "SOPs, prompts, regras de execução e critérios de aceite." },
-        { ref: "engine", kind: "engine", title: "Engine: Planejamento Ops", stage: "planejamento", description: "Hub que consolida entradas e transforma contexto em plano, tarefas e entregáveis." },
-        { ref: "agent", kind: "agente", title: "Agente: Orion Ops", stage: "producao", description: "Assistente operacional conectado ao contexto, instruções e outputs." },
-        { ref: "result", kind: "resultado", title: "Resultado: Plano operacional", stage: "producao", description: "Output versionado com owner, prazo, evidência e próximos passos." },
-        { ref: "decision", kind: "decisao", title: "Decisão: Aprovação / Revisão", stage: "ativacao", description: "Roteia aprovado para próxima etapa ou retorna para revisão." },
+      const blueprint: Array<{ ref: string; kind: ProjectNodeKind; title: string; stage: AceleraStageKey; x: number; y: number; description: string }> = [
+        { ref: "context", kind: "contexto_ops", title: "Contexto central", stage: "entrada", x: 140, y: CONTENT_TOP + 120, description: "Briefing, assets, acessos, links, oferta e regras que alimentam a operação." },
+        { ref: "instruction", kind: "instrucao", title: "Instruções e critérios", stage: "planejamento", x: 140, y: CONTENT_TOP + 330, description: "SOPs, prompts, regras de execução e critérios de aceite." },
+        { ref: "engine", kind: "engine", title: "Engine: Planejamento Ops", stage: "planejamento", x: 620, y: CONTENT_TOP + 210, description: "Hub que consolida entradas e transforma contexto em plano, tarefas e entregáveis." },
+        { ref: "agent", kind: "agente", title: "Agente: Orion Ops", stage: "producao", x: 1060, y: CONTENT_TOP + 360, description: "Assistente operacional conectado ao contexto, instruções e outputs." },
+        { ref: "result", kind: "resultado", title: "Resultado: Plano operacional", stage: "producao", x: 1060, y: CONTENT_TOP + 120, description: "Output versionado com owner, prazo, evidência e próximos passos." },
+        { ref: "decision", kind: "decisao", title: "Decisão: Aprovação / Revisão", stage: "ativacao", x: 1500, y: CONTENT_TOP + 120, description: "Roteia aprovado para próxima etapa ou retorna para revisão." },
       ];
       const created: Record<string, string> = {};
       const rows: CanvasNodeRow[] = [];
@@ -1009,8 +1009,8 @@ function CanvasStudioInner({
           title: item.title,
           status: item.kind === "engine" ? "active" : "draft",
           description: item.description,
-          pos_x: stageColumnX(item.stage) + NODE_X_OFFSET,
-          pos_y: CONTENT_TOP + 16 + (i % 2) * NODE_VERTICAL,
+          pos_x: item.x,
+          pos_y: item.y,
           parent_node_id: parent,
           data: { kind: item.kind, stage: item.stage, checklist: getChecklistTemplate(item.kind) },
         }).select().single();
