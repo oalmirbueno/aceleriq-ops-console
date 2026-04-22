@@ -75,6 +75,13 @@ interface WorkspaceTaskSignal {
   due_date: string | null;
 }
 
+interface LeanChecklistItem {
+  title: string;
+  detail: string;
+  size: "grande" | "media" | "pequena";
+  source: "task" | "engine";
+}
+
 const STAGES = ["entrada", "diagnostico", "estrutura_base", "planejamento", "producao", "ativacao", "otimizacao", "expansao"];
 
 function workspaceProgress(stage: string) {
@@ -126,6 +133,53 @@ function buildActionPlan(stage: string, tasks: WorkspaceTaskSignal[], nodes: Wor
   }
 
   return plan.slice(0, 3);
+}
+
+function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: WorkspaceNodeProgress[]): LeanChecklistItem[] {
+  const active = tasks.filter((task) => task.status !== "done" && task.status !== "canceled");
+  const blocked = active.filter((task) => task.status === "blocked");
+  const stageTasks = active.filter((task) => task.stage === stage);
+  const priorityTasks = active
+    .filter((task) => task.priority === "urgent" || task.priority === "high")
+    .sort((a, b) => (a.status === "blocked" ? -1 : 0) - (b.status === "blocked" ? -1 : 0));
+  const checklist: LeanChecklistItem[] = [];
+
+  blocked.slice(0, 2).forEach((task) => checklist.push({
+    title: task.title,
+    detail: "Maior alavanca: destravar antes de criar trabalho novo. Resolver, delegar ou cortar o bloqueio.",
+    size: "grande",
+    source: "task",
+  }));
+
+  priorityTasks.filter((task) => !blocked.some((b) => b.id === task.id)).slice(0, 2).forEach((task) => checklist.push({
+    title: task.title,
+    detail: "Entrega pesada primeiro: só entra se mover o cliente de etapa ou remover risco real.",
+    size: "grande",
+    source: "task",
+  }));
+
+  stageTasks.filter((task) => !checklist.some((item) => item.title === task.title)).slice(0, 2).forEach((task) => checklist.push({
+    title: task.title,
+    detail: `Tarefa da etapa atual (${getStagePremiumLabel(stage)}). Executar em bloco, não como rotina diária.`,
+    size: "media",
+    source: "task",
+  }));
+
+  if (checklist.length < 5) checklist.push({
+    title: "Fechar um único avanço verificável do workspace",
+    detail: nodes.length > 0 ? `Escolher 1 node ativo e levar até conclusão antes de abrir novas frentes.` : "Criar apenas o node mínimo que destrava a próxima decisão.",
+    size: "media",
+    source: "engine",
+  });
+
+  if (checklist.length < 6) checklist.push({
+    title: "Registrar decisão e próxima ação em 5 minutos",
+    detail: "Micro-ação final: deixar claro o que foi decidido, quem depende disso e qual é o próximo passo.",
+    size: "pequena",
+    source: "engine",
+  });
+
+  return checklist.slice(0, 6);
 }
 
 function sameDay(a: Date, iso: string) {
