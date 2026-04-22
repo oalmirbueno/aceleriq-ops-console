@@ -22,6 +22,20 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import ClientAvatar from "@/components/workspace/ClientAvatar";
+import WorkspaceHeader from "@/components/workspace/WorkspaceHeader";
+import WorkspaceTabResumo from "@/components/workspace/WorkspaceTabResumo";
+import WorkspaceTabTimeline from "@/components/workspace/WorkspaceTabTimeline";
+import WorkspaceTabContexto from "@/components/workspace/WorkspaceTabContexto";
+import WorkspaceTabTasks from "@/components/workspace/WorkspaceTabTasks";
+import WorkspaceTabDossie from "@/components/workspace/WorkspaceTabDossie";
+import WorkspaceTabProducao from "@/components/workspace/WorkspaceTabProducao";
+import WorkspaceTabAssets from "@/components/workspace/WorkspaceTabAssets";
+import WorkspaceTabMetricas from "@/components/workspace/WorkspaceTabMetricas";
+import WorkspaceTabBeforeAfter from "@/components/workspace/WorkspaceTabBeforeAfter";
+import WorkspaceTabCase from "@/components/workspace/WorkspaceTabCase";
+import WorkspaceTabCanvas from "@/components/workspace/WorkspaceTabCanvas";
+import WorkspaceTabConteudo from "@/components/workspace/WorkspaceTabConteudo";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { getStagePremiumLabel } from "@/components/workspace/aceleraConstants";
@@ -237,7 +251,11 @@ async function fetchAllTimelineEvents(workspaceId: string) {
   return { events: all, total };
 }
 
-export default function WorkspaceDetailPage() {
+interface WorkspaceDetailPageProps {
+  mode?: "preview" | "execution";
+}
+
+export default function WorkspaceDetailPage({ mode = "preview" }: WorkspaceDetailPageProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -250,11 +268,14 @@ export default function WorkspaceDetailPage() {
   const [triageLoading, setTriageLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
   const [refreshingProgress, setRefreshingProgress] = useState(false);
+  const showFullWorkspace = mode === "execution";
   const [movementsOpen, setMovementsOpen] = useState(false);
   const [eventTypeFilter, setEventTypeFilter] = useState("__all__");
   const [movementDate, setMovementDate] = useState<Date | undefined>();
   const [movementSearch, setMovementSearch] = useState("");
   const [visibleMovements, setVisibleMovements] = useState(MOVEMENTS_PAGE_SIZE);
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") ?? "resumo");
+  const [canvasStatusShortcut, setCanvasStatusShortcut] = useState<string | null>(searchParams.get("status"));
   const [completedTriageKeys, setCompletedTriageKeys] = useState<string[]>([]);
   const [completedPreEntryActions, setCompletedPreEntryActions] = useState<string[]>([]);
 
@@ -324,7 +345,7 @@ export default function WorkspaceDetailPage() {
   }, [workspaceId]);
 
   useEffect(() => {
-    if (!workspaceId || searchParams.get("view") !== "full") return;
+    if (!workspaceId || mode !== "preview" || searchParams.get("view") !== "full") return;
 
     const nextParams = new URLSearchParams();
     const tab = searchParams.get("tab");
@@ -337,7 +358,12 @@ export default function WorkspaceDetailPage() {
       `/ops/workspaces/${workspaceId}/execution${nextParams.toString() ? `?${nextParams.toString()}` : ""}`,
       { replace: true },
     );
-  }, [workspaceId, searchParams, navigate]);
+  }, [workspaceId, searchParams, navigate, mode]);
+
+  useEffect(() => {
+    setActiveTab(searchParams.get("tab") ?? "resumo");
+    setCanvasStatusShortcut(searchParams.get("status"));
+  }, [searchParams]);
 
   const refreshNodeProgress = async () => {
     if (!workspaceId) return;
