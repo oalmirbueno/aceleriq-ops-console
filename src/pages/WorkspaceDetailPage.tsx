@@ -231,6 +231,7 @@ export default function WorkspaceDetailPage() {
   const navigate = useNavigate();
   const [ws, setWs] = useState<Workspace | null>(null);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [timelineTotal, setTimelineTotal] = useState(0);
   const [nodesProgress, setNodesProgress] = useState<WorkspaceNodeProgress[]>([]);
   const [taskSignals, setTaskSignals] = useState<WorkspaceTaskSignal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -254,14 +255,9 @@ export default function WorkspaceDetailPage() {
 
     if (!error && data) setWs(data as unknown as Workspace);
 
-    const { data: events } = await supabase
-      .from("timeline_events")
-      .select("id, event_type, title, description, happened_at, created_at")
-      .eq("workspace_id", workspaceId)
-      .order("happened_at", { ascending: false })
-      .limit(100);
-
-    if (events) setTimeline(events);
+    const { events, total } = await fetchAllTimelineEvents(workspaceId);
+    setTimeline(events);
+    setTimelineTotal(total);
 
     const { data: nodes } = await supabase
       .from("canvas_nodes")
