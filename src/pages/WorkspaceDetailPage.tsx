@@ -83,6 +83,7 @@ interface LeanChecklistItem {
 }
 
 const STAGES = ["entrada", "diagnostico", "estrutura_base", "planejamento", "producao", "ativacao", "otimizacao", "expansao"];
+const MOVEMENTS_PAGE_SIZE = 20;
 
 function workspaceProgress(stage: string) {
   const index = Math.max(0, STAGES.indexOf(stage));
@@ -207,6 +208,7 @@ export default function WorkspaceDetailPage() {
   const [movementsOpen, setMovementsOpen] = useState(false);
   const [eventTypeFilter, setEventTypeFilter] = useState("__all__");
   const [movementDate, setMovementDate] = useState<Date | undefined>();
+  const [visibleMovements, setVisibleMovements] = useState(MOVEMENTS_PAGE_SIZE);
 
   const fetchWorkspace = async () => {
     if (!workspaceId) return;
@@ -256,6 +258,10 @@ export default function WorkspaceDetailPage() {
     if (workspaceId) localStorage.setItem(`workspace-mode:${workspaceId}`, mode);
     setShowFullWorkspace(mode === "full");
   };
+
+  useEffect(() => {
+    setVisibleMovements(MOVEMENTS_PAGE_SIZE);
+  }, [movementsOpen, eventTypeFilter, movementDate]);
 
   const handleStageChange = async (newStage: string) => {
     if (!ws || newStage === ws.current_stage) return;
