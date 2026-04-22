@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { ArrowRight, CalendarDays, CalendarIcon, CheckCircle2, FolderKanban, ListChecks, Sparkles, Target, X } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingState from "@/components/LoadingState";
@@ -10,6 +10,14 @@ import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import ClientAvatar from "@/components/workspace/ClientAvatar";
 import WorkspaceHeader from "@/components/workspace/WorkspaceHeader";
 import WorkspaceTabResumo from "@/components/workspace/WorkspaceTabResumo";
@@ -194,6 +202,26 @@ export default function WorkspaceDetailPage() {
       <AppHeader title={clientName} subtitle={ws.name} />
 
       <div className="p-6 animate-fade-in space-y-5">
+        <Breadcrumb className="rounded-lg border border-border bg-card/70 px-4 py-3 shadow-sm">
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/ops/workspaces">Hub de Workspaces</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to={`/ops/clients/${ws.client_id}/vault`}>{clientName}</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>{ws.name}</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+
         <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <div className="relative border-b border-border bg-secondary/40 p-6">
             <div className="absolute inset-0 tech-grid-bg opacity-60" aria-hidden />
