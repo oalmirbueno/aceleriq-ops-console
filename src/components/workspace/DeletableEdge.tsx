@@ -1,18 +1,21 @@
 /**
  * DeletableEdge — edge customizada com botão de deletar visível.
  *
- * Substitui o edge padrão para ganhar:
- *  - Label editável (mantém do ReactFlow default)
- *  - Botão "×" flutuante no meio da edge, aparece no hover/seleção
- *  - Botão de editar rótulo (ícone de lápis) ao lado do delete
+ * O parent (CanvasStudio) passa os callbacks via `data`:
+ *   data.onDelete(id)          → remove do DB + atualiza dbEdges
+ *   data.onEditLabel(id, val)  → atualiza label no DB + em dbEdges
  *
- * Uso: registra em nodeTypes/edgeTypes do ReactFlow como type="deletable".
+ * Isso garante que a deleção é instantânea e permanente — não volta
+ * no próximo re-render do reactFlowEdges memo.
  */
 import { memo, useState } from "react";
-import { BaseEdge, EdgeLabelRenderer, getBezierPath, useReactFlow, type EdgeProps } from "@xyflow/react";
+import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from "@xyflow/react";
 import { X, Pencil } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+
+export interface DeletableEdgeData extends Record<string, unknown> {
+  onDelete?: (edgeId: string) => void | Promise<void>;
+  onEditLabel?: (edgeId: string, newLabel: string | null) => void | Promise<void>;
+}
 
 function DeletableEdgeComp(props: EdgeProps) {
   const {
@@ -21,42 +24,26 @@ function DeletableEdgeComp(props: EdgeProps) {
     label, selected, data,
   } = props;
   const [hover, setHover] = useState(false);
-  const { setEdges } = useReactFlow();
 
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition,
   });
 
   const show = hover || selected;
+  const edgeData = (data ?? {}) as DeletableEdgeData;
 
-  const handleDelete = async (e: React.MouseEvent) => {
+  const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const { error } = await supabase.from("canvas_edges").delete().eq("id", id);
-    if (error) {
-      toast({ title: "Erro ao remover", description: error.message, variant: "destructive" });
-      return;
-    }
-    // Remove localmente via setEdges do ReactFlow
-    setEdges((edges) => edges.filter((ed) => ed.id !== id));
-    toast({ title: "Conexão removida" });
+    edgeData.onDelete?.(id);
   };
 
-  const handleEditLabel = async (e: React.MouseEvent) => {
+  const handleEditLabel = (e: React.MouseEvent) => {
     e.stopPropagation();
     const current = String(label ?? "");
     const next = window.prompt("Rótulo da conexão (vazio para remover):", current);
     if (next === null) return;
     const cleanLabel = next.trim() || null;
-    const { error } = await supabase
-      .from("canvas_edges")
-      .update({ label: cleanLabel, updated_at: new Date().toISOString() })
-      .eq("id", id);
-    if (error) {
-      toast({ title: "Erro ao editar", description: error.message, variant: "destructive" });
-      return;
-    }
-    setEdges((edges) => edges.map((ed) => ed.id === id ? { ...ed, label: cleanLabel ?? undefined } : ed));
-    toast({ title: cleanLabel ? "Rótulo atualizado" : "Rótulo removido" });
+    edgeData.onEditLabel?.(id, cleanLabel);
   };
 
   return (
@@ -66,7 +53,6 @@ function DeletableEdgeComp(props: EdgeProps) {
     >
       <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} />
 
-      {/* Label — rendered via ReactFlow's default label system using data */}
       {label && (
         <EdgeLabelRenderer>
           <div
@@ -91,7 +77,6 @@ function DeletableEdgeComp(props: EdgeProps) {
         </EdgeLabelRenderer>
       )}
 
-      {/* Action buttons — float at center of edge when hovered/selected */}
       {show && (
         <EdgeLabelRenderer>
           <div
