@@ -65,7 +65,7 @@ export type ProjectNodeKind =
   | "conteudo" | "trafego" | "email_mkt" | "social"
   | "crm" | "checklist" | "asset" | "metrica"
   | "before_after" | "case" | "video" | "imagem"
-  | "contato" | "objetivo" | "lancamento";
+  | "contato" | "objetivo" | "lancamento" | "dossie";
 
 export type NodeFamily =
   | "entry" | "structure" | "plan" | "build"
