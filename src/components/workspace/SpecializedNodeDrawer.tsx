@@ -11,7 +11,7 @@
  * extras (ex: BriefingNodeDrawer mostra também o BriefingConsolidatedView).
  */
 import { useEffect, useMemo, useState } from "react";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -117,13 +117,14 @@ export default function SpecializedNodeDrawer({
 
   if (!blueprint) {
     return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="center" className="canvas-node-popup p-6 overflow-hidden">
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="p-6 max-w-md">
+          <DialogTitle className="sr-only">Sem blueprint</DialogTitle>
           <p className="text-sm text-muted-foreground">
             Sem blueprint para este tipo. Use o drawer genérico.
           </p>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     );
   }
 
@@ -151,10 +152,19 @@ export default function SpecializedNodeDrawer({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="center" className="canvas-node-popup p-0 flex min-h-0 flex-col overflow-hidden">
-        {/* ─── Header ─── */}
-        <div className="px-5 pt-5 pb-3 border-b border-border space-y-3">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="p-0 gap-0 border border-white/10 max-w-2xl w-full max-h-[88vh] flex flex-col overflow-hidden sm:rounded-2xl"
+        style={{
+          background: "rgba(9,17,10,0.92)",
+          backdropFilter: "blur(32px) saturate(200%)",
+          WebkitBackdropFilter: "blur(32px) saturate(200%)",
+          boxShadow: "0 0 0 1px rgba(255,255,255,0.06), 0 32px 72px rgba(0,0,0,0.75)",
+        }}
+      >
+        <DialogTitle className="sr-only">{node.title}</DialogTitle>
+        {/* ─── Header (pr-12 to leave room for built-in X) ─── */}
+        <div className="px-5 pt-5 pb-3 border-b border-white/8 space-y-3 pr-12">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3 min-w-0 flex-1">
               {Icon && (
@@ -217,9 +227,6 @@ export default function SpecializedNodeDrawer({
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               )}
-              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onOpenChange(false)}>
-                <X className="h-4 w-4" />
-              </Button>
             </div>
           </div>
 
@@ -277,7 +284,7 @@ export default function SpecializedNodeDrawer({
             </div>
           </div>
         </ScrollArea>
-      </SheetContent>
+      </DialogContent>
 
       {/* ─── AccessVaultDrawer empilhado por cima — consulta de credenciais sem sair do node ─── */}
       <AccessVaultDrawer
@@ -288,6 +295,6 @@ export default function SpecializedNodeDrawer({
         clientId={clientId}
         clientName={clientName ?? "Cliente"}
       />
-    </Sheet>
+    </Dialog>
   );
 }
