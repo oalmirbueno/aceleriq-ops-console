@@ -6,17 +6,18 @@ import {
   type ReactFlowInstance, type Viewport, SelectionMode, MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow } from "lucide-react";
+import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow, MousePointer2, Hand, Lock, Grid3X3, Camera, Type, Image, FileStack, Bot, Megaphone, Trophy, Minus, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import ProjectNodeCard, { type ProjectNodeData } from "./ProjectNodeCard";
 import CanvasGroupNode from "./CanvasGroupNode";
+import AiOrbNode, { type AiOrbType } from "./AiOrbNode";
 import ProjectNodeDrawer from "./ProjectNodeDrawer";
-import CanvasEsteiraPalette from "./CanvasEsteiraPalette";
 import CanvasInspector from "./CanvasInspector";
 import CanvasClientPicker from "./CanvasClientPicker";
 import CanvasClientTabs, { type CanvasClientTab } from "./CanvasClientTabs";
@@ -58,6 +59,7 @@ interface Props {
 const nodeTypes = {
   projectCard: ProjectNodeCard,
   canvasGroup: CanvasGroupNode,
+  aiOrb: AiOrbNode,
 };
 
 const CLIENT_BAR_Y = 0;
@@ -92,6 +94,26 @@ const RESULT_KINDS = new Set(["resultado", "landing_page", "site", "conteudo", "
 const DECISION_KINDS = new Set(["decisao"]);
 const PROOF_KINDS = new Set(["metrica", "before_after", "case"]);
 const FLOW_GRAMMAR = ["Contexto", "Instrução", "Engine", "Resultado", "Decisão", "Prova"];
+const AI_ORB_KINDS = new Set(["ai_orb"]);
+const AI_ORB_INPUT_KINDS = new Set([...INPUT_KINDS, ...INSTRUCTION_KINDS, "funil", "engine"]);
+const AI_ORB_OUTPUT_KINDS = new Set([...RESULT_KINDS, ...ENGINE_KINDS, ...PROOF_KINDS]);
+const AI_ORBS: Array<{ type: AiOrbType; label: string; specialization: string }> = [
+  { type: "planner", label: "Planejar", specialization: "plano operacional" },
+  { type: "docs", label: "Docs", specialization: "BMC · ICP · SOP" },
+  { type: "content", label: "Conteúdo", specialization: "copy · calendário" },
+  { type: "tech", label: "Tech", specialization: "n8n · integrações" },
+  { type: "proof", label: "Provas", specialization: "KPI · case" },
+  { type: "full", label: "Tudo", specialization: "esteira completa" },
+];
+const DOCK_GROUPS = [
+  { id: "text", label: "Texto", icon: Type, kinds: ["instrucao", "conteudo"] as ProjectNodeKind[] },
+  { id: "media", label: "Mídia", icon: Image, kinds: ["imagem", "video"] as ProjectNodeKind[] },
+  { id: "ref", label: "Ref.", icon: FileStack, kinds: ["contexto_ops", "documento", "briefing", "acessos"] as ProjectNodeKind[] },
+  { id: "ai", label: "IA", icon: Bot, kinds: [] as ProjectNodeKind[] },
+  { id: "prod", label: "Prod.", icon: LayoutGrid, kinds: ["site", "landing_page", "automacao", "ia", "integracao", "funil"] as ProjectNodeKind[] },
+  { id: "mkt", label: "Mkt", icon: Megaphone, kinds: ["trafego", "email_mkt", "social", "lancamento"] as ProjectNodeKind[] },
+  { id: "proof", label: "Prova", icon: Trophy, kinds: ["metrica", "before_after", "case"] as ProjectNodeKind[] },
+];
 const OPS_FLOW_X: Record<string, number> = {
   context: 120,
   instruction: 120,
@@ -124,6 +146,8 @@ function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNodeRow) 
   }
 
   if (INPUT_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return allowConnection("input");
+  if (AI_ORB_INPUT_KINDS.has(sourceKind) && AI_ORB_KINDS.has(targetKind)) return allowConnection("treina");
+  if (AI_ORB_KINDS.has(sourceKind) && AI_ORB_OUTPUT_KINDS.has(targetKind)) return allowConnection("gera IA");
   if (INSTRUCTION_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return allowConnection("regra");
   if (ENGINE_KINDS.has(sourceKind) && RESULT_KINDS.has(targetKind)) return allowConnection("gera");
   if (RESULT_KINDS.has(sourceKind) && DECISION_KINDS.has(targetKind)) return allowConnection("aprovar");
@@ -144,6 +168,7 @@ function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNodeRow) 
 function edgeIntent(edge: CanvasEdgeRecord, nodesById: Map<string, CanvasNodeRow>) {
   const sourceKind = edge.source_node_id && nodesById.get(edge.source_node_id) ? nodeKindOf(nodesById.get(edge.source_node_id)!) : "";
   const targetKind = edge.target_node_id && nodesById.get(edge.target_node_id) ? nodeKindOf(nodesById.get(edge.target_node_id)!) : "";
+  if (AI_ORB_KINDS.has(targetKind) || AI_ORB_KINDS.has(sourceKind)) return { label: edge.label ?? "IA", stroke: "hsl(var(--node-tech))", animated: true, className: "edge-ai", strokeWidth: 2.4 };
   if (PROOF_KINDS.has(targetKind) || PROOF_KINDS.has(sourceKind)) return { label: edge.label ?? "prova", stroke: "hsl(var(--node-proof))", animated: false, className: "edge-proof", strokeWidth: 2.8 };
   if (targetKind === "engine") return { label: edge.label ?? "input", stroke: "hsl(var(--node-tech))", animated: true, className: "edge-input", strokeWidth: 2.6 };
   if (sourceKind === "engine") return { label: edge.label ?? "gera", stroke: "hsl(var(--node-build))", animated: true, className: "edge-engine", strokeWidth: 3 };
@@ -177,6 +202,10 @@ function CanvasStudioInner({
 
   const [paletteCollapsed, setPaletteCollapsed] = useState(false);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(true);
+  const [activeTool, setActiveTool] = useState<"select" | "hand">("select");
+  const [gridVisible, setGridVisible] = useState(true);
+  const [lockedNodes, setLockedNodes] = useState(false);
+  const [openDockGroup, setOpenDockGroup] = useState<string | null>(null);
 
   // Active client folder (null = "Todos")
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
@@ -320,6 +349,7 @@ function CanvasStudioInner({
    */
   const viewportScope = `canvas:viewport:${workspaceId}:${activeClientId ?? "all"}`;
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
+  const expandEngineHubRef = useRef<((engineNodeId: string) => void | Promise<void>) | null>(null);
   const restoredScopesRef = useRef<Set<string>>(new Set());
   const saveTimerRef = useRef<number | null>(null);
 
@@ -385,6 +415,10 @@ function CanvasStudioInner({
         setRfNodes((nodes) => nodes.map((node) => ({ ...node, selected: true })));
         setRfEdges((edges) => edges.map((edge) => ({ ...edge, selected: true })));
       }
+      if (e.key.toLowerCase() === "v") setActiveTool("select");
+      if (e.key.toLowerCase() === "h") setActiveTool("hand");
+      if (e.key.toLowerCase() === "g") setGridVisible((v) => !v);
+      if (e.key.toLowerCase() === "f") rfInstanceRef.current?.fitView({ padding: 0.32, duration: 280 });
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -397,14 +431,20 @@ function CanvasStudioInner({
       const dataObj = (n.data as Record<string, unknown> | null) ?? {};
       const operationalMeta = (dataObj.operationalMeta ?? dataObj.operational_meta ?? {}) as CanvasOperationalMeta;
       const attachmentList = (dataObj.attachments as Array<{ url?: string; type?: string; label?: string }> | undefined) ?? [];
+      const isAiOrb = n.node_type === "ai_orb" || dataObj.kind === "ai_orb";
 
       return {
         id: n.id,
-        type: "projectCard",
+        type: isAiOrb ? "aiOrb" : "projectCard",
         position: { x: Number(n.pos_x ?? 0), y: Number(n.pos_y ?? CONTENT_TOP) },
+        draggable: !lockedNodes,
         data: {
           title: n.title,
           kind: nodeKindOf(n),
+          orbType: (dataObj.orbType ?? "planner") as AiOrbType,
+          label: (dataObj.orbLabel ?? n.title) as string,
+          specialization: (dataObj.specialization ?? n.description ?? "agente conectado") as string,
+          isGenerating: !!dataObj.isGenerating,
           status: n.status,
           description: n.description,
           hasLinkedEntity: !!n.linked_entity_id,
@@ -418,11 +458,11 @@ function CanvasStudioInner({
           operationalMeta,
           onQuickConnect: (dir: "right" | "bottom") => quickConnectFromNode(n.id, dir),
           canExpandHub: nodeKindOf(n) === "engine",
-          onExpandHub: () => expandEngineHub(n.id),
+          onExpandHub: () => expandEngineHubRef.current?.(n.id),
         } satisfies ProjectNodeData,
       };
     });
-  }, [visibleCanvasNodes, groupMeta, quickConnectFromNode]);
+  }, [visibleCanvasNodes, groupMeta, quickConnectFromNode, lockedNodes]);
 
   const reactFlowEdges = useMemo(() => {
     const visibleIds = new Set(visibleCanvasNodes.map((n) => n.id));
@@ -665,6 +705,32 @@ function CanvasStudioInner({
     }
   }, [clientId, dbNodes, ensureActiveClient, pickParentGroup, projectNodes, workspaceId]);
 
+  const addAiOrb = useCallback(async (orbType: AiOrbType) => {
+    const parent = ensureActiveClient();
+    if (!parent) return;
+    const orb = AI_ORBS.find((item) => item.type === orbType) ?? AI_ORBS[0];
+    const sameParentOrbs = dbNodes.filter((node) => node.parent_node_id === parent && node.node_type === "ai_orb");
+    const pos_x = OPS_FLOW_X.engine + 40;
+    const pos_y = CONTENT_TOP + 520 + sameParentOrbs.length * 132;
+    const { data, error } = await supabase.from("canvas_nodes").insert({
+      workspace_id: workspaceId,
+      client_id: clientId,
+      node_type: "ai_orb",
+      title: `AI Orb · ${orb.label}`,
+      status: "active",
+      description: orb.specialization,
+      pos_x,
+      pos_y,
+      parent_node_id: parent,
+      data: { kind: "ai_orb", orbType, orbLabel: orb.label, specialization: orb.specialization, aiModel: "internal", isGenerating: false },
+    }).select().single();
+    if (error) {
+      toast({ title: "Erro ao criar AI Orb", description: error.message, variant: "destructive" });
+      return;
+    }
+    if (data) setDbNodes((prev) => [...prev, data as CanvasNodeRow]);
+  }, [clientId, dbNodes, ensureActiveClient, workspaceId]);
+
   const expandEngineHub = useCallback(async (engineNodeId: string) => {
     const engineNode = dbNodes.find((node) => node.id === engineNodeId);
     if (!engineNode) return;
@@ -863,6 +929,10 @@ function CanvasStudioInner({
       setBusyAction(null);
     }
   }, [clientId, dbEdges, dbNodes, ensureActiveClient, workspaceId]);
+
+  useEffect(() => {
+    expandEngineHubRef.current = expandEngineHub;
+  }, [expandEngineHub]);
 
   /* Pick existing client → group */
   const handlePickClient = async (c: { id: string; name: string }) => {
@@ -1372,12 +1442,16 @@ function CanvasStudioInner({
 
       {/* Body: palette + canvas + inspector */}
       <div className="flex flex-1 min-h-0">
-        <CanvasEsteiraPalette
-          collapsed={paletteCollapsed}
-          onToggleCollapse={togglePalette}
-          onAdd={handlePaletteAdd}
-          onAddClient={openClientPicker}
-          onOpenAdvanced={openAdvanced}
+        <OperationalCanvasToolbar
+          activeTool={activeTool}
+          gridVisible={gridVisible}
+          lockedNodes={lockedNodes}
+          fullscreen={fullscreen}
+          onToolChange={setActiveTool}
+          onFit={() => rfInstanceRef.current?.fitView({ padding: 0.32, duration: 280 })}
+          onToggleLock={() => setLockedNodes((v) => !v)}
+          onToggleGrid={() => setGridVisible((v) => !v)}
+          onToggleFullscreen={onToggleFullscreen}
         />
 
         <div className="flex-1 min-w-0 relative">
@@ -1472,8 +1546,22 @@ function CanvasStudioInner({
               connectionLineStyle={{ stroke: "hsl(var(--primary))", strokeWidth: 2.5 }}
               onPaneContextMenu={(event) => event.preventDefault()}
             >
-              <Background gap={32} size={1} className="opacity-20" />
+              {gridVisible && <Background gap={32} size={1} className="opacity-20" />}
             </ReactFlow>
+          )}
+          {!loading && clientGroups.length > 0 && (
+            <NodeTypeDock
+              openGroup={openDockGroup}
+              onOpenGroup={setOpenDockGroup}
+              onPickKind={(kind) => {
+                handlePaletteAdd(kind, getProjectTypeMeta(kind)?.defaultStage ?? "producao");
+                setOpenDockGroup(null);
+              }}
+              onPickOrb={(orbType) => {
+                void addAiOrb(orbType);
+                setOpenDockGroup(null);
+              }}
+            />
           )}
         </div>
 
@@ -1622,6 +1710,101 @@ function QuickAddInline({ onPick }: { onPick: (kind: ProjectNodeKind) => void })
         </div>
       </ScrollArea>
     </>
+  );
+}
+
+function OperationalCanvasToolbar({
+  activeTool, gridVisible, lockedNodes, fullscreen, onToolChange, onFit, onToggleLock, onToggleGrid, onToggleFullscreen,
+}: {
+  activeTool: "select" | "hand";
+  gridVisible: boolean;
+  lockedNodes: boolean;
+  fullscreen: boolean;
+  onToolChange: (tool: "select" | "hand") => void;
+  onFit: () => void;
+  onToggleLock: () => void;
+  onToggleGrid: () => void;
+  onToggleFullscreen: () => void;
+}) {
+  const tools = [
+    { id: "select", label: "Selecionar · V", icon: MousePointer2, active: activeTool === "select", onClick: () => onToolChange("select") },
+    { id: "hand", label: "Mover canvas · H", icon: Hand, active: activeTool === "hand", onClick: () => onToolChange("hand") },
+    { id: "fit", label: "Fit view · F", icon: Maximize2, active: false, onClick: onFit, separator: true },
+    { id: "lock", label: lockedNodes ? "Desbloquear nodes" : "Bloquear nodes", icon: Lock, active: lockedNodes, onClick: onToggleLock },
+    { id: "fullscreen", label: fullscreen ? "Sair da tela cheia" : "Tela cheia", icon: fullscreen ? Minimize2 : Maximize2, active: fullscreen, onClick: onToggleFullscreen },
+    { id: "grid", label: "Grid · G", icon: Grid3X3, active: gridVisible, onClick: onToggleGrid },
+    { id: "shot", label: "Screenshot", icon: Camera, active: false, onClick: () => toast({ title: "Screenshot", description: "Use o export do navegador por enquanto." }), separator: true },
+  ];
+
+  return (
+    <TooltipProvider delayDuration={160}>
+      <aside className="canvas-toolrail">
+        {tools.map((tool) => {
+          const Icon = tool.icon;
+          return (
+            <div key={tool.id} className={tool.separator ? "pt-2 mt-1 border-t border-border/70" : ""}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button type="button" onClick={tool.onClick} className={`canvas-toolrail-button ${tool.active ? "is-active" : ""}`} aria-label={tool.label}>
+                    <Icon className="h-4 w-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="text-xs">{tool.label}</TooltipContent>
+              </Tooltip>
+            </div>
+          );
+        })}
+      </aside>
+    </TooltipProvider>
+  );
+}
+
+function NodeTypeDock({
+  openGroup, onOpenGroup, onPickKind, onPickOrb,
+}: {
+  openGroup: string | null;
+  onOpenGroup: (group: string | null) => void;
+  onPickKind: (kind: ProjectNodeKind) => void;
+  onPickOrb: (orbType: AiOrbType) => void;
+}) {
+  return (
+    <div className="node-type-dock-wrap">
+      {openGroup && (
+        <div className="node-type-dock-menu">
+          {openGroup === "ai" ? AI_ORBS.map((orb) => (
+            <button key={orb.type} type="button" onClick={() => onPickOrb(orb.type)} className={`node-type-dock-option ai-orb-${orb.type}`}>
+              <Bot className="h-3.5 w-3.5" />
+              <span>{orb.label}</span>
+              <small>{orb.specialization}</small>
+            </button>
+          )) : DOCK_GROUPS.find((group) => group.id === openGroup)?.kinds.map((kind) => {
+            const meta = getProjectTypeMeta(kind);
+            if (!meta) return null;
+            const Icon = meta.icon;
+            const stage = getStageMeta(meta.defaultStage);
+            return (
+              <button key={kind} type="button" onClick={() => onPickKind(kind)} className="node-type-dock-option">
+                <Icon className="h-3.5 w-3.5" />
+                <span>{meta.shortLabel}</span>
+                <small>{stage.short}</small>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <div className="node-type-dock">
+        {DOCK_GROUPS.map((group) => {
+          const Icon = group.icon;
+          const active = openGroup === group.id;
+          return (
+            <button key={group.id} type="button" onClick={() => onOpenGroup(active ? null : group.id)} className={`node-type-dock-button dock-${group.id} ${active ? "is-active" : ""}`}>
+              <Icon className="h-4 w-4" />
+              <span>{group.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
