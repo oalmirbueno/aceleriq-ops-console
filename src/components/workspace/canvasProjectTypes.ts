@@ -210,16 +210,41 @@ export const PROJECT_TYPE_GROUPS: Array<{ stage: AceleraStageKey; types: Project
 /** Map ProjectNodeKind → DB node_type enum value (existing canvas_nodes.node_type uses CanvasNodeType) */
 export function projectKindToDbNodeType(kind: ProjectNodeKind): string {
   switch (kind) {
-    case "asset": return "asset";
+    case "site": return "site";
+    case "landing_page": return "landing_page";
+    case "automacao": return "automation";
+    case "ia": return "ai_agent";
+    case "agente": return "ai_agent";
+    case "conteudo": return "content";
+    case "video": return "content";
+    case "imagem": return "content";
+    case "social": return "content";
+    case "email_mkt": return "content";
+    case "trafego": return "traffic";
+    case "lancamento": return "traffic";
     case "metrica": return "metric";
     case "before_after": return "before_after";
     case "case": return "case";
+    case "asset": return "asset";
+    case "dossie": return "dossier";
     case "briefing":
     case "contexto_ops":
+    case "reuniao":
+    case "ideia":
+    case "objetivo":
+    case "acessos":
+    case "contato":
     case "documento":
-    case "contato": return "context";
+      return "context";
     case "checklist": return "task";
-    default: return "front"; // generic deliverable / project front
+    case "crm": return "front";
+    case "funil": return "front";
+    case "integracao": return "front";
+    case "instrucao": return "front";
+    case "engine": return "front";
+    case "resultado": return "front";
+    case "decisao": return "front";
+    default: return "front";
   }
 }
 
