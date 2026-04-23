@@ -1,19 +1,20 @@
 /**
  * WorkspaceTabDossie — dossiê operacional estruturado.
- * Abre detalhes em Dialog central (não Sheet lateral).
- * Cards colapsáveis sem espaço residual.
+ * Dialog central glassmorphism (sem X duplicado).
+ * Cada contexto aparece em 1 bloco primário (sem duplicação).
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   FileText, Building2, Target, ShoppingCart, Settings, Globe, Key,
   Search, Scale, ClipboardList, Shield, Zap, Package, AlertTriangle,
   Lightbulb, Loader2, ChevronDown, CheckCircle2, Circle,
-  Download, Sparkles, X, ArrowRight,
+  Download, Sparkles, ArrowRight, Calendar, Link2, Tag,
+  User as UserIcon, Info,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -23,8 +24,6 @@ import { getContextLabel } from "./contextTypes";
 import { getDossierSignalsByBlock } from "./briefingSignals";
 import { exportBriefingPdf, exportBriefingMarkdown, type ConsolidatedBriefing } from "@/lib/briefingExport";
 import { cn } from "@/lib/utils";
-
-// ─── Types ───────────────────────────────────────────────────
 
 interface Props {
   workspaceId: string;
@@ -38,20 +37,39 @@ interface ContextEntry {
   id: string; context_type: string; title: string; content: string;
   is_key_decision: boolean; metadata: Record<string, unknown> | null;
   tags: string[]; created_at: string;
+  happened_at?: string | null; source_label?: string | null; source_url?: string | null;
+}
+
+interface Task {
+  id: string; title: string; status: string; priority?: string | null; due_date?: string | null;
 }
 
 // ─── Block config ─────────────────────────────────────────────
 
 const BLOCKS = [
-  { key: "identity",    label: "Identidade",         icon: Building2,    color: "#60A5FA", types: ["briefing"],                 hint: "Posicionamento, diferencial, proposta de valor" },
-  { key: "offer",       label: "Oferta e ICP",        icon: Target,       color: "#EC4899", types: ["briefing","objetivo"],      hint: "O que vende, para quem, cliente ideal" },
-  { key: "commercial",  label: "Comercial",           icon: ShoppingCart, color: "#F59E0B", types: ["objetivo","decisao"],       hint: "Funil, metas, processo de vendas" },
-  { key: "operational", label: "Operação",            icon: Settings,     color: "#10B981", types: ["anotacao","decisao"],       hint: "Fluxo de entrega, equipe, processos" },
-  { key: "digital",     label: "Estrutura Digital",   icon: Globe,        color: "#8B5CF6", types: ["acesso","anotacao"],        hint: "Canais, ferramentas e métricas" },
-  { key: "access",      label: "Acessos",             icon: Key,          color: "#F97316", types: ["acesso"],                  hint: "Credenciais e dependências técnicas" },
-  { key: "diagnostic",  label: "Diagnóstico",         icon: Search,       color: "#14B8A6", types: ["diagnostico","dor"],        hint: "Gargalos, dores e lacunas" },
-  { key: "decisions",   label: "Decisões",            icon: Scale,        color: "#A78BFA", types: ["decisao","dor","objetivo"], hint: "Estratégia, prioridades e gaps" },
+  { key: "identity",    label: "Identidade",         icon: Building2,    color: "#60A5FA", primaryTypes: ["briefing"],              hint: "Posicionamento, diferencial, proposta de valor" },
+  { key: "offer",       label: "Oferta e ICP",        icon: Target,       color: "#EC4899", primaryTypes: ["objetivo"],              hint: "O que vende, para quem, cliente ideal" },
+  { key: "commercial",  label: "Comercial",           icon: ShoppingCart, color: "#F59E0B", primaryTypes: [],                        hint: "Funil, metas, processo de vendas" },
+  { key: "operational", label: "Operação",            icon: Settings,     color: "#10B981", primaryTypes: ["anotacao"],              hint: "Fluxo de entrega, equipe, processos" },
+  { key: "digital",     label: "Estrutura Digital",   icon: Globe,        color: "#8B5CF6", primaryTypes: [],                        hint: "Canais, ferramentas e métricas" },
+  { key: "access",      label: "Acessos",             icon: Key,          color: "#F97316", primaryTypes: ["acesso"],                hint: "Credenciais e dependências técnicas" },
+  { key: "diagnostic",  label: "Diagnóstico",         icon: Search,       color: "#14B8A6", primaryTypes: ["diagnostico", "dor"],    hint: "Gargalos, dores e lacunas" },
+  { key: "decisions",   label: "Decisões",            icon: Scale,        color: "#A78BFA", primaryTypes: ["decisao"],               hint: "Estratégia, prioridades e gaps" },
 ] as const;
+
+// Tags that indicate a specific block when primary types overlap
+const TAG_BLOCK_MAP: Record<string, string> = {
+  // commercial
+  "funil": "commercial", "crm": "commercial", "vendas": "commercial", "comercial": "commercial",
+  "proposta": "commercial", "aquisicao": "commercial", "lead": "commercial",
+  // digital
+  "site": "digital", "landing": "digital", "seo": "digital", "trafego": "digital",
+  "anuncios": "digital", "ads": "digital", "instagram": "digital", "conteudo": "digital",
+  "marketing": "digital", "canais": "digital",
+  // operational
+  "processo": "operational", "equipe": "operational", "fluxo": "operational",
+  "entrega": "operational", "sop": "operational", "raci": "operational",
+};
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -72,33 +90,70 @@ function entryPreview(e: ContextEntry): string {
   }
   return strip(e.content ?? "").slice(0,200);
 }
-function fmtDate(iso: string) {
+function fmtDate(iso: string | null | undefined) {
+  if (!iso) return "";
   return new Date(iso).toLocaleDateString("pt-BR",{day:"2-digit",month:"short",year:"numeric"});
 }
 
-// ─── Glass Dialog ─────────────────────────────────────────────
+/**
+ * Assign each context entry to exactly ONE primary block.
+ * Priority order:
+ *   1. Explicit dossier_block in metadata
+ *   2. Tag match with TAG_BLOCK_MAP
+ *   3. First block with matching primary type (BLOCKS iteration order)
+ *   4. Fallback: decisions (for is_key_decision) or diagnostic (for dor)
+ */
+function assignPrimaryBlock(entry: ContextEntry): string | null {
+  // 1. Explicit assignment
+  const explicit = rDossierBlock(entry.metadata);
+  if (explicit) return explicit;
 
-function GlassDialog({ open, onClose, children }: {
+  // 2. Tag-based routing
+  const tags = (entry.tags ?? []).map(t => t.toLowerCase().trim());
+  for (const tag of tags) {
+    if (TAG_BLOCK_MAP[tag]) return TAG_BLOCK_MAP[tag];
+  }
+
+  // 3. First block with matching primary type
+  for (const block of BLOCKS) {
+    if (block.primaryTypes.length > 0 && block.primaryTypes.includes(entry.context_type as any)) {
+      return block.key;
+    }
+  }
+
+  // 4. Fallbacks
+  if (entry.is_key_decision) return "decisions";
+  if (entry.context_type === "dor") return "diagnostic";
+  return null;
+}
+
+// ─── Glass Dialog wrapper ─────────────────────────────────────
+
+function GlassDialog({ open, onClose, children, title, description }: {
   open: boolean; onClose: () => void; children: React.ReactNode;
+  title: string; description?: string;
 }) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
-        className="p-0 gap-0 border border-white/10 max-w-2xl w-full max-h-[88vh] flex flex-col overflow-hidden"
+        className="p-0 gap-0 border border-white/10 max-w-2xl w-full max-h-[88vh] flex flex-col overflow-hidden sm:rounded-2xl"
         style={{
-          background: "rgba(9,17,10,0.90)",
+          background: "rgba(9,17,10,0.92)",
           backdropFilter: "blur(32px) saturate(200%)",
           WebkitBackdropFilter: "blur(32px) saturate(200%)",
-          boxShadow: "0 0 0 1px rgba(255,255,255,0.06), 0 24px 64px rgba(0,0,0,0.7)",
+          boxShadow: "0 0 0 1px rgba(255,255,255,0.06), 0 32px 72px rgba(0,0,0,0.75)",
         }}
       >
+        {/* Hidden a11y title — shadcn requires it */}
+        <DialogTitle className="sr-only">{title}</DialogTitle>
+        {description && <DialogDescription className="sr-only">{description}</DialogDescription>}
         {children}
       </DialogContent>
     </Dialog>
   );
 }
 
-// ─── Briefing Dialog ─────────────────────────────────────────
+// ─── Briefing Dialog ──────────────────────────────────────────
 
 function BriefingDialog({ entry, workspaceId, clientId, clientName, onClose }: {
   entry: ContextEntry; workspaceId: string; clientId: string;
@@ -159,23 +214,16 @@ function BriefingDialog({ entry, workspaceId, clientId, clientName, onClose }: {
   };
 
   return (
-    <GlassDialog open onClose={onClose}>
-      {/* Header */}
-      <div className="px-6 pt-6 pb-4 border-b border-white/8 shrink-0">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-primary/60">{kindLabel}</span>
-              {reviewed && <Badge className="text-[10px] px-1.5 py-0 h-4 bg-emerald-400/15 text-emerald-400 border-emerald-400/30">Revisado</Badge>}
-            </div>
-            <h2 className="text-lg font-semibold text-white leading-tight">{entry.title}</h2>
-            <p className="text-xs text-white/35 mt-1">{fmtDate(entry.created_at)}</p>
-          </div>
-          <button type="button" onClick={onClose}
-            className="h-7 w-7 rounded-full flex items-center justify-center bg-white/6 hover:bg-white/12 transition-colors shrink-0 mt-0.5">
-            <X className="h-3.5 w-3.5 text-white/50" />
-          </button>
+    <GlassDialog open onClose={onClose} title={entry.title} description={kindLabel}>
+      {/* Header — no custom X, shadcn Dialog has built-in */}
+      <div className="px-6 pt-6 pb-4 border-b border-white/8 shrink-0 pr-12">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-primary/60">{kindLabel}</span>
+          {reviewed && <Badge className="text-[10px] px-1.5 py-0 h-4 bg-emerald-400/15 text-emerald-400 border-emerald-400/30">Revisado</Badge>}
         </div>
+        <h2 className="text-lg font-semibold text-white leading-tight">{entry.title}</h2>
+        <p className="text-xs text-white/35 mt-1">{fmtDate(entry.created_at)}</p>
+
         <div className="flex gap-2 mt-4 flex-wrap">
           <Button onClick={generate} disabled={generating} size="sm"
             className="h-7 text-xs gap-1.5 bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 rounded-full px-3">
@@ -193,7 +241,6 @@ function BriefingDialog({ entry, workspaceId, clientId, clientName, onClose }: {
         </div>
       </div>
 
-      {/* Body */}
       <ScrollArea className="flex-1 min-h-0">
         <div className="px-6 py-5">
           {loading ? (
@@ -205,7 +252,7 @@ function BriefingDialog({ entry, workspaceId, clientId, clientName, onClose }: {
               {consolidated.sections?.map((sec: any, si: number) => (
                 <section key={si}>
                   <p className="text-[9px] font-black uppercase tracking-[0.15em] text-primary/50 mb-3">{sec.title}</p>
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {sec.answers?.map((ans: any, ai: number) => (
                       <div key={ai} className="rounded-lg bg-white/4 border border-white/6 px-4 py-3">
                         <p className="text-[11px] font-semibold text-white/60 mb-1.5">{ans.question}</p>
@@ -247,52 +294,134 @@ function BriefingDialog({ entry, workspaceId, clientId, clientName, onClose }: {
   );
 }
 
-// ─── Entry Dialog ─────────────────────────────────────────────
+// ─── Entry Dialog — enriched with metadata ───────────────────
 
-function EntryDialog({ entry, onClose }: { entry: ContextEntry; onClose: () => void }) {
+function EntryDialog({ entry, workspaceId, onClose }: {
+  entry: ContextEntry; workspaceId: string; onClose: () => void;
+}) {
+  const [relatedTasks, setRelatedTasks] = useState<Task[]>([]);
   const scope = rScope(entry.metadata);
+
+  useEffect(() => {
+    (async () => {
+      // Find tasks that reference this entry (by title match or metadata.context_entry_id)
+      const { data } = await supabase
+        .from("tasks")
+        .select("id, title, status, priority, due_date, metadata")
+        .eq("workspace_id", workspaceId)
+        .limit(20);
+      if (data) {
+        const matched = (data as any[]).filter(t => {
+          const ctxId = t.metadata?.context_entry_id;
+          if (ctxId === entry.id) return true;
+          const title = (t.title ?? "").toLowerCase();
+          const entryTitle = entry.title.toLowerCase();
+          return entryTitle.length > 5 && title.includes(entryTitle.slice(0, 20));
+        });
+        setRelatedTasks(matched.slice(0, 5) as Task[]);
+      }
+    })();
+  }, [entry.id, entry.title, workspaceId]);
+
   const dlTxt = () => {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([entry.content??""],{type:"text/plain"}));
     a.download = entry.title.replace(/[^a-z0-9]/gi,"_")+".txt"; a.click();
   };
+
+  const metaItems: Array<{ icon: React.ElementType; label: string; value: string }> = [];
+  metaItems.push({ icon: Calendar, label: "Criado", value: fmtDate(entry.created_at) });
+  if (entry.happened_at) metaItems.push({ icon: Calendar, label: "Ocorrido em", value: fmtDate(entry.happened_at) });
+  if (entry.source_label) metaItems.push({ icon: FileText, label: "Fonte", value: entry.source_label });
+
   return (
-    <GlassDialog open onClose={onClose}>
-      <div className="px-6 pt-6 pb-4 border-b border-white/8 shrink-0">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-white/35">{getContextLabel(entry.context_type)}</span>
-              {entry.is_key_decision && <span className="text-[10px] text-amber-400 font-bold">Decisão-chave</span>}
-              {scope && <ScopeBadge scope={scope} className="text-[10px]" />}
-            </div>
-            <h2 className="text-lg font-semibold text-white leading-tight">{entry.title}</h2>
-            <p className="text-xs text-white/35 mt-1">{fmtDate(entry.created_at)}</p>
-            {entry.tags && entry.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2.5">
-                {entry.tags.map((t) => <span key={t} className="text-[10px] px-2 py-0.5 rounded-full bg-white/6 text-white/45 border border-white/10">{t}</span>)}
-              </div>
-            )}
-          </div>
-          <button type="button" onClick={onClose}
-            className="h-7 w-7 rounded-full flex items-center justify-center bg-white/6 hover:bg-white/12 transition-colors shrink-0 mt-0.5">
-            <X className="h-3.5 w-3.5 text-white/50" />
-          </button>
+    <GlassDialog open onClose={onClose} title={entry.title} description={getContextLabel(entry.context_type)}>
+      <div className="px-6 pt-6 pb-4 border-b border-white/8 shrink-0 pr-12">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-white/35">{getContextLabel(entry.context_type)}</span>
+          {entry.is_key_decision && <Badge className="text-[10px] px-1.5 py-0 h-4 bg-amber-400/15 text-amber-400 border-amber-400/30">Decisão-chave</Badge>}
+          {scope && <ScopeBadge scope={scope} className="text-[10px]" />}
         </div>
-        <Button onClick={dlTxt} size="sm" variant="ghost" className="mt-3 h-7 text-xs gap-1.5 text-white/45 hover:text-white hover:bg-white/8 rounded-full px-3">
-          <Download className="h-3 w-3" /> Baixar
-        </Button>
+        <h2 className="text-lg font-semibold text-white leading-tight">{entry.title}</h2>
+        {entry.tags && entry.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {entry.tags.map((t) => (
+              <span key={t} className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-white/6 text-white/45 border border-white/10">
+                <Tag className="h-2.5 w-2.5" /> {t}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2 mt-4 flex-wrap">
+          <Button onClick={dlTxt} size="sm" variant="ghost"
+            className="h-7 text-xs gap-1.5 text-white/45 hover:text-white hover:bg-white/8 rounded-full px-3">
+            <Download className="h-3 w-3" /> Baixar
+          </Button>
+          {entry.source_url && (
+            <a href={entry.source_url} target="_blank" rel="noreferrer">
+              <Button size="sm" variant="ghost"
+                className="h-7 text-xs gap-1.5 text-white/45 hover:text-white hover:bg-white/8 rounded-full px-3">
+                <Link2 className="h-3 w-3" /> Fonte
+              </Button>
+            </a>
+          )}
+        </div>
       </div>
+
       <ScrollArea className="flex-1 min-h-0">
-        <p className="px-6 py-5 text-sm text-white/45 leading-relaxed whitespace-pre-wrap">
-          {entry.content || <span className="italic opacity-30">Sem conteúdo.</span>}
-        </p>
+        <div className="px-6 py-5 space-y-5">
+          {/* Metadata grid */}
+          {metaItems.length > 0 && (
+            <div className="grid grid-cols-2 gap-2">
+              {metaItems.map((item, i) => (
+                <div key={i} className="rounded-lg bg-white/4 border border-white/6 px-3 py-2.5">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <item.icon className="h-3 w-3 text-white/30" />
+                    <p className="text-[10px] uppercase tracking-wider text-white/40">{item.label}</p>
+                  </div>
+                  <p className="text-xs text-white/70 font-medium">{item.value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Content */}
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.15em] text-white/50 mb-2">Conteúdo</p>
+            <div className="rounded-lg bg-white/4 border border-white/6 px-4 py-3">
+              <p className="text-sm text-white/55 leading-relaxed whitespace-pre-wrap">
+                {entry.content || <span className="italic opacity-40">Sem conteúdo registrado.</span>}
+              </p>
+            </div>
+          </div>
+
+          {/* Related tasks */}
+          {relatedTasks.length > 0 && (
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-[0.15em] text-white/50 mb-2">
+                Tasks relacionadas ({relatedTasks.length})
+              </p>
+              <div className="space-y-1.5">
+                {relatedTasks.map(t => (
+                  <div key={t.id} className="flex items-center gap-2 rounded-lg bg-white/4 border border-white/6 px-3 py-2">
+                    <div className={cn("h-2 w-2 rounded-full shrink-0",
+                      t.status === "done" ? "bg-emerald-400" :
+                      t.status === "in_progress" ? "bg-primary" :
+                      t.status === "blocked" ? "bg-amber-400" : "bg-white/20")} />
+                    <span className="text-xs text-white/70 flex-1 truncate">{t.title}</span>
+                    {t.due_date && <span className="text-[10px] text-white/35 shrink-0">{fmtDate(t.due_date)}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </ScrollArea>
     </GlassDialog>
   );
 }
 
-// ─── BlockCard — collapsible sem espaço residual ──────────────
+// ─── BlockCard — truly collapsible ───────────────────────────
 
 function BlockCard({ label, icon: Icon, color, hint, count, children, defaultOpen = true }: {
   label: string; icon: React.ElementType; color: string; hint: string;
@@ -304,9 +433,8 @@ function BlockCard({ label, icon: Icon, color, hint, count, children, defaultOpe
   return (
     <div className={cn(
       "rounded-xl border overflow-hidden",
-      empty ? "border-border/30 opacity-40" : open ? "border-border bg-card" : "border-border/60 bg-card/50"
+      empty ? "border-border/25 opacity-40" : open ? "border-border bg-card" : "border-border/50 bg-card/50"
     )}>
-      {/* Header — the whole toggle area */}
       <button
         type="button"
         onClick={() => !empty && setOpen(v => !v)}
@@ -338,13 +466,12 @@ function BlockCard({ label, icon: Icon, color, hint, count, children, defaultOpe
         )}
       </button>
 
-      {/* Content — ONLY renders when open AND has content */}
+      {/* Content only when open AND has content — zero residual space */}
       {open && !empty && (
-        <div className="border-t border-border/50">
+        <div className="border-t border-border/40">
           {children}
         </div>
       )}
-      {/* Note: no empty state div, no border-t when closed → zero residual space */}
     </div>
   );
 }
@@ -362,7 +489,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
     setLoading(true);
     const [cRes, tRes] = await Promise.all([
       supabase.from("context_entries")
-        .select("id,context_type,title,content,is_key_decision,metadata,tags,created_at")
+        .select("id,context_type,title,content,is_key_decision,metadata,tags,happened_at,source_label,source_url,created_at")
         .eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
       supabase.from("tasks").select("id,status").eq("workspace_id", workspaceId),
     ]);
@@ -379,35 +506,43 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
 
   useEffect(() => { load(); }, [load]);
 
+  // ── Derived: signals per block, primary block assignment ──
+  const { signalsByBlock, entriesByBlock, reviewedIds } = useMemo(() => {
+    const briefings = contexts.filter(c => c.context_type === "briefing");
+    const signalsByBlock = new Map<string, { label: string; summary: string }[]>();
+    for (const b of briefings) {
+      for (const [block, items] of getDossierSignalsByBlock(b.metadata)) {
+        if (!signalsByBlock.has(block)) signalsByBlock.set(block, []);
+        signalsByBlock.get(block)!.push(...items);
+      }
+    }
+    const reviewedIds = new Set(
+      briefings.filter(b => b.metadata?.import_review_status === "reviewed" && b.metadata?.structured_signals && Object.keys(b.metadata.structured_signals as object).length > 0)
+        .map(b => b.id)
+    );
+
+    // Assign each non-reviewed entry to exactly ONE primary block
+    const entriesByBlock = new Map<string, ContextEntry[]>();
+    for (const entry of contexts) {
+      if (reviewedIds.has(entry.id)) continue;
+      const primary = assignPrimaryBlock(entry);
+      if (!primary) continue;
+      if (!entriesByBlock.has(primary)) entriesByBlock.set(primary, []);
+      entriesByBlock.get(primary)!.push(entry);
+    }
+    return { signalsByBlock, entriesByBlock, reviewedIds };
+  }, [contexts]);
+
   if (loading) return (
     <div className="flex items-center justify-center py-16">
       <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
     </div>
   );
 
-  // Derived
   const briefings = contexts.filter(c => c.context_type === "briefing");
-  const briefingKinds = briefings.map(c => rBriefingKind(c.metadata)).filter(Boolean) as string[];
-  const allSignals = new Map<string, { label: string; summary: string }[]>();
-  for (const b of briefings) {
-    for (const [block, items] of getDossierSignalsByBlock(b.metadata)) {
-      if (!allSignals.has(block)) allSignals.set(block, []);
-      allSignals.get(block)!.push(...items);
-    }
-  }
-  const reviewedIds = new Set(
-    briefings.filter(b => b.metadata?.import_review_status === "reviewed" && b.metadata?.structured_signals && Object.keys(b.metadata.structured_signals as object).length > 0)
-      .map(b => b.id)
-  );
-  const getBlockCtx = (key: string, types: readonly string[]) => {
-    const byBlock = contexts.filter(c => !reviewedIds.has(c.id) && rDossierBlock(c.metadata) === key);
-    return byBlock.length > 0 ? byBlock : contexts.filter(c => !reviewedIds.has(c.id) && types.includes(c.context_type));
-  };
-
-  const filledBlocks = BLOCKS.filter(b => (allSignals.get(b.key)?.length ?? 0) > 0 || getBlockCtx(b.key, b.types).length > 0).length;
+  const filledBlocks = BLOCKS.filter(b => (signalsByBlock.get(b.key)?.length ?? 0) > 0 || (entriesByBlock.get(b.key)?.length ?? 0) > 0).length;
   const completeness = Math.round((filledBlocks / BLOCKS.length) * 100);
 
-  // Contract data
   const cr = (clientMetadata?.contract ?? workspaceMetadata?.contract ?? {}) as any;
   const plan = getPlanDefinition(planName ?? cr.plan_name);
   const contractCards = [
@@ -439,7 +574,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
         <Progress value={completeness} className="h-1 mb-3" />
         <div className="flex flex-wrap gap-1.5">
           {BLOCKS.map(b => {
-            const filled = (allSignals.get(b.key)?.length ?? 0) > 0 || getBlockCtx(b.key, b.types).length > 0;
+            const filled = (signalsByBlock.get(b.key)?.length ?? 0) > 0 || (entriesByBlock.get(b.key)?.length ?? 0) > 0;
             return (
               <div key={b.key} className={cn(
                 "flex items-center gap-1 text-[10px] px-2 py-1 rounded-full border",
@@ -453,14 +588,13 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
         </div>
       </div>
 
-      {/* ━━━ CONTRATO OPERACIONAL ━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {/* ━━━ CONTRATO ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-3 bg-secondary/20 border-b border-border">
           <Shield className="h-3.5 w-3.5 text-primary" />
           <p className="text-sm font-semibold text-foreground">Contrato operacional</p>
         </div>
 
-        {/* Plan block */}
         <div className="p-5 border-b border-border/50">
           {plan ? (
             <div className="flex items-start gap-4">
@@ -490,7 +624,6 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
           )}
         </div>
 
-        {/* Contract detail grid — horizontal cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x divide-y divide-border/30">
           {contractCards.map(({ label, icon: Icon, color, items }) => (
             <div key={label} className="p-4 flex flex-col gap-2.5">
@@ -564,8 +697,8 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
       {/* ━━━ BLOCOS DE CONHECIMENTO ━━━━━━━━━━━━━━━━━━━━━━━ */}
       <div className="grid gap-3 lg:grid-cols-2">
         {BLOCKS.map(block => {
-          const blockCtx = getBlockCtx(block.key, block.types);
-          const sigs = allSignals.get(block.key) ?? [];
+          const sigs = signalsByBlock.get(block.key) ?? [];
+          const blockCtx = entriesByBlock.get(block.key) ?? [];
           const count = sigs.length + blockCtx.length;
           const Icon = block.icon;
           return (
@@ -583,7 +716,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
                     </div>
                   </div>
                 ))}
-                {blockCtx.slice(0, 6).map(ctx => (
+                {blockCtx.slice(0, 8).map(ctx => (
                   <button key={ctx.id} type="button"
                     onClick={() => ctx.context_type === "briefing" ? setBriefingDialog(ctx) : setEntryDialog(ctx)}
                     className="w-full flex items-start gap-2.5 px-4 py-3 hover:bg-secondary/20 transition-colors text-left group">
@@ -591,6 +724,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-0.5">
                         <span className="text-xs font-medium text-foreground">{ctx.title}</span>
+                        <span className="text-[9px] text-muted-foreground/50">{getContextLabel(ctx.context_type)}</span>
                         {ctx.is_key_decision && <span className="text-[10px] text-amber-400">Decisão-chave</span>}
                       </div>
                       <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{ctx.content}</p>
@@ -598,8 +732,8 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
                     <ArrowRight className="h-3 w-3 text-muted-foreground/20 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1" />
                   </button>
                 ))}
-                {blockCtx.length > 6 && (
-                  <p className="px-4 py-2.5 text-[10px] text-muted-foreground/40">+{blockCtx.length - 6} entradas adicionais</p>
+                {blockCtx.length > 8 && (
+                  <p className="px-4 py-2.5 text-[10px] text-muted-foreground/40">+{blockCtx.length - 8} entradas adicionais</p>
                 )}
               </div>
             </BlockCard>
@@ -640,14 +774,14 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
         )}
       </div>
 
-      {/* ━━━ DIALOGS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {/* Dialogs */}
       {briefingDialog && (
         <BriefingDialog entry={briefingDialog} workspaceId={workspaceId} clientId={clientId}
           clientName={clientMetadata?.name as string | undefined}
           onClose={() => setBriefingDialog(null)} />
       )}
       {entryDialog && (
-        <EntryDialog entry={entryDialog} onClose={() => setEntryDialog(null)} />
+        <EntryDialog entry={entryDialog} workspaceId={workspaceId} onClose={() => setEntryDialog(null)} />
       )}
     </div>
   );
