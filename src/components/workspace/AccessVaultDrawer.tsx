@@ -13,7 +13,6 @@
  * credenciais não cabem no fluxo blueprint genérico.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
