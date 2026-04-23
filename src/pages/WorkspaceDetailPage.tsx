@@ -29,7 +29,6 @@ import WorkspaceTabCase from "@/components/workspace/WorkspaceTabCase";
 import WorkspaceTabCanvas from "@/components/workspace/WorkspaceTabCanvas";
 import WorkspaceTabConteudo from "@/components/workspace/WorkspaceTabConteudo";
 import ClientDrive from "@/components/workspace/ClientDrive";
-import PortalLinkButton from "@/components/workspace/PortalLinkButton";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { getStagePremiumLabel, PIPELINE_STAGES_ORDERED } from "@/components/workspace/aceleraConstants";
@@ -316,13 +315,17 @@ export default function WorkspaceDetailPage() {
                 <RefreshCw className={cn("h-3 w-3", refreshing && "animate-spin")} />
                 Atualizar progresso
               </Button>
-              <PortalLinkButton
-                workspaceId={ws.id}
-                clientId={ws.client_id}
-                portalProjectId={portalProjectId}
-                portalClientId={portalClientId}
-                onLinked={load}
-              />
+              {portalClientId ? (
+                <span className="flex items-center gap-1.5 text-xs text-emerald-400 border border-emerald-400/25 bg-emerald-400/5 rounded-md px-2 py-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Portal vinculado
+                </span>
+              ) : (
+                <button type="button" onClick={() => navigate("/ops/clients")}
+                  className="text-xs text-amber-400 border border-amber-400/25 bg-amber-400/5 rounded-md px-2 py-1 hover:bg-amber-400/10 transition-colors">
+                  Vincule o cliente ao portal →
+                </button>
+              )}
               <Button
                 size="sm"
                 className="h-8 text-xs gap-1.5"
