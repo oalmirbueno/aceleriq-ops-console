@@ -208,9 +208,14 @@ function CanvasStudioInner({
   const [gridVisible, setGridVisible] = useState(true);
   const [lockedNodes, setLockedNodes] = useState(false);
   const [openDockGroup, setOpenDockGroup] = useState<string | null>(null);
+  const dbNodesRef = useRef<CanvasNodeRow[]>([]);
+  const dbEdgesRef = useRef<CanvasEdgeRecord[]>([]);
 
   // Active client folder (null = "Todos")
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
+
+  useEffect(() => { dbNodesRef.current = dbNodes; }, [dbNodes]);
+  useEffect(() => { dbEdgesRef.current = dbEdges; }, [dbEdges]);
 
   useEffect(() => {
     setStatusFilter(initialStatusFilter ?? null);
