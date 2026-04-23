@@ -7,7 +7,7 @@ import {
   type ReactFlowInstance, type Viewport, SelectionMode, MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow, MousePointer2, Hand, Lock, Grid3X3, Camera, Type, Image, FileStack, Bot, Megaphone, Trophy, MessageCircle } from "lucide-react";
+import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow, MousePointer2, Hand, Lock, Grid3X3, Camera, Type, Image, FileStack, Bot, Megaphone, Trophy, MessageCircle, Focus, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -253,6 +253,7 @@ function CanvasStudioInner({
   const [activeTool, setActiveTool] = useState<"select" | "hand">("select");
   const [gridVisible, setGridVisible] = useState(true);
   const [lockedNodes, setLockedNodes] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
   const [openDockGroup, setOpenDockGroup] = useState<string | null>(null);
   const dbNodesRef = useRef<CanvasNodeRow[]>([]);
   const dbEdgesRef = useRef<CanvasEdgeRecord[]>([]);
@@ -906,9 +907,9 @@ function CanvasStudioInner({
     if (data) setDbNodes((prev) => [...prev, data as CanvasNodeRow]);
   }, [clientId, dbNodes, ensureActiveClient, workspaceId]);
 
-  const addChatNode = useCallback(async (fn: ChatNodeFunction = "free") => {
+  const addChatNode = useCallback(async (fn: ChatNodeFunction = "free", opts: { connectToNodeId?: string } = {}) => {
     const parent = ensureActiveClient();
-    if (!parent) return;
+    if (!parent) return null;
     const existingChats = dbNodes.filter((n) => n.node_type === "front" && (n.data as Record<string,unknown> | null)?.kind === "chat_node" && n.parent_node_id === parent);
     const pos_x = OPS_FLOW_X.engine + 460;
     const pos_y = CONTENT_TOP + 40 + existingChats.length * 320;
@@ -917,17 +918,18 @@ function CanvasStudioInner({
       fn,
       label: "Chat IA",
       messages: [],
-      connectedNodeIds: [],
+      connectedNodeIds: opts.connectToNodeId ? [opts.connectToNodeId] : [],
       workspaceId,
       clientId,
       isExpanded: true,
       isProcessing: false,
     };
+    const fnTitle = fn === "briefing" ? "Briefing" : fn === "planning" ? "Planejamento" : fn === "production" ? "Produção" : fn === "analysis" ? "Análise" : "Livre";
     const { data, error } = await supabase.from("canvas_nodes").insert({
       workspace_id: workspaceId,
       client_id: clientId,
       node_type: "front",
-      title: "Chat IA",
+      title: `Chat · ${fnTitle}`,
       status: "active",
       description: "Node de chat inteligente com contexto do workspace",
       pos_x,
@@ -935,9 +937,49 @@ function CanvasStudioInner({
       parent_node_id: parent,
       data: { kind: "chat_node", ...chatData },
     }).select().single();
-    if (error) { toast({ title: "Erro ao criar Chat", description: error.message, variant: "destructive" }); return; }
-    if (data) setDbNodes((prev) => [...prev, data as CanvasNodeRow]);
+    if (error) { toast({ title: "Erro ao criar Chat", description: error.message, variant: "destructive" }); return null; }
+    const newNode = data as CanvasNodeRow;
+    setDbNodes((prev) => [...prev, newNode]);
+
+    // Auto-connect edge from source to chat if requested
+    if (opts.connectToNodeId) {
+      const { data: edgeData, error: edgeErr } = await supabase.from("canvas_edges").insert({
+        workspace_id: workspaceId,
+        source_node_id: opts.connectToNodeId,
+        target_node_id: newNode.id,
+        edge_type: "ops",
+        label: "alimenta chat",
+      }).select().single();
+      if (!edgeErr && edgeData) setDbEdges((prev) => [...prev, edgeData as CanvasEdgeRecord]);
+    }
+
+    return newNode;
   }, [clientId, dbNodes, ensureActiveClient, workspaceId]);
+
+  /** Abre (ou cria e abre) um ChatNode conectado ao nodeId fornecido */
+  const openChatForNode = useCallback(async (sourceNodeId: string) => {
+    // Verifica se já existe chat conectado a esse node
+    const existingChatId = dbEdges.find((e) => e.source_node_id === sourceNodeId)?.target_node_id;
+    const existingChat = existingChatId ? dbNodes.find((n) => n.id === existingChatId && (n.data as Record<string,unknown> | null)?.kind === "chat_node") : null;
+
+    let chatNode = existingChat;
+    if (!chatNode) {
+      chatNode = await addChatNode("production", { connectToNodeId: sourceNodeId }) ?? null;
+    }
+    if (!chatNode) return;
+
+    // Fecha drawer
+    setSelectedNode(null);
+
+    // Centraliza canvas no chat node
+    setTimeout(() => {
+      rfInstanceRef.current?.setCenter(
+        Number(chatNode!.pos_x ?? 0) + 160,
+        Number(chatNode!.pos_y ?? 0) + 200,
+        { zoom: 1.1, duration: 500 },
+      );
+    }, 150);
+  }, [dbNodes, dbEdges, addChatNode]);
 
   const patchAiOrbData = useCallback((patch: Record<string, unknown>) => {
     if (!aiOrbConfigNode) return;
@@ -1608,8 +1650,9 @@ function CanvasStudioInner({
   };
 
   return (
-    <div className={`flex flex-col bg-background ${fullscreen ? "h-full" : "h-[80vh] rounded-lg border border-border/70 overflow-hidden"}`}>
-      {/* Top bar */}
+    <div className={`flex flex-col bg-background ${fullscreen ? "h-full" : "h-[80vh] rounded-lg border border-border/70 overflow-hidden"} ${focusMode ? "canvas-focus-mode" : ""}`}>
+      {/* Top bar — hidden in focus mode */}
+      {!focusMode && (
       <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/70 bg-background/95">
         <div className="flex items-center gap-2 min-w-0">
           <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
@@ -1653,8 +1696,10 @@ function CanvasStudioInner({
           </Button>
         </div>
       </div>
+      )}
 
-      {/* Client tabs (folders) — sempre visíveis */}
+      {/* Client tabs (folders) — hidden in focus mode */}
+      {!focusMode && (
       <CanvasClientTabs
         tabs={clientTabs}
         activeId={activeClientId}
@@ -1781,6 +1826,7 @@ function CanvasStudioInner({
           }
         }}
       />
+      )}
 
       {/* Body: palette + canvas + inspector */}
       <div className="flex flex-1 min-h-0">
@@ -1789,11 +1835,13 @@ function CanvasStudioInner({
           gridVisible={gridVisible}
           lockedNodes={lockedNodes}
           fullscreen={fullscreen}
+          focusMode={focusMode}
           onToolChange={setActiveTool}
           onFit={fitCanvasView}
           onToggleLock={toggleLockedNodes}
           onToggleGrid={toggleGridVisible}
           onToggleFullscreen={onToggleFullscreen}
+          onToggleFocus={() => setFocusMode((v) => !v)}
         />
 
         <div className="flex-1 min-w-0 relative">
@@ -1906,7 +1954,8 @@ function CanvasStudioInner({
           )}
         </div>
 
-        {/* Right inspector — adapted: filters + list */}
+        {/* Right inspector — hidden in focus mode */}
+        {!focusMode && (
         <CanvasInspectorAdapter
           nodes={scopedProjectNodes}
           edges={dbEdges.length}
@@ -1928,6 +1977,7 @@ function CanvasStudioInner({
           collapsed={inspectorCollapsed}
           onToggleCollapse={toggleInspector}
         />
+        )}
       </div>
 
       {/* Quick add modal — used by inline + and Advanced button */}
@@ -1989,6 +2039,7 @@ function CanvasStudioInner({
         onUpdated={fetchData}
         onDelete={handleDeleteNode}
         availableNodes={scopedProjectNodes}
+        onOpenChat={openChatForNode}
         clientFolders={clientGroups.map((c) => ({
           id: c.id,
           name: c.title,
@@ -2064,22 +2115,25 @@ function QuickAddInline({ onPick }: { onPick: (kind: ProjectNodeKind) => void })
 }
 
 export const OperationalCanvasToolbar = memo(function OperationalCanvasToolbar({
-  activeTool, gridVisible, lockedNodes, fullscreen, onToolChange, onFit, onToggleLock, onToggleGrid, onToggleFullscreen,
+  activeTool, gridVisible, lockedNodes, fullscreen, focusMode, onToolChange, onFit, onToggleLock, onToggleGrid, onToggleFullscreen, onToggleFocus,
 }: {
   activeTool: "select" | "hand";
   gridVisible: boolean;
   lockedNodes: boolean;
   fullscreen: boolean;
+  focusMode: boolean;
   onToolChange: (tool: "select" | "hand") => void;
   onFit: () => void;
   onToggleLock: () => void;
   onToggleGrid: () => void;
   onToggleFullscreen: () => void;
+  onToggleFocus: () => void;
 }) {
   const tools = [
     { id: "select", label: "Selecionar · V", icon: MousePointer2, active: activeTool === "select", onClick: () => onToolChange("select") },
     { id: "hand", label: "Mover canvas · H", icon: Hand, active: activeTool === "hand", onClick: () => onToolChange("hand") },
     { id: "fit", label: "Fit view · F", icon: Maximize2, active: false, onClick: onFit, separator: true },
+    { id: "focus", label: focusMode ? "Sair do modo foco" : "Modo foco (só canvas + chat)", icon: focusMode ? Eye : Focus, active: focusMode, onClick: onToggleFocus },
     { id: "lock", label: lockedNodes ? "Desbloquear nodes" : "Bloquear nodes", icon: Lock, active: lockedNodes, onClick: onToggleLock },
     { id: "fullscreen", label: fullscreen ? "Sair da tela cheia" : "Tela cheia", icon: fullscreen ? Minimize2 : Maximize2, active: fullscreen, onClick: onToggleFullscreen },
     { id: "grid", label: "Grid · G", icon: Grid3X3, active: gridVisible, onClick: onToggleGrid },
