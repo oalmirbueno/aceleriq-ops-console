@@ -95,8 +95,8 @@ const DECISION_KINDS = new Set(["decisao"]);
 const PROOF_KINDS = new Set(["metrica", "before_after", "case"]);
 const FLOW_GRAMMAR = ["Contexto", "Instrução", "Engine", "Resultado", "Decisão", "Prova"];
 const AI_ORB_KINDS = new Set(["ai_orb"]);
-const AI_ORB_INPUT_KINDS = new Set([...INPUT_KINDS, ...INSTRUCTION_KINDS, "funil", "engine"]);
-const AI_ORB_OUTPUT_KINDS = new Set([...RESULT_KINDS, ...ENGINE_KINDS, ...PROOF_KINDS]);
+const AI_ORB_INPUT_KINDS = new Set([...INPUT_KINDS, ...INSTRUCTION_KINDS, "funil", "checklist"]);
+const AI_ORB_OUTPUT_KINDS = new Set([...RESULT_KINDS, "automacao", "ia", "integracao", "agente"]);
 const AI_ORBS: Array<{ type: AiOrbType; label: string; specialization: string }> = [
   { type: "planner", label: "Planejar", specialization: "plano operacional" },
   { type: "docs", label: "Docs", specialization: "BMC · ICP · SOP" },
@@ -148,6 +148,8 @@ function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNodeRow) 
   if (INPUT_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return allowConnection("input");
   if (AI_ORB_INPUT_KINDS.has(sourceKind) && AI_ORB_KINDS.has(targetKind)) return allowConnection("treina");
   if (AI_ORB_KINDS.has(sourceKind) && AI_ORB_OUTPUT_KINDS.has(targetKind)) return allowConnection("gera IA");
+  if (AI_ORB_KINDS.has(targetKind)) return blockConnection("AI Orbs só recebem contexto, briefing, documentos, acessos, instruções, funil ou checklist.");
+  if (AI_ORB_KINDS.has(sourceKind)) return blockConnection("AI Orbs só geram nodes de produção, automação, conteúdo, marketing, resultado ou prova.");
   if (INSTRUCTION_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return allowConnection("regra");
   if (ENGINE_KINDS.has(sourceKind) && RESULT_KINDS.has(targetKind)) return allowConnection("gera");
   if (RESULT_KINDS.has(sourceKind) && DECISION_KINDS.has(targetKind)) return allowConnection("aprovar");
