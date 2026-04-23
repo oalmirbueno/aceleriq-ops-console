@@ -36,6 +36,7 @@ import WorkspaceTabCase from "@/components/workspace/WorkspaceTabCase";
 import WorkspaceTabCanvas from "@/components/workspace/WorkspaceTabCanvas";
 import WorkspaceTabConteudo from "@/components/workspace/WorkspaceTabConteudo";
 import ClientDrive from "@/components/workspace/ClientDrive";
+import PortalLinkButton from "@/components/workspace/PortalLinkButton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -725,6 +726,13 @@ export default function WorkspaceDetailPage() {
                   <RefreshCw className={cn("h-4 w-4", refreshingProgress && "animate-spin")} />
                   Atualizar progresso
                 </Button>
+                <PortalLinkButton
+                  workspaceId={ws.id}
+                  clientId={ws.client_id}
+                  portalProjectId={(ws.metadata as any)?.portal_project_id ?? null}
+                  portalClientId={ws.clients?.metadata?.portal_client_id ?? null}
+                  onLinked={fetchWorkspace}
+                />
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
                 Progresso real calculado por nodes concluídos sobre o total do canvas; fallback pela etapa quando ainda não há nodes.
