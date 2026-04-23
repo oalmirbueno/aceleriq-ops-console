@@ -1,26 +1,21 @@
+/**
+ * WorkspaceDetailPage — hub operacional de um workspace.
+ *
+ * Limpo: sem mode prop, sem triagem morta, sem showFullWorkspace hardcoded.
+ * Tabs organizadas em grupos com Drive e PortalLinkButton integrados.
+ */
 import { useState, useEffect } from "react";
-import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, CalendarDays, CalendarIcon, CheckCircle2, FolderKanban, Info, ListChecks, Loader2, RefreshCw, Search, Sparkles, Target, X } from "lucide-react";
-import AppHeader from "@/components/AppHeader";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  ArrowLeft, CheckCircle2, RefreshCw, Sparkles, Target,
+  FolderKanban, Loader2, Network,
+} from "lucide-react";
 import LoadingState from "@/components/LoadingState";
 import EmptyState from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar } from "@/components/ui/calendar";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import ClientAvatar from "@/components/workspace/ClientAvatar";
 import WorkspaceHeader from "@/components/workspace/WorkspaceHeader";
 import WorkspaceTabResumo from "@/components/workspace/WorkspaceTabResumo";
@@ -37,12 +32,12 @@ import WorkspaceTabCanvas from "@/components/workspace/WorkspaceTabCanvas";
 import WorkspaceTabConteudo from "@/components/workspace/WorkspaceTabConteudo";
 import ClientDrive from "@/components/workspace/ClientDrive";
 import PortalLinkButton from "@/components/workspace/PortalLinkButton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { getStagePremiumLabel } from "@/components/workspace/aceleraConstants";
-import { featureFlags } from "@/config/featureFlags";
 import { cn } from "@/lib/utils";
+
+// ─── Types ────────────────────────────────────────────────────
 
 interface Workspace {
   id: string;
@@ -51,11 +46,20 @@ interface Workspace {
   current_stage: string;
   primary_owner_id: string | null;
   client_id: string;
-  portal_project_id?: string | null;
   summary: string | null;
   created_at: string;
+  portal_project_id: string | null;
   metadata: Record<string, unknown> | null;
-  clients: { id: string; name: string; company_name: string | null; segment: string | null; plan_name: string | null; logo_url?: string | null; portal_client_id?: string | null; metadata: Record<string, unknown> | null } | null;
+  clients: {
+    id: string;
+    name: string;
+    company_name: string | null;
+    segment: string | null;
+    plan_name: string | null;
+    logo_url?: string | null;
+    portal_client_id: string | null;
+    metadata: Record<string, unknown> | null;
+  } | null;
   profiles: { full_name: string | null; email: string } | null;
 }
 
@@ -68,175 +72,45 @@ interface TimelineEvent {
   created_at: string;
 }
 
-interface WorkspaceNodeProgress {
-  id: string;
-  status: string | null;
+interface NodeProgress { id: string; status: string | null; }
+
+// ─── Constants ────────────────────────────────────────────────
+
+const STAGES = ["entrada","diagnostico","estrutura_base","planejamento","producao","ativacao","otimizacao","expansao"];
+const TIMELINE_PAGE = 500;
+
+// ─── Helpers ──────────────────────────────────────────────────
+
+function stageProgress(stage: string) {
+  return Math.round(((Math.max(0, STAGES.indexOf(stage)) + 1) / STAGES.length) * 100);
 }
 
-interface WorkspaceTaskSignal {
-  id: string;
-  title: string;
-  status: string;
-  priority: string | null;
-  stage: string | null;
-  due_date: string | null;
-}
-
-interface LeanChecklistItem {
-  title: string;
-  detail: string;
-  size: "grande" | "media" | "pequena";
-  source: "task" | "engine";
-  taskId?: string;
-  completed?: boolean;
-}
-
-const STAGES = ["entrada", "diagnostico", "estrutura_base", "planejamento", "producao", "ativacao", "otimizacao", "expansao"];
-const MOVEMENTS_PAGE_SIZE = 20;
-const TIMELINE_FETCH_PAGE_SIZE = 500;
-const PRE_ENTRY_ACTIONS = [
-  { key: "review-context", label: "Revisar contexto", detail: "Validar briefing, histórico, sinais e restrições antes de produzir." },
-  { key: "confirm-plan", label: "Confirmar plano gradual", detail: "Checar sequência, prioridades e critérios de avanço do workspace." },
-  { key: "start-execution", label: "Iniciar execução", detail: "Assumir o próximo bloco de produção com foco e sem abrir frentes soltas." },
-];
-
-function workspaceProgress(stage: string) {
-  const index = Math.max(0, STAGES.indexOf(stage));
-  return Math.round(((index + 1) / STAGES.length) * 100);
-}
-
-function calculateRealProgress(stage: string, nodes: WorkspaceNodeProgress[]) {
-  if (nodes.length === 0) return workspaceProgress(stage);
-  const done = nodes.filter((node) => node.status === "done" || node.status === "concluido").length;
+function realProgress(stage: string, nodes: NodeProgress[]) {
+  if (!nodes.length) return stageProgress(stage);
+  const done = nodes.filter((n) => n.status === "done" || n.status === "concluido").length;
   return Math.round((done / nodes.length) * 100);
 }
 
 function introCopy(stage: string) {
-  if (stage === "entrada") return { done: "Workspace aberto para organizar briefing, contexto e objetivos do cliente.", need: "Capturar dores, metas, restrições, acessos e critérios claros de sucesso.", next: "Estruturar os primeiros nodes e avançar para diagnóstico." };
-  if (stage === "diagnostico") return { done: "Entrada consolidada e sinais iniciais prontos para leitura operacional.", need: "Validar evidências, mapear gargalos e separar hipótese de fato.", next: "Transformar diagnóstico em arquitetura base da operação." };
-  if (stage === "estrutura_base") return { done: "Diagnóstico traduzido em fundações, assets, acessos e desenho operacional.", need: "Garantir que o setup mínimo esteja íntegro antes de planejar execução.", next: "Montar o plano diretor com entregáveis, donos e sequência." };
-  if (stage === "planejamento") return { done: "Base operacional definida e pronta para virar cronograma de implantação.", need: "Quebrar estratégia em tarefas, marcos, dependências e prioridades.", next: "Iniciar produção sem perder rastreabilidade do que foi decidido." };
-  if (stage === "producao") return { done: "Plano em execução com frentes de produção ativas no workspace.", need: "Monitorar bloqueios, qualidade dos assets e prazos críticos.", next: "Preparar ativação com CRM, tráfego, pixel e lançamento." };
-  if (stage === "ativacao") return { done: "Entrega conectada aos canais que colocam a operação em campo.", need: "Acompanhar sinais diários de tráfego, CRM e timeline T-7 → T+1.", next: "Entrar em otimização guiada por evidência." };
-  if (stage === "otimizacao") return { done: "Métricas e aprendizados prontos para orientar melhoria contínua.", need: "Comparar antes/depois, priorizar experimentos e registrar decisões.", next: "Empacotar o que funcionou para expansão." };
-  return { done: "Aprendizados consolidados em ativos comerciais e operacionais.", need: "Fechar case, before/after e playbook replicável.", next: "Escalar padrões vencedores para novos ciclos e clientes." };
+  const map: Record<string, { done: string; need: string; next: string }> = {
+    entrada:        { done: "Workspace aberto para organizar briefing, contexto e objetivos.", need: "Capturar dores, metas, restrições e acessos.", next: "Estruturar nodes e avançar para diagnóstico." },
+    diagnostico:    { done: "Entrada consolidada e sinais iniciais prontos.", need: "Validar evidências e mapear gargalos.", next: "Transformar diagnóstico em arquitetura base." },
+    estrutura_base: { done: "Diagnóstico traduzido em fundações e desenho operacional.", need: "Garantir setup mínimo íntegro.", next: "Montar plano diretor com entregáveis e sequência." },
+    planejamento:   { done: "Base operacional definida e pronta.", need: "Quebrar estratégia em tarefas e prioridades.", next: "Iniciar produção com rastreabilidade." },
+    producao:       { done: "Plano em execução com frentes ativas.", need: "Monitorar bloqueios e qualidade dos assets.", next: "Preparar ativação com CRM, tráfego e pixel." },
+    ativacao:       { done: "Entrega conectada aos canais.", need: "Acompanhar sinais diários de tráfego e CRM.", next: "Entrar em otimização guiada por evidência." },
+    otimizacao:     { done: "Métricas e aprendizados prontos.", need: "Comparar antes/depois e priorizar experimentos.", next: "Empacotar o que funcionou para expansão." },
+    expansao:       { done: "Aprendizados consolidados em ativos comerciais.", need: "Fechar case, before/after e playbook.", next: "Escalar padrões vencedores para novos ciclos." },
+  };
+  return map[stage] ?? map.expansao;
 }
 
-function buildActionPlan(stage: string, tasks: WorkspaceTaskSignal[], nodes: WorkspaceNodeProgress[]) {
-  const activeTasks = tasks.filter((task) => task.status !== "done" && task.status !== "canceled");
-  const blocked = tasks.filter((task) => task.status === "blocked");
-  const currentStageTasks = activeTasks.filter((task) => task.stage === stage);
-  const urgent = activeTasks.filter((task) => task.priority === "urgent" || task.priority === "high");
-  const done = tasks.filter((task) => task.status === "done").length;
-  const plan = [];
-
-  if (blocked.length > 0) {
-    plan.push({ title: `Desbloquear ${blocked.length} tarefa${blocked.length > 1 ? "s" : ""} crítica${blocked.length > 1 ? "s" : ""}`, detail: blocked.slice(0, 2).map((task) => task.title).join(" · ") });
-  }
-  if (urgent.length > 0) {
-    plan.push({ title: `Priorizar ${urgent.length} entrega${urgent.length > 1 ? "s" : ""} de alta prioridade`, detail: urgent.slice(0, 2).map((task) => task.title).join(" · ") });
-  }
-  if (currentStageTasks.length > 0) {
-    plan.push({ title: `Executar pendências da etapa ${getStagePremiumLabel(stage)}`, detail: `${currentStageTasks.length} task${currentStageTasks.length > 1 ? "s" : ""} aberta${currentStageTasks.length > 1 ? "s" : ""} nesta etapa.` });
-  }
-  if (plan.length < 3) {
-    plan.push({ title: `Consolidar avanço real: ${done}/${tasks.length} tasks concluídas`, detail: nodes.length > 0 ? `${nodes.length} nodes no canvas sustentam o progresso atual.` : "Canvas ainda sem nodes suficientes para leitura operacional." });
-  }
-  if (plan.length < 3) {
-    plan.push({ title: "Gerar próximas tasks a partir do plano operacional", detail: `Use a aba completa para criar entregáveis conectados à etapa ${getStagePremiumLabel(stage)}.` });
-  }
-
-  return plan.slice(0, 3);
-}
-
-function buildLeanChecklist(stage: string, tasks: WorkspaceTaskSignal[], nodes: WorkspaceNodeProgress[]): LeanChecklistItem[] {
-  const active = tasks.filter((task) => task.status !== "done" && task.status !== "canceled");
-  const completedStageTasks = tasks.filter((task) => task.status === "done" && task.stage === stage);
-  const blocked = active.filter((task) => task.status === "blocked");
-  const stageTasks = active.filter((task) => task.stage === stage);
-  const priorityTasks = active
-    .filter((task) => task.priority === "urgent" || task.priority === "high")
-    .sort((a, b) => (a.status === "blocked" ? -1 : 0) - (b.status === "blocked" ? -1 : 0));
-  const checklist: LeanChecklistItem[] = [];
-
-  completedStageTasks.slice(0, 2).forEach((task) => checklist.push({
-    title: task.title,
-    detail: "Concluída neste ciclo de pré-entrada.",
-    size: "pequena",
-    source: "task",
-    taskId: task.id,
-    completed: true,
-  }));
-
-  blocked.filter((task) => !checklist.some((item) => item.taskId === task.id)).slice(0, 2).forEach((task) => checklist.push({
-    title: task.title,
-    detail: "Maior alavanca: destravar antes de criar trabalho novo. Resolver, delegar ou cortar o bloqueio.",
-    size: "grande",
-    source: "task",
-    taskId: task.id,
-  }));
-
-  priorityTasks.filter((task) => !blocked.some((b) => b.id === task.id) && !checklist.some((item) => item.taskId === task.id)).slice(0, 2).forEach((task) => checklist.push({
-    title: task.title,
-    detail: "Entrega pesada primeiro: só entra se mover o cliente de etapa ou remover risco real.",
-    size: "grande",
-    source: "task",
-    taskId: task.id,
-  }));
-
-  stageTasks.filter((task) => !checklist.some((item) => item.taskId === task.id)).slice(0, 2).forEach((task) => checklist.push({
-    title: task.title,
-    detail: `Tarefa da etapa atual (${getStagePremiumLabel(stage)}). Executar em bloco, não como rotina diária.`,
-    size: "media",
-    source: "task",
-    taskId: task.id,
-  }));
-
-  if (checklist.length < 5) checklist.push({
-    title: "Fechar um único avanço verificável do workspace",
-    detail: nodes.length > 0 ? `Escolher 1 node ativo e levar até conclusão antes de abrir novas frentes.` : "Criar apenas o node mínimo que destrava a próxima decisão.",
-    size: "media",
-    source: "engine",
-  });
-
-  if (checklist.length < 6) checklist.push({
-    title: "Registrar decisão e próxima ação em 5 minutos",
-    detail: "Micro-ação final: deixar claro o que foi decidido, quem depende disso e qual é o próximo passo.",
-    size: "pequena",
-    source: "engine",
-  });
-
-  return checklist.slice(0, 6);
-}
-
-function triageItemKey(item: LeanChecklistItem, index: number) {
-  return item.taskId ?? `${item.source}:${index}:${item.title}`;
-}
-
-function sameDay(a: Date, iso: string) {
-  const b = new Date(iso);
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
-
-function formatMovementDate(iso: string) {
-  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
-}
-
-function formatMovementDay(iso: string) {
-  return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(new Date(iso));
-}
-
-function movementDayKey(iso: string) {
-  return new Date(iso).toISOString().slice(0, 10);
-}
-
-async function fetchAllTimelineEvents(workspaceId: string) {
+async function fetchTimeline(workspaceId: string): Promise<{ events: TimelineEvent[]; total: number }> {
   const all: TimelineEvent[] = [];
   let total = 0;
   let from = 0;
-
   while (true) {
-    const to = from + TIMELINE_FETCH_PAGE_SIZE - 1;
+    const to = from + TIMELINE_PAGE - 1;
     const { data, count, error } = await supabase
       .from("timeline_events")
       .select("id, event_type, title, description, happened_at, created_at", { count: from === 0 ? "exact" : undefined })
@@ -244,16 +118,48 @@ async function fetchAllTimelineEvents(workspaceId: string) {
       .order("happened_at", { ascending: false })
       .order("created_at", { ascending: false })
       .range(from, to);
-
-    if (error) throw error;
+    if (error) break;
     if (from === 0) total = count ?? data?.length ?? 0;
     all.push(...((data ?? []) as TimelineEvent[]));
-    if (!data || data.length < TIMELINE_FETCH_PAGE_SIZE || all.length >= total) break;
-    from += TIMELINE_FETCH_PAGE_SIZE;
+    if (!data || data.length < TIMELINE_PAGE || all.length >= total) break;
+    from += TIMELINE_PAGE;
   }
-
   return { events: all, total };
 }
+
+// ─── Tab groups ───────────────────────────────────────────────
+
+const TAB_GROUPS = [
+  {
+    label: "Visão Geral",
+    tabs: [
+      { value: "resumo",    label: "Resumo" },
+      { value: "dossie",    label: "Dossiê" },
+      { value: "timeline",  label: "Timeline" },
+    ],
+  },
+  {
+    label: "Execução",
+    tabs: [
+      { value: "contexto",  label: "Contexto" },
+      { value: "tasks",     label: "Tasks" },
+      { value: "producao",  label: "Produção" },
+      { value: "assets",    label: "Assets" },
+      { value: "conteudo",  label: "Conteúdo" },
+      { value: "drive",     label: "Drive 📁" },
+    ],
+  },
+  {
+    label: "Resultado",
+    tabs: [
+      { value: "metricas",     label: "Métricas" },
+      { value: "before-after", label: "Before/After" },
+      { value: "case",         label: "Case" },
+    ],
+  },
+];
+
+// ─── Component ────────────────────────────────────────────────
 
 export default function WorkspaceDetailPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
@@ -261,880 +167,284 @@ export default function WorkspaceDetailPage() {
   const [searchParams] = useSearchParams();
   const [ws, setWs] = useState<Workspace | null>(null);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
-  const [timelineTotal, setTimelineTotal] = useState(0);
-  const [nodesProgress, setNodesProgress] = useState<WorkspaceNodeProgress[]>([]);
-  const [taskSignals, setTaskSignals] = useState<WorkspaceTaskSignal[]>([]);
+  const [nodes, setNodes] = useState<NodeProgress[]>([]);
   const [loading, setLoading] = useState(true);
-  const [triageLoading, setTriageLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
   const [refreshingProgress, setRefreshingProgress] = useState(false);
-  const showFullWorkspace = true;
-  const [movementsOpen, setMovementsOpen] = useState(false);
-  const [eventTypeFilter, setEventTypeFilter] = useState("__all__");
-  const [movementDate, setMovementDate] = useState<Date | undefined>();
-  const [movementSearch, setMovementSearch] = useState("");
-  const [visibleMovements, setVisibleMovements] = useState(MOVEMENTS_PAGE_SIZE);
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") ?? "resumo");
-  const [canvasStatusShortcut, setCanvasStatusShortcut] = useState<string | null>(searchParams.get("status"));
-  const [completedTriageKeys, setCompletedTriageKeys] = useState<string[]>([]);
-  const [completedPreEntryActions, setCompletedPreEntryActions] = useState<string[]>([]);
+  const [canvasStatus, setCanvasStatus] = useState<string | null>(searchParams.get("status"));
 
+  // ── Data fetching ──
   const fetchWorkspace = async () => {
     if (!workspaceId) return;
-    setTriageLoading(true);
     const { data, error } = await supabase
       .from("workspaces")
-      .select("id, name, status, current_stage, primary_owner_id, client_id, portal_project_id, summary, created_at, metadata, clients(id, name, company_name, segment, plan_name, logo_url, portal_client_id, metadata), profiles:primary_owner_id(full_name, email)")
+      .select("id, name, status, current_stage, primary_owner_id, client_id, summary, created_at, portal_project_id, metadata, clients(id, name, company_name, segment, plan_name, logo_url, portal_client_id, metadata), profiles:primary_owner_id(full_name, email)")
       .eq("id", workspaceId)
       .single();
-
     if (!error && data) setWs(data as unknown as Workspace);
-
-    const { events, total } = await fetchAllTimelineEvents(workspaceId);
+    const { events } = await fetchTimeline(workspaceId);
     setTimeline(events);
-    setTimelineTotal(total);
-
-    const { data: nodes } = await supabase
+    const { data: nodeData } = await supabase
       .from("canvas_nodes")
       .select("id, status")
       .eq("workspace_id", workspaceId);
-
-    if (nodes) setNodesProgress(nodes as WorkspaceNodeProgress[]);
+    if (nodeData) setNodes(nodeData as NodeProgress[]);
     setLoading(false);
-
-    const { data: tasks } = await supabase
-      .from("tasks")
-      .select("id, title, status, priority, stage, due_date")
-      .eq("workspace_id", workspaceId)
-      .order("created_at", { ascending: false })
-      .limit(200);
-
-    if (tasks) {
-      const syncedTasks = tasks as WorkspaceTaskSignal[];
-      const syncedTaskIds = new Set(syncedTasks.map((task) => task.id));
-      setTaskSignals(syncedTasks);
-      setCompletedTriageKeys((current) => current.filter((key) => !syncedTaskIds.has(key)));
-    }
-    setTriageLoading(false);
   };
 
   useEffect(() => { fetchWorkspace(); }, [workspaceId]);
 
+  // Realtime: node progress
   useEffect(() => {
     if (!workspaceId) return;
-
-    const channel = supabase
-      .channel(`workspace-node-progress:${workspaceId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "canvas_nodes", filter: `workspace_id=eq.${workspaceId}` },
-        async () => {
-          const { data: nodes } = await supabase
-            .from("canvas_nodes")
-            .select("id, status")
-            .eq("workspace_id", workspaceId);
-
-          if (nodes) setNodesProgress(nodes as WorkspaceNodeProgress[]);
-        },
-      )
+    const ch = supabase
+      .channel(`ws-nodes:${workspaceId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "canvas_nodes", filter: `workspace_id=eq.${workspaceId}` }, async () => {
+        const { data } = await supabase.from("canvas_nodes").select("id, status").eq("workspace_id", workspaceId);
+        if (data) setNodes(data as NodeProgress[]);
+      })
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(ch); };
   }, [workspaceId]);
 
-  useEffect(() => {
-    if (!workspaceId || searchParams.get("view") !== "full") return;
-
-    const nextParams = new URLSearchParams();
-    const tab = searchParams.get("tab");
-    const status = searchParams.get("status");
-
-    if (tab) nextParams.set("tab", tab);
-    if (status) nextParams.set("status", status);
-
-    navigate(
-      `/ops/workspaces/${workspaceId}${nextParams.toString() ? `?${nextParams.toString()}` : ""}`,
-      { replace: true },
-    );
-  }, [workspaceId, searchParams, navigate]);
-
+  // Sync tab from URL
   useEffect(() => {
     setActiveTab(searchParams.get("tab") ?? "resumo");
-    setCanvasStatusShortcut(searchParams.get("status"));
-  }, [searchParams, showFullWorkspace]);
+    setCanvasStatus(searchParams.get("status"));
+  }, [searchParams]);
 
-  const refreshNodeProgress = async () => {
+  // ── Handlers ──
+  const refreshProgress = async () => {
     if (!workspaceId) return;
     setRefreshingProgress(true);
-    const { data: nodes, error } = await supabase
-      .from("canvas_nodes")
-      .select("id, status")
-      .eq("workspace_id", workspaceId);
-
-    if (error) toast({ title: "Erro ao atualizar progresso", description: error.message, variant: "destructive" });
-    if (nodes) setNodesProgress(nodes as WorkspaceNodeProgress[]);
+    const { data } = await supabase.from("canvas_nodes").select("id, status").eq("workspace_id", workspaceId);
+    if (data) setNodes(data as NodeProgress[]);
     setRefreshingProgress(false);
   };
-
-  const openCanvasByStatus = (status: string) => {
-    if (!workspaceId) return;
-    navigate(`/ops/workspaces/${workspaceId}/execution?tab=canvas&status=${encodeURIComponent(status)}`);
-  };
-
-  const handleWorkspaceEntry = () => {
-    if (!workspaceId) return;
-    navigate(`/ops/workspaces/${workspaceId}/execution?tab=contexto`);
-  };
-
-  const completeChecklistTask = async (item: LeanChecklistItem) => {
-    if (!item.taskId) return;
-    const { error } = await supabase
-      .from("tasks")
-      .update({ status: "done" })
-      .eq("id", item.taskId);
-
-    if (error) {
-      toast({ title: "Erro ao concluir task", description: error.message, variant: "destructive" });
-      return;
-    }
-
-    toast({ title: "Task concluída", description: item.title });
-    await fetchWorkspace();
-  };
-
-  const toggleTriageItem = (item: LeanChecklistItem, index: number) => {
-    const key = triageItemKey(item, index);
-    if (item.taskId) {
-      if (item.completed) {
-        toast({ title: "Task já concluída", description: "Status confirmado pelo workspace." });
-        return;
-      }
-      completeChecklistTask(item);
-      return;
-    }
-    setCompletedTriageKeys((current) => current.includes(key) ? current.filter((value) => value !== key) : [...current, key]);
-  };
-
-  const togglePreEntryAction = (key: string) => {
-    setCompletedPreEntryActions((current) => current.includes(key) ? current.filter((value) => value !== key) : [...current, key]);
-  };
-
-  useEffect(() => {
-    setVisibleMovements(MOVEMENTS_PAGE_SIZE);
-  }, [movementsOpen, eventTypeFilter, movementDate, movementSearch]);
 
   const handleStageChange = async (newStage: string) => {
     if (!ws || newStage === ws.current_stage) return;
     setChangingStage(true);
-    const oldStage = ws.current_stage;
-
-    const { error } = await supabase
-      .from("workspaces")
-      .update({ current_stage: newStage })
-      .eq("id", ws.id);
-
+    const old = ws.current_stage;
+    const { error } = await supabase.from("workspaces").update({ current_stage: newStage }).eq("id", ws.id);
     if (error) {
       toast({ title: "Erro ao mudar etapa", description: error.message, variant: "destructive" });
       setChangingStage(false);
       return;
     }
-
     await supabase.from("timeline_events").insert({
-      workspace_id: ws.id,
-      client_id: ws.client_id,
-      event_type: "stage_changed",
-      title: "Etapa alterada",
-      description: `De "${getStagePremiumLabel(oldStage)}" para "${getStagePremiumLabel(newStage)}"`,
+      workspace_id: ws.id, client_id: ws.client_id,
+      event_type: "stage_changed", title: "Etapa alterada",
+      description: `De "${getStagePremiumLabel(old)}" para "${getStagePremiumLabel(newStage)}"`,
       happened_at: new Date().toISOString(),
     });
-
-    toast({ title: "Etapa atualizada", description: `Movido para "${getStagePremiumLabel(newStage)}"` });
+    // Sync to portal
+    void supabase.functions.invoke("sync-to-portal", {
+      body: { event: "stage_advanced", workspaceId: ws.id, clientId: ws.client_id, stage: newStage },
+    });
+    toast({ title: "Etapa atualizada", description: getStagePremiumLabel(newStage) });
     setWs({ ...ws, current_stage: newStage });
-    await fetchWorkspace();
     setChangingStage(false);
+    await fetchWorkspace();
   };
 
-  if (loading) return (
-    <>
-      <AppHeader title="Workspace" subtitle="Carregando..." />
-      <LoadingState />
-    </>
-  );
-
+  // ── States ──
+  if (loading) return <div className="p-8"><LoadingState /></div>;
   if (!ws) return (
-    <>
-      <AppHeader title="Workspace" subtitle="Não encontrado" />
-      <EmptyState icon={FolderKanban} title="Workspace não encontrado" description="Este workspace não existe ou foi removido. Volte à lista de clientes para continuar." />
-      <div className="flex justify-center -mt-12">
-        <Button variant="outline" onClick={() => navigate("/ops/clients")}>
-          Ir para Clientes
+    <div className="p-8">
+      <EmptyState icon={FolderKanban} title="Workspace não encontrado" description="Este workspace foi removido ou não existe." />
+      <div className="flex justify-center mt-4">
+        <Button variant="outline" onClick={() => navigate("/ops/workspaces")}>
+          <ArrowLeft className="h-4 w-4 mr-2" /> Workspaces
         </Button>
       </div>
-    </>
+    </div>
   );
 
   const clientName = ws.clients?.name ?? "Cliente";
   const ownerName = ws.profiles?.full_name ?? ws.profiles?.email ?? null;
   const planName = ws.clients?.plan_name ?? null;
-  const progress = calculateRealProgress(ws.current_stage, nodesProgress);
-  const stageProgress = workspaceProgress(ws.current_stage);
-  const finishedNodes = nodesProgress.filter((node) => node.status === "done" || node.status === "concluido").length;
-  const activeNodes = nodesProgress.filter((node) => node.status === "active" || node.status === "ativo").length;
-  const blockedNodes = nodesProgress.filter((node) => node.status === "blocked" || node.status === "bloqueado").length;
-  const otherNodes = Math.max(0, nodesProgress.length - finishedNodes - activeNodes - blockedNodes);
+  const progress = realProgress(ws.current_stage, nodes);
+  const finishedNodes = nodes.filter((n) => n.status === "done" || n.status === "concluido").length;
+  const activeNodes = nodes.filter((n) => n.status === "active" || n.status === "ativo").length;
+  const blockedNodes = nodes.filter((n) => n.status === "blocked" || n.status === "bloqueado").length;
   const intro = introCopy(ws.current_stage);
-  const actionPlan = buildActionPlan(ws.current_stage, taskSignals, nodesProgress);
-  const leanChecklist = buildLeanChecklist(ws.current_stage, taskSignals, nodesProgress);
-  const lockedChecklist = leanChecklist.map((item, index) => ({
-    ...item,
-    key: triageItemKey(item, index),
-    lockedDone: Boolean(item.completed || completedTriageKeys.includes(triageItemKey(item, index))),
-  }));
-  const completedChecklistCount = lockedChecklist.filter((item) => item.lockedDone).length;
-  const completedPreEntryCount = PRE_ENTRY_ACTIONS.filter((action) => completedPreEntryActions.includes(action.key)).length;
-  const triageDoneCount = completedChecklistCount + completedPreEntryCount;
-  const triageTotalCount = lockedChecklist.length + PRE_ENTRY_ACTIONS.length;
-  const triageComplete = triageTotalCount > 0 && triageDoneCount === triageTotalCount;
-  const triageProgress = triageTotalCount > 0 ? Math.round((triageDoneCount / triageTotalCount) * 100) : 0;
-  const movementTypes = Array.from(new Set(timeline.map((event) => event.event_type))).sort();
-  const movementQuery = movementSearch.trim().toLowerCase();
-  const filteredMovements = timeline.filter((event) => {
-    const matchesType = eventTypeFilter === "__all__" || event.event_type === eventTypeFilter;
-    const matchesDate = !movementDate || sameDay(movementDate, event.happened_at);
-    const matchesSearch = !movementQuery
-      || event.title.toLowerCase().includes(movementQuery)
-      || event.description?.toLowerCase().includes(movementQuery);
-    return matchesType && matchesDate && matchesSearch;
-  });
-  const paginatedMovements = filteredMovements.slice(0, visibleMovements);
-  const hasMoreMovements = visibleMovements < filteredMovements.length;
-  const groupedMovements = paginatedMovements.reduce<Array<{ key: string; label: string; events: TimelineEvent[] }>>((groups, event) => {
-    const key = movementDayKey(event.happened_at);
-    const current = groups.find((group) => group.key === key);
-    if (current) current.events.push(event);
-    else groups.push({ key, label: formatMovementDay(event.happened_at), events: [event] });
-    return groups;
-  }, []);
-
-  if (showFullWorkspace) {
-    const executionTabs = [
-      { value: "contexto", label: "Contexto" },
-      { value: "dossie", label: "Briefing" },
-      { value: "tasks", label: "Tasks" },
-      { value: "assets", label: "Assets" },
-      { value: "drive", label: "Drive" },
-      { value: "producao", label: "Produção" },
-      { value: "canvas", label: "Canvas" },
-      { value: "resumo", label: "Resumo" },
-      { value: "conteudo", label: "Conteúdo" },
-      { value: "metricas", label: "Métricas" },
-      { value: "timeline", label: "Timeline" },
-      { value: "before-after", label: "Before/After" },
-      { value: "case", label: "Case" },
-    ];
-
-    return (
-      <>
-        <AppHeader title={clientName} subtitle={`${ws.name} · Execução`} />
-
-        <div className="mx-auto max-w-[1680px] p-6 animate-fade-in space-y-5">
-          <Breadcrumb className="rounded-lg border border-border bg-card/60 px-4 py-3">
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link to="/ops/workspaces">Hub de Workspaces</Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link to={`/ops/workspaces/${ws.id}`}>Pré-entrada</Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Execução</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-secondary/20 p-3">
-            <div className="flex flex-wrap gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setActiveTab("contexto")}>Contexto</Button>
-              <Button variant="secondary" size="sm" onClick={() => setActiveTab("dossie")}>Briefing</Button>
-              <Button variant="secondary" size="sm" onClick={() => setActiveTab("tasks")}>Tasks</Button>
-              <Button variant="secondary" size="sm" onClick={() => setActiveTab("canvas")}>Canvas</Button>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => navigate(`/ops/workspaces/${workspaceId}`)}>Pré-entrada</Button>
-          </div>
-
-          <div className="space-y-4">
-            <WorkspaceHeader
-              clientName={clientName}
-              ownerName={ownerName}
-              status={ws.status}
-              currentStage={ws.current_stage}
-              changingStage={changingStage}
-              onStageChange={handleStageChange}
-              planName={planName}
-            />
-          </div>
-
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4">
-            <TabsList className="h-auto w-full justify-start overflow-x-auto rounded-lg border border-border bg-card p-1.5">
-              {executionTabs.map((tab) => (
-                <TabsTrigger key={tab.value} value={tab.value} className="h-10 shrink-0 px-4 text-sm">
-                  {tab.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-
-            <TabsContent value="resumo">
-              <WorkspaceTabResumo
-                clientName={clientName}
-                companyName={ws.clients?.company_name ?? null}
-                workspaceName={ws.name}
-                status={ws.status}
-                currentStage={ws.current_stage}
-                ownerName={ownerName}
-                planName={planName}
-                segment={ws.clients?.segment ?? null}
-                createdAt={ws.created_at}
-                focusAreas={(ws.clients?.metadata as any)?.focus_areas ?? null}
-                summary={ws.summary ?? null}
-                recentEvents={timeline}
-                workspaceId={ws.id}
-              />
-            </TabsContent>
-
-            <TabsContent value="dossie">
-              <WorkspaceTabDossie
-                workspaceId={ws.id}
-                clientId={ws.client_id}
-                planName={planName}
-                clientMetadata={ws.clients?.metadata as Record<string, unknown> | null}
-                workspaceMetadata={ws.metadata}
-              />
-            </TabsContent>
-
-            <TabsContent value="timeline">
-              <WorkspaceTabTimeline events={timeline} />
-            </TabsContent>
-
-            <TabsContent value="contexto">
-              <WorkspaceTabContexto workspaceId={ws.id} clientId={ws.client_id} clientName={clientName} />
-            </TabsContent>
-
-            <TabsContent value="tasks">
-              <WorkspaceTabTasks workspaceId={ws.id} clientId={ws.client_id} planName={ws.clients?.plan_name} />
-            </TabsContent>
-
-            <TabsContent value="producao">
-              <WorkspaceTabProducao workspaceId={ws.id} clientId={ws.client_id} planName={ws.clients?.plan_name} />
-            </TabsContent>
-
-            <TabsContent value="assets">
-              <WorkspaceTabAssets workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
-            </TabsContent>
-
-            <TabsContent value="drive">
-              <ClientDrive workspaceId={ws.id} clientId={ws.client_id} clientName={clientName} />
-            </TabsContent>
-
-            <TabsContent value="conteudo">
-              <WorkspaceTabConteudo workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
-            </TabsContent>
-
-            <TabsContent value="metricas">
-              <WorkspaceTabMetricas workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
-            </TabsContent>
-
-            <TabsContent value="before-after">
-              <WorkspaceTabBeforeAfter workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
-            </TabsContent>
-
-            <TabsContent value="case">
-              <WorkspaceTabCase workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
-            </TabsContent>
-
-            <TabsContent value="canvas">
-              {featureFlags.canvasOpsEnabled ? (
-                <WorkspaceTabCanvas
-                  workspaceId={ws.id}
-                  clientId={ws.client_id}
-                  clientName={clientName}
-                  onTimelineRefresh={fetchWorkspace}
-                  initialStatusFilter={canvasStatusShortcut}
-                />
-              ) : (
-                <div className="rounded-lg border border-border bg-card p-8 text-center shadow-sm">
-                  <Info className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-                  <h3 className="text-base font-semibold text-foreground">Canvas temporariamente desativado</h3>
-                  <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
-                    A rota e a aba continuam disponíveis, mas a camada visual operacional está pausada por feature flag.
-                    Briefing, dossiê, tasks e produção seguem como fluxo principal.
-                  </p>
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
-        </div>
-      </>
-    );
-  }
+  const portalProjectId = ws.portal_project_id ?? null;
+  const portalClientId = ws.clients?.portal_client_id ?? null;
 
   return (
-    <>
-      <AppHeader title={clientName} subtitle={ws.name} />
+    <div className="space-y-4 p-4 page-enter">
 
-      <div className="p-6 animate-fade-in space-y-5">
-        <Breadcrumb className="rounded-lg border border-border bg-card/70 px-4 py-3 shadow-sm">
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link to="/ops/workspaces">Hub de Workspaces</Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link to={`/ops/clients/${ws.client_id}/vault`}>{clientName}</Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>{ws.name}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
+      {/* ── Breadcrumb + back ───────────────────────────── */}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <button type="button" onClick={() => navigate("/ops/workspaces")} className="hover:text-foreground transition-colors flex items-center gap-1">
+          <ArrowLeft className="h-3 w-3" /> Workspaces
+        </button>
+        <span>/</span>
+        <span className="text-foreground">{clientName}</span>
+      </div>
 
-        <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0">
-              <p className="label-sm mb-2">Resumo operacional</p>
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-xl font-semibold tracking-tight text-foreground">{getStagePremiumLabel(ws.current_stage)}</h2>
-                <span className="rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-                  {ws.status}
-                </span>
-                <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium", showFullWorkspace ? "border-primary/30 bg-primary/10 text-primary" : triageComplete ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-secondary text-muted-foreground")}>
-                  {showFullWorkspace ? <CheckCircle2 className="h-3.5 w-3.5" /> : triageComplete ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Info className="h-3.5 w-3.5" />}
-                  {showFullWorkspace ? "Workspace aberto" : triageComplete ? "Roteiro pronto" : "Roteiro em progresso"}
-                </span>
-                <Button variant="outline" size="sm" className="gap-2" onClick={refreshNodeProgress} disabled={refreshingProgress}>
-                  <RefreshCw className={cn("h-4 w-4", refreshingProgress && "animate-spin")} />
-                  Atualizar progresso
+      {/* ── Client hero ─────────────────────────────────── */}
+      <section className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+        <div className="relative border-b border-border bg-secondary/30 p-5">
+          <div className="absolute inset-0 tech-grid-bg opacity-40" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,hsl(var(--primary)/0.12),transparent_60%)]" />
+          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            {/* Left: avatar + name */}
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-border bg-card/80 shadow shrink-0">
+                <ClientAvatar name={clientName} seed={ws.client_id} logoUrl={ws.clients?.logo_url} size="lg" className="h-12 w-12 text-lg" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-primary/70 mb-1">Hub operacional</p>
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground truncate">{clientName}</h1>
+                <p className="text-sm text-muted-foreground">{ws.clients?.company_name ?? ws.name}</p>
+              </div>
+            </div>
+
+            {/* Right: progress ring + actions */}
+            <div className="flex flex-col items-end gap-3 shrink-0">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">{ws.status}</Badge>
+                {planName && <Badge className="text-xs bg-primary/10 text-primary border-primary/30">{planName}</Badge>}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={refreshProgress} disabled={refreshingProgress}>
+                  <RefreshCw className={cn("h-3 w-3", refreshingProgress && "animate-spin")} />
+                  Atualizar
                 </Button>
                 <PortalLinkButton
                   workspaceId={ws.id}
                   clientId={ws.client_id}
-                  portalProjectId={ws.portal_project_id ?? null}
-                  portalClientId={ws.clients?.portal_client_id ?? null}
+                  portalProjectId={portalProjectId}
+                  portalClientId={portalClientId}
                   onLinked={fetchWorkspace}
                 />
-              </div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Progresso real calculado por nodes concluídos sobre o total do canvas; fallback pela etapa quando ainda não há nodes.
-              </p>
-            </div>
-
-            <div className="w-full max-w-xl rounded-md border border-border bg-secondary/30 p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase text-muted-foreground">Avanço real</p>
-                  <p className="text-2xl font-semibold text-foreground">{progress}%</p>
-                </div>
-                <div className="text-right text-xs text-muted-foreground">
-                  <p>{finishedNodes}/{nodesProgress.length} nodes concluídos</p>
-                  <p>Etapa base: {stageProgress}%</p>
-                </div>
-              </div>
-              <Progress value={progress} className="h-2" />
-              <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-                Como calculamos: progresso = <strong className="font-medium text-foreground">nodes done/concluido</strong> ÷
-                <strong className="font-medium text-foreground"> total de nodes</strong>. Nodes ativos, bloqueados e demais statuses entram no total, mas não contam como concluídos. Sem nodes, usamos a etapa atual como base.
-              </p>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                <button type="button" onClick={() => openCanvasByStatus("concluido")} title={!showFullWorkspace && !triageComplete ? "Abrir workspace completo filtrado pelos nodes concluídos." : "Abrir nodes concluídos"} className="rounded-md border border-border bg-card/60 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:text-primary">
-                  <p className="text-muted-foreground">Concluídos</p>
-                  <p className="mt-0.5 font-semibold text-foreground">{finishedNodes}</p>
-                </button>
-                <button type="button" onClick={() => openCanvasByStatus("ativo")} title={!showFullWorkspace && !triageComplete ? "Abrir workspace completo filtrado pelos nodes ativos." : "Abrir nodes ativos"} className="rounded-md border border-border bg-card/60 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:text-primary">
-                  <p className="text-muted-foreground">Ativos</p>
-                  <p className="mt-0.5 font-semibold text-foreground">{activeNodes}</p>
-                </button>
-                <button type="button" onClick={() => openCanvasByStatus("bloqueado")} title={!showFullWorkspace && !triageComplete ? "Abrir workspace completo filtrado pelos nodes bloqueados." : "Abrir nodes bloqueados"} className="rounded-md border border-border bg-card/60 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:text-primary">
-                  <p className="text-muted-foreground">Bloqueados</p>
-                  <p className="mt-0.5 font-semibold text-foreground">{blockedNodes}</p>
-                </button>
-                <div className="rounded-md border border-border bg-card/60 px-2.5 py-2 text-left">
-                  <p className="text-muted-foreground">Outros</p>
-                  <p className="mt-0.5 font-semibold text-foreground">{otherNodes}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-          <div className="relative border-b border-border bg-secondary/40 p-6">
-            <div className="absolute inset-0 tech-grid-bg opacity-60" aria-hidden />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_hsl(var(--primary)/0.18),_transparent_58%)]" aria-hidden />
-            <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div className="flex min-w-0 items-center gap-4">
-                <div className="flex h-20 w-20 items-center justify-center rounded-lg border border-border bg-card/80 shadow-lg backdrop-blur">
-                  <ClientAvatar
-                    name={clientName}
-                    seed={ws.client_id}
-                    logoUrl={ws.clients?.logo_url}
-                    size="lg"
-                    className="h-16 w-16 text-xl"
-                  />
-                </div>
-                <div className="min-w-0">
-                  <p className="label-sm mb-2">Hub operacional do cliente</p>
-                  <h1 className="truncate text-3xl font-semibold tracking-tight text-foreground">{clientName}</h1>
-                  <p className="mt-1 text-sm text-muted-foreground">{ws.clients?.company_name ?? ws.name}</p>
-                </div>
-              </div>
-
-              <div className="min-w-[260px] rounded-lg border border-border bg-card/70 p-4 backdrop-blur">
-                <div className="mb-2 flex items-center justify-between text-xs">
-                  <span className="font-medium uppercase text-muted-foreground">Processo</span>
-                  <span className="font-semibold text-primary">{progress}%</span>
-                </div>
-                <p className="mb-3 text-base font-semibold text-foreground">{getStagePremiumLabel(ws.current_stage)}</p>
-                <Progress value={progress} className="h-2" />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-3 p-5 md:grid-cols-3">
-            <div className="rounded-md border border-border bg-secondary/30 p-4">
-              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
-                <CheckCircle2 className="h-4 w-4 text-primary" />
-                O que foi feito
-              </div>
-              <p className="text-sm leading-relaxed text-muted-foreground">{intro.done}</p>
-            </div>
-            <div className="rounded-md border border-border bg-secondary/30 p-4">
-              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
-                <Target className="h-4 w-4 text-primary" />
-                O que precisa
-              </div>
-              <p className="text-sm leading-relaxed text-muted-foreground">{intro.need}</p>
-            </div>
-            <div className="rounded-md border border-primary/30 bg-primary/10 p-4">
-              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
-                <Sparkles className="h-4 w-4 text-primary" />
-                Recomendação
-              </div>
-              <p className="text-sm leading-relaxed text-muted-foreground">{intro.next}</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
-            <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
-              <div className="mb-5 flex items-center justify-between gap-4">
-                <div>
-                  <p className="label-sm mb-2">Pré-entrada operacional</p>
-                  <h2 className="text-xl font-semibold tracking-tight text-foreground">Triagem completa, contexto e plano gradual de produção</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                    Este bloco organiza contexto, prioridades e próximas ações para apoiar a execução no workspace completo, sem travar o trabalho.
-                  </p>
-                </div>
-                <div className="hidden h-10 w-10 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary md:flex">
-                  <ListChecks className="h-5 w-5" />
-                </div>
-              </div>
-
-              {triageLoading ? (
-                <div className="space-y-3" aria-label="Carregando triagem">
-                  {[0, 1, 2].map((item) => (
-                    <div key={item} className="flex gap-3 rounded-md border border-border bg-secondary/30 p-4">
-                      <Skeleton className="h-7 w-7 shrink-0 rounded-md" />
-                      <div className="flex-1 space-y-2">
-                        <Skeleton className="h-4 w-2/3" />
-                        <Skeleton className="h-3 w-full" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {actionPlan.map((item, index) => (
-                    <div key={`${item.title}-${index}`} className="flex gap-3 rounded-md border border-border bg-secondary/30 p-4">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-xs font-semibold text-primary">
-                        {index + 1}
-                      </span>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{item.title}</p>
-                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                          {item.detail}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {!triageLoading && <div className="mt-5 grid gap-2 md:grid-cols-3">
-                {PRE_ENTRY_ACTIONS.map((action, index) => {
-                  const done = completedPreEntryActions.includes(action.key);
-                  return (
-                    <button
-                      key={action.key}
-                      type="button"
-                      onClick={() => togglePreEntryAction(action.key)}
-                      className={cn("rounded-md border border-border bg-secondary/30 p-4 text-left transition-colors hover:border-primary/40", done && "border-primary/30 bg-primary/10")}
-                    >
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <span className="text-sm font-medium text-foreground">{action.label}</span>
-                        <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded border border-primary/40 text-[10px] font-semibold text-primary", done && "border-primary bg-primary text-primary-foreground")}>
-                          {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : index + 1}
-                        </span>
-                      </div>
-                      <p className="text-xs leading-relaxed text-muted-foreground">{action.detail}</p>
-                    </button>
-                  );
-                })}
-              </div>}
-
-              {!triageLoading && <div className="mt-5 rounded-lg border border-primary/30 bg-primary/10 p-4">
-                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="label-sm mb-1">Checklist lean de execução</p>
-                    <h3 className="text-base font-semibold text-foreground">Maiores primeiro, menores só para fechar ciclo</h3>
-                  </div>
-                  <span className="rounded-md border border-border bg-card/70 px-2 py-1 text-[11px] text-muted-foreground">
-                    {triageProgress}% alinhado · {triageDoneCount}/{triageTotalCount}
-                  </span>
-                </div>
-
-                <div className="grid gap-2">
-                  {lockedChecklist.map((item, index) => (
-                    <div key={item.key} className={cn("flex items-start gap-3 rounded-md border border-border bg-card/70 p-3", item.lockedDone && "border-primary/30 bg-primary/10")}>
-                      <button
-                        type="button"
-                        onClick={() => toggleTriageItem(item, index)}
-                        className={cn("mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-primary/40 text-primary transition-colors hover:bg-primary/10", item.lockedDone && "border-primary bg-primary text-primary-foreground")}
-                        aria-label={item.lockedDone ? `${item.title} marcado como feito` : `Marcar ${item.title}`}
-                      >
-                        {item.lockedDone ? <CheckCircle2 className="h-3 w-3" /> : item.taskId ? <CheckCircle2 className="h-3.5 w-3.5" /> : <span className="text-[10px] font-semibold">{index + 1}</span>}
-                      </button>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className={cn("text-sm font-medium text-foreground", item.lockedDone && "text-muted-foreground line-through")}>{item.title}</p>
-                          <span className="rounded border border-border bg-secondary px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
-                            {item.size}
-                          </span>
-                          {item.lockedDone && <span className="rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] uppercase text-primary">feito</span>}
-                        </div>
-                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.detail}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>}
-            </div>
-
-            <aside className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
-              <div className="rounded-md border border-border bg-secondary/30 p-4">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <CalendarDays className="h-4 w-4 text-primary" />
-                    Últimos movimentos
-                  </div>
-                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setMovementsOpen(true)}>
-                    Ver todos
-                  </Button>
-                </div>
-                <div className="space-y-3">
-                  {timeline.slice(0, 4).map((event) => (
-                    <div key={event.id} className="border-l border-primary/30 pl-3">
-                      <p className="text-xs font-medium text-foreground">{event.title}</p>
-                      <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">{event.description ?? "Registro operacional"}</p>
-                    </div>
-                  ))}
-                  {timeline.length === 0 && <p className="text-xs text-muted-foreground">Ainda sem eventos registrados.</p>}
-                </div>
-              </div>
-
-              {!triageComplete && (
-                <div className="rounded-md border border-border bg-secondary/30 p-4 text-xs text-muted-foreground" role="status" aria-live="polite">
-                  <div className="mb-2 flex items-center gap-2 text-foreground">
-                    {lockedChecklist.length === 0 ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Info className="h-4 w-4 text-primary" />}
-                    <span className="font-medium">Roteiro de entrada em progresso</span>
-                  </div>
-                  {lockedChecklist.length === 0 ? "Carregando ações de triagem..." : "Use este bloco para revisar contexto, confirmar prioridades e registrar progresso enquanto executa no workspace completo."}
-                </div>
-              )}
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="block">
-                      <Button onClick={handleWorkspaceEntry} className="h-11 w-full gap-2" disabled={showFullWorkspace} aria-disabled={showFullWorkspace}>
-                        {triageComplete ? "Entrar no workspace completo" : "Entrar no workspace completo"}
-                        <ArrowRight className="h-4 w-4" />
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  {!triageComplete && !showFullWorkspace && (
-                    <TooltipContent>
-                      <p>A pré-entrada é apenas um apoio para contexto, método e progresso.</p>
-                    </TooltipContent>
-                  )}
-                </Tooltip>
-              </TooltipProvider>
-            </aside>
-          </section>
-
-        <Dialog open={movementsOpen} onOpenChange={setMovementsOpen}>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <DialogTitle>Últimos movimentos</DialogTitle>
-              <DialogDescription>Histórico operacional completo deste workspace.</DialogDescription>
-            </DialogHeader>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative min-w-[260px] flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={movementSearch}
-                  onChange={(event) => setMovementSearch(event.target.value)}
-                  placeholder="Buscar por título ou descrição..."
-                  className="pl-9"
-                />
-              </div>
-
-              <Select value={eventTypeFilter} onValueChange={setEventTypeFilter}>
-                <SelectTrigger className="w-[220px]">
-                  <SelectValue placeholder="Tipo de evento" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Todos os tipos</SelectItem>
-                  {movementTypes.map((type) => (
-                    <SelectItem key={type} value={type}>{type}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn("w-[220px] justify-start gap-2 text-left font-normal", !movementDate && "text-muted-foreground")}
-                  >
-                    <CalendarIcon className="h-4 w-4" />
-                    {movementDate ? movementDate.toLocaleDateString("pt-BR") : "Filtrar por data"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={movementDate}
-                    onSelect={setMovementDate}
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-
-              {(eventTypeFilter !== "__all__" || movementDate || movementSearch) && (
-                <Button variant="ghost" className="gap-2" onClick={() => { setEventTypeFilter("__all__"); setMovementDate(undefined); setMovementSearch(""); }}>
-                  <X className="h-4 w-4" />
-                  Limpar filtros
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 gap-1.5 text-xs"
+                  onClick={() => {
+                    const params = new URLSearchParams({ workspaceId: ws.id, clientId: ws.client_id, clientName });
+                    navigate(`/ops/canvas/open?${params.toString()}`);
+                  }}
+                >
+                  <Network className="h-3 w-3" /> Canvas ↗
                 </Button>
-              )}
-            </div>
-
-            <div className="max-h-[56vh] overflow-y-auto rounded-lg border border-border bg-secondary/20 p-3">
-              {filteredMovements.length === 0 ? (
-                <div className="py-10 text-center text-sm text-muted-foreground">Nenhum movimento encontrado.</div>
-              ) : (
-                <div className="space-y-4">
-                  {groupedMovements.map((group) => (
-                    <section key={group.key} className="rounded-lg border border-border bg-card/70 p-3">
-                      <div className="mb-3 flex items-center justify-between gap-3 border-b border-border pb-2">
-                        <h3 className="text-sm font-semibold capitalize text-foreground">{group.label}</h3>
-                        <span className="text-[11px] text-muted-foreground">{group.events.length} movimento{group.events.length > 1 ? "s" : ""}</span>
-                      </div>
-                      <div className="space-y-3">
-                        {group.events.map((event) => (
-                          <div key={event.id} className="rounded-md border border-border bg-secondary/30 p-4">
-                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                              <p className="font-medium text-foreground">{event.title}</p>
-                              <span className="text-xs text-muted-foreground">{formatMovementDate(event.happened_at)}</span>
-                            </div>
-                            <p className="text-sm leading-relaxed text-muted-foreground">{event.description ?? "Registro operacional sem descrição."}</p>
-                            <span className="mt-3 inline-flex rounded-md border border-border bg-card px-2 py-1 text-[11px] text-muted-foreground">
-                              {event.event_type}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-                  ))}
-                </div>
-              )}
-            </div>
-            {filteredMovements.length > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-                <span>
-                  Mostrando {paginatedMovements.length} de {filteredMovements.length} filtrados · {timelineTotal} no total
-                </span>
-                {hasMoreMovements && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setVisibleMovements((current) => current + MOVEMENTS_PAGE_SIZE)}
-                  >
-                    Carregar mais {Math.min(MOVEMENTS_PAGE_SIZE, filteredMovements.length - visibleMovements)}
-                  </Button>
-                )}
               </div>
-            )}
-          </DialogContent>
-        </Dialog>
-
-        {showFullWorkspace && (
-          <div className="space-y-3">
-            <div className="flex justify-end">
-              <Button variant="outline" size="sm" onClick={() => navigate(`/ops/workspaces/${workspaceId}`)}>Voltar para pré-entrada</Button>
             </div>
-            <WorkspaceHeader
-              clientName={clientName}
-              ownerName={ownerName}
-              status={ws.status}
-              currentStage={ws.current_stage}
-              changingStage={changingStage}
-              onStageChange={handleStageChange}
-              planName={planName}
-            />
           </div>
-        )}
+        </div>
 
-        {showFullWorkspace && <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList>
-            <TabsTrigger value="resumo">Resumo</TabsTrigger>
-            <TabsTrigger value="dossie">Dossiê</TabsTrigger>
-            <TabsTrigger value="timeline">Timeline</TabsTrigger>
-            <TabsTrigger value="contexto">Contexto</TabsTrigger>
-            <TabsTrigger value="producao">Produção</TabsTrigger>
-            <TabsTrigger value="tasks">Tasks</TabsTrigger>
-            <TabsTrigger value="assets">Assets</TabsTrigger>
-            <TabsTrigger value="drive">Drive</TabsTrigger>
-            <TabsTrigger value="conteudo">Conteúdo</TabsTrigger>
-            <TabsTrigger value="metricas">Métricas</TabsTrigger>
-            <TabsTrigger value="before-after">Before/After</TabsTrigger>
-            <TabsTrigger value="case">Case</TabsTrigger>
-            <TabsTrigger value="canvas">Canvas</TabsTrigger>
+        {/* Progress bar + stage context */}
+        <div className="p-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-medium text-foreground">{getStagePremiumLabel(ws.current_stage)}</span>
+              <span className="font-semibold text-primary">{progress}%</span>
+            </div>
+            <Progress value={progress} className="h-1.5" />
+            {/* Stage stepper */}
+            <div className="flex items-center gap-1 mt-1 overflow-x-auto pb-1">
+              {STAGES.map((s, i) => {
+                const currentIdx = STAGES.indexOf(ws.current_stage);
+                const isPast = i < currentIdx;
+                const isCurrent = i === currentIdx;
+                return (
+                  <div key={s} className="flex items-center gap-1 shrink-0">
+                    <div className={cn(
+                      "h-2 w-2 rounded-full transition-colors",
+                      isCurrent ? "bg-primary scale-125" : isPast ? "bg-primary/40" : "bg-border"
+                    )} />
+                    {i < STAGES.length - 1 && <div className={cn("h-px w-4", isPast ? "bg-primary/30" : "bg-border")} />}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Node counters */}
+          <div className="flex gap-2 text-xs shrink-0">
+            {[
+              { label: "Concluídos", value: finishedNodes, color: "text-emerald-400" },
+              { label: "Ativos",     value: activeNodes,   color: "text-primary" },
+              { label: "Bloqueados", value: blockedNodes,  color: "text-amber-400" },
+            ].map((stat) => (
+              <div key={stat.label} className="flex flex-col items-center justify-center rounded-lg border border-border bg-secondary/30 px-3 py-2 min-w-[60px]">
+                <span className={cn("text-lg font-semibold", stat.color)}>{stat.value}</span>
+                <span className="text-[10px] text-muted-foreground">{stat.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Stage context cards */}
+        <div className="grid grid-cols-3 gap-0 border-t border-border">
+          {[
+            { icon: CheckCircle2, label: "O que foi feito", text: intro.done, color: "text-emerald-400" },
+            { icon: Target,       label: "O que precisa",   text: intro.need, color: "text-amber-400" },
+            { icon: Sparkles,     label: "Recomendação",    text: intro.next, color: "text-primary" },
+          ].map((card, i) => (
+            <div key={i} className={cn(
+              "p-4",
+              i < 2 && "border-r border-border"
+            )}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <card.icon className={cn("h-3.5 w-3.5", card.color)} />
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{card.label}</p>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">{card.text}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── WorkspaceHeader (stage selector + owner) ───── */}
+      <WorkspaceHeader
+        clientName={clientName}
+        ownerName={ownerName}
+        status={ws.status}
+        currentStage={ws.current_stage}
+        changingStage={changingStage}
+        onStageChange={handleStageChange}
+        planName={planName}
+      />
+
+      {/* ── Tabs ────────────────────────────────────────── */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="overflow-x-auto">
+          <TabsList className="flex w-max gap-0 h-auto p-0 bg-transparent border-b border-border rounded-none">
+            {TAB_GROUPS.map((group, gi) => (
+              <div key={group.label} className={cn("flex items-center", gi > 0 && "border-l border-border/60 ml-1 pl-1")}>
+                <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/50 px-2 hidden lg:inline">
+                  {group.label}
+                </span>
+                {group.tabs.map((tab) => (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className="h-9 px-3 text-xs rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-primary/5 transition-all"
+                  >
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+              </div>
+            ))}
+            {/* Canvas tab separate — always visible */}
+            <div className="border-l border-border/60 ml-1 pl-1">
+              <TabsTrigger
+                value="canvas"
+                className="h-9 px-3 text-xs rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-primary/5"
+              >
+                Canvas
+              </TabsTrigger>
+            </div>
           </TabsList>
+        </div>
 
+        {/* Tab contents */}
+        <div className="mt-4">
           <TabsContent value="resumo">
             <WorkspaceTabResumo
               clientName={clientName}
@@ -1172,23 +482,27 @@ export default function WorkspaceDetailPage() {
           </TabsContent>
 
           <TabsContent value="tasks">
-            <WorkspaceTabTasks workspaceId={ws.id} clientId={ws.client_id} planName={ws.clients?.plan_name} />
+            <WorkspaceTabTasks workspaceId={ws.id} clientId={ws.client_id} planName={planName} />
           </TabsContent>
 
           <TabsContent value="producao">
-            <WorkspaceTabProducao workspaceId={ws.id} clientId={ws.client_id} planName={ws.clients?.plan_name} />
+            <WorkspaceTabProducao workspaceId={ws.id} clientId={ws.client_id} planName={planName} />
           </TabsContent>
 
           <TabsContent value="assets">
             <WorkspaceTabAssets workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
           </TabsContent>
 
-          <TabsContent value="drive">
-            <ClientDrive workspaceId={ws.id} clientId={ws.client_id} clientName={clientName} />
-          </TabsContent>
-
           <TabsContent value="conteudo">
             <WorkspaceTabConteudo workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
+          </TabsContent>
+
+          <TabsContent value="drive">
+            <ClientDrive
+              workspaceId={ws.id}
+              clientId={ws.client_id}
+              clientName={clientName}
+            />
           </TabsContent>
 
           <TabsContent value="metricas">
@@ -1209,11 +523,11 @@ export default function WorkspaceDetailPage() {
               clientId={ws.client_id}
               clientName={clientName}
               onTimelineRefresh={fetchWorkspace}
-              initialStatusFilter={canvasStatusShortcut}
+              initialStatusFilter={canvasStatus}
             />
           </TabsContent>
-        </Tabs>}
-      </div>
-    </>
+        </div>
+      </Tabs>
+    </div>
   );
 }
