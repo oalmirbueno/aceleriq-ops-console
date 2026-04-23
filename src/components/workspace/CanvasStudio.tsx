@@ -1436,12 +1436,16 @@ function CanvasStudioInner({
 
       {/* Body: palette + canvas + inspector */}
       <div className="flex flex-1 min-h-0">
-        <CanvasEsteiraPalette
-          collapsed={paletteCollapsed}
-          onToggleCollapse={togglePalette}
-          onAdd={handlePaletteAdd}
-          onAddClient={openClientPicker}
-          onOpenAdvanced={openAdvanced}
+        <OperationalCanvasToolbar
+          activeTool={activeTool}
+          gridVisible={gridVisible}
+          lockedNodes={lockedNodes}
+          fullscreen={fullscreen}
+          onToolChange={setActiveTool}
+          onFit={() => rfInstanceRef.current?.fitView({ padding: 0.32, duration: 280 })}
+          onToggleLock={() => setLockedNodes((v) => !v)}
+          onToggleGrid={() => setGridVisible((v) => !v)}
+          onToggleFullscreen={onToggleFullscreen}
         />
 
         <div className="flex-1 min-w-0 relative">
@@ -1536,8 +1540,22 @@ function CanvasStudioInner({
               connectionLineStyle={{ stroke: "hsl(var(--primary))", strokeWidth: 2.5 }}
               onPaneContextMenu={(event) => event.preventDefault()}
             >
-              <Background gap={32} size={1} className="opacity-20" />
+              {gridVisible && <Background gap={32} size={1} className="opacity-20" />}
             </ReactFlow>
+          )}
+          {!loading && clientGroups.length > 0 && (
+            <NodeTypeDock
+              openGroup={openDockGroup}
+              onOpenGroup={setOpenDockGroup}
+              onPickKind={(kind) => {
+                handlePaletteAdd(kind, getProjectTypeMeta(kind)?.defaultStage ?? "producao");
+                setOpenDockGroup(null);
+              }}
+              onPickOrb={(orbType) => {
+                void addAiOrb(orbType);
+                setOpenDockGroup(null);
+              }}
+            />
           )}
         </div>
 
