@@ -12,6 +12,7 @@ import { slugify } from "@/lib/slugify";
 import { toast } from "@/hooks/use-toast";
 import { Upload, X, ImageIcon } from "lucide-react";
 import ClientAvatar from "@/components/workspace/ClientAvatar";
+import { getPlanConfig, getPlanOrder } from "@/lib/planConfig";
 
 interface Props {
   open: boolean;
@@ -20,7 +21,7 @@ interface Props {
 }
 
 const SEGMENTS = ["SaaS", "E-commerce", "Serviços", "Indústria", "Educação", "Outro"];
-const PLANS = ["starter", "growth", "enterprise"];
+const PLAN_KEYS = getPlanOrder();
 
 export default function CreateClientDialog({ open, onOpenChange, onCreated }: Props) {
   const [loading, setLoading] = useState(false);
@@ -238,9 +239,17 @@ export default function CreateClientDialog({ open, onOpenChange, onCreated }: Pr
               <Select value={form.plan_name} onValueChange={(v) => set("plan_name", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {PLANS.map((p) => (
-                    <SelectItem key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</SelectItem>
-                  ))}
+                  {PLAN_KEYS.map((p) => {
+                    const cfg = getPlanConfig()[p];
+                    return (
+                      <SelectItem key={p} value={p}>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{cfg.label}</span>
+                          <span className="text-xs text-muted-foreground">R$ {cfg.monthly.toLocaleString("pt-BR")}/mês</span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
