@@ -1375,54 +1375,85 @@ function CanvasStudioInner({
   }, [clientId, ensureActiveClient, fetchData, workspaceId]);
 
 
-  /* Auto-layout: por etapa, empilha vertical (apenas nodes do cliente ativo) */
+  /* Auto-layout fordista: 8 etapas ACELERA × faixas operacionais */
   const handleAutoLayout = async () => {
     const targetNodes = activeClientId
       ? projectNodes.filter((n) => n.parent_node_id === activeClientId)
       : projectNodes;
     if (targetNodes.length === 0) return;
     setBusyAction("layout");
-    const byStage: Record<string, CanvasNodeRow[]> = {};
-    const incoming = new Map<string, number>();
-    const outgoing = new Map<string, number>();
+    const edgeMap = new Map<string, string[]>();
+    const inDegree = new Map<string, number>();
+    targetNodes.forEach((n) => inDegree.set(n.id, 0));
     dbEdges.forEach((e) => {
-      outgoing.set(e.source_node_id, (outgoing.get(e.source_node_id) ?? 0) + 1);
-      incoming.set(e.target_node_id, (incoming.get(e.target_node_id) ?? 0) + 1);
+      if (!inDegree.has(e.target_node_id) || !inDegree.has(e.source_node_id)) return;
+      edgeMap.set(e.source_node_id, [...(edgeMap.get(e.source_node_id) ?? []), e.target_node_id]);
+      inDegree.set(e.target_node_id, (inDegree.get(e.target_node_id) ?? 0) + 1);
     });
-    const flowRank: Record<string, number> = { contexto_ops: 0, briefing: 1, documento: 2, instrucao: 3, engine: 4, agente: 5, resultado: 6, decisao: 7, metrica: 8, before_after: 9, case: 10 };
+
+    const depth = new Map<string, number>();
+    const queue: string[] = [];
     targetNodes.forEach((n) => {
-      const role = getNodeFlowRole(nodeKindOf(n));
-      const lane = role === "measurement" || role === "proof" || role === "narrative" ? "proof" : nodeStageOf(n);
-      (byStage[lane] ??= []).push(n);
+      if ((inDegree.get(n.id) ?? 0) === 0) {
+        depth.set(n.id, 0);
+        queue.push(n.id);
+      }
     });
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const currentDepth = depth.get(current) ?? 0;
+      (edgeMap.get(current) ?? []).forEach((child) => {
+        depth.set(child, Math.max(depth.get(child) ?? 0, currentDepth + 1));
+        const remaining = (inDegree.get(child) ?? 1) - 1;
+        inDegree.set(child, remaining);
+        if (remaining === 0) queue.push(child);
+      });
+    }
+
+    const FAMILY_LANE: Record<string, number> = {
+      entry: 0, structure: 1, plan: 2, tech: 2, build: 3,
+      content: 4, launch: 5, growth: 6, proof: 7,
+    };
+    const LANE_HEIGHT = 200;
+    const COLUMN_WIDTH = 320;
+    const GRID_ORIGIN_Y = CONTENT_TOP + 40;
+    const gridBuckets = new Map<string, CanvasNodeRow[]>();
+
+    targetNodes.forEach((n) => {
+      const stageIdx = ACELERA_STAGES.findIndex((s) => s.key === nodeStageOf(n));
+      const col = Math.max(0, stageIdx);
+      const lane = FAMILY_LANE[getNodeFamily(nodeKindOf(n))] ?? 3;
+      const bucketKey = `${col}:${lane}`;
+      gridBuckets.set(bucketKey, [...(gridBuckets.get(bucketKey) ?? []), n]);
+    });
+
     const updates: Array<{ id: string; pos_x: number; pos_y: number }> = [];
-    Object.entries(byStage).forEach(([stage, list]) => {
-      list
+    gridBuckets.forEach((nodes, key) => {
+      const [colStr, laneStr] = key.split(":");
+      const col = Number(colStr);
+      const lane = Number(laneStr);
+      nodes
         .slice()
-        .sort((a, b) => {
-          const ar = flowRank[nodeKindOf(a)] ?? 20;
-          const br = flowRank[nodeKindOf(b)] ?? 20;
-          if (ar !== br) return ar - br;
-          return (incoming.get(a.id) ?? 0) - (incoming.get(b.id) ?? 0) || (outgoing.get(b.id) ?? 0) - (outgoing.get(a.id) ?? 0);
-        })
-        .forEach((n, i) => {
-        const role = getNodeFlowRole(nodeKindOf(n));
-        const laneX = OPS_FLOW_X[role] ?? stageColumnX(stage as AceleraStageKey) + NODE_X_OFFSET;
-        const baseY = stage === "proof" ? CONTENT_TOP + 580 : CONTENT_TOP + 96;
-        updates.push({
-          id: n.id,
-          pos_x: laneX,
-          pos_y: baseY + i * (NODE_VERTICAL + 28),
-        });
+        .sort((a, b) => (depth.get(a.id) ?? 0) - (depth.get(b.id) ?? 0))
+        .forEach((n, idx) => {
+          updates.push({ id: n.id, pos_x: col * COLUMN_WIDTH + 40, pos_y: GRID_ORIGIN_Y + lane * LANE_HEIGHT + idx * 28 });
       });
     });
+
+    const orbs = dbNodes.filter((n) => n.node_type === "ai_orb" && (!activeClientId || n.parent_node_id === activeClientId));
+    const ORB_BAND_Y = GRID_ORIGIN_Y + 8 * LANE_HEIGHT + 60;
+    orbs.forEach((orb, idx) => {
+      updates.push({ id: orb.id, pos_x: 40 + (idx % 6) * 180, pos_y: ORB_BAND_Y + Math.floor(idx / 6) * 160 });
+    });
+
     await Promise.all(
       updates.map((p) =>
         supabase.from("canvas_nodes").update({ pos_x: p.pos_x, pos_y: p.pos_y, updated_at: new Date().toISOString() }).eq("id", p.id),
       ),
     );
-    toast({ title: "Esteira reorganizada" });
+    toast({ title: "Esteira reorganizada", description: `${updates.length} nodes posicionados por etapa ACELERA.` });
     await fetchData();
+    window.setTimeout(() => rfInstanceRef.current?.fitView({ padding: 0.2, duration: 400 }), 200);
     setBusyAction(null);
   };
 
