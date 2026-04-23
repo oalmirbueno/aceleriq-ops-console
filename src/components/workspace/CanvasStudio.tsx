@@ -7,7 +7,7 @@ import {
   type ReactFlowInstance, type Viewport, SelectionMode, MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow, MousePointer2, Hand, Lock, Grid3X3, Camera, Type, Image, FileStack, Bot, Megaphone, Trophy, MessageCircle, Focus, Eye } from "lucide-react";
+import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow, MousePointer2, Hand, Lock, Grid3X3, Camera, Type, Image, FileStack, Bot, Megaphone, Trophy, MessageCircle, Focus, Eye, LayoutTemplate } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -25,6 +25,7 @@ import CanvasInspector from "./CanvasInspector";
 import CanvasClientPicker from "./CanvasClientPicker";
 import CanvasClientTabs, { type CanvasClientTab } from "./CanvasClientTabs";
 import GenerateEsteiraDialog from "./GenerateEsteiraDialog";
+import CanvasTemplatesDialog, { type CanvasTemplate, type NodeSnapshot, type EdgeSnapshot } from "./CanvasTemplatesDialog";
 import type { EsteiraTemplate } from "./esteiraTemplates";
 import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalMeta } from "./canvasOperationalMeta";
 import {
@@ -273,6 +274,7 @@ function CanvasStudioInner({
 
   // Generate esteira (per-plan template) dialog
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
+  const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -1430,6 +1432,61 @@ function CanvasStudioInner({
     activeClientId, clientGroups, projectNodes, workspaceId, clientId, clientName, fetchData,
   ]);
 
+  /** Apply a saved canvas template to current client */
+  const applyCanvasTemplate = useCallback(async (template: CanvasTemplate, targetClientId: string) => {
+    setBusyAction("template");
+    try {
+      // Compute origin offset — place new nodes relative to the active client stage
+      const baseX = 80;
+      const baseY = CONTENT_TOP + 16;
+      const refToId = new Map<string, string>();
+
+      // Create nodes preserving relative positions
+      const rows = (template.nodes as any[]).map((n, idx) => ({
+        workspace_id: workspaceId,
+        client_id: clientId,
+        parent_node_id: targetClientId,
+        node_type: n.node_type,
+        title: n.title,
+        description: n.description ?? null,
+        status: n.status ?? "draft",
+        pos_x: baseX + (Number(n.pos_x_rel ?? 0)),
+        pos_y: baseY + (Number(n.pos_y_rel ?? idx * 160)),
+        data: n.data ?? {},
+      }));
+
+      const { data: inserted, error: nodeErr } = await supabase.from("canvas_nodes").insert(rows).select();
+      if (nodeErr) throw new Error(nodeErr.message);
+      (inserted as any[]).forEach((dbNode, i) => {
+        const tmplNode = template.nodes[i] as any;
+        if (tmplNode?.ref) refToId.set(tmplNode.ref, dbNode.id);
+      });
+
+      // Create edges
+      const edgeRows = (template.edges as any[])
+        .map((e) => {
+          const source_node_id = refToId.get(e.source_ref);
+          const target_node_id = refToId.get(e.target_ref);
+          if (!source_node_id || !target_node_id) return null;
+          return {
+            workspace_id: workspaceId,
+            source_node_id, target_node_id,
+            edge_type: e.edge_type ?? "ops",
+            label: e.label ?? null,
+          };
+        })
+        .filter(Boolean);
+
+      if (edgeRows.length > 0) {
+        await supabase.from("canvas_edges").insert(edgeRows);
+      }
+
+      await fetchData();
+    } finally {
+      setBusyAction(null);
+    }
+  }, [workspaceId, clientId, fetchData]);
+
   const applyOpsFlowBlueprint = useCallback(async () => {
     const parent = ensureActiveClient();
     if (!parent) return;
@@ -1721,9 +1778,20 @@ function CanvasStudioInner({
             {busyAction === "ops-flow" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Workflow className="h-3.5 w-3.5" />}
             <span className="hidden md:inline ml-1 text-xs">Fluxo Ops</span>
           </Button>
-          <Button size="sm" variant="outline" className="h-8" onClick={() => setGenerateDialogOpen(true)} disabled={busyAction === "base"}>
+          <Button size="sm" variant="outline" className="h-8"
+            onClick={() => {
+              if (!ensureActiveClient()) return;
+              setGenerateDialogOpen(true);
+            }}
+            disabled={busyAction === "base"}>
             {busyAction === "base" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
             <span className="hidden md:inline ml-1 text-xs">Gerar esteira</span>
+          </Button>
+          <Button size="sm" variant="outline" className="h-8"
+            onClick={() => setTemplatesDialogOpen(true)}
+            disabled={busyAction === "template"}>
+            {busyAction === "template" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LayoutTemplate className="h-3.5 w-3.5" />}
+            <span className="hidden md:inline ml-1 text-xs">Templates</span>
           </Button>
           <div className="h-5 w-px bg-border mx-1" />
           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onToggleFullscreen} aria-label="Alternar tela cheia">
@@ -2055,6 +2123,16 @@ function CanvasStudioInner({
         workspaceId={workspaceId}
         generating={busyAction === "base"}
         onConfirm={(tpl) => applyEsteiraTemplate(tpl)}
+      />
+
+      <CanvasTemplatesDialog
+        open={templatesDialogOpen}
+        onOpenChange={setTemplatesDialogOpen}
+        workspaceId={workspaceId}
+        activeClientId={activeClientId}
+        currentNodes={dbNodes as unknown as NodeSnapshot[]}
+        currentEdges={dbEdges as unknown as EdgeSnapshot[]}
+        onApply={applyCanvasTemplate}
       />
 
       <AiOrbConfigPanel
