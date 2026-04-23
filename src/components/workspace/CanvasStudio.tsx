@@ -1774,6 +1774,15 @@ function CanvasStudioInner({
         onConfirm={(tpl) => applyEsteiraTemplate(tpl)}
       />
 
+      <AiOrbConfigPanel
+        open={!!aiOrbConfigNode}
+        onOpenChange={(open) => !open && setAiOrbConfigNode(null)}
+        data={aiOrbConfigNode ? readAiOrbData(aiOrbConfigNode.data as Record<string, unknown> | null) : null}
+        onDataChange={patchAiOrbData}
+        onGenerate={generateFromAiOrb}
+        generating={!!aiOrbConfigNode && busyAction === `ai-orb-${aiOrbConfigNode.id}`}
+      />
+
       <ProjectNodeDrawer
         node={selectedNode}
         open={!!selectedNode}
