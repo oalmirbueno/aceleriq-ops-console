@@ -637,6 +637,10 @@ export default function WorkspaceDetailPage() {
               <WorkspaceTabAssets workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
             </TabsContent>
 
+            <TabsContent value="drive">
+              <ClientDrive workspaceId={ws.id} clientId={ws.client_id} clientName={clientName} />
+            </TabsContent>
+
             <TabsContent value="conteudo">
               <WorkspaceTabConteudo workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
             </TabsContent>
@@ -1114,6 +1118,7 @@ export default function WorkspaceDetailPage() {
             <TabsTrigger value="producao">Produção</TabsTrigger>
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="assets">Assets</TabsTrigger>
+            <TabsTrigger value="drive">Drive</TabsTrigger>
             <TabsTrigger value="conteudo">Conteúdo</TabsTrigger>
             <TabsTrigger value="metricas">Métricas</TabsTrigger>
             <TabsTrigger value="before-after">Before/After</TabsTrigger>
@@ -1167,6 +1172,10 @@ export default function WorkspaceDetailPage() {
 
           <TabsContent value="assets">
             <WorkspaceTabAssets workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
+          </TabsContent>
+
+          <TabsContent value="drive">
+            <ClientDrive workspaceId={ws.id} clientId={ws.client_id} clientName={clientName} />
           </TabsContent>
 
           <TabsContent value="conteudo">
