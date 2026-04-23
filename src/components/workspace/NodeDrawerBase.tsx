@@ -6,7 +6,6 @@
 import { useState, useCallback } from "react";
 import { Loader2, Save, Trash2, ChevronDown } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -208,12 +207,12 @@ export function NodeDrawerShell({ node, open, onOpenChange, workspaceId, config,
           </div>
         </div>
 
-        {/* Body */}
-        <ScrollArea className="flex-1 min-h-0">
+        {/* Body — native scroll, garantido */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <div className="px-5 py-5 space-y-6">
             {children}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* Footer */}
         <div className="px-5 py-3 border-t flex items-center gap-2 shrink-0"
