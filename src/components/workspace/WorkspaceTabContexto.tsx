@@ -777,23 +777,34 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
       )}
 
       {/* ── Dialogs ───────────────────────────────────── */}
-      <ContextEntryDialog open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleCreate} workspaceId={workspaceId} />
+      <ContextEntryDialog open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleCreate} mode="create" />
       {editEntry && (
-        <ContextEntryDialog open={!!editEntry} onOpenChange={(o) => !o && setEditEntry(null)} onSubmit={handleEdit} initialData={editEntry} workspaceId={workspaceId} />
+        <ContextEntryDialog
+          open={!!editEntry}
+          onOpenChange={(o) => !o && setEditEntry(null)}
+          onSubmit={handleEdit}
+          mode="edit"
+          initial={{
+            context_type: editEntry.context_type as ContextType,
+            title: editEntry.title,
+            content: editEntry.content,
+            happened_at: editEntry.happened_at ?? "",
+            source_label: editEntry.source_label ?? "",
+            source_url: editEntry.source_url ?? "",
+            tags: (editEntry.tags ?? []).join(", "),
+            is_key_decision: editEntry.is_key_decision,
+          }}
+        />
       )}
       <ImportContextDialog open={importOpen} onOpenChange={setImportOpen} workspaceId={workspaceId} clientId={clientId} onImported={fetchEntries} />
       {briefingType && (
         <ImportBriefingDialog open={!!briefingType} onOpenChange={(o) => !o && setBriefingType(null)}
-          workspaceId={workspaceId} clientId={clientId} briefingKind={briefingType} onImported={fetchEntries} />
+          workspaceId={workspaceId} clientId={clientId} briefingType={briefingType} onImported={fetchEntries} />
       )}
       {linkDialogOpen && (
         <GenerateBriefingLinkDialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}
           workspaceId={workspaceId} clientId={clientId} clientName={clientName ?? "Cliente"}
-          briefingKind={linkBriefingType} />
-      )}
-      {entries.some((e) => e.context_type === "briefing" && (e.metadata?.structured_signals || e.metadata?.import_review_status === "pending_review")) && (
-        <BriefingSignalReview entries={entries.filter((e) => e.context_type === "briefing")}
-          workspaceId={workspaceId} clientId={clientId} onUpdated={fetchEntries} />
+          defaultBriefingType={linkBriefingType} />
       )}
       {activeSheet && sheetMode === "briefing" && (
         <BriefingSheet entry={activeSheet} workspaceId={workspaceId} clientId={clientId}
