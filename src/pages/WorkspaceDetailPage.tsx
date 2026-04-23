@@ -35,6 +35,7 @@ import WorkspaceTabBeforeAfter from "@/components/workspace/WorkspaceTabBeforeAf
 import WorkspaceTabCase from "@/components/workspace/WorkspaceTabCase";
 import WorkspaceTabCanvas from "@/components/workspace/WorkspaceTabCanvas";
 import WorkspaceTabConteudo from "@/components/workspace/WorkspaceTabConteudo";
+import ClientDrive from "@/components/workspace/ClientDrive";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -521,6 +522,7 @@ export default function WorkspaceDetailPage() {
       { value: "dossie", label: "Briefing" },
       { value: "tasks", label: "Tasks" },
       { value: "assets", label: "Assets" },
+      { value: "drive", label: "Drive" },
       { value: "producao", label: "Produção" },
       { value: "canvas", label: "Canvas" },
       { value: "resumo", label: "Resumo" },
@@ -633,6 +635,10 @@ export default function WorkspaceDetailPage() {
 
             <TabsContent value="assets">
               <WorkspaceTabAssets workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
+            </TabsContent>
+
+            <TabsContent value="drive">
+              <ClientDrive workspaceId={ws.id} clientId={ws.client_id} clientName={clientName} />
             </TabsContent>
 
             <TabsContent value="conteudo">
@@ -1112,6 +1118,7 @@ export default function WorkspaceDetailPage() {
             <TabsTrigger value="producao">Produção</TabsTrigger>
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="assets">Assets</TabsTrigger>
+            <TabsTrigger value="drive">Drive</TabsTrigger>
             <TabsTrigger value="conteudo">Conteúdo</TabsTrigger>
             <TabsTrigger value="metricas">Métricas</TabsTrigger>
             <TabsTrigger value="before-after">Before/After</TabsTrigger>
@@ -1165,6 +1172,10 @@ export default function WorkspaceDetailPage() {
 
           <TabsContent value="assets">
             <WorkspaceTabAssets workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={fetchWorkspace} />
+          </TabsContent>
+
+          <TabsContent value="drive">
+            <ClientDrive workspaceId={ws.id} clientId={ws.client_id} clientName={clientName} />
           </TabsContent>
 
           <TabsContent value="conteudo">
