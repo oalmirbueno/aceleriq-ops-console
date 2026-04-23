@@ -23,7 +23,7 @@ const corsHeaders = {
 };
 
 const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const AI_MODEL = "google/gemini-3-flash-preview";
+const AI_MODEL = "google/gemini-2.5-flash";
 
 interface ConsolidatedSection {
   title: string;
