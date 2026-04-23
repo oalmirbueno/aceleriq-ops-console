@@ -844,6 +844,17 @@ function CanvasStudioInner({
     setSelectedNode(found);
   }, [dbNodes]);
 
+  /** ═══ DRAG START — garante que arrastar um node não-selecionado mova
+   *   apenas ele, limpando seleção múltipla anterior. Sem isso, qualquer
+   *   node previamente selecionado é arrastado junto. */
+  const onNodeDragStart = useCallback((_e: React.MouseEvent, node: Node) => {
+    setRfNodes((nds) => {
+      const target = nds.find((n) => n.id === node.id);
+      if (target?.selected) return nds; // já está na seleção, mantém grupo
+      return nds.map((n) => ({ ...n, selected: n.id === node.id }));
+    });
+  }, []);
+
   /** ═══ CONNECTING STATE — ativa classe CSS .connecting durante drag de conexão.
    *   Isso faz todos os 12 handles de TODOS os nodes ficarem visíveis, ajudando
    *   o usuário a ver onde pode conectar. */
