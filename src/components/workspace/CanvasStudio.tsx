@@ -1707,6 +1707,101 @@ function QuickAddInline({ onPick }: { onPick: (kind: ProjectNodeKind) => void })
   );
 }
 
+function OperationalCanvasToolbar({
+  activeTool, gridVisible, lockedNodes, fullscreen, onToolChange, onFit, onToggleLock, onToggleGrid, onToggleFullscreen,
+}: {
+  activeTool: "select" | "hand";
+  gridVisible: boolean;
+  lockedNodes: boolean;
+  fullscreen: boolean;
+  onToolChange: (tool: "select" | "hand") => void;
+  onFit: () => void;
+  onToggleLock: () => void;
+  onToggleGrid: () => void;
+  onToggleFullscreen: () => void;
+}) {
+  const tools = [
+    { id: "select", label: "Selecionar · V", icon: MousePointer2, active: activeTool === "select", onClick: () => onToolChange("select") },
+    { id: "hand", label: "Mover canvas · H", icon: Hand, active: activeTool === "hand", onClick: () => onToolChange("hand") },
+    { id: "fit", label: "Fit view · F", icon: Maximize2, active: false, onClick: onFit, separator: true },
+    { id: "lock", label: lockedNodes ? "Desbloquear nodes" : "Bloquear nodes", icon: Lock, active: lockedNodes, onClick: onToggleLock },
+    { id: "fullscreen", label: fullscreen ? "Sair da tela cheia" : "Tela cheia", icon: fullscreen ? Minimize2 : Maximize2, active: fullscreen, onClick: onToggleFullscreen },
+    { id: "grid", label: "Grid · G", icon: Grid3X3, active: gridVisible, onClick: onToggleGrid },
+    { id: "shot", label: "Screenshot", icon: Camera, active: false, onClick: () => toast({ title: "Screenshot", description: "Use o export do navegador por enquanto." }), separator: true },
+  ];
+
+  return (
+    <TooltipProvider delayDuration={160}>
+      <aside className="canvas-toolrail">
+        {tools.map((tool) => {
+          const Icon = tool.icon;
+          return (
+            <div key={tool.id} className={tool.separator ? "pt-2 mt-1 border-t border-border/70" : ""}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button type="button" onClick={tool.onClick} className={`canvas-toolrail-button ${tool.active ? "is-active" : ""}`} aria-label={tool.label}>
+                    <Icon className="h-4 w-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="text-xs">{tool.label}</TooltipContent>
+              </Tooltip>
+            </div>
+          );
+        })}
+      </aside>
+    </TooltipProvider>
+  );
+}
+
+function NodeTypeDock({
+  openGroup, onOpenGroup, onPickKind, onPickOrb,
+}: {
+  openGroup: string | null;
+  onOpenGroup: (group: string | null) => void;
+  onPickKind: (kind: ProjectNodeKind) => void;
+  onPickOrb: (orbType: AiOrbType) => void;
+}) {
+  return (
+    <div className="node-type-dock-wrap">
+      {openGroup && (
+        <div className="node-type-dock-menu">
+          {openGroup === "ai" ? AI_ORBS.map((orb) => (
+            <button key={orb.type} type="button" onClick={() => onPickOrb(orb.type)} className={`node-type-dock-option ai-orb-${orb.type}`}>
+              <Bot className="h-3.5 w-3.5" />
+              <span>{orb.label}</span>
+              <small>{orb.specialization}</small>
+            </button>
+          )) : DOCK_GROUPS.find((group) => group.id === openGroup)?.kinds.map((kind) => {
+            const meta = getProjectTypeMeta(kind);
+            if (!meta) return null;
+            const Icon = meta.icon;
+            const stage = getStageMeta(meta.defaultStage);
+            return (
+              <button key={kind} type="button" onClick={() => onPickKind(kind)} className="node-type-dock-option">
+                <Icon className="h-3.5 w-3.5" />
+                <span>{meta.shortLabel}</span>
+                <small>{stage.short}</small>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <div className="node-type-dock">
+        {DOCK_GROUPS.map((group) => {
+          const Icon = group.icon;
+          const active = openGroup === group.id;
+          return (
+            <button key={group.id} type="button" onClick={() => onOpenGroup(active ? null : group.id)} className={`node-type-dock-button dock-${group.id} ${active ? "is-active" : ""}`}>
+              <Icon className="h-4 w-4" />
+              <span>{group.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* Inspector adapter — reuses existing component with filter callbacks but ignores group nodes */
 function CanvasInspectorAdapter(props: React.ComponentProps<typeof CanvasInspector>) {
   return <CanvasInspector {...props} />;
