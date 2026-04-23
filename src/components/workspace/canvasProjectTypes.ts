@@ -65,7 +65,7 @@ export type ProjectNodeKind =
   | "conteudo" | "trafego" | "email_mkt" | "social"
   | "crm" | "checklist" | "asset" | "metrica"
   | "before_after" | "case" | "video" | "imagem"
-  | "contato" | "objetivo" | "lancamento" | "dossie";
+  | "contato" | "objetivo" | "lancamento";
 
 export type NodeFamily =
   | "entry" | "structure" | "plan" | "build"
@@ -208,7 +208,7 @@ export const PROJECT_TYPE_GROUPS: Array<{ stage: AceleraStageKey; types: Project
 ];
 
 /** Map ProjectNodeKind → DB node_type enum value (existing canvas_nodes.node_type uses CanvasNodeType) */
-export function projectKindToDbNodeType(kind: ProjectNodeKind): string {
+export function projectKindToDbNodeType(kind: ProjectNodeKind | "dossie"): string {
   switch (kind) {
     case "site": return "site";
     case "landing_page": return "landing_page";
