@@ -607,20 +607,20 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
             <p className="text-xs text-muted-foreground/60 mt-1">Use "Enviar ao cliente" para gerar um link de briefing.</p>
           </div>
         ) : (
-          <div className="divide-y divide-border/30">
+          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
             {clientPending.map((e) => (
-              <div key={e.id} className="flex items-center gap-3 px-4 py-3">
+              <div key={e.id} className="min-h-32 rounded-lg border border-border/60 bg-background/50 p-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-400/10 shrink-0">
                   <Clock className="h-4 w-4 text-amber-400" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                <div className="mt-3 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium text-foreground">{e.title}</span>
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-amber-400 border-amber-400/30">Em preenchimento</Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">Link enviado · aguardando resposta do cliente</p>
                 </div>
-                <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-amber-400" onClick={() => openSheet(e, "briefing")}>
+                <Button size="sm" variant="ghost" className="mt-3 h-7 text-xs gap-1 text-amber-400" onClick={() => openSheet(e, "briefing")}>
                   <Eye className="h-3 w-3" /> Ver
                 </Button>
               </div>
@@ -631,20 +631,20 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
               const Icon = kind ? (BRIEFING_ICONS[kind] ?? FileText) : FileText;
               return (
                 <button key={e.id} type="button" onClick={() => openSheet(e, "briefing")}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/20 transition-colors text-left group">
+                  className="min-h-32 rounded-lg border border-border/60 bg-background/50 p-3 text-left transition-colors hover:bg-secondary/20 group">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0"
                     style={{ background: `${color}15`, border: `1px solid ${color}25` }}>
                     <Icon className="h-4 w-4" style={{ color }} />
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="mt-3 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium text-foreground">{e.title}</span>
                       <Badge className="text-[10px] px-1.5 py-0 h-4 bg-emerald-400/10 text-emerald-400 border-emerald-400/25">Recebido</Badge>
                       {e.metadata?.import_review_status === "reviewed" && <Badge className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-primary/25">Revisado</Badge>}
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-1">{getPreview(e)}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-3">{getPreview(e)}</p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="mt-3 flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={(ev) => { ev.stopPropagation(); const blob = new Blob([e.content], { type: "text/plain" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = e.title + ".txt"; a.click(); }}>
                       <Download className="h-3 w-3" />
                     </Button>
