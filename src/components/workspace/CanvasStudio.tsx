@@ -93,6 +93,26 @@ const RESULT_KINDS = new Set(["resultado", "landing_page", "site", "conteudo", "
 const DECISION_KINDS = new Set(["decisao"]);
 const PROOF_KINDS = new Set(["metrica", "before_after", "case"]);
 const FLOW_GRAMMAR = ["Contexto", "Instrução", "Engine", "Resultado", "Decisão", "Prova"];
+const AI_ORB_KINDS = new Set(["ai_orb"]);
+const AI_ORB_INPUT_KINDS = new Set([...INPUT_KINDS, ...INSTRUCTION_KINDS, "funil", "engine"]);
+const AI_ORB_OUTPUT_KINDS = new Set([...RESULT_KINDS, ...ENGINE_KINDS, ...PROOF_KINDS]);
+const AI_ORBS: Array<{ type: AiOrbType; label: string; specialization: string }> = [
+  { type: "planner", label: "Planejar", specialization: "plano operacional" },
+  { type: "docs", label: "Docs", specialization: "BMC · ICP · SOP" },
+  { type: "content", label: "Conteúdo", specialization: "copy · calendário" },
+  { type: "tech", label: "Tech", specialization: "n8n · integrações" },
+  { type: "proof", label: "Provas", specialization: "KPI · case" },
+  { type: "full", label: "Tudo", specialization: "esteira completa" },
+];
+const DOCK_GROUPS = [
+  { id: "text", label: "Texto", icon: Type, kinds: ["instrucao", "conteudo"] as ProjectNodeKind[] },
+  { id: "media", label: "Mídia", icon: Image, kinds: ["imagem", "video"] as ProjectNodeKind[] },
+  { id: "ref", label: "Ref.", icon: FileStack, kinds: ["contexto_ops", "documento", "briefing", "acessos"] as ProjectNodeKind[] },
+  { id: "ai", label: "IA", icon: Bot, kinds: [] as ProjectNodeKind[] },
+  { id: "prod", label: "Prod.", icon: LayoutGrid, kinds: ["site", "landing_page", "automacao", "ia", "integracao", "funil"] as ProjectNodeKind[] },
+  { id: "mkt", label: "Mkt", icon: Megaphone, kinds: ["trafego", "email_mkt", "social", "lancamento"] as ProjectNodeKind[] },
+  { id: "proof", label: "Prova", icon: Trophy, kinds: ["metrica", "before_after", "case"] as ProjectNodeKind[] },
+];
 const OPS_FLOW_X: Record<string, number> = {
   context: 120,
   instruction: 120,
