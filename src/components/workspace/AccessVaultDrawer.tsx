@@ -13,7 +13,7 @@
  * credenciais não cabem no fluxo blueprint genérico.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -219,7 +219,7 @@ export default function AccessVaultDrawer({
           </div>
 
           {/* ─── Body ─── */}
-          <ScrollArea className="flex-1">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
             <div className="px-5 py-4 space-y-5">
               {loading ? (
                 <div className="flex items-center justify-center py-12">
@@ -349,7 +349,7 @@ export default function AccessVaultDrawer({
                 })
               )}
             </div>
-          </ScrollArea>
+          </div>
         </DialogContent>
       </Dialog>
 
