@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, useDeferredValue } from "react";
+import { memo, useState, useEffect, useCallback, useMemo, useRef, useDeferredValue } from "react";
 import {
   ReactFlow, ReactFlowProvider, Background,
   applyNodeChanges, applyEdgeChanges,
@@ -6,7 +6,7 @@ import {
   type ReactFlowInstance, type Viewport, SelectionMode, MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow, MousePointer2, Hand, Lock, Grid3X3, Camera, Type, Image, FileStack, Bot, Megaphone, Trophy, Minus, ZoomIn, ZoomOut } from "lucide-react";
+import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow, MousePointer2, Hand, Lock, Grid3X3, Camera, Type, Image, FileStack, Bot, Megaphone, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -135,7 +135,7 @@ function nodeLabel(row: CanvasNodeRow) {
   return getProjectTypeMeta(kind)?.shortLabel ?? row.title;
 }
 
-function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNodeRow) {
+export function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNodeRow) {
   const sourceKind = nodeKindOf(source);
   const targetKind = nodeKindOf(target);
   const sourceLabel = nodeLabel(source);
