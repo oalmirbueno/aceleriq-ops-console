@@ -537,8 +537,10 @@ function CanvasStudioInner({
           workspaceId,
           onPrefilled: fetchData,
           onQuickConnect: (dir: "right" | "bottom") => quickConnectFromNode(n.id, dir),
+          onDelete: () => { void handleDeleteNode(n.id); },
           canExpandHub: nodeKindOf(n) === "engine",
           onExpandHub: () => expandEngineHubRef.current?.(n.id),
+          typeData: dataObj,
         } satisfies ProjectNodeData,
       };
     });
