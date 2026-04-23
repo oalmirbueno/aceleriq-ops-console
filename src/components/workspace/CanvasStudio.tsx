@@ -17,6 +17,7 @@ import { toast } from "@/hooks/use-toast";
 import ProjectNodeCard, { type ProjectNodeData } from "./ProjectNodeCard";
 import CanvasGroupNode from "./CanvasGroupNode";
 import AiOrbNode, { type AiOrbType } from "./AiOrbNode";
+import AiOrbConfigPanel from "./AiOrbConfigPanel";
 import ProjectNodeDrawer from "./ProjectNodeDrawer";
 import CanvasInspector from "./CanvasInspector";
 import CanvasClientPicker from "./CanvasClientPicker";
@@ -31,6 +32,9 @@ import {
 } from "./canvasProjectTypes";
 import { mapLegacyStatus, premiumStatusToDb } from "./canvasEsteiraStatus";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
+import { AI_ORBS, createAiOrbData } from "./aiOrbConstants";
+import { generatedNodePosition, validateOrbConnection } from "./aiOrbConnections";
+import { invokeAiOrbGenerate, nextOrbDataAfterGeneration, readAiOrbData } from "./aiOrbEngine";
 
 // CanvasStudio é uma camada visual operacional complementar: não substitui o briefing mestre,
 // não cria nova lógica/tabela de sinais estruturados e não usa IA opaca como núcleo decisório.
@@ -112,17 +116,6 @@ const RESULT_KINDS = new Set(["resultado", "landing_page", "site", "conteudo", "
 const DECISION_KINDS = new Set(["decisao"]);
 const PROOF_KINDS = new Set(["metrica", "before_after", "case"]);
 const FLOW_GRAMMAR = ["Contexto", "Instrução", "Engine", "Resultado", "Decisão", "Prova"];
-const AI_ORB_KINDS = new Set(["ai_orb"]);
-const AI_ORB_INPUT_KINDS = new Set([...INPUT_KINDS, ...INSTRUCTION_KINDS, "funil", "checklist"]);
-const AI_ORB_OUTPUT_KINDS = new Set([...RESULT_KINDS, "automacao", "ia", "integracao", "agente"]);
-const AI_ORBS: Array<{ type: AiOrbType; label: string; specialization: string }> = [
-  { type: "planner", label: "Planejar", specialization: "plano operacional" },
-  { type: "docs", label: "Docs", specialization: "BMC · ICP · SOP" },
-  { type: "content", label: "Conteúdo", specialization: "copy · calendário" },
-  { type: "tech", label: "Tech", specialization: "n8n · integrações" },
-  { type: "proof", label: "Provas", specialization: "KPI · case" },
-  { type: "full", label: "Tudo", specialization: "esteira completa" },
-];
 
 export function buildAiOrbNodePayload({
   orbType, workspaceId, clientId, parentNodeId, x, y,
@@ -145,7 +138,7 @@ export function buildAiOrbNodePayload({
     pos_x: x,
     pos_y: y,
     parent_node_id: parentNodeId,
-    data: { kind: "ai_orb", orbType, orbLabel: orb.label, specialization: orb.specialization, aiModel: "internal", isGenerating: false },
+    data: createAiOrbData(orbType),
   };
 }
 const DOCK_GROUPS = [
