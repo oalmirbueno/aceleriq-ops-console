@@ -5,7 +5,10 @@ import {
 
 export type CanvasNodeType =
   | "client" | "dossier" | "context" | "front" | "task"
-  | "asset" | "metric" | "before_after" | "case";
+  | "asset" | "metric" | "before_after" | "case"
+  | "site" | "landing_page" | "automation" | "ai_agent"
+  | "content" | "traffic" | "knowledge" | "diagnosis"
+  | "ai_orb";
 
 export type CanvasNodeStatus = "draft" | "active" | "blocked" | "done";
 
