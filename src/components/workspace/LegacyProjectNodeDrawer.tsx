@@ -495,7 +495,7 @@ export default function ProjectNodeDrawer({
             Salvar alterações
           </Button>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
