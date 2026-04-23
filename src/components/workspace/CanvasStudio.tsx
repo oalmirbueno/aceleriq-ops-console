@@ -781,6 +781,91 @@ function CanvasStudioInner({
     if (data) setDbNodes((prev) => [...prev, data as CanvasNodeRow]);
   }, [clientId, dbNodes, ensureActiveClient, workspaceId]);
 
+  const patchAiOrbData = useCallback((patch: Record<string, unknown>) => {
+    if (!aiOrbConfigNode) return;
+    const nextData = { ...readAiOrbData(aiOrbConfigNode.data as Record<string, unknown> | null), ...patch };
+    setAiOrbConfigNode((current) => current ? { ...current, data: nextData } : current);
+    setDbNodes((prev) => prev.map((node) => node.id === aiOrbConfigNode.id ? { ...node, data: nextData } : node));
+    supabase.from("canvas_nodes").update({ data: nextData, updated_at: new Date().toISOString() }).eq("id", aiOrbConfigNode.id).then(({ error }) => {
+      if (error) toast({ title: "Erro ao atualizar Orb", description: error.message, variant: "destructive" });
+    });
+  }, [aiOrbConfigNode]);
+
+  const generateFromAiOrb = useCallback(async (deterministic = false) => {
+    if (!aiOrbConfigNode) return;
+    const orb = readAiOrbData(aiOrbConfigNode.data as Record<string, unknown> | null);
+    const generatingData = { ...orb, isGenerating: true, lastError: undefined };
+    setBusyAction(`ai-orb-${aiOrbConfigNode.id}`);
+    setDbNodes((prev) => prev.map((node) => node.id === aiOrbConfigNode.id ? { ...node, data: generatingData } : node));
+    setAiOrbConfigNode((current) => current ? { ...current, data: generatingData } : current);
+    await supabase.from("canvas_nodes").update({ data: generatingData, updated_at: new Date().toISOString() }).eq("id", aiOrbConfigNode.id);
+
+    try {
+      const result = await invokeAiOrbGenerate({
+        orbId: aiOrbConfigNode.id,
+        workspaceId,
+        clientId,
+        orbType: orb.orbType,
+        aiEngine: orb.aiEngine,
+        customPrompt: orb.systemPrompt,
+        focusAreas: orb.focusAreas,
+        deterministic,
+      });
+      const orbX = Number(aiOrbConfigNode.pos_x ?? OPS_FLOW_X.engine);
+      const orbY = Number(aiOrbConfigNode.pos_y ?? CONTENT_TOP + 520);
+      const parent = aiOrbConfigNode.parent_node_id ?? ensureActiveClient();
+      if (!parent) return;
+
+      const createdByRef: Record<string, CanvasNodeRow> = {};
+      const createdNodes: CanvasNodeRow[] = [];
+      for (const [index, spec] of result.nodes.entries()) {
+        const pos = generatedNodePosition(orbX, orbY, index, result.nodes.length);
+        const { data, error } = await supabase.from("canvas_nodes").insert({
+          workspace_id: workspaceId,
+          client_id: clientId,
+          node_type: projectKindToDbNodeType(spec.kind),
+          title: spec.title,
+          status: "draft",
+          description: spec.description,
+          pos_x: pos.x,
+          pos_y: pos.y,
+          parent_node_id: parent,
+          data: { kind: spec.kind, stage: spec.stage, checklist: getChecklistTemplate(spec.kind), generatedByAiOrb: aiOrbConfigNode.id, rationale: result.rationale },
+        }).select().single();
+        if (error || !data) throw error ?? new Error("Falha ao criar node gerado pelo Orb.");
+        createdByRef[spec.ref] = data as CanvasNodeRow;
+        createdNodes.push(data as CanvasNodeRow);
+      }
+
+      const generatedEdges = [
+        ...createdNodes.map((node) => ({ source_node_id: aiOrbConfigNode.id, target_node_id: node.id, label: "gerado por IA" })),
+        ...result.edges.map((edge) => {
+          const source = createdByRef[edge.fromRef]?.id;
+          const target = createdByRef[edge.toRef]?.id;
+          return source && target ? { source_node_id: source, target_node_id: target, label: edge.label ?? "próxima" } : null;
+        }).filter(Boolean) as Array<{ source_node_id: string; target_node_id: string; label: string | null }>,
+      ];
+
+      const { data: edgeRows, error: edgeError } = await supabase.from("canvas_edges").insert(generatedEdges.map((edge) => ({ workspace_id: workspaceId, edge_type: "ai", ...edge }))).select();
+      if (edgeError) throw edgeError;
+
+      const finalData = nextOrbDataAfterGeneration(orb, result, createdNodes.map((node) => node.id));
+      await supabase.from("canvas_nodes").update({ data: finalData, updated_at: new Date().toISOString() }).eq("id", aiOrbConfigNode.id);
+      setDbNodes((prev) => prev.map((node) => node.id === aiOrbConfigNode.id ? { ...node, data: finalData } : node).concat(createdNodes));
+      if (edgeRows?.length) setDbEdges((prev) => prev.concat(edgeRows as CanvasEdgeRecord[]));
+      setAiOrbConfigNode((current) => current ? { ...current, data: finalData } : current);
+      toast({ title: "AI Orb executado", description: `${createdNodes.length} nodes e ${edgeRows?.length ?? 0} conexões gerados.` });
+    } catch (err) {
+      const failedData = { ...orb, isGenerating: false, lastError: err instanceof Error ? err.message : "Falha ao gerar." };
+      await supabase.from("canvas_nodes").update({ data: failedData, updated_at: new Date().toISOString() }).eq("id", aiOrbConfigNode.id);
+      setDbNodes((prev) => prev.map((node) => node.id === aiOrbConfigNode.id ? { ...node, data: failedData } : node));
+      setAiOrbConfigNode((current) => current ? { ...current, data: failedData } : current);
+      toast({ title: "Erro ao gerar com Orb", description: failedData.lastError, variant: "destructive" });
+    } finally {
+      setBusyAction(null);
+    }
+  }, [aiOrbConfigNode, clientId, ensureActiveClient, workspaceId]);
+
   const expandEngineHub = useCallback(async (engineNodeId: string) => {
     const engineNode = dbNodes.find((node) => node.id === engineNodeId);
     if (!engineNode) return;
