@@ -1,69 +1,24 @@
 /**
- * ProjectNodeDrawer (router)
- *
- * Despacha para o drawer especializado conforme `node.node_type`:
- *  - "briefing" → BriefingNodeDrawer (genérico + BriefingConsolidatedView)
- *  - kinds com blueprint → SpecializedNodeDrawer (objetivo, documento, site,
- *    landing_page, conteudo, asset, lancamento, trafego, metrica, reuniao)
- *  - resto → LegacyProjectNodeDrawer (rico, manual, com tabs/copy/links/anexos)
- *
- * Mantém a mesma assinatura de Props do drawer legado, então o CanvasStudio
- * não precisa mudar.
+ * ProjectNodeDrawer — router central.
+ * Roteia para o drawer específico de cada tipo de node.
+ * Cada tipo tem seu drawer com lógica, visual e ações únicas.
  */
 import LegacyProjectNodeDrawer, { type ClientFolderOption } from "./LegacyProjectNodeDrawer";
 import BriefingNodeDrawer from "./BriefingNodeDrawer";
-import SpecializedNodeDrawer from "./SpecializedNodeDrawer";
 import AccessVaultDrawer from "./AccessVaultDrawer";
 import FunnelEditorDrawer from "./FunnelEditorDrawer";
-import SiteNodeDrawer from "./SiteNodeDrawer";
 import LancamentoNodeDrawer from "./LancamentoNodeDrawer";
-import MetricaNodeDrawer from "./MetricaNodeDrawer";
 import KickoffNodeDrawer from "./KickoffNodeDrawer";
-import DiagnosticoNodeDrawer from "./DiagnosticoNodeDrawer";
-import IaAgentNodeDrawer from "./IaAgentNodeDrawer";
+import {
+  LandingPageDrawer, CRMDrawer, AutomacaoDrawer, ConteudoDrawer,
+  TrafegoPagoDrawer, IAAgentDrawer, MetricaDrawerV2, ObjetivoDrawer,
+  CaseDrawer, DecisaoDrawer,
+} from "./NodeDrawers";
 import OperationalNodeDrawer from "./OperationalNodeDrawer";
-import { useNodeQuickActions } from "@/hooks/useNodeQuickActions";
-import { hasBlueprint } from "./nodeBlueprints";
 import { resolveProjectNodeKind, type ProjectNodeKind } from "./canvasProjectTypes";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 
 export type { ClientFolderOption };
-
-/** Wrapper genérico: SpecializedNodeDrawer + handlers padrão (tasks/pdf/snapshot) */
-function SpecializedGenericDrawer(args: {
-  node: CanvasNodeRecord & { parent_node_id?: string | null };
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  workspaceId: string;
-  clientId: string;
-  clientName?: string;
-  onDelete?: (id: string) => Promise<void> | void;
-  onUpdated?: () => Promise<void> | void;
-  availableNodes?: Array<CanvasNodeRecord & { parent_node_id?: string | null }>;
-}) {
-  const { handlers, dialogs } = useNodeQuickActions({
-    node: args.node, open: args.open,
-    workspaceId: args.workspaceId, clientId: args.clientId,
-    clientName: args.clientName, onChanged: args.onUpdated,
-  });
-  return (
-    <>
-      <SpecializedNodeDrawer
-        node={args.node}
-        open={args.open}
-        onOpenChange={args.onOpenChange}
-        workspaceId={args.workspaceId}
-        clientId={args.clientId}
-        clientName={args.clientName}
-        quickActionHandlers={handlers}
-        onDelete={args.onDelete}
-        availableNodes={args.availableNodes}
-        onUpdated={args.onUpdated}
-      />
-      {dialogs}
-    </>
-  );
-}
 
 interface Props {
   node: (CanvasNodeRecord & { parent_node_id?: string | null }) | null;
@@ -82,165 +37,77 @@ export default function ProjectNodeDrawer(props: Props) {
   const { node } = props;
   if (!node) return null;
 
-  const kind = resolveProjectNodeKind({
-    nodeType: node.node_type,
-    data: node.data,
-  }) as ProjectNodeKind | null;
-
-  // Resolve clientId from the parent client folder, if available
+  const kind = resolveProjectNodeKind({ nodeType: node.node_type, data: node.data }) as ProjectNodeKind | null;
   const parentFolder = props.clientFolders?.find((c) => c.id === node.parent_node_id);
   const clientId = parentFolder?.linkedClientId ?? null;
   const clientName = parentFolder?.name ?? "Cliente";
 
-  if (!kind) {
+  // ── Sem kind → Legacy fallback
+  if (!kind) return <LegacyProjectNodeDrawer {...props} />;
+
+  // Shared props passados a todos os drawers específicos
+  const shared = {
+    node,
+    open: props.open,
+    onOpenChange: props.onOpenChange,
+    workspaceId: props.workspaceId,
+    clientId: clientId ?? "",
+    clientName,
+    onDelete: props.onDelete,
+    onUpdated: props.onUpdated,
+    onOpenChat: props.onOpenChat,
+  };
+
+  // ── COFRE (acessos) — sem clientId ainda aceito via node
+  if (kind === "acessos") {
+    if (clientId) return <AccessVaultDrawer node={node} open={props.open} onOpenChange={props.onOpenChange} workspaceId={props.workspaceId} clientId={clientId} clientName={clientName} onDelete={props.onDelete} />;
     return <LegacyProjectNodeDrawer {...props} />;
   }
 
-  // Acessos: drawer 100% custom (cofre criptografado)
-  if (kind === "acessos" && clientId) {
-    return (
-      <AccessVaultDrawer
-        node={node}
-        open={props.open}
-        onOpenChange={props.onOpenChange}
-        workspaceId={props.workspaceId}
-        clientId={clientId}
-        clientName={clientName}
-        onDelete={props.onDelete}
-      />
-    );
-  }
-
-  // Funil: editor visual completo (pipeline + ramificações)
+  // ── FUNIL — editor visual próprio
   if (kind === "funil" && clientId) {
-    return (
-      <FunnelEditorDrawer
-        node={node}
-        open={props.open}
-        onOpenChange={props.onOpenChange}
-        workspaceId={props.workspaceId}
-        clientId={clientId}
-        clientName={clientName}
-        onDelete={props.onDelete}
-      />
-    );
+    return <FunnelEditorDrawer node={node} open={props.open} onOpenChange={props.onOpenChange} workspaceId={props.workspaceId} clientId={clientId} clientName={clientName} onDelete={props.onDelete} />;
   }
 
-  // Briefing tem extraSlot com BriefingConsolidatedView
+  // ── BRIEFING — escolhe existente + consolida com IA
   if (kind === "briefing" && clientId) {
-    return (
-      <BriefingNodeDrawer
-        node={node}
-        open={props.open}
-        onOpenChange={props.onOpenChange}
-        workspaceId={props.workspaceId}
-        clientId={clientId}
-        clientName={clientName}
-        onDelete={props.onDelete}
-      />
-    );
+    return <BriefingNodeDrawer node={node} open={props.open} onOpenChange={props.onOpenChange} workspaceId={props.workspaceId} clientId={clientId} clientName={clientName} onDelete={props.onDelete} />;
   }
 
-  // Diagnóstico (documento cujo título contém "diagn"):
-  // sections estruturais + painel de docs do Contexto auto-puxados
-  if (kind === "documento" && clientId && node.title?.toLowerCase().includes("diagn")) {
-    return (
-      <DiagnosticoNodeDrawer
-        node={node}
-        open={props.open}
-        onOpenChange={props.onOpenChange}
-        workspaceId={props.workspaceId}
-        clientId={clientId}
-        clientName={clientName}
-        onDelete={props.onDelete}
-        onUpdated={props.onUpdated}
-      />
-    );
-  }
-
-  // Site: preview hero + meta + botão SiteBolt
-  if (kind === "site" && clientId) {
-    return (
-      <SiteNodeDrawer
-        node={node}
-        open={props.open}
-        onOpenChange={props.onOpenChange}
-        workspaceId={props.workspaceId}
-        clientId={clientId}
-        onDelete={props.onDelete}
-      />
-    );
-  }
-
-  // Lançamento: timeline pré-launch (T-7 → T+1)
+  // ── LANÇAMENTO — timeline T-7 → T+1
   if (kind === "lancamento" && clientId) {
-    return (
-      <LancamentoNodeDrawer
-        node={node}
-        open={props.open}
-        onOpenChange={props.onOpenChange}
-        workspaceId={props.workspaceId}
-        clientId={clientId}
-        onDelete={props.onDelete}
-      />
-    );
+    return <LancamentoNodeDrawer node={node} open={props.open} onOpenChange={props.onOpenChange} workspaceId={props.workspaceId} clientId={clientId} onDelete={props.onDelete} />;
   }
 
-  // Métrica: gráfico de snapshots históricos
-  if (kind === "metrica" && clientId) {
-    return (
-      <MetricaNodeDrawer
-        node={node}
-        open={props.open}
-        onOpenChange={props.onOpenChange}
-        workspaceId={props.workspaceId}
-        clientId={clientId}
-        onDelete={props.onDelete}
-      />
-    );
-  }
-
-  // Kickoff / reunião: card resumo + export .ics local
+  // ── REUNIÃO / KICKOFF
   if (kind === "reuniao" && clientId) {
-    return (
-      <KickoffNodeDrawer
-        node={node}
-        open={props.open}
-        onOpenChange={props.onOpenChange}
-        workspaceId={props.workspaceId}
-        clientId={clientId}
-        clientName={clientName}
-        onDelete={props.onDelete}
-      />
-    );
+    return <KickoffNodeDrawer node={node} open={props.open} onOpenChange={props.onOpenChange} workspaceId={props.workspaceId} clientId={clientId} clientName={clientName} onDelete={props.onDelete} />;
   }
 
-  // Tipos operacionais: usam o drawer enxuto OperationalNodeDrawer
-  // (landing_page, case, ia, agente, automacao, crm, site, metrica, conteudo, briefing, etc)
+  // ── DRAWERS ESPECÍFICOS NOVOS ─────────────────────────────────
+  if (!clientId) return <LegacyProjectNodeDrawer {...props} />;
+
+  if (kind === "landing_page") return <LandingPageDrawer {...shared} />;
+  if (kind === "crm")          return <CRMDrawer          {...shared} />;
+  if (kind === "automacao")    return <AutomacaoDrawer    {...shared} />;
+  if (kind === "conteudo" || kind === "video" || kind === "imagem") return <ConteudoDrawer {...shared} />;
+  if (kind === "trafego" || kind === "email_mkt" || kind === "social") return <TrafegoPagoDrawer {...shared} />;
+  if (kind === "ia" || kind === "agente")  return <IAAgentDrawer {...shared} />;
+  if (kind === "metrica")      return <MetricaDrawerV2 {...shared} />;
+  if (kind === "objetivo")     return <ObjetivoDrawer  {...shared} />;
+  if (kind === "case")         return <CaseDrawer      {...shared} />;
+  if (kind === "decisao")      return <DecisaoDrawer   {...shared} />;
+
+  // ── OPERATIONAL para tipos que têm config mas sem drawer dedicado
   const OPERATIONAL_KINDS: ProjectNodeKind[] = [
-    "landing_page", "case", "ia", "agente", "automacao", "crm",
-    "site", "metrica", "conteudo", "briefing", "contexto_ops",
-    "documento", "objetivo", "trafego", "email_mkt", "social",
-    "video", "imagem", "asset", "before_after", "instrucao",
-    "engine", "resultado", "decisao", "funil", "integracao",
-    "ideia", "contato", "reuniao", "checklist",
+    "site", "integracao", "asset", "before_after",
+    "instrucao", "engine", "resultado", "ideia", "contato",
+    "checklist", "contexto_ops", "documento",
   ];
-  if (clientId && OPERATIONAL_KINDS.includes(kind)) {
-    return (
-      <OperationalNodeDrawer
-        node={node}
-        open={props.open}
-        onOpenChange={props.onOpenChange}
-        workspaceId={props.workspaceId}
-        clientId={clientId}
-        clientName={clientName}
-        onDelete={props.onDelete}
-        onUpdated={props.onUpdated}
-        onOpenChat={props.onOpenChat}
-      />
-    );
+  if (OPERATIONAL_KINDS.includes(kind)) {
+    return <OperationalNodeDrawer node={node} open={props.open} onOpenChange={props.onOpenChange} workspaceId={props.workspaceId} clientId={clientId} clientName={clientName} onDelete={props.onDelete} onUpdated={props.onUpdated} onOpenChat={props.onOpenChat} />;
   }
 
-  // Fallback: drawer legado completo (campos, tabs, copy, links, anexos, mover de pasta)
+  // ── Legacy fallback para tudo que não foi coberto
   return <LegacyProjectNodeDrawer {...props} />;
 }
