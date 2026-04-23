@@ -349,6 +349,7 @@ function CanvasStudioInner({
    */
   const viewportScope = `canvas:viewport:${workspaceId}:${activeClientId ?? "all"}`;
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
+  const expandEngineHubRef = useRef<((engineNodeId: string) => void | Promise<void>) | null>(null);
   const restoredScopesRef = useRef<Set<string>>(new Set());
   const saveTimerRef = useRef<number | null>(null);
 
@@ -457,7 +458,7 @@ function CanvasStudioInner({
           operationalMeta,
           onQuickConnect: (dir: "right" | "bottom") => quickConnectFromNode(n.id, dir),
           canExpandHub: nodeKindOf(n) === "engine",
-          onExpandHub: () => expandEngineHub(n.id),
+          onExpandHub: () => expandEngineHubRef.current?.(n.id),
         } satisfies ProjectNodeData,
       };
     });
@@ -928,6 +929,10 @@ function CanvasStudioInner({
       setBusyAction(null);
     }
   }, [clientId, dbEdges, dbNodes, ensureActiveClient, workspaceId]);
+
+  useEffect(() => {
+    expandEngineHubRef.current = expandEngineHub;
+  }, [expandEngineHub]);
 
   /* Pick existing client → group */
   const handlePickClient = async (c: { id: string; name: string }) => {
