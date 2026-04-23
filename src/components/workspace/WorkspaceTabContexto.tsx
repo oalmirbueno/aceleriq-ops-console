@@ -750,18 +750,18 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
             </Button>
           </div>
         ) : (
-          <div>
+          <div className="space-y-4 p-4">
             {KNOWLEDGE_TYPES.map(({ types, label, icon: Icon, color, hint }) => {
               const items = knowledge.filter((e) => types.includes(e.context_type as ContextType));
               if (items.length === 0) return null;
               return (
-                <div key={label} className="border-b border-border/30 last:border-0">
-                  <div className="flex items-center gap-2 px-4 py-2 bg-secondary/10">
+                <div key={label} className="rounded-lg border border-border/60 bg-background/40 overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-2 bg-secondary/20">
                     <Icon className="h-3 w-3 shrink-0" style={{ color }} />
                     <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color }}>{label}</span>
                     <span className="text-[10px] text-muted-foreground/60">{items.length}</span>
                   </div>
-                  <div className="divide-y divide-border/20">
+                  <div className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3">
                     {items.map((e) => (
                       <EntryCard key={e.id} entry={e} color={color}
                         onClick={() => openSheet(e, "entry")}
@@ -780,7 +780,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
         <HubSection icon={MessageSquare} label="Alinhamentos" color="#F59E0B"
           count={alignments.length}
           hint="Reuniões e transcrições" defaultOpen={false}>
-          <div className="divide-y divide-border/30">
+          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
             {alignments.map((e) => (
               <EntryCard key={e.id} entry={e} color="#F59E0B"
                 onClick={() => openSheet(e, "entry")}
