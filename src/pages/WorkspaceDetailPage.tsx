@@ -252,11 +252,7 @@ async function fetchAllTimelineEvents(workspaceId: string) {
   return { events: all, total };
 }
 
-interface WorkspaceDetailPageProps {
-  mode?: "preview" | "execution";
-}
-
-export default function WorkspaceDetailPage({ mode = "preview" }: WorkspaceDetailPageProps) {
+export default function WorkspaceDetailPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -269,13 +265,13 @@ export default function WorkspaceDetailPage({ mode = "preview" }: WorkspaceDetai
   const [triageLoading, setTriageLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
   const [refreshingProgress, setRefreshingProgress] = useState(false);
-  const showFullWorkspace = mode === "execution";
+  const showFullWorkspace = true;
   const [movementsOpen, setMovementsOpen] = useState(false);
   const [eventTypeFilter, setEventTypeFilter] = useState("__all__");
   const [movementDate, setMovementDate] = useState<Date | undefined>();
   const [movementSearch, setMovementSearch] = useState("");
   const [visibleMovements, setVisibleMovements] = useState(MOVEMENTS_PAGE_SIZE);
-  const [activeTab, setActiveTab] = useState(searchParams.get("tab") ?? (showFullWorkspace ? "contexto" : "resumo"));
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") ?? "resumo");
   const [canvasStatusShortcut, setCanvasStatusShortcut] = useState<string | null>(searchParams.get("status"));
   const [completedTriageKeys, setCompletedTriageKeys] = useState<string[]>([]);
   const [completedPreEntryActions, setCompletedPreEntryActions] = useState<string[]>([]);
@@ -346,7 +342,7 @@ export default function WorkspaceDetailPage({ mode = "preview" }: WorkspaceDetai
   }, [workspaceId]);
 
   useEffect(() => {
-    if (!workspaceId || mode !== "preview" || searchParams.get("view") !== "full") return;
+    if (!workspaceId || searchParams.get("view") !== "full") return;
 
     const nextParams = new URLSearchParams();
     const tab = searchParams.get("tab");
@@ -356,13 +352,13 @@ export default function WorkspaceDetailPage({ mode = "preview" }: WorkspaceDetai
     if (status) nextParams.set("status", status);
 
     navigate(
-      `/ops/workspaces/${workspaceId}/execution${nextParams.toString() ? `?${nextParams.toString()}` : ""}`,
+      `/ops/workspaces/${workspaceId}${nextParams.toString() ? `?${nextParams.toString()}` : ""}`,
       { replace: true },
     );
-  }, [workspaceId, searchParams, navigate, mode]);
+  }, [workspaceId, searchParams, navigate]);
 
   useEffect(() => {
-    setActiveTab(searchParams.get("tab") ?? (showFullWorkspace ? "contexto" : "resumo"));
+    setActiveTab(searchParams.get("tab") ?? "resumo");
     setCanvasStatusShortcut(searchParams.get("status"));
   }, [searchParams, showFullWorkspace]);
 

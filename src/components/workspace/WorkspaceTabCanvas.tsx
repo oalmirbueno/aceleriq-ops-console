@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { useNavigate } from "react-router-dom";
 import CanvasStudio from "./CanvasStudio";
 
 interface Props {
@@ -11,32 +10,20 @@ interface Props {
 }
 
 export default function WorkspaceTabCanvas(props: Props) {
-  const [fullscreen, setFullscreen] = useState(false);
+  const navigate = useNavigate();
+  const openGlobalCanvas = () => {
+    const params = new URLSearchParams({ workspaceId: props.workspaceId, clientId: props.clientId, clientName: props.clientName });
+    navigate(`/ops/canvas?${params.toString()}`);
+  };
 
   return (
-    <>
-      <div className="animate-fade-in">
-        <CanvasStudio
-          {...props}
-          fullscreen={false}
-          onToggleFullscreen={() => setFullscreen(true)}
-        />
+    <div className="animate-fade-in space-y-3">
+      <div className="flex justify-end">
+        <button type="button" onClick={openGlobalCanvas} className="rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/15">
+          Abrir canvas completo ↗
+        </button>
       </div>
-
-      <Dialog open={fullscreen} onOpenChange={setFullscreen}>
-        <DialogContent
-          className="max-w-none w-screen h-screen p-0 gap-0 rounded-none border-0 sm:rounded-none translate-x-0 translate-y-0 left-0 top-0 data-[state=open]:slide-in-from-bottom-2"
-          style={{ transform: "none" }}
-        >
-          <div className="h-screen w-screen">
-            <CanvasStudio
-              {...props}
-              fullscreen={true}
-              onToggleFullscreen={() => setFullscreen(false)}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
+      <CanvasStudio {...props} fullscreen={false} onToggleFullscreen={openGlobalCanvas} />
+    </div>
   );
 }

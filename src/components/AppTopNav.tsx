@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Users, FolderKanban, LogOut, Settings, Brain,
-  MoreHorizontal, Menu, X,
+  MoreHorizontal, Menu, X, Network,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { isAdmin } from "@/lib/adminCheck";
@@ -21,6 +21,7 @@ const mainNav: NavItem[] = [
   { title: "Dashboard", url: "/ops", icon: LayoutDashboard, end: true },
   { title: "Clientes", url: "/ops/clients", icon: Users },
   { title: "Workspaces", url: "/ops/workspaces", icon: FolderKanban },
+  { title: "Canvas", url: "/ops/canvas", icon: Network },
 ];
 
 const adminNav: NavItem[] = [
@@ -70,25 +71,24 @@ export default function AppTopNav() {
   }, [location.pathname]);
 
   const linkBase =
-    "relative px-3 py-1.5 text-[13px] rounded-md transition-colors";
+    "relative inline-flex items-center gap-1.5 px-3 py-2 text-[13px] rounded-md transition-colors";
   const linkInactive = "text-muted-foreground hover:text-foreground";
   const linkActive = "text-foreground";
 
   return (
     <>
       <nav
-        className="fixed top-3 left-1/2 -translate-x-1/2 w-[95%] max-w-[1400px] z-50 h-[88px] rounded-xl flex items-center px-5 gap-4 text-foreground"
+        className="fixed top-0 left-0 right-0 z-50 h-[52px] flex items-center px-4 sm:px-6 gap-4 text-foreground border-b border-border/50"
         style={{
-          background: "hsl(var(--card) / 0.85)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          border: "1px solid hsl(var(--border) / 0.6)",
-          boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
+          background: "hsl(var(--card) / 0.92)",
+          backdropFilter: "blur(24px)",
+          WebkitBackdropFilter: "blur(24px)",
+          boxShadow: "0 1px 16px rgba(0,0,0,0.25)",
         }}
       >
         {/* Logo */}
         <div className="flex items-center shrink-0">
-          <img src={logo} alt="Aceleriq" className="h-20 w-auto" />
+          <img src={logo} alt="Aceleriq" className="h-7 w-auto" />
         </div>
 
         {/* Desktop nav */}
@@ -104,9 +104,10 @@ export default function AppTopNav() {
             >
               {({ isActive }) => (
                 <>
+                  <item.icon className="h-3.5 w-3.5" />
                   {item.title}
                   {isActive && (
-                    <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+                    <span className={cn("absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary", item.title === "Canvas" && "pulse-dot")} />
                   )}
                 </>
               )}
@@ -158,8 +159,8 @@ export default function AppTopNav() {
         <div className="flex items-center gap-1 shrink-0">
           <div className="relative" ref={userRef}>
             <button onClick={() => setUserOpen((v) => !v)} aria-label="Conta">
-              <Avatar className="w-7 h-7 cursor-pointer">
-                <AvatarFallback className="bg-primary/15 text-primary text-[10px] font-semibold">
+              <Avatar className="w-8 h-8 cursor-pointer">
+                <AvatarFallback className="bg-primary/15 text-primary text-[11px] font-semibold">
                   {initialsFor(fullName, user?.email)}
                 </AvatarFallback>
               </Avatar>
@@ -203,7 +204,7 @@ export default function AppTopNav() {
             className="absolute inset-0 bg-background/90 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
           />
-          <div className="absolute inset-x-0 top-[68px] mx-3 rounded-xl bg-popover border border-border p-3 shadow-lg animate-fade-in">
+          <div className="absolute inset-x-0 top-[60px] mx-3 rounded-xl bg-popover border border-border p-3 shadow-lg animate-fade-in">
             {[...mainNav, ...moreItems].map((item) => (
               <NavLink
                 key={item.url}
