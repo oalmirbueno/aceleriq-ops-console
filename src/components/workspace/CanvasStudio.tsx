@@ -507,13 +507,16 @@ function CanvasStudioInner({
           clientSeed: owner?.seed ?? null,
           clientLogoUrl: owner?.logoUrl ?? null,
           operationalMeta,
+          nodeId: n.id,
+          workspaceId,
+          onPrefilled: fetchData,
           onQuickConnect: (dir: "right" | "bottom") => quickConnectFromNode(n.id, dir),
           canExpandHub: nodeKindOf(n) === "engine",
           onExpandHub: () => expandEngineHubRef.current?.(n.id),
         } satisfies ProjectNodeData,
       };
     });
-  }, [visibleCanvasNodes, groupMeta, quickConnectFromNode, lockedNodes]);
+  }, [visibleCanvasNodes, groupMeta, workspaceId, fetchData, quickConnectFromNode, lockedNodes]);
 
   const reactFlowEdges = useMemo(() => {
     const visibleIds = new Set(visibleCanvasNodes.map((n) => n.id));
@@ -528,7 +531,7 @@ function CanvasStudioInner({
           target: e.target_node_id,
           label: intent.label,
           animated: intent.animated,
-          type: "smoothstep",
+          type: "bezier",
           className: intent.className,
           markerEnd: { type: MarkerType.ArrowClosed, color: intent.stroke, width: 18, height: 18 },
           style: { stroke: intent.stroke, strokeWidth: intent.strokeWidth },
