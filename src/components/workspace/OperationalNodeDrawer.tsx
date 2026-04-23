@@ -19,7 +19,6 @@
  */
 import { useEffect, useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -872,7 +871,7 @@ export default function OperationalNodeDrawer({
         </div>
 
         {/* Sections */}
-        <ScrollArea className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <div className="px-5 py-4 space-y-6">
             {config.sections.map((section) => (
               <section key={section.id}>
@@ -902,7 +901,7 @@ export default function OperationalNodeDrawer({
               </section>
             ))}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-border/40 flex items-center gap-2 bg-background/30 shrink-0">
