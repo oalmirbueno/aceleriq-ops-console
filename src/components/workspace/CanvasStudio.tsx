@@ -75,6 +75,13 @@ const CANVAS_TRANSLATE_EXTENT: [[number, number], [number, number]] = [
   [-CANVAS_PADDING, -CANVAS_PADDING],
   [TOTAL_STAGE_WIDTH + CANVAS_PADDING, CONTENT_TOP + STAGE_BAND_HEIGHT + CANVAS_PADDING],
 ];
+const FIT_VIEW_OPTIONS = { padding: 0.4 };
+const DEFAULT_EDGE_OPTIONS = { type: "smoothstep", animated: true };
+const PAN_ON_DRAG = [0, 1, 2] as const;
+const SELECTION_KEY_CODE = ["Shift"];
+const MULTI_SELECTION_KEY_CODE = ["Meta", "Control"];
+const CONNECTION_LINE_STYLE = { stroke: "hsl(var(--primary))", strokeWidth: 2.5 };
+const PRO_OPTIONS = { hideAttribution: true };
 
 function nodeStageOf(row: CanvasNodeRow): AceleraStageKey {
   const data = (row.data ?? {}) as Record<string, unknown>;
@@ -105,6 +112,31 @@ const AI_ORBS: Array<{ type: AiOrbType; label: string; specialization: string }>
   { type: "proof", label: "Provas", specialization: "KPI · case" },
   { type: "full", label: "Tudo", specialization: "esteira completa" },
 ];
+
+export function buildAiOrbNodePayload({
+  orbType, workspaceId, clientId, parentNodeId, x, y,
+}: {
+  orbType: AiOrbType;
+  workspaceId: string;
+  clientId: string;
+  parentNodeId: string;
+  x: number;
+  y: number;
+}) {
+  const orb = AI_ORBS.find((item) => item.type === orbType) ?? AI_ORBS[0];
+  return {
+    workspace_id: workspaceId,
+    client_id: clientId,
+    node_type: "ai_orb",
+    title: `AI Orb · ${orb.label}`,
+    status: "active",
+    description: orb.specialization,
+    pos_x: x,
+    pos_y: y,
+    parent_node_id: parentNodeId,
+    data: { kind: "ai_orb", orbType, orbLabel: orb.label, specialization: orb.specialization, aiModel: "internal", isGenerating: false },
+  };
+}
 const DOCK_GROUPS = [
   { id: "text", label: "Texto", icon: Type, kinds: ["instrucao", "conteudo"] as ProjectNodeKind[] },
   { id: "media", label: "Mídia", icon: Image, kinds: ["imagem", "video"] as ProjectNodeKind[] },
