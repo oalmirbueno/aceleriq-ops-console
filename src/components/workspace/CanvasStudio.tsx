@@ -530,8 +530,8 @@ function CanvasStudioInner({
 
   const onConnect = useCallback(async (conn: Connection) => {
     if (!conn.source || !conn.target || conn.source === conn.target) return;
-    const sourceNode = dbNodes.find((n) => n.id === conn.source);
-    const targetNode = dbNodes.find((n) => n.id === conn.target);
+    const sourceNode = dbNodesRef.current.find((n) => n.id === conn.source);
+    const targetNode = dbNodesRef.current.find((n) => n.id === conn.target);
     if (!sourceNode || !targetNode) return;
 
     const validation = validateCanvasConnection(sourceNode, targetNode);
@@ -544,7 +544,7 @@ function CanvasStudioInner({
       return;
     }
 
-    const alreadyExists = dbEdges.some((edge) => edge.source_node_id === conn.source && edge.target_node_id === conn.target);
+    const alreadyExists = dbEdgesRef.current.some((edge) => edge.source_node_id === conn.source && edge.target_node_id === conn.target);
     if (alreadyExists) {
       toast({ title: "Conexão já existe", description: "Esses nodes já estão ligados no canvas." });
       return;
@@ -568,15 +568,15 @@ function CanvasStudioInner({
     }
     if (data) setDbEdges((prev) => [...prev, data as CanvasEdgeRecord]);
     await onTimelineRefresh?.();
-  }, [workspaceId, onTimelineRefresh, dbNodes, dbEdges]);
+  }, [workspaceId, onTimelineRefresh]);
 
   const isValidConnection = useCallback((conn: Connection) => {
     if (!conn.source || !conn.target || conn.source === conn.target) return false;
-    const sourceNode = dbNodes.find((n) => n.id === conn.source);
-    const targetNode = dbNodes.find((n) => n.id === conn.target);
+    const sourceNode = dbNodesRef.current.find((n) => n.id === conn.source);
+    const targetNode = dbNodesRef.current.find((n) => n.id === conn.target);
     if (!sourceNode || !targetNode) return false;
     return validateCanvasConnection(sourceNode, targetNode).allowed;
-  }, [dbNodes]);
+  }, []);
 
   const onNodeClick = useCallback((_e: React.MouseEvent, node: Node) => {
     const found = dbNodes.find((n) => n.id === node.id);
