@@ -39,7 +39,7 @@ interface Props {
 interface ContextEntry {
   id: string; context_type: string; title: string; content: string;
   is_key_decision: boolean; metadata: Record<string, unknown> | null; tags: string[];
-  created_at: string;
+  created_at: string; source_url: string | null; source_label: string | null;
 }
 
 interface TaskSummary { total: number; done: number; in_progress: number; blocked: number; }
@@ -318,7 +318,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
   const load = useCallback(async () => {
     setLoading(true);
     const [ctxRes, taskRes] = await Promise.all([
-      supabase.from("context_entries").select("id,context_type,title,content,is_key_decision,metadata,tags,created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
+      supabase.from("context_entries").select("id,context_type,title,content,is_key_decision,metadata,tags,created_at,source_url,source_label").eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
       supabase.from("tasks").select("id,status").eq("workspace_id", workspaceId),
     ]);
     setContexts((ctxRes.data as ContextEntry[] | null) ?? []);
