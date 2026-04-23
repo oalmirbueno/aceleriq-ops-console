@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const AI_MODEL = "google/gemini-3-flash-preview";
+const AI_MODEL = "google/gemini-2.5-flash";
 
 const VALID_KINDS = ["briefing","ideia","reuniao","documento","acessos","objetivo","contato","checklist","funil","landing_page","site","automacao","ia","integracao","conteudo","video","imagem","asset","lancamento","trafego","email_mkt","social","crm","metrica","before_after","case","resultado","decisao","agente","instrucao","contexto_ops"] as const;
 const VALID_STAGES = ["entrada","diagnostico","estrutura_base","planejamento","producao","ativacao","otimizacao","expansao"] as const;
