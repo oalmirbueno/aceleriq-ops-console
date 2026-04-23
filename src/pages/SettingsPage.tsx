@@ -102,23 +102,52 @@ export default function SettingsPage() {
     <>
       <AppHeader title="Configurações" subtitle="Gerenciamento dos planos Aceleriq" />
 
-      <div className="p-6 animate-fade-in space-y-5 max-w-7xl">
+      <div className="p-6 animate-fade-in space-y-6 max-w-7xl">
         {/* Admin banner */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <Shield className="h-4 w-4 text-primary" />
-          <span className="text-sm text-muted-foreground">Acesso restrito — admin</span>
-          <Badge variant="outline" className="text-xs">{user?.email}</Badge>
-          <div className="flex-1" />
-          <Button onClick={handleSave} size="sm" className="h-8 gap-1.5">
-            <Save className="h-3.5 w-3.5" /> Salvar alterações
-          </Button>
-          <Button onClick={handleReset} variant="outline" size="sm" className="h-8 gap-1.5">
-            <RotateCcw className="h-3.5 w-3.5" /> Restaurar padrão ACELERA
-          </Button>
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card/40 px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 border border-primary/30">
+              <Shield className="h-4 w-4 text-primary" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs font-medium text-foreground">Área restrita — administrador</span>
+              <span className="text-[10px] text-muted-foreground font-mono">{user?.email}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleReset} variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+              <RotateCcw className="h-3.5 w-3.5" /> Restaurar padrão
+            </Button>
+            <Button onClick={handleSave} size="sm" className="h-8 gap-1.5 text-xs">
+              <Save className="h-3.5 w-3.5" /> Salvar alterações
+            </Button>
+          </div>
+        </div>
+
+        {/* Section title */}
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Planos comerciais</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Edite preço, entregáveis, etapas ACELERA cobertas e rituais de cada plano.
+            </p>
+          </div>
+          <div className="flex items-center gap-1 bg-secondary/60 rounded-md p-0.5 border border-border/60">
+            <button type="button" onClick={() => setMode("preview")}
+              className={cn("text-xs px-3 py-1.5 rounded transition-colors flex items-center gap-1.5",
+                mode === "preview" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+              <Eye className="h-3 w-3" /> Preview
+            </button>
+            <button type="button" onClick={() => setMode("edit")}
+              className={cn("text-xs px-3 py-1.5 rounded transition-colors flex items-center gap-1.5",
+                mode === "edit" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+              <Edit3 className="h-3 w-3" /> Editar
+            </button>
+          </div>
         </div>
 
         {/* Plan tabs */}
-        <div className="flex items-center gap-2 border-b border-border">
+        <div className="flex items-center gap-1 border-b border-border/60 -mt-2">
           {PLAN_KEYS.map(key => {
             const p = config[key];
             const active = activePlan === key;
@@ -128,32 +157,22 @@ export default function SettingsPage() {
                 type="button"
                 onClick={() => setActivePlan(key)}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                  "flex items-center gap-2.5 px-4 py-3 text-sm font-medium border-b-2 transition-all -mb-px",
                   active
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground",
+                    ? "border-primary text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground/80 hover:border-border",
                 )}
               >
-                {p.label}
-                <span className={cn("text-[10px] font-semibold", active ? "text-primary/80" : "text-muted-foreground/50")}>
+                <span>{p.label}</span>
+                <span className={cn(
+                  "text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded",
+                  active ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground/70",
+                )}>
                   R$ {p.monthly.toLocaleString("pt-BR")}
                 </span>
               </button>
             );
           })}
-          <div className="flex-1" />
-          <div className="flex items-center gap-1 bg-secondary/50 rounded-md p-0.5 mb-1">
-            <button type="button" onClick={() => setMode("preview")}
-              className={cn("text-xs px-3 py-1 rounded transition-colors",
-                mode === "preview" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground")}>
-              <Eye className="h-3 w-3 inline mr-1" /> Preview
-            </button>
-            <button type="button" onClick={() => setMode("edit")}
-              className={cn("text-xs px-3 py-1 rounded transition-colors",
-                mode === "edit" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground")}>
-              <Edit3 className="h-3 w-3 inline mr-1" /> Editar
-            </button>
-          </div>
         </div>
 
         {mode === "preview" ? (
