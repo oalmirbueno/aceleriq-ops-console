@@ -21,6 +21,7 @@ import MetricaNodeDrawer from "./MetricaNodeDrawer";
 import KickoffNodeDrawer from "./KickoffNodeDrawer";
 import DiagnosticoNodeDrawer from "./DiagnosticoNodeDrawer";
 import IaAgentNodeDrawer from "./IaAgentNodeDrawer";
+import OperationalNodeDrawer from "./OperationalNodeDrawer";
 import { useNodeQuickActions } from "@/hooks/useNodeQuickActions";
 import { hasBlueprint } from "./nodeBlueprints";
 import { resolveProjectNodeKind, type ProjectNodeKind } from "./canvasProjectTypes";
@@ -74,6 +75,7 @@ interface Props {
   clientFolders?: ClientFolderOption[];
   onMoveToFolder?: (nodeId: string, targetFolderId: string | null) => Promise<void> | void;
   availableNodes?: Array<CanvasNodeRecord & { parent_node_id?: string | null }>;
+  onOpenChat?: (nodeId: string) => void;
 }
 
 export default function ProjectNodeDrawer(props: Props) {
@@ -213,25 +215,19 @@ export default function ProjectNodeDrawer(props: Props) {
     );
   }
 
-  // Outros tipos com blueprint → drawer especializado com handlers genéricos
-  if (clientId && hasBlueprint(kind)) {
-    // Agente IA: drawer especializado com histórico de versões do system prompt
-    if (kind === "ia") {
-      return (
-        <IaAgentNodeDrawer
-          node={node}
-          open={props.open}
-          onOpenChange={props.onOpenChange}
-          workspaceId={props.workspaceId}
-          clientId={clientId}
-          clientName={clientName}
-          onDelete={props.onDelete}
-          onUpdated={props.onUpdated}
-        />
-      );
-    }
+  // Tipos operacionais: usam o drawer enxuto OperationalNodeDrawer
+  // (landing_page, case, ia, agente, automacao, crm, site, metrica, conteudo, briefing, etc)
+  const OPERATIONAL_KINDS: ProjectNodeKind[] = [
+    "landing_page", "case", "ia", "agente", "automacao", "crm",
+    "site", "metrica", "conteudo", "briefing", "contexto_ops",
+    "documento", "objetivo", "trafego", "email_mkt", "social",
+    "video", "imagem", "asset", "before_after", "instrucao",
+    "engine", "resultado", "decisao", "funil", "integracao",
+    "ideia", "contato", "reuniao", "checklist",
+  ];
+  if (clientId && OPERATIONAL_KINDS.includes(kind)) {
     return (
-      <SpecializedGenericDrawer
+      <OperationalNodeDrawer
         node={node}
         open={props.open}
         onOpenChange={props.onOpenChange}
@@ -240,7 +236,7 @@ export default function ProjectNodeDrawer(props: Props) {
         clientName={clientName}
         onDelete={props.onDelete}
         onUpdated={props.onUpdated}
-        availableNodes={props.availableNodes}
+        onOpenChat={props.onOpenChat}
       />
     );
   }
