@@ -28,6 +28,7 @@ import { CONTEXT_TYPES, getContextLabel, type ContextType } from "./contextTypes
 import BriefingSignalReview from "./BriefingSignalReview";
 import GenerateBriefingLinkDialog from "./GenerateBriefingLinkDialog";
 import type { BriefingKind } from "@/lib/briefingToken";
+import { cn } from "@/lib/utils";
 
 interface ContextEntry {
   id: string;
@@ -340,32 +341,33 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
     await fetchEntries();
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="flex items-center justify-center py-16">
+      <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  );
 
   const sections = groupEntriesBySection(entries);
-  const briefingCount = entries.filter((entry) => entry.context_type === "briefing").length;
+  const briefingCount = entries.filter((e) => e.context_type === "briefing").length;
+  const keyDecisions = entries.filter((e) => e.is_key_decision);
 
   return (
     <div className="space-y-4 animate-fade-in">
+
+      {/* ── Header + actions ─────────────────────────── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <FolderOpen className="h-4 w-4 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground font-medium">
-            {entries.length} registro(s) · {briefingCount} briefing(s) · {sections.length} área(s)
+        <div className="flex items-center gap-3">
+          <FolderOpen className="h-4 w-4 text-primary" />
+          <p className="text-sm font-semibold text-foreground">Contexto operacional</p>
+          <span className="text-xs text-muted-foreground">
+            {entries.length} registros · {briefingCount} briefings
           </span>
         </div>
-
         <div className="flex items-center gap-2 flex-wrap">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline">
-                <FileText className="h-4 w-4 mr-1" /> Importar briefing
+              <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5">
+                <FileText className="h-3.5 w-3.5" /> Importar briefing
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -373,224 +375,158 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
               <DropdownMenuItem onClick={() => setBriefingType("sitebolt")}>Briefing SiteBolt</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline">
-                <Link2 className="h-4 w-4 mr-1" /> Enviar briefing ao cliente
+              <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5">
+                <Link2 className="h-3.5 w-3.5" /> Enviar ao cliente
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => { setLinkBriefingType("enterprise_structuring"); setLinkDialogOpen(true); }}>
-                Estruturação Empresarial
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { setLinkBriefingType("ai_automation"); setLinkDialogOpen(true); }}>
-                Automação e IA
-              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setLinkBriefingType("enterprise_structuring"); setLinkDialogOpen(true); }}>Estruturação Empresarial</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setLinkBriefingType("ai_automation"); setLinkDialogOpen(true); }}>Automação e IA</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-
-          <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
-            <Upload className="h-4 w-4 mr-1" /> Importar contexto
+          <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={() => setImportOpen(true)}>
+            <Upload className="h-3.5 w-3.5" /> Importar
           </Button>
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" /> Novo contexto
+          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => setDialogOpen(true)}>
+            <Plus className="h-3.5 w-3.5" /> Novo contexto
           </Button>
         </div>
       </div>
 
+      {/* ── Key decisions highlight ───────────────────── */}
+      {keyDecisions.length > 0 && (
+        <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 px-4 py-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Star className="h-3.5 w-3.5 text-amber-400" />
+            <p className="text-xs font-semibold text-amber-400">Decisões-chave ({keyDecisions.length})</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {keyDecisions.slice(0, 5).map((e) => (
+              <button key={e.id} type="button" onClick={() => setEditEntry(e)}
+                className="text-xs px-2.5 py-1 rounded-full border border-amber-400/25 bg-amber-400/10 text-foreground hover:bg-amber-400/20 transition-colors">
+                {e.title}
+              </button>
+            ))}
+            {keyDecisions.length > 5 && (
+              <span className="text-xs text-amber-400/70">+{keyDecisions.length - 5} mais</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Sections ──────────────────────────────────── */}
       {sections.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-12 text-center">
-          Nenhum contexto registrado neste workspace.
-        </p>
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <FolderOpen className="h-8 w-8 mb-3 opacity-30" />
+          <p className="text-sm">Nenhum contexto registrado.</p>
+          <p className="text-xs mt-1">Adicione briefings, objetivos, decisões e diagnósticos.</p>
+        </div>
       ) : (
         <div className="space-y-3">
           {sections.map((section) => {
-            const sectionOpen = openSections.has(section.key);
-            const sectionCount = section.folders.reduce((total, folder) => total + folder.entries.length, 0);
-
+            const sOpen = openSections.has(section.key);
+            const count = section.folders.reduce((t, f) => t + f.entries.length, 0);
             return (
-              <Collapsible key={section.key} open={sectionOpen} onOpenChange={() => toggleSection(section.key)}>
-                <div className="rounded-xl border border-border/60 bg-card/40">
+              <Collapsible key={section.key} open={sOpen} onOpenChange={() => toggleSection(section.key)}>
+                <div className="rounded-xl border border-border bg-card overflow-hidden">
                   <CollapsibleTrigger asChild>
-                    <button className="w-full flex items-start gap-3 px-4 py-3 text-left">
-                      {sectionOpen ? (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                      )}
+                    <button className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-secondary/20 transition-colors">
+                      {sOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
                           <span className="text-sm font-semibold text-foreground">{section.label}</span>
-                          <Badge variant="outline" className="text-[10px]">{sectionCount}</Badge>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{count}</span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">{section.description}</p>
+                        <p className="text-xs text-muted-foreground">{section.description}</p>
                       </div>
                     </button>
                   </CollapsibleTrigger>
 
                   <CollapsibleContent>
-                    <div className="px-3 pb-3 space-y-2">
-                      {section.folders.map((folder) => {
-                        const folderOpen = openFolders.has(folder.type);
-
+                    <div className="border-t border-border/50">
+                      {section.folders.map((folder, fi) => {
+                        const fOpen = openFolders.has(folder.type);
                         return (
-                          <Collapsible key={folder.type} open={folderOpen} onOpenChange={() => toggleFolder(folder.type)}>
+                          <Collapsible key={folder.type} open={fOpen} onOpenChange={() => toggleFolder(folder.type)}>
                             <CollapsibleTrigger asChild>
-                              <button className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors text-left">
-                                {folderOpen ? (
-                                  <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                                )}
-                                <FolderOpen className="h-4 w-4 text-primary shrink-0" />
-                                <span className="text-sm font-medium text-foreground flex-1">{folder.label}</span>
-                                <Badge variant="outline" className="text-[10px] shrink-0">{folder.entries.length}</Badge>
+                              <button className={cn(
+                                "w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-secondary/10 transition-colors text-xs",
+                                fi > 0 && "border-t border-border/30"
+                              )}>
+                                {fOpen ? <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" /> : <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />}
+                                <span className="font-medium text-foreground/80">{folder.label}</span>
+                                <span className="text-muted-foreground/60">{folder.entries.length}</span>
                               </button>
                             </CollapsibleTrigger>
-
                             <CollapsibleContent>
-                              <div className="space-y-2 pl-4 pt-2 border-l-2 border-border ml-4">
+                              <div className="px-3 pb-2 space-y-1.5">
                                 {folder.entries.map((entry) => {
+                                  const isExp = expandedContent.has(entry.id);
                                   const isBriefing = entry.context_type === "briefing";
-                                  const reviewStatus = (entry.metadata?.import_review_status as string | undefined) ?? null;
-                                  const isPending = reviewStatus === "pending_review";
-                                  const isExpanded = expandedContent.has(entry.id);
-                                  const isLong = entry.content.length > 300;
-                                  const briefingLabel = getBriefingLabel(entry.metadata, entry.title);
-                                  const briefingOrigin = getBriefingOrigin(entry.metadata);
-                                  const briefingPreview = getBriefingPreview(entry);
-
+                                  const preview = isBriefing ? getBriefingPreview(entry) : null;
                                   return (
-                                    <Card
-                                      key={entry.id}
-                                      className="card-hover"
-                                      onClick={() => isBriefing ? toggleContentExpand(entry.id) : setEditEntry(entry)}
-                                    >
-                                      <CardContent className="p-3 space-y-2">
-                                        <div className="flex items-start justify-between gap-3">
-                                          <div className="flex items-center gap-2 flex-wrap min-w-0">
-                                            {isPending && <Badge variant="outline" className="text-[9px] shrink-0">Pendente revisão</Badge>}
-                                            {reviewStatus === "reviewed" && <Badge variant="secondary" className="text-[9px] shrink-0">Revisado</Badge>}
-                                            {isBriefing && <Badge variant="outline" className="text-[9px] shrink-0">{briefingLabel}</Badge>}
-                                            {isBriefing && briefingOrigin && <Badge variant="outline" className="text-[9px] shrink-0">{briefingOrigin}</Badge>}
-                                            {entry.is_key_decision ? (
-                                              <Star
-                                                className="h-3.5 w-3.5 text-warning fill-warning cursor-pointer shrink-0"
-                                                onClick={(e) => { e.stopPropagation(); toggleKeyDecision(entry); }}
-                                              />
-                                            ) : (
-                                              <Star
-                                                className="h-3.5 w-3.5 text-muted-foreground/30 cursor-pointer hover:text-warning/60 shrink-0"
-                                                onClick={(e) => { e.stopPropagation(); toggleKeyDecision(entry); }}
-                                              />
+                                    <div key={entry.id}
+                                      className="rounded-lg border border-border/60 bg-background/50 px-3 py-2.5 group">
+                                      <div className="flex items-start gap-2">
+                                        <div className={cn(
+                                          "h-1.5 w-1.5 rounded-full mt-1.5 shrink-0",
+                                          entry.is_key_decision ? "bg-amber-400" : "bg-primary/40"
+                                        )} />
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-xs font-semibold text-foreground">{entry.title}</span>
+                                            {entry.is_key_decision && (
+                                              <span className="text-[10px] text-amber-400 font-medium">Decisão-chave</span>
+                                            )}
+                                            {isBriefing && (
+                                              <span className="text-[10px] text-muted-foreground">
+                                                {getBriefingLabel(entry.metadata, entry.title)}
+                                              </span>
                                             )}
                                           </div>
-
-                                          <div className="flex items-center gap-1.5 shrink-0">
-                                            {isPending && isBriefing && entry.metadata?.structured_signals && (
-                                              <Badge variant="outline" className="text-[9px] shrink-0">
-                                                Revise os sinais
-                                              </Badge>
-                                            )}
-                                            {isBriefing && entry.content.trim().length > 0 && (
-                                              <button
-                                                title="Baixar PDF completo"
-                                                className="text-muted-foreground hover:text-primary p-1 rounded"
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  handleDownloadBriefingPDF(entry);
-                                                }}
-                                              >
-                                                <Download className="h-3.5 w-3.5" />
-                                              </button>
-                                            )}
-                                            <button
-                                              title="Apagar"
-                                              className="text-muted-foreground/40 hover:text-destructive p-1 rounded"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDeleteEntry(entry);
-                                              }}
-                                            >
-                                              <Trash2 className="h-3.5 w-3.5" />
-                                            </button>
-                                            {entry.source_url && (
-                                              <a
-                                                href={entry.source_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="text-muted-foreground hover:text-primary p-1 rounded"
-                                              >
-                                                <ExternalLink className="h-3.5 w-3.5" />
-                                              </a>
-                                            )}
-                                          </div>
-                                        </div>
-
-                                        <div className="space-y-1">
-                                          <p className="text-sm font-medium text-foreground">{entry.title}</p>
-                                          {isBriefing ? (
-                                            <p className="text-xs text-muted-foreground leading-relaxed">
-                                              {briefingPreview || "Briefing salvo sem resumo disponível."}
-                                            </p>
-                                          ) : (
-                                            <p className={`text-xs text-muted-foreground whitespace-pre-wrap ${!isExpanded && isLong ? "line-clamp-3" : ""}`}>
-                                              {entry.content}
+                                          {(preview ?? entry.content) && (
+                                            <p className={cn("text-xs text-muted-foreground mt-0.5 leading-relaxed", !isExp && "line-clamp-2")}>
+                                              {preview ?? entry.content}
                                             </p>
                                           )}
+                                          {entry.tags && entry.tags.length > 0 && (
+                                            <div className="flex flex-wrap gap-1 mt-1.5">
+                                              {entry.tags.map((tag) => (
+                                                <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-secondary/60 text-muted-foreground">{tag}</span>
+                                              ))}
+                                            </div>
+                                          )}
                                         </div>
-
-                                        {!isBriefing && isLong && (
-                                          <button
-                                            className="text-[10px] text-primary hover:underline flex items-center gap-1"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              toggleContentExpand(entry.id);
-                                            }}
-                                          >
-                                            <Eye className="h-3 w-3" />
-                                            {isExpanded ? "Recolher" : "Ver conteúdo completo"}
+                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                          {(entry.content?.length ?? 0) > 160 && (
+                                            <button type="button" onClick={() => toggleContentExpand(entry.id)} className="p-1 rounded hover:bg-secondary transition-colors">
+                                              <Eye className="h-3 w-3 text-muted-foreground" />
+                                            </button>
+                                          )}
+                                          {isBriefing && (
+                                            <button type="button" onClick={() => handleDownloadBriefingPDF(entry)} className="p-1 rounded hover:bg-secondary transition-colors" title="Exportar PDF">
+                                              <Download className="h-3 w-3 text-muted-foreground" />
+                                            </button>
+                                          )}
+                                          {entry.source_url && (
+                                            <a href={entry.source_url} target="_blank" rel="noreferrer" className="p-1 rounded hover:bg-secondary transition-colors">
+                                              <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                                            </a>
+                                          )}
+                                          <button type="button" onClick={() => toggleKeyDecision(entry)} className="p-1 rounded hover:bg-secondary transition-colors" title="Marcar como decisão-chave">
+                                            <Star className={cn("h-3 w-3", entry.is_key_decision ? "text-amber-400 fill-amber-400" : "text-muted-foreground")} />
                                           </button>
-                                        )}
-
-                                        {isBriefing && (
-                                          <button
-                                            className="text-[10px] text-primary hover:underline flex items-center gap-1"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              toggleContentExpand(entry.id);
-                                            }}
-                                          >
-                                            <Eye className="h-3 w-3" />
-                                            {isExpanded ? "Ocultar briefing completo" : "Ver briefing completo"}
+                                          <button type="button" onClick={() => setEditEntry(entry)} className="p-1 rounded hover:bg-secondary transition-colors">
+                                            <Eye className="h-3 w-3 text-muted-foreground" />
                                           </button>
-                                        )}
-
-                                        {isBriefing && isExpanded && (
-                                          <div className="rounded-md border border-border/60 bg-muted/10 p-3">
-                                            <pre className="whitespace-pre-wrap text-xs text-muted-foreground font-sans leading-relaxed">
-                                              {entry.content || "Conteúdo indisponível."}
-                                            </pre>
-                                          </div>
-                                        )}
-
-                                        {isBriefing && entry.metadata?.structured_signals && (
-                                          <BriefingSignalReview
-                                            entryId={entry.id}
-                                            metadata={entry.metadata as Record<string, unknown>}
-                                            onUpdated={fetchEntries}
-                                          />
-                                        )}
-
-                                        <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
-                                          {entry.happened_at && <span>{new Date(entry.happened_at).toLocaleString("pt-BR")}</span>}
-                                          {entry.source_label && <span>· {entry.source_label}</span>}
-                                          {entry.tags && entry.tags.length > 0 && <span>· {entry.tags.join(", ")}</span>}
+                                          <button type="button" onClick={() => handleDeleteEntry(entry)} className="p-1 rounded hover:bg-destructive/10 transition-colors">
+                                            <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                                          </button>
                                         </div>
-                                      </CardContent>
-                                    </Card>
+                                      </div>
+                                    </div>
                                   );
                                 })}
                               </div>
@@ -607,59 +543,42 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
         </div>
       )}
 
-      <ContextEntryDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onSubmit={handleCreate}
-        mode="create"
-      />
-
+      {/* ── Dialogs ───────────────────────────────────── */}
+      <ContextEntryDialog open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleCreate} mode="create" />
       {editEntry && (
         <ContextEntryDialog
           open={!!editEntry}
-          onOpenChange={(open) => { if (!open) setEditEntry(null); }}
+          onOpenChange={(open) => !open && setEditEntry(null)}
           onSubmit={handleEdit}
           mode="edit"
           initial={{
-            context_type: editEntry.context_type as ContextFormData["context_type"],
+            context_type: editEntry.context_type as ContextType,
             title: editEntry.title,
             content: editEntry.content,
             happened_at: editEntry.happened_at ?? "",
             source_label: editEntry.source_label ?? "",
             source_url: editEntry.source_url ?? "",
-            tags: editEntry.tags?.join(", ") ?? "",
+            tags: (editEntry.tags ?? []).join(", "),
             is_key_decision: editEntry.is_key_decision,
           }}
         />
       )}
-
-      <ImportContextDialog
-        open={importOpen}
-        onOpenChange={setImportOpen}
-        workspaceId={workspaceId}
-        clientId={clientId}
-        onImported={fetchEntries}
-      />
-
+      <ImportContextDialog open={importOpen} onOpenChange={setImportOpen} workspaceId={workspaceId} clientId={clientId} onImported={fetchEntries} />
       {briefingType && (
-        <ImportBriefingDialog
-          open={!!briefingType}
-          onOpenChange={(v) => { if (!v) setBriefingType(null); }}
-          workspaceId={workspaceId}
-          clientId={clientId}
-          briefingType={briefingType}
-          onImported={fetchEntries}
-        />
+        <ImportBriefingDialog open={!!briefingType} onOpenChange={(open) => !open && setBriefingType(null)} workspaceId={workspaceId} clientId={clientId} briefingType={briefingType} onImported={fetchEntries} />
       )}
-
-      <GenerateBriefingLinkDialog
-        open={linkDialogOpen}
-        onOpenChange={setLinkDialogOpen}
-        workspaceId={workspaceId}
-        clientId={clientId}
-        clientName={clientName ?? "Cliente"}
-        defaultBriefingType={linkBriefingType}
-      />
+      {linkDialogOpen && (
+        <GenerateBriefingLinkDialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen} workspaceId={workspaceId} clientId={clientId} clientName={clientName ?? "Cliente"} defaultBriefingType={linkBriefingType} />
+      )}
+      {entries.some((e) => e.context_type === "briefing" && (e.metadata?.structured_signals || e.metadata?.import_review_status === "pending_review")) && (
+        <div className="space-y-3">
+          {entries
+            .filter((e) => e.context_type === "briefing" && e.metadata && (e.metadata.structured_signals || e.metadata.import_review_status === "pending_review"))
+            .map((entry) => (
+              <BriefingSignalReview key={entry.id} entryId={entry.id} metadata={entry.metadata ?? {}} onUpdated={fetchEntries} />
+            ))}
+        </div>
+      )}
     </div>
   );
 }
