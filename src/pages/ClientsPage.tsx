@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Plus, Search, ExternalLink, FolderPlus, KeyRound } from "lucide-react";
+import { Users, Plus, Search, ExternalLink, FolderPlus, KeyRound, FileText } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import EmptyState from "@/components/EmptyState";
 import LoadingState from "@/components/LoadingState";
 import CreateClientDialog from "@/components/CreateClientDialog";
+import ClientBriefingDialog from "@/components/workspace/ClientBriefingDialog";
+import ClientPortalLinkButton from "@/components/workspace/ClientPortalLinkButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +23,8 @@ interface Client {
   status: string;
   segment: string | null;
   plan_name: string | null;
+  portal_client_id: string | null;
+  metadata: Record<string, unknown> | null;
   workspaces: { id: string; current_stage: string }[];
 }
 
@@ -55,6 +59,15 @@ const statusColor: Record<string, string> = {
   archived: "bg-muted text-muted-foreground border-border",
 };
 
+/** Completude percentage of essential_briefing — used to show health signal */
+function briefingCompleteness(metadata: Record<string, unknown> | null): number {
+  const eb = (metadata?.essential_briefing as Record<string, string> | undefined);
+  if (!eb) return 0;
+  const fields = ["positioning","differential","icp","main_pains","goals_12m","success_metric","revenue_range","team_size"];
+  const filled = fields.filter((f) => (eb[f] ?? "").toString().trim().length > 0).length;
+  return Math.round((filled / fields.length) * 100);
+}
+
 export default function ClientsPage() {
   const navigate = useNavigate();
   const [clients, setClients] = useState<Client[]>([]);
@@ -63,12 +76,13 @@ export default function ClientsPage() {
   const [statusFilter, setStatusFilter] = useState("__all__");
   const [stageFilter, setStageFilter] = useState("__all__");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [briefingClient, setBriefingClient] = useState<Client | null>(null);
 
   const fetchClients = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("clients")
-      .select("id, name, company_name, status, segment, plan_name, workspaces(id, current_stage)")
+      .select("id, name, company_name, status, segment, plan_name, portal_client_id, metadata, workspaces(id, current_stage)")
       .order("created_at", { ascending: false });
 
     if (!error && data) setClients(data as Client[]);
@@ -128,51 +142,39 @@ export default function ClientsPage() {
       }
     } catch (err: any) {
       console.error(err);
-      toast({ title: "Erro ao criar workspace", description: err.message, variant: "destructive" });
+      toast({ title: "Erro ao criar workspace", description: err?.message ?? "Tente novamente.", variant: "destructive" });
     }
   };
 
   return (
     <>
       <AppHeader title="Clientes" subtitle="Gestão de clientes da operação" />
-
-      <div className="p-6 animate-fade-in">
+      <div className="p-5 space-y-4">
         {/* Toolbar */}
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[200px] max-w-xs">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar cliente..."
-              className="pl-9"
-            />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome ou empresa..."
+              className="pl-9 h-9" />
           </div>
-
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-44"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {STATUS_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
+              {STATUS_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
-
           <Select value={stageFilter} onValueChange={setStageFilter}>
-            <SelectTrigger className="w-[170px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {STAGE_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
+              {STAGE_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
-
-          <Button onClick={() => setDialogOpen(true)} className="ml-auto gap-2">
-            <Plus className="h-4 w-4" /> Novo Cliente
+          <Button onClick={() => setDialogOpen(true)} size="sm" className="h-9 gap-1.5">
+            <Plus className="h-3.5 w-3.5" /> Novo cliente
           </Button>
         </div>
 
-        {/* Content */}
+        {/* List */}
         {loading ? (
           <LoadingState />
         ) : filtered.length === 0 ? (
@@ -189,14 +191,21 @@ export default function ClientsPage() {
                   <TableHead>Nome</TableHead>
                   <TableHead>Empresa</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Briefing</TableHead>
                   <TableHead>Etapa</TableHead>
                   <TableHead>Plano</TableHead>
-                  <TableHead className="w-24 text-right">Ações</TableHead>
+                  <TableHead>Portal</TableHead>
+                  <TableHead className="w-28 text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map((c) => {
                   const stage = c.workspaces[0]?.current_stage;
+                  const brPct = briefingCompleteness(c.metadata);
+                  const brColor = brPct === 100 ? "text-emerald-400"
+                              : brPct > 50 ? "text-primary"
+                              : brPct > 0 ? "text-amber-400"
+                              : "text-muted-foreground/50";
                   return (
                     <TableRow key={c.id} className="cursor-pointer" onClick={() => c.workspaces[0] ? openWorkspace(c) : undefined}>
                       <TableCell className="font-medium text-foreground">{c.name}</TableCell>
@@ -206,10 +215,32 @@ export default function ClientsPage() {
                           {c.status}
                         </Badge>
                       </TableCell>
+                      <TableCell onClick={(e) => { e.stopPropagation(); setBriefingClient(c); }}>
+                        <button type="button" className={`text-xs font-semibold tabular-nums ${brColor} hover:underline`}>
+                          {brPct > 0 ? `${brPct}%` : "Preencher"}
+                        </button>
+                      </TableCell>
                       <TableCell className="text-muted-foreground">{stage ? getStagePremiumLabel(stage) : "—"}</TableCell>
                       <TableCell className="text-muted-foreground capitalize">{c.plan_name ?? "—"}</TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <ClientPortalLinkButton
+                          clientId={c.id}
+                          clientName={c.name}
+                          portalClientId={c.portal_client_id}
+                          onLinked={fetchClients}
+                          compact
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-0.5 justify-end">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={(e) => { e.stopPropagation(); setBriefingClient(c); }}
+                            title="Editar briefing essencial"
+                          >
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                          </Button>
                           <Button
                             size="icon"
                             variant="ghost"
@@ -249,6 +280,16 @@ export default function ClientsPage() {
       </div>
 
       <CreateClientDialog open={dialogOpen} onOpenChange={setDialogOpen} onCreated={fetchClients} />
+      {briefingClient && (
+        <ClientBriefingDialog
+          open={!!briefingClient}
+          onOpenChange={(open) => !open && setBriefingClient(null)}
+          clientId={briefingClient.id}
+          clientName={briefingClient.name}
+          initialMetadata={briefingClient.metadata}
+          onSaved={fetchClients}
+        />
+      )}
     </>
   );
 }
