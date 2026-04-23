@@ -166,7 +166,7 @@ export default function ClientDrive({ workspaceId, clientId, clientName }: Props
   const handleApproval = useCallback(async (id: string, status: string) => {
     const { data: curr } = await supabase.from("assets").select("metadata").eq("id", id).single();
     const m = ((curr?.metadata as Record<string, unknown>) ?? {});
-    const updated = { ...m, approval_status: status };
+    const updated: Record<string, unknown> = { ...m, approval_status: status };
     if (status === "approved") {
       try {
         await supabase.functions.invoke("sync-to-portal", { body: { event: "file_approved", workspaceId, clientId, assetId: id } });
