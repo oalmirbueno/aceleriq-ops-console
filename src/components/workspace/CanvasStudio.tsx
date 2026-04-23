@@ -1583,22 +1583,22 @@ function CanvasStudioInner({
               nodeTypes={nodeTypes}
               onInit={handleRfInit}
               onMoveEnd={handleMoveEnd}
-              fitViewOptions={{ padding: 0.4 }}
+              fitViewOptions={FIT_VIEW_OPTIONS}
               minZoom={0.1}
               maxZoom={2}
-              panOnDrag={[0, 1, 2]}
+              panOnDrag={activeTool === "hand" ? true : PAN_ON_DRAG}
               panOnScroll={false}
               zoomOnScroll
               zoomOnPinch
               zoomOnDoubleClick={false}
-              selectionOnDrag={false}
-              selectionKeyCode={["Shift"]}
-              multiSelectionKeyCode={["Meta", "Control"]}
+              selectionOnDrag={activeTool === "select"}
+              selectionKeyCode={SELECTION_KEY_CODE}
+              multiSelectionKeyCode={MULTI_SELECTION_KEY_CODE}
               selectionMode={SelectionMode.Partial}
-              proOptions={{ hideAttribution: true }}
+              proOptions={PRO_OPTIONS}
               className="bg-background canvas-flow acelera-ops-flow"
-              defaultEdgeOptions={{ type: "smoothstep", animated: true }}
-              connectionLineStyle={{ stroke: "hsl(var(--primary))", strokeWidth: 2.5 }}
+              defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
+              connectionLineStyle={CONNECTION_LINE_STYLE}
               onPaneContextMenu={(event) => event.preventDefault()}
             >
               {gridVisible && <Background gap={32} size={1} className="opacity-20" />}
