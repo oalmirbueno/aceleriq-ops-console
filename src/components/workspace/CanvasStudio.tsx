@@ -755,7 +755,6 @@ function CanvasStudioInner({
   const addAiOrb = useCallback(async (orbType: AiOrbType) => {
     const parent = ensureActiveClient();
     if (!parent) return;
-    const orb = AI_ORBS.find((item) => item.type === orbType) ?? AI_ORBS[0];
     const sameParentOrbs = dbNodes.filter((node) => node.parent_node_id === parent && node.node_type === "ai_orb");
     const pos_x = OPS_FLOW_X.engine + 40;
     const pos_y = CONTENT_TOP + 520 + sameParentOrbs.length * 132;
