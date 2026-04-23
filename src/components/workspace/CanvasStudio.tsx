@@ -417,15 +417,11 @@ function CanvasStudioInner({
       if (e.key.toLowerCase() === "h") setActiveTool("hand");
       if (e.key.toLowerCase() === "g") setGridVisible((v) => !v);
       if (e.key.toLowerCase() === "f") rfInstanceRef.current?.fitView({ padding: 0.32, duration: 280 });
-      if (e.key === "Delete" || e.key === "Backspace") {
-        const selected = rfNodes.find((node) => node.selected);
-        if (selected) void handleDeleteNode(selected.id);
-      }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [rfNodes]);
+  }, []);
 
   const reactFlowNodes = useMemo(() => {
     return visibleCanvasNodes.map((n): Node => {
