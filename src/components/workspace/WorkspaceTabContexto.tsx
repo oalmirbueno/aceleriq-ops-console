@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
@@ -209,9 +209,8 @@ function BriefingSheet({ entry, workspaceId, clientId, clientName, onClose }: {
   };
 
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="w-full sm:max-w-2xl p-0 flex flex-col" style={{ background: "#09110A" }}>
-        <div className="px-5 py-4 border-b border-border shrink-0" style={{ borderBottomColor: `${color}25` }}>
+    <Dialog open onOpenChange={(o) => !o && onClose()}><DialogContent className="p-0 gap-0 border border-white/10 max-w-2xl w-full max-h-[88vh] flex flex-col overflow-hidden sm:rounded-2xl" style={{ background: "rgba(9,17,10,0.92)", backdropFilter: "blur(32px) saturate(200%)", WebkitBackdropFilter: "blur(32px) saturate(200%)", boxShadow: "0 0 0 1px rgba(255,255,255,0.06), 0 32px 72px rgba(0,0,0,0.75)" }}><DialogTitle className="sr-only">Detalhes</DialogTitle>
+        <div className="px-5 py-4 border-b border-border shrink-0 pr-12" style={{ borderBottomColor: `${color}25` }}>
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3 min-w-0">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl shrink-0"
@@ -229,10 +228,7 @@ function BriefingSheet({ entry, workspaceId, clientId, clientName, onClose }: {
                 <p className="text-xs text-muted-foreground mt-0.5">{formatDate(entry.created_at)}</p>
               </div>
             </div>
-            <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors mt-0.5 shrink-0">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+            </div>
           <div className="flex items-center gap-2 mt-3 flex-wrap">
             <Button onClick={generate} disabled={generating} size="sm" className="h-7 text-xs gap-1.5"
               style={{ background: `${color}15`, color, border: `1px solid ${color}35` }}>
@@ -297,9 +293,7 @@ function BriefingSheet({ entry, workspaceId, clientId, clientName, onClose }: {
               </div>
             )}
           </div>
-        </ScrollArea>
-      </SheetContent>
-    </Sheet>
+        </ScrollArea></DialogContent></Dialog>
   );
 }
 
@@ -319,9 +313,8 @@ function EntrySheet({ entry, onClose, onEdit, onDelete }: {
   };
 
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="w-full sm:max-w-lg p-0 flex flex-col" style={{ background: "#09110A" }}>
-        <div className="px-5 py-4 border-b border-border shrink-0">
+    <Dialog open onOpenChange={(o) => !o && onClose()}><DialogContent className="p-0 gap-0 border border-white/10 max-w-2xl w-full max-h-[88vh] flex flex-col overflow-hidden sm:rounded-2xl" style={{ background: "rgba(9,17,10,0.92)", backdropFilter: "blur(32px) saturate(200%)", WebkitBackdropFilter: "blur(32px) saturate(200%)", boxShadow: "0 0 0 1px rgba(255,255,255,0.06), 0 32px 72px rgba(0,0,0,0.75)" }}><DialogTitle className="sr-only">Detalhes</DialogTitle>
+        <div className="px-5 py-4 border-b border-border shrink-0 pr-12">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -337,8 +330,7 @@ function EntrySheet({ entry, onClose, onEdit, onDelete }: {
                 </div>
               )}
             </div>
-            <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors shrink-0"><X className="h-4 w-4" /></button>
-          </div>
+            </div>
           <div className="flex items-center gap-2 mt-3">
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={() => { onEdit(entry); onClose(); }}>
               Editar
@@ -361,9 +353,7 @@ function EntrySheet({ entry, onClose, onEdit, onDelete }: {
           <div className="px-5 py-4 text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
             {entry.content || <span className="italic opacity-50">Sem conteúdo.</span>}
           </div>
-        </ScrollArea>
-      </SheetContent>
-    </Sheet>
+        </ScrollArea></DialogContent></Dialog>
   );
 }
 
@@ -407,31 +397,27 @@ function EntryCard({ entry, onClick, onStar, color = "#00FF88" }: {
   const preview = getPreview(entry);
   return (
     <button type="button" onClick={onClick}
-      className="min-h-32 w-full rounded-lg border border-border/60 bg-background/50 p-3 text-left transition-colors hover:bg-secondary/20 group">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0" style={{ background: `${color}15`, border: `1px solid ${color}30` }}>
-          <FileText className="h-3.5 w-3.5" style={{ color }} />
-        </div>
-        <ArrowRight className="h-3 w-3 text-muted-foreground/40 opacity-0 transition-opacity group-hover:opacity-100" />
-      </div>
+      className="w-full text-left flex items-start gap-3 px-4 py-3 hover:bg-secondary/20 transition-colors group border-b border-border/30 last:border-0">
+      <div className="h-1.5 w-1.5 rounded-full mt-1.5 shrink-0" style={{ background: color }} />
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap mb-1">
+        <div className="flex items-center gap-2 flex-wrap mb-0.5">
           <span className="text-sm font-medium text-foreground">{entry.title}</span>
           {entry.is_key_decision && <span className="text-[10px] text-amber-400 font-semibold">Decisão-chave</span>}
           {entry.tags?.slice(0, 2).map((t) => (
             <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-full bg-secondary/60 text-muted-foreground">{t}</span>
           ))}
         </div>
-        {preview && <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">{preview}</p>}
-        {entry.happened_at && <p className="text-[10px] text-muted-foreground/50 mt-2">{formatDate(entry.happened_at)}</p>}
+        {preview && <p className="text-xs text-muted-foreground line-clamp-1 leading-relaxed">{preview}</p>}
+        {entry.happened_at && <p className="text-[10px] text-muted-foreground/50 mt-0.5">{formatDate(entry.happened_at)}</p>}
       </div>
-      <div className="mt-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
         {onStar && (
           <span onClick={(e) => { e.stopPropagation(); onStar(); }}
             className="p-1 rounded hover:bg-secondary transition-colors">
             <Star className={cn("h-3 w-3", entry.is_key_decision ? "text-amber-400 fill-amber-400" : "text-muted-foreground")} />
           </span>
         )}
+        <ArrowRight className="h-3 w-3 text-muted-foreground/40" />
       </div>
     </button>
   );
@@ -607,20 +593,20 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
             <p className="text-xs text-muted-foreground/60 mt-1">Use "Enviar ao cliente" para gerar um link de briefing.</p>
           </div>
         ) : (
-          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="divide-y divide-border/30">
             {clientPending.map((e) => (
-              <div key={e.id} className="min-h-32 rounded-lg border border-border/60 bg-background/50 p-3">
+              <div key={e.id} className="flex items-center gap-3 px-4 py-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-400/10 shrink-0">
                   <Clock className="h-4 w-4 text-amber-400" />
                 </div>
-                <div className="mt-3 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-foreground">{e.title}</span>
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-amber-400 border-amber-400/30">Em preenchimento</Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">Link enviado · aguardando resposta do cliente</p>
                 </div>
-                <Button size="sm" variant="ghost" className="mt-3 h-7 text-xs gap-1 text-amber-400" onClick={() => openSheet(e, "briefing")}>
+                <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-amber-400" onClick={() => openSheet(e, "briefing")}>
                   <Eye className="h-3 w-3" /> Ver
                 </Button>
               </div>
@@ -631,20 +617,20 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
               const Icon = kind ? (BRIEFING_ICONS[kind] ?? FileText) : FileText;
               return (
                 <button key={e.id} type="button" onClick={() => openSheet(e, "briefing")}
-                  className="min-h-32 rounded-lg border border-border/60 bg-background/50 p-3 text-left transition-colors hover:bg-secondary/20 group">
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/20 transition-colors text-left group">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0"
                     style={{ background: `${color}15`, border: `1px solid ${color}25` }}>
                     <Icon className="h-4 w-4" style={{ color }} />
                   </div>
-                  <div className="mt-3 min-w-0">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium text-foreground">{e.title}</span>
                       <Badge className="text-[10px] px-1.5 py-0 h-4 bg-emerald-400/10 text-emerald-400 border-emerald-400/25">Recebido</Badge>
                       {e.metadata?.import_review_status === "reviewed" && <Badge className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-primary/25">Revisado</Badge>}
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-3">{getPreview(e)}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-1">{getPreview(e)}</p>
                   </div>
-                  <div className="mt-3 flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={(ev) => { ev.stopPropagation(); const blob = new Blob([e.content], { type: "text/plain" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = e.title + ".txt"; a.click(); }}>
                       <Download className="h-3 w-3" />
                     </Button>
@@ -667,7 +653,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
             <p className="text-xs text-muted-foreground/60 mt-1">Importe um briefing Essencial ou SiteBolt.</p>
           </div>
         ) : (
-          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="divide-y divide-border/30">
             {internalBriefings.map((e) => {
               const kind = readBriefingKind(e.metadata);
               const color = kind ? (BRIEFING_COLORS[kind] ?? "#00FF88") : "#00FF88";
@@ -675,20 +661,20 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
               const reviewed = e.metadata?.import_review_status === "reviewed";
               return (
                 <button key={e.id} type="button" onClick={() => openSheet(e, "briefing")}
-                  className="min-h-32 rounded-lg border border-border/60 bg-background/50 p-3 text-left transition-colors hover:bg-secondary/20 group">
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/20 transition-colors text-left group">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0"
                     style={{ background: `${color}15`, border: `1px solid ${color}25` }}>
                     <Icon className="h-4 w-4" style={{ color }} />
                   </div>
-                  <div className="mt-3 min-w-0">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium text-foreground">{e.title}</span>
                       {kind && <span className="text-[10px] font-medium" style={{ color }}>{BRIEFING_LABELS[kind] ?? kind}</span>}
                       {reviewed && <Badge className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-primary/25">Revisado</Badge>}
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-3">{getPreview(e)}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-1">{getPreview(e)}</p>
                   </div>
-                  <div className="mt-3 flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                     <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40" />
                   </div>
                 </button>
@@ -712,25 +698,25 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
             </Button>
           </div>
         ) : (
-          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="divide-y divide-border/30">
             {importedCtx.map((e) => {
               const src = getImportSource(e.metadata);
               const srcLabel = src ? (IMPORT_SOURCE_LABELS[src] ?? src) : "Importado";
               return (
                 <button key={e.id} type="button" onClick={() => openSheet(e, "entry")}
-                  className="min-h-32 rounded-lg border border-border/60 bg-background/50 p-3 text-left transition-colors hover:bg-secondary/20 group">
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/20 transition-colors text-left group">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-400/10 border border-blue-400/25 shrink-0">
                     <FileText className="h-4 w-4 text-blue-400" />
                   </div>
-                  <div className="mt-3 min-w-0">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium text-foreground">{e.title}</span>
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-blue-400 border-blue-400/30">{srcLabel}</Badge>
                       <span className="text-[10px] text-muted-foreground/60">{getContextLabel(e.context_type)}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-3">{getPreview(e)}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-1">{getPreview(e)}</p>
                   </div>
-                  <ArrowRight className="mt-3 h-3.5 w-3.5 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                 </button>
               );
             })}
@@ -750,18 +736,18 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
             </Button>
           </div>
         ) : (
-          <div className="space-y-4 p-4">
+          <div>
             {KNOWLEDGE_TYPES.map(({ types, label, icon: Icon, color, hint }) => {
               const items = knowledge.filter((e) => types.includes(e.context_type as ContextType));
               if (items.length === 0) return null;
               return (
-                <div key={label} className="rounded-lg border border-border/60 bg-background/40 overflow-hidden">
-                  <div className="flex items-center gap-2 px-4 py-2 bg-secondary/20">
+                <div key={label} className="border-b border-border/30 last:border-0">
+                  <div className="flex items-center gap-2 px-4 py-2 bg-secondary/10">
                     <Icon className="h-3 w-3 shrink-0" style={{ color }} />
                     <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color }}>{label}</span>
                     <span className="text-[10px] text-muted-foreground/60">{items.length}</span>
                   </div>
-                  <div className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="divide-y divide-border/20">
                     {items.map((e) => (
                       <EntryCard key={e.id} entry={e} color={color}
                         onClick={() => openSheet(e, "entry")}
@@ -780,7 +766,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
         <HubSection icon={MessageSquare} label="Alinhamentos" color="#F59E0B"
           count={alignments.length}
           hint="Reuniões e transcrições" defaultOpen={false}>
-          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="divide-y divide-border/30">
             {alignments.map((e) => (
               <EntryCard key={e.id} entry={e} color="#F59E0B"
                 onClick={() => openSheet(e, "entry")}
@@ -791,43 +777,23 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
       )}
 
       {/* ── Dialogs ───────────────────────────────────── */}
-      <ContextEntryDialog open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleCreate} mode="create" />
+      <ContextEntryDialog open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleCreate} workspaceId={workspaceId} />
       {editEntry && (
-        <ContextEntryDialog
-          open={!!editEntry}
-          onOpenChange={(o) => !o && setEditEntry(null)}
-          onSubmit={handleEdit}
-          mode="edit"
-          initial={{
-            context_type: editEntry.context_type as ContextType,
-            title: editEntry.title,
-            content: editEntry.content,
-            happened_at: editEntry.happened_at ?? "",
-            source_label: editEntry.source_label ?? "",
-            source_url: editEntry.source_url ?? "",
-            tags: (editEntry.tags ?? []).join(", "),
-            is_key_decision: editEntry.is_key_decision,
-          }}
-        />
+        <ContextEntryDialog open={!!editEntry} onOpenChange={(o) => !o && setEditEntry(null)} onSubmit={handleEdit} initialData={editEntry} workspaceId={workspaceId} />
       )}
       <ImportContextDialog open={importOpen} onOpenChange={setImportOpen} workspaceId={workspaceId} clientId={clientId} onImported={fetchEntries} />
       {briefingType && (
         <ImportBriefingDialog open={!!briefingType} onOpenChange={(o) => !o && setBriefingType(null)}
-          workspaceId={workspaceId} clientId={clientId} briefingType={briefingType} onImported={fetchEntries} />
+          workspaceId={workspaceId} clientId={clientId} briefingKind={briefingType} onImported={fetchEntries} />
       )}
       {linkDialogOpen && (
         <GenerateBriefingLinkDialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}
           workspaceId={workspaceId} clientId={clientId} clientName={clientName ?? "Cliente"}
-          defaultBriefingType={linkBriefingType} />
+          briefingKind={linkBriefingType} />
       )}
       {entries.some((e) => e.context_type === "briefing" && (e.metadata?.structured_signals || e.metadata?.import_review_status === "pending_review")) && (
-        <div className="space-y-3">
-          {entries
-            .filter((e) => e.context_type === "briefing" && e.metadata && (e.metadata.structured_signals || e.metadata.import_review_status === "pending_review"))
-            .map((entry) => (
-              <BriefingSignalReview key={entry.id} entryId={entry.id} metadata={entry.metadata ?? {}} onUpdated={fetchEntries} />
-            ))}
-        </div>
+        <BriefingSignalReview entries={entries.filter((e) => e.context_type === "briefing")}
+          workspaceId={workspaceId} clientId={clientId} onUpdated={fetchEntries} />
       )}
       {activeSheet && sheetMode === "briefing" && (
         <BriefingSheet entry={activeSheet} workspaceId={workspaceId} clientId={clientId}
