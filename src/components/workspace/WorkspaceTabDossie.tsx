@@ -46,7 +46,14 @@ interface Task {
 
 // ─── Block config ─────────────────────────────────────────────
 
-const BLOCKS = [
+const BLOCKS: Array<{
+  key: string;
+  label: string;
+  icon: typeof Building2;
+  color: string;
+  primaryTypes: string[];
+  hint: string;
+}> = [
   { key: "identity",    label: "Identidade",         icon: Building2,    color: "#60A5FA", primaryTypes: ["briefing"],              hint: "Posicionamento, diferencial, proposta de valor" },
   { key: "offer",       label: "Oferta e ICP",        icon: Target,       color: "#EC4899", primaryTypes: ["objetivo"],              hint: "O que vende, para quem, cliente ideal" },
   { key: "commercial",  label: "Comercial",           icon: ShoppingCart, color: "#F59E0B", primaryTypes: [],                        hint: "Funil, metas, processo de vendas" },
