@@ -174,13 +174,18 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      {/* Target handle */}
-      <Handle
-        type="target"
-        position={Position.Left}
-        className="!w-2 !h-2 !border-2 !-left-1"
-        style={{ background: accent, borderColor: "rgba(255,255,255,0.2)" }}
-      />
+      {/* ═══ MÚLTIPLOS HANDLES — 3 por lado para conexões flexíveis ═══
+         IDs: t1/t2/t3 (top), r1/r2/r3 (right), b1/b2/b3 (bottom), l1/l2/l3 (left)
+         Cada handle é um ponto de ancoragem distinto. Usuário escolhe qual usa.
+      */}
+      {/* Left handles (type target — entrada) */}
+      <Handle type="target" position={Position.Left} id="l1" className="flex-handle" style={{ top: "25%", background: accent }} />
+      <Handle type="target" position={Position.Left} id="l2" className="flex-handle" style={{ top: "50%", background: accent }} />
+      <Handle type="target" position={Position.Left} id="l3" className="flex-handle" style={{ top: "75%", background: accent }} />
+      {/* Top handles (type target) */}
+      <Handle type="target" position={Position.Top} id="t1" className="flex-handle" style={{ left: "25%", background: accent }} />
+      <Handle type="target" position={Position.Top} id="t2" className="flex-handle" style={{ left: "50%", background: accent }} />
+      <Handle type="target" position={Position.Top} id="t3" className="flex-handle" style={{ left: "75%", background: accent }} />
 
       {/* ═══ THE CARD ═══════════════════════════════════════════ */}
       <div
@@ -351,20 +356,14 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
         </>
       )}
 
-      {/* Source handles */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="!w-2 !h-2 !border-2 !-right-1"
-        style={{ background: accent, borderColor: "rgba(255,255,255,0.2)" }}
-      />
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        id="bottom"
-        className="!w-2 !h-2 !border-2 !-bottom-1"
-        style={{ background: accent, borderColor: "rgba(255,255,255,0.2)" }}
-      />
+      {/* Right handles (type source — saída) */}
+      <Handle type="source" position={Position.Right} id="r1" className="flex-handle" style={{ top: "25%", background: accent }} />
+      <Handle type="source" position={Position.Right} id="r2" className="flex-handle" style={{ top: "50%", background: accent }} />
+      <Handle type="source" position={Position.Right} id="r3" className="flex-handle" style={{ top: "75%", background: accent }} />
+      {/* Bottom handles (type source) */}
+      <Handle type="source" position={Position.Bottom} id="b1" className="flex-handle" style={{ left: "25%", background: accent }} />
+      <Handle type="source" position={Position.Bottom} id="b2" className="flex-handle" style={{ left: "50%", background: accent }} />
+      <Handle type="source" position={Position.Bottom} id="b3" className="flex-handle" style={{ left: "75%", background: accent }} />
     </div>
   );
 }
