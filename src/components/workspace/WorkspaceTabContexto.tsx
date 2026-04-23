@@ -667,7 +667,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
             <p className="text-xs text-muted-foreground/60 mt-1">Importe um briefing Essencial ou SiteBolt.</p>
           </div>
         ) : (
-          <div className="divide-y divide-border/30">
+          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
             {internalBriefings.map((e) => {
               const kind = readBriefingKind(e.metadata);
               const color = kind ? (BRIEFING_COLORS[kind] ?? "#00FF88") : "#00FF88";
@@ -675,20 +675,20 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
               const reviewed = e.metadata?.import_review_status === "reviewed";
               return (
                 <button key={e.id} type="button" onClick={() => openSheet(e, "briefing")}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/20 transition-colors text-left group">
+                  className="min-h-32 rounded-lg border border-border/60 bg-background/50 p-3 text-left transition-colors hover:bg-secondary/20 group">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0"
                     style={{ background: `${color}15`, border: `1px solid ${color}25` }}>
                     <Icon className="h-4 w-4" style={{ color }} />
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="mt-3 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium text-foreground">{e.title}</span>
                       {kind && <span className="text-[10px] font-medium" style={{ color }}>{BRIEFING_LABELS[kind] ?? kind}</span>}
                       {reviewed && <Badge className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-primary/25">Revisado</Badge>}
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-1">{getPreview(e)}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-3">{getPreview(e)}</p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="mt-3 flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                     <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40" />
                   </div>
                 </button>
@@ -712,25 +712,25 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
             </Button>
           </div>
         ) : (
-          <div className="divide-y divide-border/30">
+          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
             {importedCtx.map((e) => {
               const src = getImportSource(e.metadata);
               const srcLabel = src ? (IMPORT_SOURCE_LABELS[src] ?? src) : "Importado";
               return (
                 <button key={e.id} type="button" onClick={() => openSheet(e, "entry")}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/20 transition-colors text-left group">
+                  className="min-h-32 rounded-lg border border-border/60 bg-background/50 p-3 text-left transition-colors hover:bg-secondary/20 group">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-400/10 border border-blue-400/25 shrink-0">
                     <FileText className="h-4 w-4 text-blue-400" />
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="mt-3 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium text-foreground">{e.title}</span>
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-blue-400 border-blue-400/30">{srcLabel}</Badge>
                       <span className="text-[10px] text-muted-foreground/60">{getContextLabel(e.context_type)}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-1">{getPreview(e)}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-3">{getPreview(e)}</p>
                   </div>
-                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                  <ArrowRight className="mt-3 h-3.5 w-3.5 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                 </button>
               );
             })}
