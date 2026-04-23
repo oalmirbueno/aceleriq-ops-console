@@ -224,6 +224,7 @@ function CanvasStudioInner({
   const [loading, setLoading] = useState(true);
   const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState<CanvasNodeRow | null>(null);
+  const [aiOrbConfigNode, setAiOrbConfigNode] = useState<CanvasNodeRow | null>(null);
 
   const [rfNodes, setRfNodes] = useState<Node[]>([]);
   const [rfEdges, setRfEdges] = useState<Edge[]>([]);
@@ -617,6 +618,10 @@ function CanvasStudioInner({
     const found = dbNodes.find((n) => n.id === node.id);
     if (!found) return;
     if (found.node_type === "client") return; // client groups don't open drawer
+    if (nodeKindOf(found) === "ai_orb") {
+      setAiOrbConfigNode(found);
+      return;
+    }
     setSelectedNode(found);
   }, [dbNodes]);
 
