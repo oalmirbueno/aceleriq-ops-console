@@ -593,11 +593,11 @@ function CanvasStudioInner({
     const validation = validateCanvasConnection(sourceNode, targetNode);
     if (!validation.allowed) {
       toast({
-        title: "Ligação incompatível",
-        description: validation.reason ?? "Essa conexão não segue o fluxo operacional do canvas.",
-        variant: "destructive",
+        title: "Atenção",
+        description: validation.reason ?? "Conexão fora do fluxo padrão.",
       });
-      return;
+      const hardBlocked = validation.reason?.includes("si mesmo") || validation.reason?.includes("mesma pasta");
+      if (hardBlocked) return;
     }
 
     const alreadyExists = dbEdgesRef.current.some((edge) => edge.source_node_id === conn.source && edge.target_node_id === conn.target);
@@ -631,7 +631,9 @@ function CanvasStudioInner({
     const sourceNode = dbNodesRef.current.find((n) => n.id === conn.source);
     const targetNode = dbNodesRef.current.find((n) => n.id === conn.target);
     if (!sourceNode || !targetNode) return false;
-    return validateCanvasConnection(sourceNode, targetNode).allowed;
+    const validation = validateCanvasConnection(sourceNode, targetNode);
+    if (validation.allowed) return true;
+    return !(validation.reason?.includes("si mesmo") || validation.reason?.includes("mesma pasta"));
   }, []);
 
   const onNodeClick = useCallback((_e: React.MouseEvent, node: Node) => {
