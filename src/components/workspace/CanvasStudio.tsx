@@ -401,6 +401,7 @@ function CanvasStudioInner({
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
   const expandEngineHubRef = useRef<((engineNodeId: string) => void | Promise<void>) | null>(null);
   const restoredScopesRef = useRef<Set<string>>(new Set());
+  const draggingNodesRef = useRef<Set<string>>(new Set());
   const saveTimerRef = useRef<number | null>(null);
 
   const readSavedViewport = useCallback((scope: string): Viewport | null => {
@@ -541,20 +542,32 @@ function CanvasStudioInner({
 
   /* DB → ReactFlow */
   useEffect(() => {
-    setRfNodes(reactFlowNodes);
+    setRfNodes((currentRfNodes) => reactFlowNodes.map((newNode) => {
+      if (!draggingNodesRef.current.has(newNode.id)) return newNode;
+      const existing = currentRfNodes.find((node) => node.id === newNode.id);
+      return existing ? { ...newNode, position: existing.position } : newNode;
+    }));
+  }, [reactFlowNodes]);
+
+  useEffect(() => {
     setRfEdges(reactFlowEdges);
-  }, [reactFlowNodes, reactFlowEdges]);
+  }, [reactFlowEdges]);
 
   /* ReactFlow handlers */
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setRfNodes((nds) => applyNodeChanges(changes, nds));
     for (const c of changes) {
-      if (c.type === "position" && c.dragging === false && c.position) {
-        supabase
-          .from("canvas_nodes")
-          .update({ pos_x: c.position.x, pos_y: c.position.y, updated_at: new Date().toISOString() })
-          .eq("id", c.id)
-          .then(({ error }) => { if (error) console.error("position persist failed", error); });
+      if (c.type === "position") {
+        if (c.dragging === true) {
+          draggingNodesRef.current.add(c.id);
+        } else if (c.dragging === false && c.position) {
+          draggingNodesRef.current.delete(c.id);
+          supabase
+            .from("canvas_nodes")
+            .update({ pos_x: c.position.x, pos_y: c.position.y, updated_at: new Date().toISOString() })
+            .eq("id", c.id)
+            .then(({ error }) => { if (error) console.error("position persist failed", error); });
+        }
       }
     }
   }, []);
