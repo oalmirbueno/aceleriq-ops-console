@@ -582,7 +582,51 @@
 .ai-orb-core { width: 56px; height: 56px; border-radius: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: hsl(var(--foreground)); background: hsl(var(--background) / 0.56); }
 .ai-orb-core span { max-width: 48px; font-size: 8px; line-height: 1; text-align: center; color: hsl(var(--muted-foreground)); }
 .ai-orb-caption { width: 118px; text-align: center; font-size: 9px; line-height: 1.15; color: hsl(var(--muted-foreground)); }
-.ai-orb-handle { width: 10px !important; height: 10px !important; background: hsl(var(--orb-color)) !important; border: 2px solid hsl(var(--background)) !important; box-shadow: 0 0 12px hsl(var(--orb-color) / 0.42) !important; }
+/* ═══ Flexible multi-handles (ProjectNodeCard) ═══
+   3 handles por lado (12 total). Invisíveis por padrão,
+   revelam no hover do node. Mouse pode escolher qualquer ponto. */
+.flex-handle {
+  width: 10px !important;
+  height: 10px !important;
+  border: 2px solid rgba(255, 255, 255, 0.25) !important;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: auto !important;
+}
+/* Hover no node pai → mostra todos os handles dele */
+.react-flow__node:hover .flex-handle,
+.react-flow__node.selected .flex-handle {
+  opacity: 0.55;
+}
+/* Hover direto no handle → destaca ele */
+.flex-handle:hover {
+  opacity: 1 !important;
+  transform: scale(1.6);
+  box-shadow: 0 0 12px currentColor;
+  z-index: 20;
+}
+/* Durante conexão ativa — todos os handles visíveis */
+.react-flow.connecting .flex-handle {
+  opacity: 0.85 !important;
+}
+/* AI orb handles também ganham estado progressivo */
+.ai-orb-handle {
+  width: 10px !important;
+  height: 10px !important;
+  background: hsl(var(--orb-color)) !important;
+  border: 2px solid hsl(var(--background)) !important;
+  opacity: 0.35;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.ai-orb-node:hover .ai-orb-handle,
+.ai-orb-node.is-selected .ai-orb-handle {
+  opacity: 0.75;
+}
+.ai-orb-handle:hover {
+  opacity: 1 !important;
+  transform: scale(1.5);
+  box-shadow: 0 0 14px hsl(var(--orb-color) / 0.8) !important;
+}
 .ai-orb-particle { position: absolute; left: 36px; top: 36px; width: 5px; height: 5px; border-radius: 999px; background: hsl(var(--orb-color)); opacity: 0; }
 .ai-orb-node.is-generating .ai-orb-particle { opacity: .9; animation: orbParticle1 1.8s linear infinite; }
 .ai-orb-node.is-generating .particle-two { animation-delay: -.6s; } .ai-orb-node.is-generating .particle-three { animation-delay: -1.2s; }
