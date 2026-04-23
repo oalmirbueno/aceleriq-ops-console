@@ -834,7 +834,14 @@ function CanvasStudioInner({
         if (!eErr && edgeRow) setDbEdges((prev) => [...prev, edgeRow as CanvasEdgeRecord]);
       }
 
-      setSelectedNode(newRow);
+      setRfNodes((nodes) => nodes.map((node) => ({ ...node, selected: node.id === newRow.id })));
+      window.setTimeout(() => {
+        rfInstanceRef.current?.setCenter(
+          Number(newRow.pos_x ?? 0) + 170,
+          Number(newRow.pos_y ?? 0) + 60,
+          { zoom: 1, duration: 400 },
+        );
+      }, 100);
     }
   }, [clientId, dbNodes, ensureActiveClient, pickParentGroup, projectNodes, workspaceId]);
 
@@ -842,8 +849,15 @@ function CanvasStudioInner({
     const parent = ensureActiveClient();
     if (!parent) return;
     const sameParentOrbs = dbNodes.filter((node) => node.parent_node_id === parent && node.node_type === "ai_orb");
-    const pos_x = OPS_FLOW_X.engine + 40;
-    const pos_y = CONTENT_TOP + 520 + sameParentOrbs.length * 132;
+    const ORB_SPACING_X = 220;
+    const ORB_SPACING_Y = 180;
+    const ORBS_PER_ROW = 3;
+    const ORB_BAND_Y = CONTENT_TOP + 720;
+    const ORB_BAND_X = OPS_FLOW_X.engine - 220;
+    const indexInRow = sameParentOrbs.length % ORBS_PER_ROW;
+    const row = Math.floor(sameParentOrbs.length / ORBS_PER_ROW);
+    const pos_x = ORB_BAND_X + indexInRow * ORB_SPACING_X;
+    const pos_y = ORB_BAND_Y + row * ORB_SPACING_Y;
     const { data, error } = await supabase.from("canvas_nodes").insert(buildAiOrbNodePayload({
       orbType,
       workspaceId,
@@ -853,6 +867,14 @@ function CanvasStudioInner({
       y: pos_y,
     })).select().single();
     if (error) {
+      if (error.message?.includes("invalid input") && error.message?.includes("ai_orb")) {
+        toast({
+          title: "Banco desatualizado",
+          description: "Execute a migração SQL para adicionar 'ai_orb' ao enum canvas_node_type.",
+          variant: "destructive",
+        });
+        return;
+      }
       toast({ title: "Erro ao criar AI Orb", description: error.message, variant: "destructive" });
       return;
     }
