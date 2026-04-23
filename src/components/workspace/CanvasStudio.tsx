@@ -1285,6 +1285,18 @@ function CanvasStudioInner({
   const handlePaletteAdd = useCallback((kind: ProjectNodeKind, stage: AceleraStageKey) => addProjectNode(kind, stage), [addProjectNode]);
   const openClientPicker = useCallback(() => setClientPickerOpen(true), []);
   const openAdvanced = useCallback(() => setAdvancedOpen(true), []);
+  const fitCanvasView = useCallback(() => rfInstanceRef.current?.fitView({ padding: 0.32, duration: 280 }), []);
+  const toggleLockedNodes = useCallback(() => setLockedNodes((v) => !v), []);
+  const toggleGridVisible = useCallback(() => setGridVisible((v) => !v), []);
+  const handleDockGroupChange = useCallback((group: string | null) => setOpenDockGroup(group), []);
+  const handleDockPickKind = useCallback((kind: ProjectNodeKind) => {
+    handlePaletteAdd(kind, getProjectTypeMeta(kind)?.defaultStage ?? "producao");
+    setOpenDockGroup(null);
+  }, [handlePaletteAdd]);
+  const handleDockPickOrb = useCallback((orbType: AiOrbType) => {
+    void addAiOrb(orbType);
+    setOpenDockGroup(null);
+  }, [addAiOrb]);
 
   const hasFilters = !!search || !!typeFilter || !!statusFilter || approvalFilter !== "all" || blockedFilter !== "all" || !!ownerFilter;
   const existingClientIds = useMemo(
@@ -1490,9 +1502,9 @@ function CanvasStudioInner({
           lockedNodes={lockedNodes}
           fullscreen={fullscreen}
           onToolChange={setActiveTool}
-          onFit={() => rfInstanceRef.current?.fitView({ padding: 0.32, duration: 280 })}
-          onToggleLock={() => setLockedNodes((v) => !v)}
-          onToggleGrid={() => setGridVisible((v) => !v)}
+          onFit={fitCanvasView}
+          onToggleLock={toggleLockedNodes}
+          onToggleGrid={toggleGridVisible}
           onToggleFullscreen={onToggleFullscreen}
         />
 
@@ -1595,15 +1607,9 @@ function CanvasStudioInner({
           {!loading && clientGroups.length > 0 && (
             <NodeTypeDock
               openGroup={openDockGroup}
-              onOpenGroup={setOpenDockGroup}
-              onPickKind={(kind) => {
-                handlePaletteAdd(kind, getProjectTypeMeta(kind)?.defaultStage ?? "producao");
-                setOpenDockGroup(null);
-              }}
-              onPickOrb={(orbType) => {
-                void addAiOrb(orbType);
-                setOpenDockGroup(null);
-              }}
+              onOpenGroup={handleDockGroupChange}
+              onPickKind={handleDockPickKind}
+              onPickOrb={handleDockPickOrb}
             />
           )}
         </div>
