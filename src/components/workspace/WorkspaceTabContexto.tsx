@@ -19,7 +19,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -243,7 +242,7 @@ function BriefingSheet({ entry, workspaceId, clientId, clientName, onClose }: {
             </Button>
           </div>
         </div>
-        <ScrollArea className="flex-1">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <div className="px-5 py-5">
             {loading ? (
               <div className="flex items-center justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
@@ -293,7 +292,7 @@ function BriefingSheet({ entry, workspaceId, clientId, clientName, onClose }: {
               </div>
             )}
           </div>
-        </ScrollArea></DialogContent></Dialog>
+        </div></DialogContent></Dialog>
   );
 }
 
@@ -349,11 +348,11 @@ function EntrySheet({ entry, onClose, onEdit, onDelete }: {
             </Button>
           </div>
         </div>
-        <ScrollArea className="flex-1">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <div className="px-5 py-4 text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
             {entry.content || <span className="italic opacity-50">Sem conteúdo.</span>}
           </div>
-        </ScrollArea></DialogContent></Dialog>
+        </div></DialogContent></Dialog>
   );
 }
 
@@ -777,34 +776,23 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
       )}
 
       {/* ── Dialogs ───────────────────────────────────── */}
-      <ContextEntryDialog open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleCreate} mode="create" />
+      <ContextEntryDialog open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleCreate} workspaceId={workspaceId} />
       {editEntry && (
-        <ContextEntryDialog
-          open={!!editEntry}
-          onOpenChange={(o) => !o && setEditEntry(null)}
-          onSubmit={handleEdit}
-          mode="edit"
-          initial={{
-            context_type: editEntry.context_type as ContextType,
-            title: editEntry.title,
-            content: editEntry.content,
-            happened_at: editEntry.happened_at ?? "",
-            source_label: editEntry.source_label ?? "",
-            source_url: editEntry.source_url ?? "",
-            tags: (editEntry.tags ?? []).join(", "),
-            is_key_decision: editEntry.is_key_decision,
-          }}
-        />
+        <ContextEntryDialog open={!!editEntry} onOpenChange={(o) => !o && setEditEntry(null)} onSubmit={handleEdit} initialData={editEntry} workspaceId={workspaceId} />
       )}
       <ImportContextDialog open={importOpen} onOpenChange={setImportOpen} workspaceId={workspaceId} clientId={clientId} onImported={fetchEntries} />
       {briefingType && (
         <ImportBriefingDialog open={!!briefingType} onOpenChange={(o) => !o && setBriefingType(null)}
-          workspaceId={workspaceId} clientId={clientId} briefingType={briefingType} onImported={fetchEntries} />
+          workspaceId={workspaceId} clientId={clientId} briefingKind={briefingType} onImported={fetchEntries} />
       )}
       {linkDialogOpen && (
         <GenerateBriefingLinkDialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}
           workspaceId={workspaceId} clientId={clientId} clientName={clientName ?? "Cliente"}
-          defaultBriefingType={linkBriefingType} />
+          briefingKind={linkBriefingType} />
+      )}
+      {entries.some((e) => e.context_type === "briefing" && (e.metadata?.structured_signals || e.metadata?.import_review_status === "pending_review")) && (
+        <BriefingSignalReview entries={entries.filter((e) => e.context_type === "briefing")}
+          workspaceId={workspaceId} clientId={clientId} onUpdated={fetchEntries} />
       )}
       {activeSheet && sheetMode === "briefing" && (
         <BriefingSheet entry={activeSheet} workspaceId={workspaceId} clientId={clientId}
