@@ -592,14 +592,17 @@ function CanvasStudioInner({
     const sourceNode = dbNodesRef.current.find((n) => n.id === conn.source);
     const targetNode = dbNodesRef.current.find((n) => n.id === conn.target);
     if (!sourceNode || !targetNode) return;
+    const sourceKind = nodeKindOf(sourceNode);
+    const targetKind = nodeKindOf(targetNode);
 
     const validation = validateCanvasConnection(sourceNode, targetNode);
     if (!validation.allowed) {
-      toast({
-        title: "Atenção",
-        description: validation.reason ?? "Conexão fora do fluxo padrão.",
-      });
       const hardBlocked = validation.reason?.includes("si mesmo") || validation.reason?.includes("mesma pasta");
+      toast({
+        title: hardBlocked ? "Conexão bloqueada" : "Atenção",
+        description: validation.reason ?? "Conexão fora do fluxo padrão.",
+        variant: hardBlocked ? "destructive" : "default",
+      });
       if (hardBlocked) return;
     }
 
@@ -626,6 +629,56 @@ function CanvasStudioInner({
       return;
     }
     if (data) setDbEdges((prev) => [...prev, data as CanvasEdgeRecord]);
+
+    if (INPUT_KINDS.has(sourceKind)) {
+      const targetData = (targetNode.data as Record<string, unknown> | null) ?? {};
+      const targetReferences = Array.isArray(targetData.references)
+        ? targetData.references as Array<{ nodeId: string; kind: string; title: string; addedAt?: string }>
+        : [];
+      if (!targetReferences.some((ref) => ref.nodeId === sourceNode.id)) {
+        const sourceTags = (sourceNode.data as Record<string, unknown> | null)?.tags;
+        const currentTargetTags = Array.isArray(targetData.tags) ? targetData.tags as string[] : [];
+        const mergedTags = Array.isArray(sourceTags)
+          ? Array.from(new Set([...currentTargetTags, ...(sourceTags as string[])]))
+          : currentTargetTags;
+        const updatedData = {
+          ...targetData,
+          references: [...targetReferences, { nodeId: sourceNode.id, kind: sourceKind, title: sourceNode.title, addedAt: new Date().toISOString() }],
+          tags: mergedTags,
+          contextLastUpdatedAt: new Date().toISOString(),
+        };
+        await supabase.from("canvas_nodes").update({ data: updatedData, updated_at: new Date().toISOString() }).eq("id", targetNode.id);
+        setDbNodes((prev) => prev.map((n) => (n.id === targetNode.id ? { ...n, data: updatedData } : n)));
+        toast({ title: "Contexto propagado", description: `"${sourceNode.title}" agora alimenta "${targetNode.title}"` });
+      }
+    }
+
+    if (targetNode.node_type === "ai_orb") {
+      const orbData = readAiOrbData(targetNode.data as Record<string, unknown> | null);
+      const updatedOrbData = {
+        ...orbData,
+        memory: [...(orbData.memory ?? []).slice(-11), {
+          timestamp: new Date().toISOString(),
+          action: "connected" as const,
+          insight: `Recebeu input de "${sourceNode.title}" (${sourceKind})`,
+          sourceNodeId: sourceNode.id,
+        }],
+      };
+      await supabase.from("canvas_nodes").update({ data: updatedOrbData, updated_at: new Date().toISOString() }).eq("id", targetNode.id);
+      setDbNodes((prev) => prev.map((n) => (n.id === targetNode.id ? { ...n, data: updatedOrbData } : n)));
+    }
+
+    const suggestion = (() => {
+      if ((sourceKind === "briefing" || sourceKind === "contexto_ops") && ENGINE_KINDS.has(targetKind)) return { kind: "resultado", reason: "Engine costuma gerar um resultado." };
+      if ((sourceKind === "briefing" || sourceKind === "contexto_ops") && INSTRUCTION_KINDS.has(targetKind)) return { kind: "engine", reason: "Instruções alimentam uma engine." };
+      if (ENGINE_KINDS.has(sourceKind) && RESULT_KINDS.has(targetKind)) return { kind: "metrica", reason: "Meça o resultado com KPIs." };
+      if (RESULT_KINDS.has(sourceKind) && PROOF_KINDS.has(targetKind)) return { kind: "case", reason: "Provas consolidam em case de sucesso." };
+      return null;
+    })();
+    if (suggestion) {
+      toast({ title: "Próximo passo sugerido", description: `${suggestion.reason} Criar um node "${suggestion.kind}"?` });
+    }
+
     await onTimelineRefresh?.();
   }, [workspaceId, onTimelineRefresh]);
 
