@@ -11,19 +11,24 @@ interface Props {
 
 export default function WorkspaceTabCanvas(props: Props) {
   const navigate = useNavigate();
-  const openGlobalCanvas = () => {
-    const params = new URLSearchParams({ workspaceId: props.workspaceId, clientId: props.clientId, clientName: props.clientName });
-    navigate(`/ops/canvas?${params.toString()}`);
+
+  const openFullscreen = () => {
+    const params = new URLSearchParams({
+      workspaceId: props.workspaceId,
+      clientId: props.clientId,
+      clientName: props.clientName,
+    });
+    navigate(`/ops/canvas/open?${params.toString()}`);
   };
 
   return (
     <div className="animate-fade-in space-y-3">
       <div className="flex justify-end">
-        <button type="button" onClick={openGlobalCanvas} className="rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/15">
+        <button type="button" onClick={openFullscreen} className="rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/15">
           Abrir canvas completo ↗
         </button>
       </div>
-      <CanvasStudio {...props} fullscreen={false} onToggleFullscreen={openGlobalCanvas} />
+      <CanvasStudio {...props} fullscreen={false} onToggleFullscreen={openFullscreen} />
     </div>
   );
 }
