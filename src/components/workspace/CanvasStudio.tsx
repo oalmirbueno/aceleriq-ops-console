@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, useDeferredValue } from "react";
+import { memo, useState, useEffect, useCallback, useMemo, useRef, useDeferredValue } from "react";
 import {
   ReactFlow, ReactFlowProvider, Background,
   applyNodeChanges, applyEdgeChanges,
@@ -6,7 +6,7 @@ import {
   type ReactFlowInstance, type Viewport, SelectionMode, MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow, MousePointer2, Hand, Lock, Grid3X3, Camera, Type, Image, FileStack, Bot, Megaphone, Trophy, Minus, ZoomIn, ZoomOut } from "lucide-react";
+import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow, MousePointer2, Hand, Lock, Grid3X3, Camera, Type, Image, FileStack, Bot, Megaphone, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -75,6 +75,24 @@ const CANVAS_TRANSLATE_EXTENT: [[number, number], [number, number]] = [
   [-CANVAS_PADDING, -CANVAS_PADDING],
   [TOTAL_STAGE_WIDTH + CANVAS_PADDING, CONTENT_TOP + STAGE_BAND_HEIGHT + CANVAS_PADDING],
 ];
+const FIT_VIEW_OPTIONS = { padding: 0.4 };
+const DEFAULT_EDGE_OPTIONS = { type: "smoothstep", animated: true };
+const PAN_ON_DRAG = [0, 1, 2];
+const SELECTION_KEY_CODE = ["Shift"];
+const MULTI_SELECTION_KEY_CODE = ["Meta", "Control"];
+const CONNECTION_LINE_STYLE = { stroke: "hsl(var(--primary))", strokeWidth: 2.5 };
+const PRO_OPTIONS = { hideAttribution: true };
+
+export function getCanvasInteractionConfig(activeTool: "select" | "hand") {
+  return {
+    panOnDrag: activeTool === "hand" ? true : PAN_ON_DRAG,
+    selectionOnDrag: activeTool === "select",
+  };
+}
+
+export function resolveDockGroupClick(currentGroup: string | null, clickedGroup: string) {
+  return currentGroup === clickedGroup ? null : clickedGroup;
+}
 
 function nodeStageOf(row: CanvasNodeRow): AceleraStageKey {
   const data = (row.data ?? {}) as Record<string, unknown>;
@@ -105,6 +123,31 @@ const AI_ORBS: Array<{ type: AiOrbType; label: string; specialization: string }>
   { type: "proof", label: "Provas", specialization: "KPI · case" },
   { type: "full", label: "Tudo", specialization: "esteira completa" },
 ];
+
+export function buildAiOrbNodePayload({
+  orbType, workspaceId, clientId, parentNodeId, x, y,
+}: {
+  orbType: AiOrbType;
+  workspaceId: string;
+  clientId: string;
+  parentNodeId: string;
+  x: number;
+  y: number;
+}) {
+  const orb = AI_ORBS.find((item) => item.type === orbType) ?? AI_ORBS[0];
+  return {
+    workspace_id: workspaceId,
+    client_id: clientId,
+    node_type: "ai_orb",
+    title: `AI Orb · ${orb.label}`,
+    status: "active",
+    description: orb.specialization,
+    pos_x: x,
+    pos_y: y,
+    parent_node_id: parentNodeId,
+    data: { kind: "ai_orb", orbType, orbLabel: orb.label, specialization: orb.specialization, aiModel: "internal", isGenerating: false },
+  };
+}
 const DOCK_GROUPS = [
   { id: "text", label: "Texto", icon: Type, kinds: ["instrucao", "conteudo"] as ProjectNodeKind[] },
   { id: "media", label: "Mídia", icon: Image, kinds: ["imagem", "video"] as ProjectNodeKind[] },
@@ -135,7 +178,7 @@ function nodeLabel(row: CanvasNodeRow) {
   return getProjectTypeMeta(kind)?.shortLabel ?? row.title;
 }
 
-function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNodeRow) {
+export function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNodeRow) {
   const sourceKind = nodeKindOf(source);
   const targetKind = nodeKindOf(target);
   const sourceLabel = nodeLabel(source);
@@ -208,9 +251,14 @@ function CanvasStudioInner({
   const [gridVisible, setGridVisible] = useState(true);
   const [lockedNodes, setLockedNodes] = useState(false);
   const [openDockGroup, setOpenDockGroup] = useState<string | null>(null);
+  const dbNodesRef = useRef<CanvasNodeRow[]>([]);
+  const dbEdgesRef = useRef<CanvasEdgeRecord[]>([]);
 
   // Active client folder (null = "Todos")
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
+
+  useEffect(() => { dbNodesRef.current = dbNodes; }, [dbNodes]);
+  useEffect(() => { dbEdgesRef.current = dbEdges; }, [dbEdges]);
 
   useEffect(() => {
     setStatusFilter(initialStatusFilter ?? null);
@@ -525,8 +573,8 @@ function CanvasStudioInner({
 
   const onConnect = useCallback(async (conn: Connection) => {
     if (!conn.source || !conn.target || conn.source === conn.target) return;
-    const sourceNode = dbNodes.find((n) => n.id === conn.source);
-    const targetNode = dbNodes.find((n) => n.id === conn.target);
+    const sourceNode = dbNodesRef.current.find((n) => n.id === conn.source);
+    const targetNode = dbNodesRef.current.find((n) => n.id === conn.target);
     if (!sourceNode || !targetNode) return;
 
     const validation = validateCanvasConnection(sourceNode, targetNode);
@@ -539,7 +587,7 @@ function CanvasStudioInner({
       return;
     }
 
-    const alreadyExists = dbEdges.some((edge) => edge.source_node_id === conn.source && edge.target_node_id === conn.target);
+    const alreadyExists = dbEdgesRef.current.some((edge) => edge.source_node_id === conn.source && edge.target_node_id === conn.target);
     if (alreadyExists) {
       toast({ title: "Conexão já existe", description: "Esses nodes já estão ligados no canvas." });
       return;
@@ -563,15 +611,15 @@ function CanvasStudioInner({
     }
     if (data) setDbEdges((prev) => [...prev, data as CanvasEdgeRecord]);
     await onTimelineRefresh?.();
-  }, [workspaceId, onTimelineRefresh, dbNodes, dbEdges]);
+  }, [workspaceId, onTimelineRefresh]);
 
   const isValidConnection = useCallback((conn: Connection) => {
     if (!conn.source || !conn.target || conn.source === conn.target) return false;
-    const sourceNode = dbNodes.find((n) => n.id === conn.source);
-    const targetNode = dbNodes.find((n) => n.id === conn.target);
+    const sourceNode = dbNodesRef.current.find((n) => n.id === conn.source);
+    const targetNode = dbNodesRef.current.find((n) => n.id === conn.target);
     if (!sourceNode || !targetNode) return false;
     return validateCanvasConnection(sourceNode, targetNode).allowed;
-  }, [dbNodes]);
+  }, []);
 
   const onNodeClick = useCallback((_e: React.MouseEvent, node: Node) => {
     const found = dbNodes.find((n) => n.id === node.id);
@@ -718,22 +766,17 @@ function CanvasStudioInner({
   const addAiOrb = useCallback(async (orbType: AiOrbType) => {
     const parent = ensureActiveClient();
     if (!parent) return;
-    const orb = AI_ORBS.find((item) => item.type === orbType) ?? AI_ORBS[0];
     const sameParentOrbs = dbNodes.filter((node) => node.parent_node_id === parent && node.node_type === "ai_orb");
     const pos_x = OPS_FLOW_X.engine + 40;
     const pos_y = CONTENT_TOP + 520 + sameParentOrbs.length * 132;
-    const { data, error } = await supabase.from("canvas_nodes").insert({
-      workspace_id: workspaceId,
-      client_id: clientId,
-      node_type: "ai_orb",
-      title: `AI Orb · ${orb.label}`,
-      status: "active",
-      description: orb.specialization,
-      pos_x,
-      pos_y,
-      parent_node_id: parent,
-      data: { kind: "ai_orb", orbType, orbLabel: orb.label, specialization: orb.specialization, aiModel: "internal", isGenerating: false },
-    }).select().single();
+    const { data, error } = await supabase.from("canvas_nodes").insert(buildAiOrbNodePayload({
+      orbType,
+      workspaceId,
+      clientId,
+      parentNodeId: parent,
+      x: pos_x,
+      y: pos_y,
+    })).select().single();
     if (error) {
       toast({ title: "Erro ao criar AI Orb", description: error.message, variant: "destructive" });
       return;
@@ -1253,8 +1296,21 @@ function CanvasStudioInner({
   const handlePaletteAdd = useCallback((kind: ProjectNodeKind, stage: AceleraStageKey) => addProjectNode(kind, stage), [addProjectNode]);
   const openClientPicker = useCallback(() => setClientPickerOpen(true), []);
   const openAdvanced = useCallback(() => setAdvancedOpen(true), []);
+  const fitCanvasView = useCallback(() => rfInstanceRef.current?.fitView({ padding: 0.32, duration: 280 }), []);
+  const toggleLockedNodes = useCallback(() => setLockedNodes((v) => !v), []);
+  const toggleGridVisible = useCallback(() => setGridVisible((v) => !v), []);
+  const handleDockGroupChange = useCallback((group: string | null) => setOpenDockGroup(group), []);
+  const handleDockPickKind = useCallback((kind: ProjectNodeKind) => {
+    handlePaletteAdd(kind, getProjectTypeMeta(kind)?.defaultStage ?? "producao");
+    setOpenDockGroup(null);
+  }, [handlePaletteAdd]);
+  const handleDockPickOrb = useCallback((orbType: AiOrbType) => {
+    void addAiOrb(orbType);
+    setOpenDockGroup(null);
+  }, [addAiOrb]);
 
   const hasFilters = !!search || !!typeFilter || !!statusFilter || approvalFilter !== "all" || blockedFilter !== "all" || !!ownerFilter;
+  const interactionConfig = useMemo(() => getCanvasInteractionConfig(activeTool), [activeTool]);
   const existingClientIds = useMemo(
     () => clientGroups.filter((n) => n.linked_entity_id).map((n) => n.linked_entity_id as string),
     [clientGroups],
@@ -1458,9 +1514,9 @@ function CanvasStudioInner({
           lockedNodes={lockedNodes}
           fullscreen={fullscreen}
           onToolChange={setActiveTool}
-          onFit={() => rfInstanceRef.current?.fitView({ padding: 0.32, duration: 280 })}
-          onToggleLock={() => setLockedNodes((v) => !v)}
-          onToggleGrid={() => setGridVisible((v) => !v)}
+          onFit={fitCanvasView}
+          onToggleLock={toggleLockedNodes}
+          onToggleGrid={toggleGridVisible}
           onToggleFullscreen={onToggleFullscreen}
         />
 
@@ -1539,22 +1595,22 @@ function CanvasStudioInner({
               nodeTypes={nodeTypes}
               onInit={handleRfInit}
               onMoveEnd={handleMoveEnd}
-              fitViewOptions={{ padding: 0.4 }}
+              fitViewOptions={FIT_VIEW_OPTIONS}
               minZoom={0.1}
               maxZoom={2}
-              panOnDrag={[0, 1, 2]}
+              panOnDrag={interactionConfig.panOnDrag}
               panOnScroll={false}
               zoomOnScroll
               zoomOnPinch
               zoomOnDoubleClick={false}
-              selectionOnDrag={false}
-              selectionKeyCode={["Shift"]}
-              multiSelectionKeyCode={["Meta", "Control"]}
+              selectionOnDrag={interactionConfig.selectionOnDrag}
+              selectionKeyCode={SELECTION_KEY_CODE}
+              multiSelectionKeyCode={MULTI_SELECTION_KEY_CODE}
               selectionMode={SelectionMode.Partial}
-              proOptions={{ hideAttribution: true }}
+              proOptions={PRO_OPTIONS}
               className="bg-background canvas-flow acelera-ops-flow"
-              defaultEdgeOptions={{ type: "smoothstep", animated: true }}
-              connectionLineStyle={{ stroke: "hsl(var(--primary))", strokeWidth: 2.5 }}
+              defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
+              connectionLineStyle={CONNECTION_LINE_STYLE}
               onPaneContextMenu={(event) => event.preventDefault()}
             >
               {gridVisible && <Background gap={32} size={1} className="opacity-20" />}
@@ -1563,15 +1619,9 @@ function CanvasStudioInner({
           {!loading && clientGroups.length > 0 && (
             <NodeTypeDock
               openGroup={openDockGroup}
-              onOpenGroup={setOpenDockGroup}
-              onPickKind={(kind) => {
-                handlePaletteAdd(kind, getProjectTypeMeta(kind)?.defaultStage ?? "producao");
-                setOpenDockGroup(null);
-              }}
-              onPickOrb={(orbType) => {
-                void addAiOrb(orbType);
-                setOpenDockGroup(null);
-              }}
+              onOpenGroup={handleDockGroupChange}
+              onPickKind={handleDockPickKind}
+              onPickOrb={handleDockPickOrb}
             />
           )}
         </div>
@@ -1724,7 +1774,7 @@ function QuickAddInline({ onPick }: { onPick: (kind: ProjectNodeKind) => void })
   );
 }
 
-function OperationalCanvasToolbar({
+export const OperationalCanvasToolbar = memo(function OperationalCanvasToolbar({
   activeTool, gridVisible, lockedNodes, fullscreen, onToolChange, onFit, onToggleLock, onToggleGrid, onToggleFullscreen,
 }: {
   activeTool: "select" | "hand";
@@ -1768,9 +1818,9 @@ function OperationalCanvasToolbar({
       </aside>
     </TooltipProvider>
   );
-}
+});
 
-function NodeTypeDock({
+export const NodeTypeDock = memo(function NodeTypeDock({
   openGroup, onOpenGroup, onPickKind, onPickOrb,
 }: {
   openGroup: string | null;
@@ -1808,7 +1858,7 @@ function NodeTypeDock({
           const Icon = group.icon;
           const active = openGroup === group.id;
           return (
-            <button key={group.id} type="button" onClick={() => onOpenGroup(active ? null : group.id)} className={`node-type-dock-button dock-${group.id} ${active ? "is-active" : ""}`}>
+            <button key={group.id} type="button" onClick={() => onOpenGroup(resolveDockGroupClick(openGroup, group.id))} className={`node-type-dock-button dock-${group.id} ${active ? "is-active" : ""}`}>
               <Icon className="h-4 w-4" />
               <span>{group.label}</span>
             </button>
@@ -1817,7 +1867,7 @@ function NodeTypeDock({
       </div>
     </div>
   );
-}
+});
 
 /* Inspector adapter — reuses existing component with filter callbacks but ignores group nodes */
 function CanvasInspectorAdapter(props: React.ComponentProps<typeof CanvasInspector>) {
