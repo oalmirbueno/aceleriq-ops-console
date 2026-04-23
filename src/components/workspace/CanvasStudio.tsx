@@ -597,13 +597,25 @@ function CanvasStudioInner({
       });
   }, [dbEdges, visibleCanvasNodes]);
 
-  /* DB → ReactFlow */
+  /* DB → ReactFlow — preserva posição LOCAL quando o node já existe no canvas.
+   * Motivo: sem isso, ao adicionar/editar qualquer node TODOS os outros voltam
+   * para pos_x/pos_y do DB, desfazendo organização manual do usuário. */
   useEffect(() => {
-    setRfNodes((currentRfNodes) => reactFlowNodes.map((newNode) => {
-      if (!draggingNodesRef.current.has(newNode.id)) return newNode;
-      const existing = currentRfNodes.find((node) => node.id === newNode.id);
-      return existing ? { ...newNode, position: existing.position } : newNode;
-    }));
+    setRfNodes((currentRfNodes) => {
+      const byId = new Map(currentRfNodes.map(n => [n.id, n]));
+      return reactFlowNodes.map((newNode) => {
+        const existing = byId.get(newNode.id);
+        // Node novo → usa posição do DB
+        if (!existing) return newNode;
+        // Node sendo arrastado → mantém posição atual (já é a drag live)
+        if (draggingNodesRef.current.has(newNode.id)) {
+          return { ...newNode, position: existing.position };
+        }
+        // Node existente → atualiza DATA mas MANTÉM posição local
+        // (a posição no DB só vale pra primeira renderização)
+        return { ...newNode, position: existing.position };
+      });
+    });
   }, [reactFlowNodes]);
 
   useEffect(() => {
@@ -763,6 +775,56 @@ function CanvasStudioInner({
     const validation = validateCanvasConnection(sourceNode, targetNode);
     if (validation.allowed) return true;
     return !(validation.reason?.includes("si mesmo") || validation.reason?.includes("mesma pasta"));
+  }, []);
+
+  /** Reconectar edge: quando usuário arrasta um endpoint de edge para outro node */
+  const handleReconnectEdge = useCallback(async (oldEdge: Edge, newConn: Connection) => {
+    if (!newConn.source || !newConn.target || newConn.source === newConn.target) return;
+    const sourceNode = dbNodesRef.current.find((n) => n.id === newConn.source);
+    const targetNode = dbNodesRef.current.find((n) => n.id === newConn.target);
+    if (!sourceNode || !targetNode) return;
+
+    // Validação básica
+    const validation = validateCanvasConnection(sourceNode, targetNode);
+    if (!validation.allowed) {
+      const hardBlocked = validation.reason?.includes("si mesmo") || validation.reason?.includes("mesma pasta");
+      if (hardBlocked) {
+        toast({ title: "Reconexão bloqueada", description: validation.reason, variant: "destructive" });
+        return;
+      }
+    }
+
+    // Check duplicate
+    const alreadyExists = dbEdgesRef.current.some(
+      (e) => e.id !== oldEdge.id && e.source_node_id === newConn.source && e.target_node_id === newConn.target
+    );
+    if (alreadyExists) {
+      toast({ title: "Conexão já existe", description: "Esses nodes já estão ligados." });
+      return;
+    }
+
+    // Update edge in DB
+    const { error } = await supabase
+      .from("canvas_edges")
+      .update({
+        source_node_id: newConn.source,
+        target_node_id: newConn.target,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", oldEdge.id);
+
+    if (error) {
+      toast({ title: "Erro ao reconectar", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    // Local state update
+    setDbEdges((prev) => prev.map((e) =>
+      e.id === oldEdge.id
+        ? { ...e, source_node_id: newConn.source!, target_node_id: newConn.target! }
+        : e
+    ));
+    toast({ title: "Conexão atualizada", description: `${sourceNode.title} → ${targetNode.title}` });
   }, []);
 
   const onNodeClick = useCallback((_e: React.MouseEvent, node: Node) => {
@@ -2106,7 +2168,10 @@ function CanvasStudioInner({
               onlyRenderVisibleElements={rfNodes.length > 40}
               elevateNodesOnSelect
               nodesDraggable={!lockedNodes}
-              edgesFocusable={false}
+              edgesFocusable
+              edgesReconnectable
+              onReconnect={handleReconnectEdge}
+              deleteKeyCode={["Backspace", "Delete"]}
               nodesConnectable
               onPaneContextMenu={(event) => event.preventDefault()}
             >
