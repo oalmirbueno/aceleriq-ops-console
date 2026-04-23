@@ -27,6 +27,7 @@ import CanvasClientTabs, { type CanvasClientTab } from "./CanvasClientTabs";
 import GenerateEsteiraDialog from "./GenerateEsteiraDialog";
 import CanvasTemplatesDialog, { type CanvasTemplate, type NodeSnapshot, type EdgeSnapshot } from "./CanvasTemplatesDialog";
 import ApplyPlaybookButton from "./ApplyPlaybookButton";
+import DeletableEdge from "./DeletableEdge";
 import type { EsteiraTemplate } from "./esteiraTemplates";
 import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalMeta } from "./canvasOperationalMeta";
 import {
@@ -71,6 +72,10 @@ const nodeTypes = {
   chatNode: ChatNode,
 };
 
+const edgeTypes = {
+  deletable: DeletableEdge,
+};
+
 const CLIENT_BAR_Y = 0;
 const CLIENT_BAR_HEIGHT = 52;
 const CLIENT_BAR_GAP = 220;
@@ -94,7 +99,9 @@ const PRO_OPTIONS = { hideAttribution: true };
 
 export function getCanvasInteractionConfig(activeTool: "select" | "hand") {
   return {
-    panOnDrag: activeTool === "hand" ? true : PAN_ON_DRAG,
+    // Hand tool: qualquer botão arrasta/pan
+    // Select tool: só botão do meio (1) e direito (2) fazem pan; esquerdo (0) cria caixa de seleção
+    panOnDrag: activeTool === "hand" ? true : [1, 2],
     selectionOnDrag: activeTool === "select",
   };
 }
@@ -587,14 +594,10 @@ function CanvasStudioInner({
           targetHandle: (e as CanvasEdgeRecord & { target_handle?: string | null }).target_handle ?? undefined,
           label: intent.label,
           animated: intent.animated,
-          type: "bezier",
+          type: "deletable",
           className: intent.className,
           markerEnd: { type: MarkerType.ArrowClosed, color: intent.stroke, width: 18, height: 18 },
           style: { stroke: intent.stroke, strokeWidth: intent.strokeWidth },
-          labelStyle: { fill: "hsl(var(--foreground))", fontSize: 10, fontWeight: 700, letterSpacing: 0.2 },
-          labelBgPadding: [8, 4],
-          labelBgBorderRadius: 999,
-          labelBgStyle: { fill: "hsl(var(--card))", fillOpacity: 0.96, stroke: intent.stroke, strokeOpacity: 0.26 },
         };
       });
   }, [dbEdges, visibleCanvasNodes]);
@@ -843,17 +846,6 @@ function CanvasStudioInner({
     }
     setSelectedNode(found);
   }, [dbNodes]);
-
-  /** ═══ DRAG START — garante que arrastar um node não-selecionado mova
-   *   apenas ele, limpando seleção múltipla anterior. Sem isso, qualquer
-   *   node previamente selecionado é arrastado junto. */
-  const onNodeDragStart = useCallback((_e: React.MouseEvent, node: Node) => {
-    setRfNodes((nds) => {
-      const target = nds.find((n) => n.id === node.id);
-      if (target?.selected) return nds; // já está na seleção, mantém grupo
-      return nds.map((n) => ({ ...n, selected: n.id === node.id }));
-    });
-  }, []);
 
   /** ═══ CONNECTING STATE — ativa classe CSS .connecting durante drag de conexão.
    *   Isso faz todos os 12 handles de TODOS os nodes ficarem visíveis, ajudando
@@ -2231,8 +2223,8 @@ function CanvasStudioInner({
               onEdgeDoubleClick={onEdgeDoubleClick}
               isValidConnection={isValidConnection}
               onNodeClick={onNodeClick}
-              onNodeDragStart={onNodeDragStart}
               nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
               onInit={handleRfInit}
               onMoveEnd={handleMoveEnd}
               fitViewOptions={FIT_VIEW_OPTIONS}
