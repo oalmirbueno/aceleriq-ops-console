@@ -1762,7 +1762,7 @@ function QuickAddInline({ onPick }: { onPick: (kind: ProjectNodeKind) => void })
   );
 }
 
-function OperationalCanvasToolbar({
+export const OperationalCanvasToolbar = memo(function OperationalCanvasToolbar({
   activeTool, gridVisible, lockedNodes, fullscreen, onToolChange, onFit, onToggleLock, onToggleGrid, onToggleFullscreen,
 }: {
   activeTool: "select" | "hand";
@@ -1806,9 +1806,9 @@ function OperationalCanvasToolbar({
       </aside>
     </TooltipProvider>
   );
-}
+});
 
-function NodeTypeDock({
+export const NodeTypeDock = memo(function NodeTypeDock({
   openGroup, onOpenGroup, onPickKind, onPickOrb,
 }: {
   openGroup: string | null;
@@ -1855,7 +1855,7 @@ function NodeTypeDock({
       </div>
     </div>
   );
-}
+});
 
 /* Inspector adapter — reuses existing component with filter callbacks but ignores group nodes */
 function CanvasInspectorAdapter(props: React.ComponentProps<typeof CanvasInspector>) {
