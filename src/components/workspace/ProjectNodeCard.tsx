@@ -18,6 +18,7 @@ import {
   type ApprovalStatus,
   type CanvasOperationalMeta,
 } from "./canvasOperationalMeta";
+import NodePrefillButton from "./NodePrefillButton";
 
 export interface ProjectNodeCoverAttachment {
   url: string;
@@ -40,6 +41,9 @@ export interface ProjectNodeData extends Record<string, unknown> {
   clientSeed?: string | null;
   clientLogoUrl?: string | null;
   operationalMeta?: CanvasOperationalMeta | null;
+  nodeId?: string;
+  workspaceId?: string;
+  onPrefilled?: () => void;
   onQuickConnect?: (dir: "right" | "bottom") => void;
   canExpandHub?: boolean;
   onExpandHub?: () => void;
@@ -147,6 +151,15 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
           )}
           <div className="ml-auto flex items-center gap-1.5">
             <Maximize2 className="h-3 w-3 text-foreground/35 opacity-0 transition-opacity group-hover:opacity-100" aria-label="Abrir popup" />
+            {!isEngine && !isProof && d.nodeId && d.workspaceId && (
+              <NodePrefillButton
+                nodeId={d.nodeId}
+                nodeKind={d.kind}
+                workspaceId={d.workspaceId}
+                onPrefilled={d.onPrefilled}
+                size="xs"
+              />
+            )}
             {approvalSignal && <approvalSignal.icon className={`h-3 w-3 ${approvalSignal.className}`} aria-label={approvalSignal.label} />}
             {blocked && <AlertTriangle className="h-3 w-3 text-destructive" aria-label="Bloqueado" />}
             {overdue && <Clock3 className="h-3 w-3 text-destructive" aria-label="Prazo vencido" />}

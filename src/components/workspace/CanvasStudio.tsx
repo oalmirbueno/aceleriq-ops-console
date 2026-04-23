@@ -29,7 +29,7 @@ import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalM
 import {
   ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH,
   getProjectTypeMeta, getStageMeta, stageColumnX, getChecklistTemplate,
-  projectKindToDbNodeType, getNodeFlowRole, type ProjectNodeKind, type AceleraStageKey,
+  projectKindToDbNodeType, getNodeFlowRole, getNodeFamily, type ProjectNodeKind, type AceleraStageKey,
 } from "./canvasProjectTypes";
 import { mapLegacyStatus, premiumStatusToDb } from "./canvasEsteiraStatus";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
@@ -81,11 +81,11 @@ const CANVAS_TRANSLATE_EXTENT: [[number, number], [number, number]] = [
   [TOTAL_STAGE_WIDTH + CANVAS_PADDING, CONTENT_TOP + STAGE_BAND_HEIGHT + CANVAS_PADDING],
 ];
 const FIT_VIEW_OPTIONS = { padding: 0.4 };
-const DEFAULT_EDGE_OPTIONS = { type: "smoothstep", animated: true };
+const DEFAULT_EDGE_OPTIONS = { type: "bezier", animated: true };
 const PAN_ON_DRAG = [0, 1, 2];
 const SELECTION_KEY_CODE = ["Shift"];
 const MULTI_SELECTION_KEY_CODE = ["Meta", "Control"];
-const CONNECTION_LINE_STYLE = { stroke: "hsl(var(--primary))", strokeWidth: 2, strokeDasharray: "6 3", opacity: 0.8 };
+const CONNECTION_LINE_STYLE = { stroke: "hsl(var(--primary))", strokeWidth: 2.5, strokeDasharray: "8 4", opacity: 0.85 };
 const PRO_OPTIONS = { hideAttribution: true };
 
 export function getCanvasInteractionConfig(activeTool: "select" | "hand") {
@@ -507,13 +507,16 @@ function CanvasStudioInner({
           clientSeed: owner?.seed ?? null,
           clientLogoUrl: owner?.logoUrl ?? null,
           operationalMeta,
+          nodeId: n.id,
+          workspaceId,
+          onPrefilled: fetchData,
           onQuickConnect: (dir: "right" | "bottom") => quickConnectFromNode(n.id, dir),
           canExpandHub: nodeKindOf(n) === "engine",
           onExpandHub: () => expandEngineHubRef.current?.(n.id),
         } satisfies ProjectNodeData,
       };
     });
-  }, [visibleCanvasNodes, groupMeta, quickConnectFromNode, lockedNodes]);
+  }, [visibleCanvasNodes, groupMeta, workspaceId, fetchData, quickConnectFromNode, lockedNodes]);
 
   const reactFlowEdges = useMemo(() => {
     const visibleIds = new Set(visibleCanvasNodes.map((n) => n.id));
@@ -528,7 +531,7 @@ function CanvasStudioInner({
           target: e.target_node_id,
           label: intent.label,
           animated: intent.animated,
-          type: "smoothstep",
+          type: "bezier",
           className: intent.className,
           markerEnd: { type: MarkerType.ArrowClosed, color: intent.stroke, width: 18, height: 18 },
           style: { stroke: intent.stroke, strokeWidth: intent.strokeWidth },
@@ -589,14 +592,17 @@ function CanvasStudioInner({
     const sourceNode = dbNodesRef.current.find((n) => n.id === conn.source);
     const targetNode = dbNodesRef.current.find((n) => n.id === conn.target);
     if (!sourceNode || !targetNode) return;
+    const sourceKind = nodeKindOf(sourceNode);
+    const targetKind = nodeKindOf(targetNode);
 
     const validation = validateCanvasConnection(sourceNode, targetNode);
     if (!validation.allowed) {
-      toast({
-        title: "Atenção",
-        description: validation.reason ?? "Conexão fora do fluxo padrão.",
-      });
       const hardBlocked = validation.reason?.includes("si mesmo") || validation.reason?.includes("mesma pasta");
+      toast({
+        title: hardBlocked ? "Conexão bloqueada" : "Atenção",
+        description: validation.reason ?? "Conexão fora do fluxo padrão.",
+        variant: hardBlocked ? "destructive" : "default",
+      });
       if (hardBlocked) return;
     }
 
@@ -623,6 +629,56 @@ function CanvasStudioInner({
       return;
     }
     if (data) setDbEdges((prev) => [...prev, data as CanvasEdgeRecord]);
+
+    if (INPUT_KINDS.has(sourceKind)) {
+      const targetData = (targetNode.data as Record<string, unknown> | null) ?? {};
+      const targetReferences = Array.isArray(targetData.references)
+        ? targetData.references as Array<{ nodeId: string; kind: string; title: string; addedAt?: string }>
+        : [];
+      if (!targetReferences.some((ref) => ref.nodeId === sourceNode.id)) {
+        const sourceTags = (sourceNode.data as Record<string, unknown> | null)?.tags;
+        const currentTargetTags = Array.isArray(targetData.tags) ? targetData.tags as string[] : [];
+        const mergedTags = Array.isArray(sourceTags)
+          ? Array.from(new Set([...currentTargetTags, ...(sourceTags as string[])]))
+          : currentTargetTags;
+        const updatedData = {
+          ...targetData,
+          references: [...targetReferences, { nodeId: sourceNode.id, kind: sourceKind, title: sourceNode.title, addedAt: new Date().toISOString() }],
+          tags: mergedTags,
+          contextLastUpdatedAt: new Date().toISOString(),
+        };
+        await supabase.from("canvas_nodes").update({ data: updatedData, updated_at: new Date().toISOString() }).eq("id", targetNode.id);
+        setDbNodes((prev) => prev.map((n) => (n.id === targetNode.id ? { ...n, data: updatedData } : n)));
+        toast({ title: "Contexto propagado", description: `"${sourceNode.title}" agora alimenta "${targetNode.title}"` });
+      }
+    }
+
+    if (targetNode.node_type === "ai_orb") {
+      const orbData = readAiOrbData(targetNode.data as Record<string, unknown> | null);
+      const updatedOrbData = {
+        ...orbData,
+        memory: [...(orbData.memory ?? []).slice(-11), {
+          timestamp: new Date().toISOString(),
+          action: "connected" as const,
+          insight: `Recebeu input de "${sourceNode.title}" (${sourceKind})`,
+          sourceNodeId: sourceNode.id,
+        }],
+      };
+      await supabase.from("canvas_nodes").update({ data: updatedOrbData, updated_at: new Date().toISOString() }).eq("id", targetNode.id);
+      setDbNodes((prev) => prev.map((n) => (n.id === targetNode.id ? { ...n, data: updatedOrbData } : n)));
+    }
+
+    const suggestion = (() => {
+      if ((sourceKind === "briefing" || sourceKind === "contexto_ops") && ENGINE_KINDS.has(targetKind)) return { kind: "resultado", reason: "Engine costuma gerar um resultado." };
+      if ((sourceKind === "briefing" || sourceKind === "contexto_ops") && INSTRUCTION_KINDS.has(targetKind)) return { kind: "engine", reason: "Instruções alimentam uma engine." };
+      if (ENGINE_KINDS.has(sourceKind) && RESULT_KINDS.has(targetKind)) return { kind: "metrica", reason: "Meça o resultado com KPIs." };
+      if (RESULT_KINDS.has(sourceKind) && PROOF_KINDS.has(targetKind)) return { kind: "case", reason: "Provas consolidam em case de sucesso." };
+      return null;
+    })();
+    if (suggestion) {
+      toast({ title: "Próximo passo sugerido", description: `${suggestion.reason} Criar um node "${suggestion.kind}"?` });
+    }
+
     await onTimelineRefresh?.();
   }, [workspaceId, onTimelineRefresh]);
 
@@ -778,7 +834,14 @@ function CanvasStudioInner({
         if (!eErr && edgeRow) setDbEdges((prev) => [...prev, edgeRow as CanvasEdgeRecord]);
       }
 
-      setSelectedNode(newRow);
+      setRfNodes((nodes) => nodes.map((node) => ({ ...node, selected: node.id === newRow.id })));
+      window.setTimeout(() => {
+        rfInstanceRef.current?.setCenter(
+          Number(newRow.pos_x ?? 0) + 170,
+          Number(newRow.pos_y ?? 0) + 60,
+          { zoom: 1, duration: 400 },
+        );
+      }, 100);
     }
   }, [clientId, dbNodes, ensureActiveClient, pickParentGroup, projectNodes, workspaceId]);
 
@@ -786,8 +849,15 @@ function CanvasStudioInner({
     const parent = ensureActiveClient();
     if (!parent) return;
     const sameParentOrbs = dbNodes.filter((node) => node.parent_node_id === parent && node.node_type === "ai_orb");
-    const pos_x = OPS_FLOW_X.engine + 40;
-    const pos_y = CONTENT_TOP + 520 + sameParentOrbs.length * 132;
+    const ORB_SPACING_X = 220;
+    const ORB_SPACING_Y = 180;
+    const ORBS_PER_ROW = 3;
+    const ORB_BAND_Y = CONTENT_TOP + 720;
+    const ORB_BAND_X = OPS_FLOW_X.engine - 220;
+    const indexInRow = sameParentOrbs.length % ORBS_PER_ROW;
+    const row = Math.floor(sameParentOrbs.length / ORBS_PER_ROW);
+    const pos_x = ORB_BAND_X + indexInRow * ORB_SPACING_X;
+    const pos_y = ORB_BAND_Y + row * ORB_SPACING_Y;
     const { data, error } = await supabase.from("canvas_nodes").insert(buildAiOrbNodePayload({
       orbType,
       workspaceId,
@@ -797,6 +867,14 @@ function CanvasStudioInner({
       y: pos_y,
     })).select().single();
     if (error) {
+      if (error.message?.includes("invalid input") && error.message?.includes("ai_orb")) {
+        toast({
+          title: "Banco desatualizado",
+          description: "Execute a migração SQL para adicionar 'ai_orb' ao enum canvas_node_type.",
+          variant: "destructive",
+        });
+        return;
+      }
       toast({ title: "Erro ao criar AI Orb", description: error.message, variant: "destructive" });
       return;
     }
@@ -1297,54 +1375,85 @@ function CanvasStudioInner({
   }, [clientId, ensureActiveClient, fetchData, workspaceId]);
 
 
-  /* Auto-layout: por etapa, empilha vertical (apenas nodes do cliente ativo) */
+  /* Auto-layout fordista: 8 etapas ACELERA × faixas operacionais */
   const handleAutoLayout = async () => {
     const targetNodes = activeClientId
       ? projectNodes.filter((n) => n.parent_node_id === activeClientId)
       : projectNodes;
     if (targetNodes.length === 0) return;
     setBusyAction("layout");
-    const byStage: Record<string, CanvasNodeRow[]> = {};
-    const incoming = new Map<string, number>();
-    const outgoing = new Map<string, number>();
+    const edgeMap = new Map<string, string[]>();
+    const inDegree = new Map<string, number>();
+    targetNodes.forEach((n) => inDegree.set(n.id, 0));
     dbEdges.forEach((e) => {
-      outgoing.set(e.source_node_id, (outgoing.get(e.source_node_id) ?? 0) + 1);
-      incoming.set(e.target_node_id, (incoming.get(e.target_node_id) ?? 0) + 1);
+      if (!inDegree.has(e.target_node_id) || !inDegree.has(e.source_node_id)) return;
+      edgeMap.set(e.source_node_id, [...(edgeMap.get(e.source_node_id) ?? []), e.target_node_id]);
+      inDegree.set(e.target_node_id, (inDegree.get(e.target_node_id) ?? 0) + 1);
     });
-    const flowRank: Record<string, number> = { contexto_ops: 0, briefing: 1, documento: 2, instrucao: 3, engine: 4, agente: 5, resultado: 6, decisao: 7, metrica: 8, before_after: 9, case: 10 };
+
+    const depth = new Map<string, number>();
+    const queue: string[] = [];
     targetNodes.forEach((n) => {
-      const role = getNodeFlowRole(nodeKindOf(n));
-      const lane = role === "measurement" || role === "proof" || role === "narrative" ? "proof" : nodeStageOf(n);
-      (byStage[lane] ??= []).push(n);
+      if ((inDegree.get(n.id) ?? 0) === 0) {
+        depth.set(n.id, 0);
+        queue.push(n.id);
+      }
     });
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const currentDepth = depth.get(current) ?? 0;
+      (edgeMap.get(current) ?? []).forEach((child) => {
+        depth.set(child, Math.max(depth.get(child) ?? 0, currentDepth + 1));
+        const remaining = (inDegree.get(child) ?? 1) - 1;
+        inDegree.set(child, remaining);
+        if (remaining === 0) queue.push(child);
+      });
+    }
+
+    const FAMILY_LANE: Record<string, number> = {
+      entry: 0, structure: 1, plan: 2, tech: 2, build: 3,
+      content: 4, launch: 5, growth: 6, proof: 7,
+    };
+    const LANE_HEIGHT = 200;
+    const COLUMN_WIDTH = 320;
+    const GRID_ORIGIN_Y = CONTENT_TOP + 40;
+    const gridBuckets = new Map<string, CanvasNodeRow[]>();
+
+    targetNodes.forEach((n) => {
+      const stageIdx = ACELERA_STAGES.findIndex((s) => s.key === nodeStageOf(n));
+      const col = Math.max(0, stageIdx);
+      const lane = FAMILY_LANE[getNodeFamily(nodeKindOf(n))] ?? 3;
+      const bucketKey = `${col}:${lane}`;
+      gridBuckets.set(bucketKey, [...(gridBuckets.get(bucketKey) ?? []), n]);
+    });
+
     const updates: Array<{ id: string; pos_x: number; pos_y: number }> = [];
-    Object.entries(byStage).forEach(([stage, list]) => {
-      list
+    gridBuckets.forEach((nodes, key) => {
+      const [colStr, laneStr] = key.split(":");
+      const col = Number(colStr);
+      const lane = Number(laneStr);
+      nodes
         .slice()
-        .sort((a, b) => {
-          const ar = flowRank[nodeKindOf(a)] ?? 20;
-          const br = flowRank[nodeKindOf(b)] ?? 20;
-          if (ar !== br) return ar - br;
-          return (incoming.get(a.id) ?? 0) - (incoming.get(b.id) ?? 0) || (outgoing.get(b.id) ?? 0) - (outgoing.get(a.id) ?? 0);
-        })
-        .forEach((n, i) => {
-        const role = getNodeFlowRole(nodeKindOf(n));
-        const laneX = OPS_FLOW_X[role] ?? stageColumnX(stage as AceleraStageKey) + NODE_X_OFFSET;
-        const baseY = stage === "proof" ? CONTENT_TOP + 580 : CONTENT_TOP + 96;
-        updates.push({
-          id: n.id,
-          pos_x: laneX,
-          pos_y: baseY + i * (NODE_VERTICAL + 28),
-        });
+        .sort((a, b) => (depth.get(a.id) ?? 0) - (depth.get(b.id) ?? 0))
+        .forEach((n, idx) => {
+          updates.push({ id: n.id, pos_x: col * COLUMN_WIDTH + 40, pos_y: GRID_ORIGIN_Y + lane * LANE_HEIGHT + idx * 28 });
       });
     });
+
+    const orbs = dbNodes.filter((n) => n.node_type === "ai_orb" && (!activeClientId || n.parent_node_id === activeClientId));
+    const ORB_BAND_Y = GRID_ORIGIN_Y + 8 * LANE_HEIGHT + 60;
+    orbs.forEach((orb, idx) => {
+      updates.push({ id: orb.id, pos_x: 40 + (idx % 6) * 180, pos_y: ORB_BAND_Y + Math.floor(idx / 6) * 160 });
+    });
+
     await Promise.all(
       updates.map((p) =>
         supabase.from("canvas_nodes").update({ pos_x: p.pos_x, pos_y: p.pos_y, updated_at: new Date().toISOString() }).eq("id", p.id),
       ),
     );
-    toast({ title: "Esteira reorganizada" });
+    toast({ title: "Esteira reorganizada", description: `${updates.length} nodes posicionados por etapa ACELERA.` });
     await fetchData();
+    window.setTimeout(() => rfInstanceRef.current?.fitView({ padding: 0.2, duration: 400 }), 200);
     setBusyAction(null);
   };
 
@@ -1715,7 +1824,7 @@ function CanvasStudioInner({
               className="bg-background canvas-flow acelera-ops-flow"
               defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
               connectionLineStyle={CONNECTION_LINE_STYLE}
-              connectionLineType={ConnectionLineType.SmoothStep}
+              connectionLineType={ConnectionLineType.Bezier}
               connectionRadius={40}
               connectionMode={ConnectionMode.Loose}
               onPaneContextMenu={(event) => event.preventDefault()}
