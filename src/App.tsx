@@ -12,6 +12,7 @@ import ClientsPage from "@/pages/ClientsPage";
 import ClientVaultPage from "@/pages/ClientVaultPage";
 import WorkspacesPage from "@/pages/WorkspacesPage";
 import WorkspaceDetailPage from "@/pages/WorkspaceDetailPage";
+import CanvasPage from "@/pages/CanvasPage";
 import SettingsPage from "@/pages/SettingsPage";
 import AiManagementPage from "@/pages/AiManagementPage";
 import AdminRoute from "@/components/AdminRoute";
@@ -30,6 +31,7 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/briefing/:token" element={<ClientBriefingPage />} />
+            <Route path="/ops/canvas" element={<ProtectedRoute><CanvasPage /></ProtectedRoute>} />
             <Route path="/" element={<Navigate to="/ops" replace />} />
             <Route
               path="/ops"
@@ -43,7 +45,7 @@ const App = () => (
               <Route path="clients" element={<ClientsPage />} />
               <Route path="clients/:id/vault" element={<ClientVaultPage />} />
               <Route path="workspaces" element={<WorkspacesPage />} />
-              <Route path="workspaces/:workspaceId/execution" element={<WorkspaceDetailPage mode="execution" />} />
+              <Route path="workspaces/:workspaceId/execution" element={<WorkspaceDetailPage />} />
               <Route path="workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="ai" element={<AdminRoute><AiManagementPage /></AdminRoute>} />
