@@ -730,7 +730,7 @@ export default function WorkspaceDetailPage() {
                   workspaceId={ws.id}
                   clientId={ws.client_id}
                   portalProjectId={(ws.metadata as any)?.portal_project_id ?? null}
-                  portalClientId={ws.clients?.metadata?.portal_client_id ?? null}
+                  portalClientId={(ws.clients?.metadata as any)?.portal_client_id ?? null}
                   onLinked={fetchWorkspace}
                 />
               </div>
