@@ -176,16 +176,15 @@ export function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNo
   const targetKind = nodeKindOf(target);
   const sourceLabel = nodeLabel(source);
   const targetLabel = nodeLabel(target);
+  const orbValidation = validateOrbConnection(sourceKind, targetKind, (target.data as Record<string, unknown> | null)?.orbType as string | undefined);
 
   if (source.parent_node_id && target.parent_node_id && source.parent_node_id !== target.parent_node_id) {
     return blockConnection("Conecte nodes dentro da mesma pasta de cliente para manter rastreabilidade e evitar fluxo cruzado.");
   }
 
+  if (orbValidation) return orbValidation;
+
   if (INPUT_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return allowConnection("input");
-  if (AI_ORB_INPUT_KINDS.has(sourceKind) && AI_ORB_KINDS.has(targetKind)) return allowConnection("treina");
-  if (AI_ORB_KINDS.has(sourceKind) && AI_ORB_OUTPUT_KINDS.has(targetKind)) return allowConnection("gera IA");
-  if (AI_ORB_KINDS.has(targetKind)) return blockConnection("AI Orbs só recebem contexto, briefing, documentos, acessos, instruções, funil ou checklist.");
-  if (AI_ORB_KINDS.has(sourceKind)) return blockConnection("AI Orbs só geram nodes de produção, automação, conteúdo, marketing, resultado ou prova.");
   if (INSTRUCTION_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return allowConnection("regra");
   if (ENGINE_KINDS.has(sourceKind) && RESULT_KINDS.has(targetKind)) return allowConnection("gera");
   if (RESULT_KINDS.has(sourceKind) && DECISION_KINDS.has(targetKind)) return allowConnection("aprovar");
@@ -206,7 +205,7 @@ export function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNo
 function edgeIntent(edge: CanvasEdgeRecord, nodesById: Map<string, CanvasNodeRow>) {
   const sourceKind = edge.source_node_id && nodesById.get(edge.source_node_id) ? nodeKindOf(nodesById.get(edge.source_node_id)!) : "";
   const targetKind = edge.target_node_id && nodesById.get(edge.target_node_id) ? nodeKindOf(nodesById.get(edge.target_node_id)!) : "";
-  if (AI_ORB_KINDS.has(targetKind) || AI_ORB_KINDS.has(sourceKind)) return { label: edge.label ?? "IA", stroke: "hsl(var(--node-tech))", animated: true, className: "edge-ai", strokeWidth: 2.4 };
+  if (sourceKind === "ai_orb" || targetKind === "ai_orb") return { label: edge.label ?? "IA", stroke: "hsl(var(--node-tech))", animated: true, className: "edge-ai", strokeWidth: 2.4 };
   if (PROOF_KINDS.has(targetKind) || PROOF_KINDS.has(sourceKind)) return { label: edge.label ?? "prova", stroke: "hsl(var(--node-proof))", animated: false, className: "edge-proof", strokeWidth: 2.8 };
   if (targetKind === "engine") return { label: edge.label ?? "input", stroke: "hsl(var(--node-tech))", animated: true, className: "edge-input", strokeWidth: 2.6 };
   if (sourceKind === "engine") return { label: edge.label ?? "gera", stroke: "hsl(var(--node-build))", animated: true, className: "edge-engine", strokeWidth: 3 };
