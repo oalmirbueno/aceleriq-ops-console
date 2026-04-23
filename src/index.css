@@ -282,10 +282,34 @@
 }
 .react-flow__edge {
   outline: none;
+  cursor: pointer;
+}
+/* Hit area maior — edge mais fácil de clicar */
+.react-flow__edge .react-flow__edge-interaction {
+  stroke-width: 24px;
+  stroke: transparent;
 }
 .react-flow__edge.selected .react-flow__edge-path,
 .react-flow__edge:focus .react-flow__edge-path {
   stroke: hsl(var(--primary));
+  stroke-width: 2.5px;
+}
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: hsl(var(--primary) / 0.6);
+  stroke-width: 2px;
+}
+/* Endpoints visíveis quando selecionado — para reconectar */
+.react-flow__edgeupdater {
+  fill: hsl(var(--primary));
+  stroke: hsl(var(--background));
+  stroke-width: 2px;
+  r: 5;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.react-flow__edge.selected .react-flow__edgeupdater,
+.react-flow__edge:hover .react-flow__edgeupdater {
+  opacity: 1;
 }
 .react-flow__edge-path {
   filter: drop-shadow(0 0 7px hsl(var(--background) / 0.92));
