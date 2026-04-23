@@ -1,366 +1,327 @@
+/**
+ * WorkspaceTabResumo — visão geral visual com gráficos reais.
+ */
 import { useState, useEffect, useCallback, useMemo } from "react";
-import {
-  FileText, Clock, ListChecks, Layers, BarChart3,
-  CheckCircle2, AlertTriangle, ArrowRight, TrendingUp,
-  DollarSign, CalendarClock,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TrendingUp, ListChecks, Layers, FileText, Clock, AlertTriangle, DollarSign, CalendarClock, CheckCircle2, Circle, User, Tag, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { getStagePremiumLabel } from "./aceleraConstants";
-import { getBucketLabel, getBucketColor, getExecutionLabel, getExecutionColor } from "./frontConstants";
 import { getPlanConfig } from "@/lib/planConfig";
+import { cn } from "@/lib/utils";
 
 interface TimelineEvent {
-  id: string;
-  event_type: string;
-  title: string;
-  description: string | null;
-  happened_at: string;
+  id: string; event_type: string; title: string;
+  description: string | null; happened_at: string;
 }
 
-interface WorkspaceTabResumoProps {
-  clientName: string;
-  companyName: string | null;
-  workspaceName: string;
-  status: string;
-  currentStage: string;
-  ownerName: string | null;
-  planName: string | null;
-  segment: string | null;
-  createdAt: string;
-  focusAreas: string[] | null;
-  summary: string | null;
-  recentEvents: TimelineEvent[];
-  workspaceId: string;
+interface Props {
+  clientName: string; companyName: string | null; workspaceName: string;
+  status: string; currentStage: string; ownerName: string | null;
+  planName: string | null; segment: string | null; createdAt: string;
+  focusAreas: string[] | null; summary: string | null;
+  recentEvents: TimelineEvent[]; workspaceId: string;
 }
 
+const EVENT_COLORS: Record<string, string> = {
+  stage_changed:       "#00FF88",
+  task_created:        "#60A5FA",
+  task_completed:      "#10B981",
+  asset_created:       "#F59E0B",
+  canvas_node_created: "#8B5CF6",
+  briefing_submitted:  "#EC4899",
+};
 
-
-interface FrontSummary {
-  total: number;
-  active: number;
-  conditional: number;
-  out_of_scope: number;
+function relTime(iso: string) {
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 1)  return "agora";
+  if (m < 60) return `${m}m atrás`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h atrás`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d atrás`;
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 }
 
-interface TaskStats {
-  total: number;
-  done: number;
-  in_progress: number;
-  blocked: number;
-  todo: number;
+// Mini donut SVG
+function DonutChart({ value, total, color, size = 64 }: { value: number; total: number; color: string; size?: number }) {
+  const pct = total > 0 ? value / total : 0;
+  const r = (size - 10) / 2;
+  const circ = 2 * Math.PI * r;
+  const dash = pct * circ;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="rotate-[-90deg]">
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="hsl(var(--secondary))" strokeWidth={7} />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={7}
+        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+        style={{ transition: "stroke-dasharray 0.6s ease" }} />
+    </svg>
+  );
 }
 
-export default function WorkspaceTabResumo({
-  clientName, companyName, workspaceName, status, currentStage, ownerName, planName, segment, createdAt, focusAreas, summary, recentEvents, workspaceId,
-}: WorkspaceTabResumoProps) {
-  const [taskStats, setTaskStats] = useState<TaskStats>({ total: 0, done: 0, in_progress: 0, blocked: 0, todo: 0 });
-  const [frontSummary, setFrontSummary] = useState<FrontSummary>({ total: 0, active: 0, conditional: 0, out_of_scope: 0 });
-  const [briefingCount, setBriefingCount] = useState(0);
-  const [reviewedCount, setReviewedCount] = useState(0);
+// Horizontal bar chart
+function BarChart({ items }: { items: Array<{ label: string; value: number; color: string }> }) {
+  const max = Math.max(...items.map(i => i.value), 1);
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <div key={item.label} className="space-y-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">{item.label}</span>
+            <span className="font-semibold tabular-nums" style={{ color: item.color }}>{item.value}</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+            <div className="h-full rounded-full transition-all duration-700"
+              style={{ width: `${(item.value / max) * 100}%`, background: item.color }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
-  const fetchStats = useCallback(async () => {
-    const [taskRes, frontRes, briefRes] = await Promise.all([
-      supabase.from("tasks").select("id, status").eq("workspace_id", workspaceId),
-      supabase.from("operational_fronts").select("id, bucket_status").eq("workspace_id", workspaceId),
-      supabase.from("context_entries").select("id, metadata").eq("workspace_id", workspaceId).eq("context_type", "briefing"),
+export default function WorkspaceTabResumo({ clientName, companyName, workspaceName, status, currentStage, ownerName, planName, segment, createdAt, focusAreas, summary, recentEvents, workspaceId }: Props) {
+  const [tasks, setTasks] = useState({ total: 0, done: 0, in_progress: 0, blocked: 0, todo: 0 });
+  const [fronts, setFronts] = useState({ total: 0, active: 0, conditional: 0, out_of_scope: 0 });
+  const [briefings, setBriefings] = useState({ total: 0, reviewed: 0 });
+  const [nodes, setNodes] = useState({ total: 0, done: 0, active: 0, blocked: 0 });
+
+  const load = useCallback(async () => {
+    const [tRes, fRes, bRes, nRes] = await Promise.all([
+      supabase.from("tasks").select("id,status").eq("workspace_id", workspaceId),
+      supabase.from("operational_fronts").select("id,bucket_status").eq("workspace_id", workspaceId),
+      supabase.from("context_entries").select("id,metadata").eq("workspace_id", workspaceId).eq("context_type", "briefing"),
+      supabase.from("canvas_nodes").select("id,status").eq("workspace_id", workspaceId),
     ]);
-
-    const tasks = taskRes.data ?? [];
-    setTaskStats({
-      total: tasks.length,
-      done: tasks.filter((t: any) => t.status === "done").length,
-      in_progress: tasks.filter((t: any) => t.status === "in_progress").length,
-      blocked: tasks.filter((t: any) => t.status === "blocked").length,
-      todo: tasks.filter((t: any) => t.status === "todo" || t.status === "backlog").length,
-    });
-
-    const fronts = frontRes.data ?? [];
-    setFrontSummary({
-      total: fronts.length,
-      active: fronts.filter((f: any) => f.bucket_status === "active").length,
-      conditional: fronts.filter((f: any) => f.bucket_status === "conditional").length,
-      out_of_scope: fronts.filter((f: any) => f.bucket_status === "out_of_scope").length,
-    });
-
-    const briefs = briefRes.data ?? [];
-    setBriefingCount(briefs.length);
-    setReviewedCount(briefs.filter((b: any) => (b.metadata as Record<string, unknown>)?.import_review_status === "reviewed").length);
+    const t = tRes.data ?? [];
+    setTasks({ total: t.length, done: t.filter((x: any) => x.status === "done").length, in_progress: t.filter((x: any) => x.status === "in_progress").length, blocked: t.filter((x: any) => x.status === "blocked").length, todo: t.filter((x: any) => x.status === "todo" || x.status === "backlog").length });
+    const f = fRes.data ?? [];
+    setFronts({ total: f.length, active: f.filter((x: any) => x.bucket_status === "active").length, conditional: f.filter((x: any) => x.bucket_status === "conditional").length, out_of_scope: f.filter((x: any) => x.bucket_status === "out_of_scope").length });
+    const b = bRes.data ?? [];
+    setBriefings({ total: b.length, reviewed: b.filter((x: any) => (x.metadata as any)?.import_review_status === "reviewed").length });
+    const n = nRes.data ?? [];
+    setNodes({ total: n.length, done: n.filter((x: any) => x.status === "done" || x.status === "concluido").length, active: n.filter((x: any) => x.status === "active" || x.status === "ativo").length, blocked: n.filter((x: any) => x.status === "blocked" || x.status === "bloqueado").length });
   }, [workspaceId]);
 
-  useEffect(() => { fetchStats(); }, [fetchStats]);
+  useEffect(() => { load(); }, [load]);
 
-  const taskPct = taskStats.total > 0 ? Math.round((taskStats.done / taskStats.total) * 100) : 0;
+  const taskPct   = tasks.total   > 0 ? Math.round((tasks.done   / tasks.total)   * 100) : 0;
+  const nodePct   = nodes.total   > 0 ? Math.round((nodes.done   / nodes.total)   * 100) : 0;
+  const briefPct  = briefings.total > 0 ? Math.round((briefings.reviewed / briefings.total) * 100) : 0;
 
   const planConfig = getPlanConfig();
   const planInfo = planConfig[planName as keyof typeof planConfig] ?? null;
 
   const renewalDate = useMemo(() => {
     if (!createdAt) return null;
-    const start = new Date(createdAt);
-    const now = new Date();
-    // Next renewal = nearest future month anniversary
-    const renewal = new Date(start);
-    while (renewal <= now) renewal.setMonth(renewal.getMonth() + 1);
-    return renewal;
+    const d = new Date(createdAt);
+    while (d <= new Date()) d.setMonth(d.getMonth() + 1);
+    return d;
   }, [createdAt]);
 
+  const eventGroups = useMemo(() => {
+    const map: Record<string, number> = {};
+    recentEvents.forEach((e) => { map[e.event_type] = (map[e.event_type] ?? 0) + 1; });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  }, [recentEvents]);
+
   return (
-    <div className="space-y-5 animate-fade-in">
-      {/* Hero info */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Empresa</p>
-              <h2 className="text-xl font-bold text-foreground">{companyName || clientName}</h2>
-              {companyName && companyName !== clientName && (
-                <p className="text-sm text-muted-foreground mt-0.5">Cliente: <span className="text-foreground font-medium">{clientName}</span></p>
-              )}
-              <p className="text-sm text-muted-foreground mt-1">Workspace: <span className="text-foreground font-medium">{workspaceName}</span></p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Badge variant="outline" className="text-xs px-3 py-1 capitalize">{status}</Badge>
-              <Badge variant="outline" className="text-xs px-3 py-1 bg-primary/10 text-primary border-primary/20">
-                {getStagePremiumLabel(currentStage)}
-              </Badge>
-            </div>
+    <div className="space-y-4 animate-fade-in">
+
+      {/* ── Identity card ─────────────────────────────── */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="px-5 py-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1 min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Empresa</p>
+            <h2 className="text-xl font-semibold text-foreground">{companyName ?? clientName}</h2>
+            {companyName && companyName !== clientName && (
+              <p className="text-sm text-muted-foreground">Responsável: <span className="text-foreground">{clientName}</span></p>
+            )}
           </div>
+          <div className="flex flex-wrap gap-2 items-start">
+            <Badge variant="outline" className="text-xs capitalize">{status}</Badge>
+            <Badge className="text-xs bg-primary/10 text-primary border-primary/25">{getStagePremiumLabel(currentStage)}</Badge>
+          </div>
+        </div>
 
-          <Separator className="my-4" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 border-t border-border">
+          {[
+            { icon: User, label: "Responsável",  value: ownerName ?? "Não definido" },
+            { icon: Tag,  label: "Plano",        value: planInfo?.label ?? planName ?? "Não definido" },
+            { icon: Tag,  label: "Segmento",     value: segment ?? "Não definido" },
+            { icon: CalendarClock, label: "Início", value: new Date(createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) },
+          ].map((item, i) => (
+            <div key={i} className={cn("px-4 py-3", i < 3 && "border-r border-border")}>
+              <div className="flex items-center gap-1.5 mb-1">
+                <item.icon className="h-3 w-3 text-muted-foreground/60" />
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{item.label}</p>
+              </div>
+              <p className="text-sm font-medium text-foreground truncate">{item.value}</p>
+            </div>
+          ))}
+        </div>
 
-          {/* Contextual info grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Responsável</p>
-              <p className="text-foreground font-medium">{ownerName || "Não definido"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Plano</p>
-              <p className="text-foreground font-medium capitalize">{planInfo?.label ?? planName ?? "Não definido"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Segmento</p>
-              <p className="text-foreground font-medium">{segment || "Não definido"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Início</p>
-              <p className="text-foreground font-medium">
-                {new Date(createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+        {planInfo && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 border-t border-border">
+            <div className="px-4 py-3 sm:border-r border-border">
+              <div className="flex items-center gap-1.5 mb-1">
+                <DollarSign className="h-3 w-3 text-primary/60" />
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Valor mensal</p>
+              </div>
+              <p className="text-lg font-bold text-foreground">
+                R$ {planInfo.monthly.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}
               </p>
             </div>
+            <div className="px-4 py-3 sm:border-r border-border">
+              <div className="flex items-center gap-1.5 mb-1">
+                <CalendarClock className="h-3 w-3 text-primary/60" />
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Próxima renovação</p>
+              </div>
+              <p className="text-sm font-medium text-foreground">
+                {renewalDate?.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" }) ?? "—"}
+              </p>
+            </div>
+            {planInfo.extras.length > 0 && (
+              <div className="px-4 py-3 col-span-2 sm:col-span-1">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Adicionais</p>
+                <div className="flex flex-wrap gap-1">
+                  {planInfo.extras.map((e) => <Badge key={e} variant="secondary" className="text-[10px]">{e}</Badge>)}
+                </div>
+              </div>
+            )}
           </div>
+        )}
 
-          {/* Plan value & renewal */}
-          {planInfo && (
-            <>
-              <Separator className="my-4" />
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                <div className="flex items-start gap-2.5">
-                  <DollarSign className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Valor Mensal</p>
-                    <p className="text-lg font-bold text-foreground">
-                      R$ {planInfo.monthly.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <CalendarClock className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Próxima Renovação</p>
-                    <p className="text-foreground font-medium">
-                      {renewalDate?.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" }) ?? "—"}
-                    </p>
-                  </div>
-                </div>
-                {planInfo.extras.length > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1.5">Adicionais Inclusos</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {planInfo.extras.map((extra) => (
-                        <Badge key={extra} variant="secondary" className="text-xs">{extra}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          {/* Focus areas */}
-          {focusAreas && focusAreas.length > 0 && (
-            <>
-              <Separator className="my-4" />
+        {(focusAreas?.length || summary) && (
+          <div className="border-t border-border px-5 py-4 space-y-3">
+            {focusAreas && focusAreas.length > 0 && (
               <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-2">Áreas de Foco</p>
-                <div className="flex flex-wrap gap-2">
-                  {focusAreas.map((area) => (
-                    <Badge key={area} variant="secondary" className="text-xs capitalize">{area.replace(/_/g, " ")}</Badge>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-          {summary && (
-            <>
-              <Separator className="my-4" />
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Resumo Executivo</p>
-                <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{summary}</p>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Stats grid */}
-      <div className="grid gap-4 md:grid-cols-3">
-        {/* Tasks */}
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <ListChecks className="h-4 w-4 text-primary" />
-              <span className="text-sm font-semibold text-foreground">Tasks</span>
-            </div>
-            {taskStats.total === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhuma task criada.</p>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-foreground">{taskPct}%</span>
-                  <span className="text-xs text-muted-foreground">concluído</span>
-                </div>
-                <Progress value={taskPct} className="h-2" />
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-muted/10" />
-                    <span className="text-muted-foreground">{taskStats.done} concluídas</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-muted/10" />
-                    <span className="text-muted-foreground">{taskStats.in_progress} em andamento</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-muted/10" />
-                    <span className="text-muted-foreground">{taskStats.todo} pendentes</span>
-                  </div>
-                  {taskStats.blocked > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full bg-muted/10" />
-                      <span className="text-muted-foreground">{taskStats.blocked} bloqueadas</span>
-                    </div>
-                  )}
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Áreas de foco</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {focusAreas.map((a) => <Badge key={a} variant="secondary" className="text-xs capitalize">{a.replace(/_/g, " ")}</Badge>)}
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        {/* Fronts */}
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Layers className="h-4 w-4 text-primary" />
-              <span className="text-sm font-semibold text-foreground">Frentes Operacionais</span>
-            </div>
-            {frontSummary.total === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhuma frente criada.</p>
-            ) : (
-              <div className="space-y-3">
-                <span className="text-2xl font-bold text-foreground">{frontSummary.total}</span>
-                <div className="space-y-1.5 text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-muted/10" />
-                    <span className="text-muted-foreground">{frontSummary.active} ativas</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-muted/10" />
-                    <span className="text-muted-foreground">{frontSummary.conditional} condicionais</span>
-                  </div>
-                  {frontSummary.out_of_scope > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full bg-muted-foreground" />
-                      <span className="text-muted-foreground">{frontSummary.out_of_scope} fora do plano</span>
-                    </div>
-                  )}
+            {summary && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Sparkles className="h-3 w-3 text-primary" />
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Resumo executivo</p>
                 </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">{summary}</p>
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        {/* Briefings / Base */}
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <FileText className="h-4 w-4 text-primary" />
-              <span className="text-sm font-semibold text-foreground">Base de Contexto</span>
-            </div>
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Briefings</span>
-                <span className="text-foreground font-medium">{briefingCount}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Revisados</span>
-                <span className="text-muted-foreground font-medium">{reviewedCount}</span>
-              </div>
-              {briefingCount > 0 && reviewedCount < briefingCount && (
-                <div className="flex items-center gap-1.5 text-muted-foreground mt-2">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  <span>{briefingCount - reviewedCount} pendente(s) de revisão</span>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        )}
       </div>
 
-      {/* Recent events */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Clock className="h-4 w-4 text-primary" />
-            Atividade Recente
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {recentEvents.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum evento registrado.</p>
-          ) : (
-            <div className="space-y-3">
-              {recentEvents.slice(0, 8).map((ev) => (
-                <div key={ev.id} className="flex items-start gap-3">
-                  <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary/50" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-foreground">{ev.title}</p>
-                    {ev.description && (
-                      <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{ev.description}</p>
-                    )}
-                  </div>
-                  <span className="text-xs text-muted-foreground shrink-0">
-                    {new Date(ev.happened_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
+      {/* ── Metrics grid ─────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Tasks donut */}
+        <div className="rounded-xl border border-border bg-card p-4 flex items-center gap-3">
+          <div className="relative shrink-0">
+            <DonutChart value={tasks.done} total={tasks.total} color="#10B981" />
+            <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-foreground">{taskPct}%</span>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Tasks</p>
+            <p className="text-lg font-bold text-foreground tabular-nums">{tasks.total}</p>
+            <p className="text-xs text-emerald-400">{tasks.done} concluídas</p>
+            {tasks.blocked > 0 && <p className="text-xs text-amber-400">{tasks.blocked} bloqueadas</p>}
+          </div>
+        </div>
 
-function Row({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
-  return (
-    <div className="flex justify-between">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={muted ? "text-muted-foreground" : "text-foreground"}>{value}</span>
+        {/* Canvas nodes donut */}
+        <div className="rounded-xl border border-border bg-card p-4 flex items-center gap-3">
+          <div className="relative shrink-0">
+            <DonutChart value={nodes.done} total={nodes.total} color="hsl(var(--primary))" />
+            <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-foreground">{nodePct}%</span>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Canvas</p>
+            <p className="text-lg font-bold text-foreground tabular-nums">{nodes.total}</p>
+            <p className="text-xs text-primary">{nodes.active} ativos</p>
+            {nodes.blocked > 0 && <p className="text-xs text-amber-400">{nodes.blocked} bloqueados</p>}
+          </div>
+        </div>
+
+        {/* Briefings */}
+        <div className="rounded-xl border border-border bg-card p-4 flex items-center gap-3">
+          <div className="relative shrink-0">
+            <DonutChart value={briefings.reviewed} total={Math.max(briefings.total, 1)} color="#EC4899" />
+            <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-foreground">{briefPct}%</span>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Briefings</p>
+            <p className="text-lg font-bold text-foreground tabular-nums">{briefings.total}</p>
+            <p className="text-xs text-pink-400">{briefings.reviewed} revisados</p>
+            {briefings.total > briefings.reviewed && (
+              <p className="text-xs text-amber-400">{briefings.total - briefings.reviewed} pendentes</p>
+            )}
+          </div>
+        </div>
+
+        {/* Fronts */}
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-3">Frentes operacionais</p>
+          {fronts.total === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhuma criada</p>
+          ) : (
+            <BarChart items={[
+              { label: "Ativas",      value: fronts.active,       color: "#10B981" },
+              { label: "Condicionais",value: fronts.conditional,  color: "#F59E0B" },
+              { label: "Fora do plano",value: fronts.out_of_scope, color: "#6B7280" },
+            ]} />
+          )}
+        </div>
+      </div>
+
+      {/* ── Activity + Event types ────────────────────── */}
+      <div className="grid gap-3 lg:grid-cols-[1fr_280px]">
+        {/* Timeline feed */}
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+            <Clock className="h-3.5 w-3.5 text-primary" />
+            <p className="text-sm font-semibold text-foreground">Atividade recente</p>
+            <span className="ml-auto text-xs text-muted-foreground">{recentEvents.length} eventos</span>
+          </div>
+          <div className="divide-y divide-border/50">
+            {recentEvents.length === 0 ? (
+              <p className="px-4 py-6 text-sm text-muted-foreground text-center">Nenhum evento registrado.</p>
+            ) : recentEvents.slice(0, 10).map((ev) => (
+              <div key={ev.id} className="flex items-start gap-3 px-4 py-3">
+                <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+                  style={{ background: EVENT_COLORS[ev.event_type] ?? "hsl(var(--primary)/0.5)" }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-foreground leading-tight">{ev.title}</p>
+                  {ev.description && (
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{ev.description}</p>
+                  )}
+                </div>
+                <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">{relTime(ev.happened_at)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Event type breakdown */}
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border">
+            <p className="text-sm font-semibold text-foreground">Distribuição de eventos</p>
+          </div>
+          <div className="px-4 py-4">
+            {eventGroups.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Sem eventos.</p>
+            ) : (
+              <BarChart items={eventGroups.map(([type, count]) => ({
+                label: type.replace(/_/g, " "),
+                value: count,
+                color: EVENT_COLORS[type] ?? "hsl(var(--primary)/0.6)",
+              }))} />
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
