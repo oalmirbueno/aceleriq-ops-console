@@ -26,6 +26,7 @@ import CanvasClientPicker from "./CanvasClientPicker";
 import CanvasClientTabs, { type CanvasClientTab } from "./CanvasClientTabs";
 import GenerateEsteiraDialog from "./GenerateEsteiraDialog";
 import CanvasTemplatesDialog, { type CanvasTemplate, type NodeSnapshot, type EdgeSnapshot } from "./CanvasTemplatesDialog";
+import ApplyPlaybookButton from "./ApplyPlaybookButton";
 import type { EsteiraTemplate } from "./esteiraTemplates";
 import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalMeta } from "./canvasOperationalMeta";
 import {
@@ -261,9 +262,26 @@ function CanvasStudioInner({
 
   // Active client folder (null = "Todos")
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
+  // Plan name of the currently displayed client (fetched from clients table)
+  const [clientPlanName, setClientPlanName] = useState<string | null>(null);
 
   useEffect(() => { dbNodesRef.current = dbNodes; }, [dbNodes]);
   useEffect(() => { dbEdgesRef.current = dbEdges; }, [dbEdges]);
+
+  // Load client plan_name for ApplyPlaybookButton
+  useEffect(() => {
+    if (!clientId) { setClientPlanName(null); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("clients")
+        .select("plan_name")
+        .eq("id", clientId)
+        .maybeSingle();
+      if (!cancelled) setClientPlanName((data?.plan_name as string | null) ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [clientId]);
 
   useEffect(() => {
     setStatusFilter(initialStatusFilter ?? null);
@@ -1826,6 +1844,17 @@ function CanvasStudioInner({
             {busyAction === "template" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LayoutTemplate className="h-3.5 w-3.5" />}
             <span className="hidden md:inline ml-1 text-xs">Templates</span>
           </Button>
+          {activeClientId && clientPlanName && (
+            <ApplyPlaybookButton
+              workspaceId={workspaceId}
+              clientId={clientId}
+              clientName={clientGroups.find(c => c.id === activeClientId)?.title ?? clientName}
+              planName={clientPlanName}
+              parentNodeId={activeClientId}
+              currentNodeCount={scopedProjectNodes.length}
+              onApplied={fetchData}
+            />
+          )}
           <div className="h-5 w-px bg-border mx-1" />
           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onToggleFullscreen} aria-label="Alternar tela cheia">
             {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
