@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -203,17 +203,25 @@ export default function CanvasNodeDrawer({
   const tabHint = node.linked_entity_type ? ENTITY_TAB_HINT[node.linked_entity_type] : null;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="center" className="canvas-node-popup overflow-y-auto overscroll-contain">
-        <SheetHeader className="space-y-2">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="p-6 gap-0 border border-white/10 max-w-2xl w-full max-h-[88vh] flex flex-col overflow-y-auto overscroll-contain sm:rounded-2xl pr-12"
+        style={{
+          background: "rgba(9,17,10,0.92)",
+          backdropFilter: "blur(32px) saturate(200%)",
+          WebkitBackdropFilter: "blur(32px) saturate(200%)",
+          boxShadow: "0 0 0 1px rgba(255,255,255,0.06), 0 32px 72px rgba(0,0,0,0.75)",
+        }}
+      >
+        <DialogHeader className="space-y-2">
           <div className="flex items-center gap-2">
             <Icon className="h-4 w-4" />
             <Badge variant="outline" className={`text-[10px] ${typeCfg.color}`}>{typeCfg.label}</Badge>
             <Badge variant="outline" className={`text-[10px] ${statusCfg.color}`}>{statusCfg.label}</Badge>
           </div>
-          <SheetTitle className="text-left">{node.title}</SheetTitle>
-          <SheetDescription className="text-left">Node operacional do Canvas</SheetDescription>
-        </SheetHeader>
+          <DialogTitle className="text-left">{node.title}</DialogTitle>
+          <DialogDescription className="text-left">Node operacional do Canvas</DialogDescription>
+        </DialogHeader>
 
         <div className="space-y-5 mt-5">
           {/* Edit fields */}
@@ -317,7 +325,7 @@ export default function CanvasNodeDrawer({
             <Trash2 className="h-3.5 w-3.5 mr-1" /> Remover node
           </Button>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
