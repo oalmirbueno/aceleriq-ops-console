@@ -516,7 +516,7 @@ export default function FunnelEditorDrawer({
         </div>
 
         {/* ─── Pipeline ─── */}
-        <ScrollArea className="flex-1">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <div className="px-5 py-4 space-y-3">
             {loading ? (
               <div className="flex items-center justify-center py-12">
@@ -580,7 +580,7 @@ export default function FunnelEditorDrawer({
               />
             </div>
           )}
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );
