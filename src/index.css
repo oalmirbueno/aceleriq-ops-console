@@ -586,3 +586,26 @@
 .production-stage-letter { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 999px; border: 1px solid hsl(var(--primary) / 0.35); background: hsl(var(--primary) / 0.1); color: hsl(var(--primary)); font: 600 11px var(--font-mono, monospace); }
 .workspace-hub-card { border-radius: 10px; border: 1px solid hsl(var(--border) / 0.65); background: hsl(var(--secondary) / 0.38); padding: 14px; transition: border-color .18s, transform .18s, background .18s; }
 .workspace-hub-card:hover { border-color: hsl(var(--primary) / 0.35); transform: translateY(-2px); background: hsl(var(--secondary) / 0.52); }
+
+/* ─── Modo foco: esconde tudo exceto canvas e chat ─────────────────── */
+.canvas-focus-mode .canvas-toolrail {
+  opacity: 0.35;
+  transition: opacity 0.2s ease;
+}
+.canvas-focus-mode .canvas-toolrail:hover {
+  opacity: 1;
+}
+.canvas-focus-mode .node-type-dock-wrap {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.canvas-focus-mode .node-type-dock-wrap:hover,
+.canvas-focus-mode:hover .node-type-dock-wrap {
+  opacity: 1;
+  pointer-events: all;
+}
+.canvas-focus-mode .react-flow__minimap,
+.canvas-focus-mode .react-flow__controls {
+  display: none;
+}
