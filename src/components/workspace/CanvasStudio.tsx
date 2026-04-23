@@ -2231,6 +2231,7 @@ function CanvasStudioInner({
               onEdgeDoubleClick={onEdgeDoubleClick}
               isValidConnection={isValidConnection}
               onNodeClick={onNodeClick}
+              onNodeDragStart={onNodeDragStart}
               nodeTypes={nodeTypes}
               onInit={handleRfInit}
               onMoveEnd={handleMoveEnd}
