@@ -911,8 +911,12 @@ function CanvasStudioInner({
     const parent = ensureActiveClient();
     if (!parent) return null;
     const existingChats = dbNodes.filter((n) => n.node_type === "front" && (n.data as Record<string,unknown> | null)?.kind === "chat_node" && n.parent_node_id === parent);
-    const pos_x = OPS_FLOW_X.engine + 460;
-    const pos_y = CONTENT_TOP + 40 + existingChats.length * 320;
+    // Distribute chats in 2-column grid to prevent vertical stacking
+    const chatIdx = existingChats.length;
+    const chatCol = chatIdx % 2;
+    const chatRow = Math.floor(chatIdx / 2);
+    const pos_x = OPS_FLOW_X.engine + 460 + chatCol * 380;
+    const pos_y = CONTENT_TOP + 40 + chatRow * 420;
     const chatData: ChatNodeData = {
       scope: "node",
       fn,
@@ -1514,8 +1518,13 @@ function CanvasStudioInner({
       entry: 0, structure: 1, plan: 2, tech: 2, build: 3,
       content: 4, launch: 5, growth: 6, proof: 7,
     };
-    const LANE_HEIGHT = 200;
-    const COLUMN_WIDTH = 320;
+    // Proper spacing — no more stacking
+    const NODE_WIDTH = 280;
+    const NODE_HEIGHT = 140;
+    const H_GAP = 40;    // horizontal gap between nodes in same bucket
+    const V_GAP = 24;    // vertical gap between rows
+    const LANE_GAP = 60; // gap between lanes
+    const COLUMN_WIDTH = (NODE_WIDTH + H_GAP) * 2; // 640 — each column fits 2 nodes side-by-side
     const GRID_ORIGIN_Y = CONTENT_TOP + 40;
     const gridBuckets = new Map<string, CanvasNodeRow[]>();
 
@@ -1527,23 +1536,47 @@ function CanvasStudioInner({
       gridBuckets.set(bucketKey, [...(gridBuckets.get(bucketKey) ?? []), n]);
     });
 
+    // Track bottom Y of each lane to prevent overlap between lanes with many nodes
+    const laneBottomY = new Map<number, number>();
+
     const updates: Array<{ id: string; pos_x: number; pos_y: number }> = [];
-    gridBuckets.forEach((nodes, key) => {
+    const sortedBuckets = Array.from(gridBuckets.entries()).sort((a, b) => {
+      const [colA, laneA] = a[0].split(":").map(Number);
+      const [colB, laneB] = b[0].split(":").map(Number);
+      if (laneA !== laneB) return laneA - laneB;
+      return colA - colB;
+    });
+
+    sortedBuckets.forEach(([key, nodes]) => {
       const [colStr, laneStr] = key.split(":");
       const col = Number(colStr);
       const lane = Number(laneStr);
-      nodes
-        .slice()
-        .sort((a, b) => (depth.get(a.id) ?? 0) - (depth.get(b.id) ?? 0))
-        .forEach((n, idx) => {
-          updates.push({ id: n.id, pos_x: col * COLUMN_WIDTH + 40, pos_y: GRID_ORIGIN_Y + lane * LANE_HEIGHT + idx * 28 });
+      const sorted = nodes.slice().sort((a, b) => (depth.get(a.id) ?? 0) - (depth.get(b.id) ?? 0));
+
+      const laneStartY = Math.max(
+        GRID_ORIGIN_Y + lane * (NODE_HEIGHT * 2 + LANE_GAP),
+        laneBottomY.get(lane) ?? 0
+      );
+
+      sorted.forEach((n, idx) => {
+        // Distribute in 2-column sub-grid when many nodes in one bucket
+        const subCol = idx % 2;
+        const subRow = Math.floor(idx / 2);
+        const pos_x = col * COLUMN_WIDTH + 40 + subCol * (NODE_WIDTH + H_GAP);
+        const pos_y = laneStartY + subRow * (NODE_HEIGHT + V_GAP);
+        updates.push({ id: n.id, pos_x, pos_y });
       });
+
+      // Update lane bottom
+      const rowsUsed = Math.ceil(sorted.length / 2);
+      const bucketBottom = laneStartY + rowsUsed * (NODE_HEIGHT + V_GAP);
+      laneBottomY.set(lane, Math.max(laneBottomY.get(lane) ?? 0, bucketBottom));
     });
 
     const orbs = dbNodes.filter((n) => n.node_type === "ai_orb" && (!activeClientId || n.parent_node_id === activeClientId));
-    const ORB_BAND_Y = GRID_ORIGIN_Y + 8 * LANE_HEIGHT + 60;
+    const ORB_BAND_Y = (Math.max(0, ...Array.from(laneBottomY.values())) || GRID_ORIGIN_Y) + 80;
     orbs.forEach((orb, idx) => {
-      updates.push({ id: orb.id, pos_x: 40 + (idx % 6) * 180, pos_y: ORB_BAND_Y + Math.floor(idx / 6) * 160 });
+      updates.push({ id: orb.id, pos_x: 40 + (idx % 6) * 200, pos_y: ORB_BAND_Y + Math.floor(idx / 6) * 180 });
     });
 
     await Promise.all(
