@@ -407,27 +407,31 @@ function EntryCard({ entry, onClick, onStar, color = "#00FF88" }: {
   const preview = getPreview(entry);
   return (
     <button type="button" onClick={onClick}
-      className="w-full text-left flex items-start gap-3 px-4 py-3 hover:bg-secondary/20 transition-colors group border-b border-border/30 last:border-0">
-      <div className="h-1.5 w-1.5 rounded-full mt-1.5 shrink-0" style={{ background: color }} />
+      className="min-h-32 w-full rounded-lg border border-border/60 bg-background/50 p-3 text-left transition-colors hover:bg-secondary/20 group">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0" style={{ background: `${color}15`, border: `1px solid ${color}30` }}>
+          <FileText className="h-3.5 w-3.5" style={{ color }} />
+        </div>
+        <ArrowRight className="h-3 w-3 text-muted-foreground/40 opacity-0 transition-opacity group-hover:opacity-100" />
+      </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+        <div className="flex items-center gap-2 flex-wrap mb-1">
           <span className="text-sm font-medium text-foreground">{entry.title}</span>
           {entry.is_key_decision && <span className="text-[10px] text-amber-400 font-semibold">Decisão-chave</span>}
           {entry.tags?.slice(0, 2).map((t) => (
             <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-full bg-secondary/60 text-muted-foreground">{t}</span>
           ))}
         </div>
-        {preview && <p className="text-xs text-muted-foreground line-clamp-1 leading-relaxed">{preview}</p>}
-        {entry.happened_at && <p className="text-[10px] text-muted-foreground/50 mt-0.5">{formatDate(entry.happened_at)}</p>}
+        {preview && <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">{preview}</p>}
+        {entry.happened_at && <p className="text-[10px] text-muted-foreground/50 mt-2">{formatDate(entry.happened_at)}</p>}
       </div>
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+      <div className="mt-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
         {onStar && (
           <span onClick={(e) => { e.stopPropagation(); onStar(); }}
             className="p-1 rounded hover:bg-secondary transition-colors">
             <Star className={cn("h-3 w-3", entry.is_key_decision ? "text-amber-400 fill-amber-400" : "text-muted-foreground")} />
           </span>
         )}
-        <ArrowRight className="h-3 w-3 text-muted-foreground/40" />
       </div>
     </button>
   );
