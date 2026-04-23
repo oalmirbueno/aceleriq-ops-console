@@ -29,7 +29,7 @@ import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalM
 import {
   ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH,
   getProjectTypeMeta, getStageMeta, stageColumnX, getChecklistTemplate,
-  projectKindToDbNodeType, getNodeFlowRole, type ProjectNodeKind, type AceleraStageKey,
+  projectKindToDbNodeType, getNodeFlowRole, getNodeFamily, type ProjectNodeKind, type AceleraStageKey,
 } from "./canvasProjectTypes";
 import { mapLegacyStatus, premiumStatusToDb } from "./canvasEsteiraStatus";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
@@ -81,11 +81,11 @@ const CANVAS_TRANSLATE_EXTENT: [[number, number], [number, number]] = [
   [TOTAL_STAGE_WIDTH + CANVAS_PADDING, CONTENT_TOP + STAGE_BAND_HEIGHT + CANVAS_PADDING],
 ];
 const FIT_VIEW_OPTIONS = { padding: 0.4 };
-const DEFAULT_EDGE_OPTIONS = { type: "smoothstep", animated: true };
+const DEFAULT_EDGE_OPTIONS = { type: "bezier", animated: true };
 const PAN_ON_DRAG = [0, 1, 2];
 const SELECTION_KEY_CODE = ["Shift"];
 const MULTI_SELECTION_KEY_CODE = ["Meta", "Control"];
-const CONNECTION_LINE_STYLE = { stroke: "hsl(var(--primary))", strokeWidth: 2, strokeDasharray: "6 3", opacity: 0.8 };
+const CONNECTION_LINE_STYLE = { stroke: "hsl(var(--primary))", strokeWidth: 2.5, strokeDasharray: "8 4", opacity: 0.85 };
 const PRO_OPTIONS = { hideAttribution: true };
 
 export function getCanvasInteractionConfig(activeTool: "select" | "hand") {
