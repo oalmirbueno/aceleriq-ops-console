@@ -703,6 +703,32 @@ function CanvasStudioInner({
     }
   }, [clientId, dbNodes, ensureActiveClient, pickParentGroup, projectNodes, workspaceId]);
 
+  const addAiOrb = useCallback(async (orbType: AiOrbType) => {
+    const parent = ensureActiveClient();
+    if (!parent) return;
+    const orb = AI_ORBS.find((item) => item.type === orbType) ?? AI_ORBS[0];
+    const sameParentOrbs = dbNodes.filter((node) => node.parent_node_id === parent && node.node_type === "ai_orb");
+    const pos_x = OPS_FLOW_X.engine + 40;
+    const pos_y = CONTENT_TOP + 520 + sameParentOrbs.length * 132;
+    const { data, error } = await supabase.from("canvas_nodes").insert({
+      workspace_id: workspaceId,
+      client_id: clientId,
+      node_type: "ai_orb",
+      title: `AI Orb · ${orb.label}`,
+      status: "active",
+      description: orb.specialization,
+      pos_x,
+      pos_y,
+      parent_node_id: parent,
+      data: { kind: "ai_orb", orbType, orbLabel: orb.label, specialization: orb.specialization, aiModel: "internal", isGenerating: false },
+    }).select().single();
+    if (error) {
+      toast({ title: "Erro ao criar AI Orb", description: error.message, variant: "destructive" });
+      return;
+    }
+    if (data) setDbNodes((prev) => [...prev, data as CanvasNodeRow]);
+  }, [clientId, dbNodes, ensureActiveClient, workspaceId]);
+
   const expandEngineHub = useCallback(async (engineNodeId: string) => {
     const engineNode = dbNodes.find((node) => node.id === engineNodeId);
     if (!engineNode) return;
