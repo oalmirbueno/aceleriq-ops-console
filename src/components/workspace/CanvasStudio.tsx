@@ -579,6 +579,35 @@ function CanvasStudioInner({
     });
   }, [visibleCanvasNodes, groupMeta, workspaceId, fetchData, quickConnectFromNode, lockedNodes]);
 
+  /** Delete edge — instant local update + DB delete. Usado pelo DeletableEdge e context menu. */
+  const deleteEdgeById = useCallback(async (edgeId: string) => {
+    // Otimista: remove local PRIMEIRO, depois confirma no banco
+    setDbEdges((prev) => prev.filter((e) => e.id !== edgeId));
+    const { error } = await supabase.from("canvas_edges").delete().eq("id", edgeId);
+    if (error) {
+      toast({ title: "Erro ao remover", description: error.message, variant: "destructive" });
+      // Rollback: recarrega para re-adicionar se a deleção falhou
+      await fetchData();
+      return;
+    }
+    toast({ title: "Conexão removida" });
+  }, [fetchData]);
+
+  /** Edit edge label — update otimista no local + DB. */
+  const editEdgeLabel = useCallback(async (edgeId: string, newLabel: string | null) => {
+    setDbEdges((prev) => prev.map((e) => e.id === edgeId ? { ...e, label: newLabel } : e));
+    const { error } = await supabase
+      .from("canvas_edges")
+      .update({ label: newLabel, updated_at: new Date().toISOString() })
+      .eq("id", edgeId);
+    if (error) {
+      toast({ title: "Erro ao editar rótulo", description: error.message, variant: "destructive" });
+      await fetchData();
+      return;
+    }
+    toast({ title: newLabel ? "Rótulo atualizado" : "Rótulo removido" });
+  }, [fetchData]);
+
   const reactFlowEdges = useMemo(() => {
     const visibleIds = new Set(visibleCanvasNodes.map((n) => n.id));
     const visibleById = new Map(visibleCanvasNodes.map((n) => [n.id, n]));
@@ -598,9 +627,13 @@ function CanvasStudioInner({
           className: intent.className,
           markerEnd: { type: MarkerType.ArrowClosed, color: intent.stroke, width: 18, height: 18 },
           style: { stroke: intent.stroke, strokeWidth: intent.strokeWidth },
+          data: {
+            onDelete: deleteEdgeById,
+            onEditLabel: editEdgeLabel,
+          },
         };
       });
-  }, [dbEdges, visibleCanvasNodes]);
+  }, [dbEdges, visibleCanvasNodes, deleteEdgeById, editEdgeLabel]);
 
   /* DB → ReactFlow — preserva posição LOCAL quando o node já existe no canvas.
    * Motivo: sem isso, ao adicionar/editar qualquer node TODOS os outros voltam
@@ -904,14 +937,6 @@ function CanvasStudioInner({
         : e
     ));
     toast({ title: "Direção invertida" });
-  }, []);
-
-  /** Delete edge used by context menu */
-  const deleteEdgeById = useCallback(async (edgeId: string) => {
-    const { error } = await supabase.from("canvas_edges").delete().eq("id", edgeId);
-    if (error) { toast({ title: "Erro ao remover", description: error.message, variant: "destructive" }); return; }
-    setDbEdges((prev) => prev.filter((e) => e.id !== edgeId));
-    toast({ title: "Conexão removida" });
   }, []);
 
   /* Pick parent: prioriza cliente da aba ativa */
