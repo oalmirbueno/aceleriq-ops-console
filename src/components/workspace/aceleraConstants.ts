@@ -41,24 +41,24 @@ export interface PlanDefinition {
 export const PLAN_DEFINITIONS: Record<PlanKey, PlanDefinition> = {
   starter: {
     key: "starter",
-    label: "Starter",
-    description: "Fundação digital com entregáveis essenciais.",
-    objective: "Estruturar presença digital básica e primeiros processos.",
-    depth: "Operação guiada com escopo reduzido.",
+    label: "Fundação",
+    description: "Preparar o solo da sua operação digital.",
+    objective: "Consolidar contexto, diagnosticar e entregar a primeira estrutura digital funcional.",
+    depth: "Cobre as etapas A · C · E do método ACELERA (Abertura, Diagnóstico e Arquitetura Base).",
   },
   growth: {
     key: "growth",
-    label: "Growth",
-    description: "Aceleração com estratégia e implantação completa.",
-    objective: "Construir funil de aquisição, posicionamento e operação escalável.",
-    depth: "Operação completa com planejamento estratégico e acompanhamento.",
+    label: "Aceleração",
+    description: "Construir a máquina de aquisição do seu negócio.",
+    objective: "Montar o motor completo: CRM, funil, conteúdo, tráfego e primeira camada IA.",
+    depth: "Cobre as etapas A → R do método ACELERA (Abertura até Ativação Assistida).",
   },
   enterprise: {
     key: "enterprise",
-    label: "Enterprise",
-    description: "Estruturação profunda com automação e escala.",
-    objective: "Arquitetar operação integrada com IA, automação e processos avançados.",
-    depth: "Operação profunda com consultoria, implantação técnica e expansão contínua.",
+    label: "Escala IA-First",
+    description: "Virar a chave: sua empresa opera como AI-first.",
+    objective: "Estruturar operação com múltiplos agentes IA, BI, consultoria e playbook replicável.",
+    depth: "Cobre todas as 8 etapas ACELERA, incluindo Otimização por Evidência e Escala.",
   },
 };
 
