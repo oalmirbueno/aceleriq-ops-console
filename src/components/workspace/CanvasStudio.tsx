@@ -17,6 +17,7 @@ import { toast } from "@/hooks/use-toast";
 import ProjectNodeCard, { type ProjectNodeData } from "./ProjectNodeCard";
 import CanvasGroupNode from "./CanvasGroupNode";
 import AiOrbNode, { type AiOrbType } from "./AiOrbNode";
+import AiOrbConfigPanel from "./AiOrbConfigPanel";
 import ProjectNodeDrawer from "./ProjectNodeDrawer";
 import CanvasInspector from "./CanvasInspector";
 import CanvasClientPicker from "./CanvasClientPicker";
@@ -31,6 +32,9 @@ import {
 } from "./canvasProjectTypes";
 import { mapLegacyStatus, premiumStatusToDb } from "./canvasEsteiraStatus";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
+import { AI_ORBS, createAiOrbData } from "./aiOrbConstants";
+import { generatedNodePosition, validateOrbConnection } from "./aiOrbConnections";
+import { invokeAiOrbGenerate, nextOrbDataAfterGeneration, readAiOrbData } from "./aiOrbEngine";
 
 // CanvasStudio é uma camada visual operacional complementar: não substitui o briefing mestre,
 // não cria nova lógica/tabela de sinais estruturados e não usa IA opaca como núcleo decisório.
@@ -112,17 +116,6 @@ const RESULT_KINDS = new Set(["resultado", "landing_page", "site", "conteudo", "
 const DECISION_KINDS = new Set(["decisao"]);
 const PROOF_KINDS = new Set(["metrica", "before_after", "case"]);
 const FLOW_GRAMMAR = ["Contexto", "Instrução", "Engine", "Resultado", "Decisão", "Prova"];
-const AI_ORB_KINDS = new Set(["ai_orb"]);
-const AI_ORB_INPUT_KINDS = new Set([...INPUT_KINDS, ...INSTRUCTION_KINDS, "funil", "checklist"]);
-const AI_ORB_OUTPUT_KINDS = new Set([...RESULT_KINDS, "automacao", "ia", "integracao", "agente"]);
-const AI_ORBS: Array<{ type: AiOrbType; label: string; specialization: string }> = [
-  { type: "planner", label: "Planejar", specialization: "plano operacional" },
-  { type: "docs", label: "Docs", specialization: "BMC · ICP · SOP" },
-  { type: "content", label: "Conteúdo", specialization: "copy · calendário" },
-  { type: "tech", label: "Tech", specialization: "n8n · integrações" },
-  { type: "proof", label: "Provas", specialization: "KPI · case" },
-  { type: "full", label: "Tudo", specialization: "esteira completa" },
-];
 
 export function buildAiOrbNodePayload({
   orbType, workspaceId, clientId, parentNodeId, x, y,
@@ -145,7 +138,7 @@ export function buildAiOrbNodePayload({
     pos_x: x,
     pos_y: y,
     parent_node_id: parentNodeId,
-    data: { kind: "ai_orb", orbType, orbLabel: orb.label, specialization: orb.specialization, aiModel: "internal", isGenerating: false },
+    data: createAiOrbData(orbType),
   };
 }
 const DOCK_GROUPS = [
@@ -183,16 +176,15 @@ export function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNo
   const targetKind = nodeKindOf(target);
   const sourceLabel = nodeLabel(source);
   const targetLabel = nodeLabel(target);
+  const orbValidation = validateOrbConnection(sourceKind, targetKind, (target.data as Record<string, unknown> | null)?.orbType as string | undefined);
 
   if (source.parent_node_id && target.parent_node_id && source.parent_node_id !== target.parent_node_id) {
     return blockConnection("Conecte nodes dentro da mesma pasta de cliente para manter rastreabilidade e evitar fluxo cruzado.");
   }
 
+  if (orbValidation) return orbValidation;
+
   if (INPUT_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return allowConnection("input");
-  if (AI_ORB_INPUT_KINDS.has(sourceKind) && AI_ORB_KINDS.has(targetKind)) return allowConnection("treina");
-  if (AI_ORB_KINDS.has(sourceKind) && AI_ORB_OUTPUT_KINDS.has(targetKind)) return allowConnection("gera IA");
-  if (AI_ORB_KINDS.has(targetKind)) return blockConnection("AI Orbs só recebem contexto, briefing, documentos, acessos, instruções, funil ou checklist.");
-  if (AI_ORB_KINDS.has(sourceKind)) return blockConnection("AI Orbs só geram nodes de produção, automação, conteúdo, marketing, resultado ou prova.");
   if (INSTRUCTION_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return allowConnection("regra");
   if (ENGINE_KINDS.has(sourceKind) && RESULT_KINDS.has(targetKind)) return allowConnection("gera");
   if (RESULT_KINDS.has(sourceKind) && DECISION_KINDS.has(targetKind)) return allowConnection("aprovar");
@@ -213,7 +205,7 @@ export function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNo
 function edgeIntent(edge: CanvasEdgeRecord, nodesById: Map<string, CanvasNodeRow>) {
   const sourceKind = edge.source_node_id && nodesById.get(edge.source_node_id) ? nodeKindOf(nodesById.get(edge.source_node_id)!) : "";
   const targetKind = edge.target_node_id && nodesById.get(edge.target_node_id) ? nodeKindOf(nodesById.get(edge.target_node_id)!) : "";
-  if (AI_ORB_KINDS.has(targetKind) || AI_ORB_KINDS.has(sourceKind)) return { label: edge.label ?? "IA", stroke: "hsl(var(--node-tech))", animated: true, className: "edge-ai", strokeWidth: 2.4 };
+  if (sourceKind === "ai_orb" || targetKind === "ai_orb") return { label: edge.label ?? "IA", stroke: "hsl(var(--node-tech))", animated: true, className: "edge-ai", strokeWidth: 2.4 };
   if (PROOF_KINDS.has(targetKind) || PROOF_KINDS.has(sourceKind)) return { label: edge.label ?? "prova", stroke: "hsl(var(--node-proof))", animated: false, className: "edge-proof", strokeWidth: 2.8 };
   if (targetKind === "engine") return { label: edge.label ?? "input", stroke: "hsl(var(--node-tech))", animated: true, className: "edge-input", strokeWidth: 2.6 };
   if (sourceKind === "engine") return { label: edge.label ?? "gera", stroke: "hsl(var(--node-build))", animated: true, className: "edge-engine", strokeWidth: 3 };
@@ -232,6 +224,7 @@ function CanvasStudioInner({
   const [loading, setLoading] = useState(true);
   const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState<CanvasNodeRow | null>(null);
+  const [aiOrbConfigNode, setAiOrbConfigNode] = useState<CanvasNodeRow | null>(null);
 
   const [rfNodes, setRfNodes] = useState<Node[]>([]);
   const [rfEdges, setRfEdges] = useState<Edge[]>([]);
@@ -625,6 +618,10 @@ function CanvasStudioInner({
     const found = dbNodes.find((n) => n.id === node.id);
     if (!found) return;
     if (found.node_type === "client") return; // client groups don't open drawer
+    if (nodeKindOf(found) === "ai_orb") {
+      setAiOrbConfigNode(found);
+      return;
+    }
     setSelectedNode(found);
   }, [dbNodes]);
 
@@ -783,6 +780,91 @@ function CanvasStudioInner({
     }
     if (data) setDbNodes((prev) => [...prev, data as CanvasNodeRow]);
   }, [clientId, dbNodes, ensureActiveClient, workspaceId]);
+
+  const patchAiOrbData = useCallback((patch: Record<string, unknown>) => {
+    if (!aiOrbConfigNode) return;
+    const nextData = { ...readAiOrbData(aiOrbConfigNode.data as Record<string, unknown> | null), ...patch };
+    setAiOrbConfigNode((current) => current ? { ...current, data: nextData } : current);
+    setDbNodes((prev) => prev.map((node) => node.id === aiOrbConfigNode.id ? { ...node, data: nextData } : node));
+    supabase.from("canvas_nodes").update({ data: nextData, updated_at: new Date().toISOString() }).eq("id", aiOrbConfigNode.id).then(({ error }) => {
+      if (error) toast({ title: "Erro ao atualizar Orb", description: error.message, variant: "destructive" });
+    });
+  }, [aiOrbConfigNode]);
+
+  const generateFromAiOrb = useCallback(async (deterministic = false) => {
+    if (!aiOrbConfigNode) return;
+    const orb = readAiOrbData(aiOrbConfigNode.data as Record<string, unknown> | null);
+    const generatingData = { ...orb, isGenerating: true, lastError: undefined };
+    setBusyAction(`ai-orb-${aiOrbConfigNode.id}`);
+    setDbNodes((prev) => prev.map((node) => node.id === aiOrbConfigNode.id ? { ...node, data: generatingData } : node));
+    setAiOrbConfigNode((current) => current ? { ...current, data: generatingData } : current);
+    await supabase.from("canvas_nodes").update({ data: generatingData, updated_at: new Date().toISOString() }).eq("id", aiOrbConfigNode.id);
+
+    try {
+      const result = await invokeAiOrbGenerate({
+        orbId: aiOrbConfigNode.id,
+        workspaceId,
+        clientId,
+        orbType: orb.orbType,
+        aiEngine: orb.aiEngine,
+        customPrompt: orb.systemPrompt,
+        focusAreas: orb.focusAreas,
+        deterministic,
+      });
+      const orbX = Number(aiOrbConfigNode.pos_x ?? OPS_FLOW_X.engine);
+      const orbY = Number(aiOrbConfigNode.pos_y ?? CONTENT_TOP + 520);
+      const parent = aiOrbConfigNode.parent_node_id ?? ensureActiveClient();
+      if (!parent) return;
+
+      const createdByRef: Record<string, CanvasNodeRow> = {};
+      const createdNodes: CanvasNodeRow[] = [];
+      for (const [index, spec] of result.nodes.entries()) {
+        const pos = generatedNodePosition(orbX, orbY, index, result.nodes.length);
+        const { data, error } = await supabase.from("canvas_nodes").insert({
+          workspace_id: workspaceId,
+          client_id: clientId,
+          node_type: projectKindToDbNodeType(spec.kind),
+          title: spec.title,
+          status: "draft",
+          description: spec.description,
+          pos_x: pos.x,
+          pos_y: pos.y,
+          parent_node_id: parent,
+          data: { kind: spec.kind, stage: spec.stage, checklist: getChecklistTemplate(spec.kind), generatedByAiOrb: aiOrbConfigNode.id, rationale: result.rationale },
+        }).select().single();
+        if (error || !data) throw error ?? new Error("Falha ao criar node gerado pelo Orb.");
+        createdByRef[spec.ref] = data as CanvasNodeRow;
+        createdNodes.push(data as CanvasNodeRow);
+      }
+
+      const generatedEdges = [
+        ...createdNodes.map((node) => ({ source_node_id: aiOrbConfigNode.id, target_node_id: node.id, label: "gerado por IA" })),
+        ...result.edges.map((edge) => {
+          const source = createdByRef[edge.fromRef]?.id;
+          const target = createdByRef[edge.toRef]?.id;
+          return source && target ? { source_node_id: source, target_node_id: target, label: edge.label ?? "próxima" } : null;
+        }).filter(Boolean) as Array<{ source_node_id: string; target_node_id: string; label: string | null }>,
+      ];
+
+      const { data: edgeRows, error: edgeError } = await supabase.from("canvas_edges").insert(generatedEdges.map((edge) => ({ workspace_id: workspaceId, edge_type: "ai", ...edge }))).select();
+      if (edgeError) throw edgeError;
+
+      const finalData = nextOrbDataAfterGeneration(orb, result, createdNodes.map((node) => node.id));
+      await supabase.from("canvas_nodes").update({ data: finalData, updated_at: new Date().toISOString() }).eq("id", aiOrbConfigNode.id);
+      setDbNodes((prev) => prev.map((node) => node.id === aiOrbConfigNode.id ? { ...node, data: finalData } : node).concat(createdNodes));
+      if (edgeRows?.length) setDbEdges((prev) => prev.concat(edgeRows as CanvasEdgeRecord[]));
+      setAiOrbConfigNode((current) => current ? { ...current, data: finalData } : current);
+      toast({ title: "AI Orb executado", description: `${createdNodes.length} nodes e ${edgeRows?.length ?? 0} conexões gerados.` });
+    } catch (err) {
+      const failedData = { ...orb, isGenerating: false, lastError: err instanceof Error ? err.message : "Falha ao gerar." };
+      await supabase.from("canvas_nodes").update({ data: failedData, updated_at: new Date().toISOString() }).eq("id", aiOrbConfigNode.id);
+      setDbNodes((prev) => prev.map((node) => node.id === aiOrbConfigNode.id ? { ...node, data: failedData } : node));
+      setAiOrbConfigNode((current) => current ? { ...current, data: failedData } : current);
+      toast({ title: "Erro ao gerar com Orb", description: failedData.lastError, variant: "destructive" });
+    } finally {
+      setBusyAction(null);
+    }
+  }, [aiOrbConfigNode, clientId, ensureActiveClient, workspaceId]);
 
   const expandEngineHub = useCallback(async (engineNodeId: string) => {
     const engineNode = dbNodes.find((node) => node.id === engineNodeId);
@@ -1690,6 +1772,15 @@ function CanvasStudioInner({
         workspaceId={workspaceId}
         generating={busyAction === "base"}
         onConfirm={(tpl) => applyEsteiraTemplate(tpl)}
+      />
+
+      <AiOrbConfigPanel
+        open={!!aiOrbConfigNode}
+        onOpenChange={(open) => !open && setAiOrbConfigNode(null)}
+        data={aiOrbConfigNode ? readAiOrbData(aiOrbConfigNode.data as Record<string, unknown> | null) : null}
+        onDataChange={patchAiOrbData}
+        onGenerate={generateFromAiOrb}
+        generating={!!aiOrbConfigNode && busyAction === `ai-orb-${aiOrbConfigNode.id}`}
       />
 
       <ProjectNodeDrawer
