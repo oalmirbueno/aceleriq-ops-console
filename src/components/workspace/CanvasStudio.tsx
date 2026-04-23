@@ -565,6 +565,14 @@ function CanvasStudioInner({
     await onTimelineRefresh?.();
   }, [workspaceId, onTimelineRefresh, dbNodes, dbEdges]);
 
+  const isValidConnection = useCallback((conn: Connection) => {
+    if (!conn.source || !conn.target || conn.source === conn.target) return false;
+    const sourceNode = dbNodes.find((n) => n.id === conn.source);
+    const targetNode = dbNodes.find((n) => n.id === conn.target);
+    if (!sourceNode || !targetNode) return false;
+    return validateCanvasConnection(sourceNode, targetNode).allowed;
+  }, [dbNodes]);
+
   const onNodeClick = useCallback((_e: React.MouseEvent, node: Node) => {
     const found = dbNodes.find((n) => n.id === node.id);
     if (!found) return;
@@ -1526,6 +1534,7 @@ function CanvasStudioInner({
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
+              isValidConnection={isValidConnection}
               onNodeClick={onNodeClick}
               nodeTypes={nodeTypes}
               onInit={handleRfInit}
