@@ -2,6 +2,7 @@ import { memo, useState, useEffect, useCallback, useMemo, useRef, useDeferredVal
 import {
   ReactFlow, ReactFlowProvider, Background,
   applyNodeChanges, applyEdgeChanges,
+  ConnectionMode, ConnectionLineType,
   type Node, type Edge, type NodeChange, type EdgeChange, type Connection,
   type ReactFlowInstance, type Viewport, SelectionMode, MarkerType,
 } from "@xyflow/react";
@@ -84,7 +85,7 @@ const DEFAULT_EDGE_OPTIONS = { type: "smoothstep", animated: true };
 const PAN_ON_DRAG = [0, 1, 2];
 const SELECTION_KEY_CODE = ["Shift"];
 const MULTI_SELECTION_KEY_CODE = ["Meta", "Control"];
-const CONNECTION_LINE_STYLE = { stroke: "hsl(var(--primary))", strokeWidth: 2.5 };
+const CONNECTION_LINE_STYLE = { stroke: "hsl(var(--primary))", strokeWidth: 2, strokeDasharray: "6 3", opacity: 0.8 };
 const PRO_OPTIONS = { hideAttribution: true };
 
 export function getCanvasInteractionConfig(activeTool: "select" | "hand") {
@@ -163,7 +164,7 @@ const OPS_FLOW_X: Record<string, number> = {
 };
 
 type ConnectionValidation = { allowed: boolean; label: string | null; reason: string | null };
-const allowConnection = (label: string): ConnectionValidation => ({ allowed: true, label, reason: null });
+const allowConnection = (label: string | null): ConnectionValidation => ({ allowed: true, label, reason: null });
 const blockConnection = (reason: string): ConnectionValidation => ({ allowed: false, label: null, reason });
 
 function nodeLabel(row: CanvasNodeRow) {
@@ -174,23 +175,29 @@ function nodeLabel(row: CanvasNodeRow) {
 export function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNodeRow) {
   const sourceKind = nodeKindOf(source);
   const targetKind = nodeKindOf(target);
-  const sourceLabel = nodeLabel(source);
-  const targetLabel = nodeLabel(target);
   const orbValidation = validateOrbConnection(sourceKind, targetKind, (target.data as Record<string, unknown> | null)?.orbType as string | undefined);
+
+  if (source.id === target.id) {
+    return blockConnection("Um node não pode se conectar consigo mesmo.");
+  }
 
   if (source.parent_node_id && target.parent_node_id && source.parent_node_id !== target.parent_node_id) {
     return blockConnection("Conecte nodes dentro da mesma pasta de cliente para manter rastreabilidade e evitar fluxo cruzado.");
   }
 
+  if (PROOF_KINDS.has(sourceKind) && INPUT_KINDS.has(targetKind)) {
+    return blockConnection("Provas não alimentam contexto diretamente.");
+  }
+
   if (orbValidation) return orbValidation;
 
-  if (INPUT_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return allowConnection("input");
+  if (INPUT_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return allowConnection("alimenta");
   if (INSTRUCTION_KINDS.has(sourceKind) && ENGINE_KINDS.has(targetKind)) return allowConnection("regra");
   if (ENGINE_KINDS.has(sourceKind) && RESULT_KINDS.has(targetKind)) return allowConnection("gera");
   if (RESULT_KINDS.has(sourceKind) && DECISION_KINDS.has(targetKind)) return allowConnection("aprovar");
   if ((RESULT_KINDS.has(sourceKind) || DECISION_KINDS.has(sourceKind)) && PROOF_KINDS.has(targetKind)) return allowConnection("prova");
   if (sourceKind === "metrica" && targetKind === "before_after") return allowConnection("compara");
-  if (sourceKind === "before_after" && targetKind === "case") return allowConnection("vira case");
+  if (sourceKind === "before_after" && targetKind === "case") return allowConnection("caso");
   if (DECISION_KINDS.has(sourceKind) && (INSTRUCTION_KINDS.has(targetKind) || ENGINE_KINDS.has(targetKind) || RESULT_KINDS.has(targetKind))) return allowConnection("próxima");
 
   if (INPUT_KINDS.has(sourceKind) && INSTRUCTION_KINDS.has(targetKind)) return allowConnection("base");
@@ -199,7 +206,7 @@ export function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNo
   if (ENGINE_KINDS.has(sourceKind) && DECISION_KINDS.has(targetKind)) return allowConnection("decide");
   if (RESULT_KINDS.has(sourceKind) && INSTRUCTION_KINDS.has(targetKind)) return allowConnection("revisar");
 
-  return blockConnection(`${sourceLabel} não deve alimentar ${targetLabel} diretamente. Fluxo esperado: Contexto/Instrução → Engine → Resultado → Decisão → Próxima ação.`);
+  return allowConnection(null);
 }
 
 function edgeIntent(edge: CanvasEdgeRecord, nodesById: Map<string, CanvasNodeRow>) {
@@ -394,6 +401,7 @@ function CanvasStudioInner({
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
   const expandEngineHubRef = useRef<((engineNodeId: string) => void | Promise<void>) | null>(null);
   const restoredScopesRef = useRef<Set<string>>(new Set());
+  const draggingNodesRef = useRef<Set<string>>(new Set());
   const saveTimerRef = useRef<number | null>(null);
 
   const readSavedViewport = useCallback((scope: string): Viewport | null => {
@@ -534,20 +542,32 @@ function CanvasStudioInner({
 
   /* DB → ReactFlow */
   useEffect(() => {
-    setRfNodes(reactFlowNodes);
+    setRfNodes((currentRfNodes) => reactFlowNodes.map((newNode) => {
+      if (!draggingNodesRef.current.has(newNode.id)) return newNode;
+      const existing = currentRfNodes.find((node) => node.id === newNode.id);
+      return existing ? { ...newNode, position: existing.position } : newNode;
+    }));
+  }, [reactFlowNodes]);
+
+  useEffect(() => {
     setRfEdges(reactFlowEdges);
-  }, [reactFlowNodes, reactFlowEdges]);
+  }, [reactFlowEdges]);
 
   /* ReactFlow handlers */
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setRfNodes((nds) => applyNodeChanges(changes, nds));
     for (const c of changes) {
-      if (c.type === "position" && c.dragging === false && c.position) {
-        supabase
-          .from("canvas_nodes")
-          .update({ pos_x: c.position.x, pos_y: c.position.y, updated_at: new Date().toISOString() })
-          .eq("id", c.id)
-          .then(({ error }) => { if (error) console.error("position persist failed", error); });
+      if (c.type === "position") {
+        if (c.dragging === true) {
+          draggingNodesRef.current.add(c.id);
+        } else if (c.dragging === false && c.position) {
+          draggingNodesRef.current.delete(c.id);
+          supabase
+            .from("canvas_nodes")
+            .update({ pos_x: c.position.x, pos_y: c.position.y, updated_at: new Date().toISOString() })
+            .eq("id", c.id)
+            .then(({ error }) => { if (error) console.error("position persist failed", error); });
+        }
       }
     }
   }, []);
@@ -573,11 +593,11 @@ function CanvasStudioInner({
     const validation = validateCanvasConnection(sourceNode, targetNode);
     if (!validation.allowed) {
       toast({
-        title: "Ligação incompatível",
-        description: validation.reason ?? "Essa conexão não segue o fluxo operacional do canvas.",
-        variant: "destructive",
+        title: "Atenção",
+        description: validation.reason ?? "Conexão fora do fluxo padrão.",
       });
-      return;
+      const hardBlocked = validation.reason?.includes("si mesmo") || validation.reason?.includes("mesma pasta");
+      if (hardBlocked) return;
     }
 
     const alreadyExists = dbEdgesRef.current.some((edge) => edge.source_node_id === conn.source && edge.target_node_id === conn.target);
@@ -611,7 +631,9 @@ function CanvasStudioInner({
     const sourceNode = dbNodesRef.current.find((n) => n.id === conn.source);
     const targetNode = dbNodesRef.current.find((n) => n.id === conn.target);
     if (!sourceNode || !targetNode) return false;
-    return validateCanvasConnection(sourceNode, targetNode).allowed;
+    const validation = validateCanvasConnection(sourceNode, targetNode);
+    if (validation.allowed) return true;
+    return !(validation.reason?.includes("si mesmo") || validation.reason?.includes("mesma pasta"));
   }, []);
 
   const onNodeClick = useCallback((_e: React.MouseEvent, node: Node) => {
@@ -1693,6 +1715,9 @@ function CanvasStudioInner({
               className="bg-background canvas-flow acelera-ops-flow"
               defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
               connectionLineStyle={CONNECTION_LINE_STYLE}
+              connectionLineType={ConnectionLineType.SmoothStep}
+              connectionRadius={40}
+              connectionMode={ConnectionMode.Loose}
               onPaneContextMenu={(event) => event.preventDefault()}
             >
               {gridVisible && <Background gap={32} size={1} className="opacity-20" />}
