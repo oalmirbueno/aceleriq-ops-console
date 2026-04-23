@@ -201,6 +201,10 @@ function CanvasStudioInner({
 
   const [paletteCollapsed, setPaletteCollapsed] = useState(false);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(true);
+  const [activeTool, setActiveTool] = useState<"select" | "hand">("select");
+  const [gridVisible, setGridVisible] = useState(true);
+  const [lockedNodes, setLockedNodes] = useState(false);
+  const [openDockGroup, setOpenDockGroup] = useState<string | null>(null);
 
   // Active client folder (null = "Todos")
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
@@ -421,14 +425,20 @@ function CanvasStudioInner({
       const dataObj = (n.data as Record<string, unknown> | null) ?? {};
       const operationalMeta = (dataObj.operationalMeta ?? dataObj.operational_meta ?? {}) as CanvasOperationalMeta;
       const attachmentList = (dataObj.attachments as Array<{ url?: string; type?: string; label?: string }> | undefined) ?? [];
+      const isAiOrb = n.node_type === "ai_orb" || dataObj.kind === "ai_orb";
 
       return {
         id: n.id,
-        type: "projectCard",
+        type: isAiOrb ? "aiOrb" : "projectCard",
         position: { x: Number(n.pos_x ?? 0), y: Number(n.pos_y ?? CONTENT_TOP) },
+        draggable: !lockedNodes,
         data: {
           title: n.title,
           kind: nodeKindOf(n),
+          orbType: (dataObj.orbType ?? "planner") as AiOrbType,
+          label: (dataObj.orbLabel ?? n.title) as string,
+          specialization: (dataObj.specialization ?? n.description ?? "agente conectado") as string,
+          isGenerating: !!dataObj.isGenerating,
           status: n.status,
           description: n.description,
           hasLinkedEntity: !!n.linked_entity_id,
@@ -446,7 +456,7 @@ function CanvasStudioInner({
         } satisfies ProjectNodeData,
       };
     });
-  }, [visibleCanvasNodes, groupMeta, quickConnectFromNode]);
+  }, [visibleCanvasNodes, groupMeta, quickConnectFromNode, lockedNodes]);
 
   const reactFlowEdges = useMemo(() => {
     const visibleIds = new Set(visibleCanvasNodes.map((n) => n.id));
