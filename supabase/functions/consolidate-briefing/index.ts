@@ -148,7 +148,7 @@ serve(async (req) => {
         .order("created_at", { ascending: true }),
       admin
         .from("clients")
-        .select("id, name, company_name, segment, plan_name, status, logo_url, website, instagram, notes")
+        .select("id, name, company_name, segment, plan_name, status, logo_url, website, instagram, notes, metadata")
         .eq("id", clientId)
         .maybeSingle(),
       admin
@@ -197,6 +197,23 @@ serve(async (req) => {
     promptParts.push(
       `Nome: ${client?.name ?? "—"}\nEmpresa: ${client?.company_name ?? "—"}\nSegmento: ${client?.segment ?? "—"}\nPlano: ${client?.plan_name ?? "—"}\nWebsite: ${client?.website ?? "—"}\nInstagram: ${client?.instagram ?? "—"}\nNotas: ${client?.notes ?? "—"}`,
     );
+
+    // Essential briefing (client-level perennial context) — base de identidade do cliente
+    const clientMeta = (client?.metadata as Record<string, unknown> | null) ?? {};
+    const essentialBriefing = clientMeta.essential_briefing as Record<string, string> | undefined;
+    if (essentialBriefing && Object.keys(essentialBriefing).length > 0) {
+      promptParts.push(`\n# BRIEFING ESSENCIAL DO CLIENTE (identidade perene)`);
+      if (essentialBriefing.positioning)    promptParts.push(`Posicionamento: ${essentialBriefing.positioning}`);
+      if (essentialBriefing.differential)   promptParts.push(`Diferencial real: ${essentialBriefing.differential}`);
+      if (essentialBriefing.icp)            promptParts.push(`ICP: ${essentialBriefing.icp}`);
+      if (essentialBriefing.main_pains)     promptParts.push(`Dores que resolve: ${essentialBriefing.main_pains}`);
+      if (essentialBriefing.goals_12m)      promptParts.push(`Objetivo 12m: ${essentialBriefing.goals_12m}`);
+      if (essentialBriefing.success_metric) promptParts.push(`Métrica de sucesso: ${essentialBriefing.success_metric}`);
+      if (essentialBriefing.revenue_range)  promptParts.push(`Faturamento: ${essentialBriefing.revenue_range}`);
+      if (essentialBriefing.team_size)      promptParts.push(`Time: ${essentialBriefing.team_size}`);
+      if (essentialBriefing.maturity_digital) promptParts.push(`Maturidade digital: ${essentialBriefing.maturity_digital}`);
+      if (essentialBriefing.ai_readiness)   promptParts.push(`Prontidão IA: ${essentialBriefing.ai_readiness}`);
+    }
 
     promptParts.push(`\n# CONTEXTOS REGISTRADOS (${contextEntries.length})`);
     for (const e of contextEntries) {
