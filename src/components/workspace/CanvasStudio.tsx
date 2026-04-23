@@ -83,6 +83,17 @@ const MULTI_SELECTION_KEY_CODE = ["Meta", "Control"];
 const CONNECTION_LINE_STYLE = { stroke: "hsl(var(--primary))", strokeWidth: 2.5 };
 const PRO_OPTIONS = { hideAttribution: true };
 
+export function getCanvasInteractionConfig(activeTool: "select" | "hand") {
+  return {
+    panOnDrag: activeTool === "hand" ? true : PAN_ON_DRAG,
+    selectionOnDrag: activeTool === "select",
+  };
+}
+
+export function resolveDockGroupClick(currentGroup: string | null, clickedGroup: string) {
+  return currentGroup === clickedGroup ? null : clickedGroup;
+}
+
 function nodeStageOf(row: CanvasNodeRow): AceleraStageKey {
   const data = (row.data ?? {}) as Record<string, unknown>;
   const stage = (data.stage ?? data.acelera_stage) as AceleraStageKey | undefined;
