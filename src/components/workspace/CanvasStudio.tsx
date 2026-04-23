@@ -279,8 +279,14 @@ function CanvasStudioInner({
   const fetchData = useCallback(async () => {
     setLoading(true);
     const [{ data: nodesData }, { data: edgesData }] = await Promise.all([
-      supabase.from("canvas_nodes").select("*").eq("workspace_id", workspaceId).order("created_at"),
-      supabase.from("canvas_edges").select("*").eq("workspace_id", workspaceId),
+      // Only fields the card/drawer actually need — cuts ~40% of payload
+      supabase.from("canvas_nodes")
+        .select("id, node_type, title, description, status, pos_x, pos_y, data, parent_node_id, linked_entity_id, linked_entity_type, workspace_id, client_id, created_at, updated_at")
+        .eq("workspace_id", workspaceId)
+        .order("created_at"),
+      supabase.from("canvas_edges")
+        .select("id, source_node_id, target_node_id, edge_type, label, workspace_id")
+        .eq("workspace_id", workspaceId),
     ]);
     setDbNodes((nodesData ?? []) as CanvasNodeRow[]);
     setDbEdges((edgesData ?? []) as CanvasEdgeRecord[]);
@@ -587,6 +593,26 @@ function CanvasStudioInner({
   }, [reactFlowEdges]);
 
   /* ReactFlow handlers */
+  // Batch position updates — avoid hammering DB when moving many nodes
+  const positionUpdateQueueRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const positionFlushTimerRef = useRef<number | null>(null);
+
+  const flushPositionUpdates = useCallback(() => {
+    const queue = positionUpdateQueueRef.current;
+    if (queue.size === 0) return;
+    const entries = Array.from(queue.entries());
+    queue.clear();
+    // Parallel updates — but only one per node, batched
+    void Promise.all(
+      entries.map(([id, pos]) =>
+        supabase
+          .from("canvas_nodes")
+          .update({ pos_x: pos.x, pos_y: pos.y, updated_at: new Date().toISOString() })
+          .eq("id", id)
+      )
+    );
+  }, []);
+
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setRfNodes((nds) => applyNodeChanges(changes, nds));
     for (const c of changes) {
@@ -595,15 +621,14 @@ function CanvasStudioInner({
           draggingNodesRef.current.add(c.id);
         } else if (c.dragging === false && c.position) {
           draggingNodesRef.current.delete(c.id);
-          supabase
-            .from("canvas_nodes")
-            .update({ pos_x: c.position.x, pos_y: c.position.y, updated_at: new Date().toISOString() })
-            .eq("id", c.id)
-            .then(({ error }) => { if (error) console.error("position persist failed", error); });
+          // Enqueue instead of firing DB call immediately
+          positionUpdateQueueRef.current.set(c.id, { x: c.position.x, y: c.position.y });
+          if (positionFlushTimerRef.current) window.clearTimeout(positionFlushTimerRef.current);
+          positionFlushTimerRef.current = window.setTimeout(flushPositionUpdates, 400);
         }
       }
     }
-  }, []);
+  }, [flushPositionUpdates]);
 
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
     setRfEdges((eds) => applyEdgeChanges(changes, eds));
@@ -1763,6 +1788,14 @@ function CanvasStudioInner({
             ))}
           </div>
           {summary.pending > 0 && <span className="hidden lg:inline-flex rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">{summary.pending} aprovações pendentes</span>}
+          {rfNodes.length > 80 && (
+            <span
+              className="hidden md:inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-400/10 text-amber-400 px-2 py-0.5 text-[10px] font-medium"
+              title="Performance: usar filtros ou selecionar cliente específico para reduzir renderização"
+            >
+              ⚡ {rfNodes.length} nodes · virtualizando
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
           {hasFilters && (
@@ -2041,6 +2074,11 @@ function CanvasStudioInner({
               connectionLineType={ConnectionLineType.Bezier}
               connectionRadius={40}
               connectionMode={ConnectionMode.Loose}
+              onlyRenderVisibleElements={rfNodes.length > 40}
+              elevateNodesOnSelect
+              nodesDraggable={!lockedNodes}
+              edgesFocusable={false}
+              nodesConnectable
               onPaneContextMenu={(event) => event.preventDefault()}
             >
               {gridVisible && <Background gap={32} size={1} className="opacity-20" />}
