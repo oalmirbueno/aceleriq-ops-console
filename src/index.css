@@ -539,3 +539,4 @@
 .ai-orb-particle { position: absolute; left: 36px; top: 36px; width: 5px; height: 5px; border-radius: 999px; background: hsl(var(--orb-color)); opacity: 0; }
 .ai-orb-node.is-generating .ai-orb-particle { opacity: .9; animation: orbParticle1 1.8s linear infinite; }
 .ai-orb-node.is-generating .particle-two { animation-delay: -.6s; } .ai-orb-node.is-generating .particle-three { animation-delay: -1.2s; }
+.ai-orb-mini { --orb-color: var(--node-tech); width: 16px; height: 16px; border-radius: 999px; display: inline-flex; background: radial-gradient(circle at 35% 35%, hsl(var(--orb-color) / 0.45), hsl(var(--orb-color) / 0.12)); border: 1px solid hsl(var(--orb-color) / 0.5); box-shadow: 0 0 14px hsl(var(--orb-color) / 0.25); }
