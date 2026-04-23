@@ -18,7 +18,7 @@
  *  - conteudo:     produzir o conteúdo do cliente (roteiro, produção, publicação)
  */
 import { useEffect, useState, useCallback } from "react";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -821,11 +821,20 @@ export default function OperationalNodeDrawer({
   }, [node.id, workspaceId, clientId, kind, config, values]);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-xl p-0 flex flex-col" style={{ background: "#09110A" }}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="p-0 gap-0 border border-white/10 max-w-2xl w-full max-h-[88vh] flex flex-col overflow-hidden sm:rounded-2xl"
+        style={{
+          background: "rgba(9,17,10,0.92)",
+          backdropFilter: "blur(32px) saturate(200%)",
+          WebkitBackdropFilter: "blur(32px) saturate(200%)",
+          boxShadow: "0 0 0 1px rgba(255,255,255,0.06), 0 32px 72px rgba(0,0,0,0.75)",
+        }}
+      >
+        <DialogTitle className="sr-only">{title || "Editar node"}</DialogTitle>
 
-        {/* Header */}
-        <div className="px-5 pt-4 pb-3 border-b shrink-0" style={{ borderColor: `${config.accent}20`, background: `linear-gradient(135deg, ${config.accent}06, transparent)` }}>
+        {/* Header — pr-12 to leave room for built-in X */}
+        <div className="px-5 pt-5 pb-3 border-b shrink-0 pr-12" style={{ borderColor: `${config.accent}20`, background: `linear-gradient(135deg, ${config.accent}08, transparent)` }}>
           <div className="flex items-start gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg shrink-0 mt-0.5" style={{ background: `${config.accent}15`, border: `1px solid ${config.accent}40`, color: config.accent }}>
               {meta?.icon ? <meta.icon className="h-4 w-4" /> : <Workflow className="h-4 w-4" />}
@@ -908,7 +917,7 @@ export default function OperationalNodeDrawer({
             Salvar
           </Button>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
