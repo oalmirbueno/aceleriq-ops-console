@@ -102,7 +102,7 @@ export default function SettingsPage() {
     <>
       <AppHeader title="Configurações" subtitle="Gerenciamento dos planos Aceleriq" />
 
-      <div className="p-6 animate-fade-in space-y-6 max-w-7xl">
+      <div className="p-6 animate-fade-in space-y-6 w-full">
         {/* Admin banner */}
         <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card/40 px-4 py-3">
           <div className="flex items-center gap-2.5">
