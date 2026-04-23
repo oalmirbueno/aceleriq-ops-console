@@ -51,10 +51,11 @@ interface Workspace {
   current_stage: string;
   primary_owner_id: string | null;
   client_id: string;
+  portal_project_id?: string | null;
   summary: string | null;
   created_at: string;
   metadata: Record<string, unknown> | null;
-  clients: { id: string; name: string; company_name: string | null; segment: string | null; plan_name: string | null; logo_url?: string | null; metadata: Record<string, unknown> | null } | null;
+  clients: { id: string; name: string; company_name: string | null; segment: string | null; plan_name: string | null; logo_url?: string | null; portal_client_id?: string | null; metadata: Record<string, unknown> | null } | null;
   profiles: { full_name: string | null; email: string } | null;
 }
 
@@ -283,7 +284,7 @@ export default function WorkspaceDetailPage() {
     setTriageLoading(true);
     const { data, error } = await supabase
       .from("workspaces")
-      .select("id, name, status, current_stage, primary_owner_id, client_id, summary, created_at, metadata, clients(id, name, company_name, segment, plan_name, logo_url, metadata), profiles:primary_owner_id(full_name, email)")
+      .select("id, name, status, current_stage, primary_owner_id, client_id, portal_project_id, summary, created_at, metadata, clients(id, name, company_name, segment, plan_name, logo_url, portal_client_id, metadata), profiles:primary_owner_id(full_name, email)")
       .eq("id", workspaceId)
       .single();
 
@@ -729,8 +730,8 @@ export default function WorkspaceDetailPage() {
                 <PortalLinkButton
                   workspaceId={ws.id}
                   clientId={ws.client_id}
-                  portalProjectId={(ws.metadata as any)?.portal_project_id ?? null}
-                  portalClientId={(ws.clients?.metadata as any)?.portal_client_id ?? null}
+                  portalProjectId={ws.portal_project_id ?? null}
+                  portalClientId={ws.clients?.portal_client_id ?? null}
                   onLinked={fetchWorkspace}
                 />
               </div>
