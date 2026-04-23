@@ -1715,6 +1715,9 @@ function CanvasStudioInner({
               className="bg-background canvas-flow acelera-ops-flow"
               defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
               connectionLineStyle={CONNECTION_LINE_STYLE}
+              connectionLineType={ConnectionLineType.SmoothStep}
+              connectionRadius={40}
+              connectionMode={ConnectionMode.Loose}
               onPaneContextMenu={(event) => event.preventDefault()}
             >
               {gridVisible && <Background gap={32} size={1} className="opacity-20" />}
