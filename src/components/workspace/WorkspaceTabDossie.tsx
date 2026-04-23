@@ -15,7 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import ScopeBadge from "./ScopeBadge";
@@ -46,14 +45,7 @@ interface Task {
 
 // ─── Block config ─────────────────────────────────────────────
 
-const BLOCKS: Array<{
-  key: string;
-  label: string;
-  icon: typeof Building2;
-  color: string;
-  primaryTypes: string[];
-  hint: string;
-}> = [
+const BLOCKS = [
   { key: "identity",    label: "Identidade",         icon: Building2,    color: "#60A5FA", primaryTypes: ["briefing"],              hint: "Posicionamento, diferencial, proposta de valor" },
   { key: "offer",       label: "Oferta e ICP",        icon: Target,       color: "#EC4899", primaryTypes: ["objetivo"],              hint: "O que vende, para quem, cliente ideal" },
   { key: "commercial",  label: "Comercial",           icon: ShoppingCart, color: "#F59E0B", primaryTypes: [],                        hint: "Funil, metas, processo de vendas" },
@@ -248,7 +240,7 @@ function BriefingDialog({ entry, workspaceId, clientId, clientName, onClose }: {
         </div>
       </div>
 
-      <ScrollArea className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <div className="px-6 py-5">
           {loading ? (
             <div className="flex items-center justify-center py-16">
@@ -296,7 +288,7 @@ function BriefingDialog({ entry, workspaceId, clientId, clientName, onClose }: {
             </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
     </GlassDialog>
   );
 }
@@ -375,7 +367,7 @@ function EntryDialog({ entry, workspaceId, onClose }: {
         </div>
       </div>
 
-      <ScrollArea className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <div className="px-6 py-5 space-y-5">
           {/* Metadata grid */}
           {metaItems.length > 0 && (
@@ -423,7 +415,7 @@ function EntryDialog({ entry, workspaceId, onClose }: {
             </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
     </GlassDialog>
   );
 }
