@@ -339,7 +339,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Side preview */}
-            <div className="lg:sticky lg:top-4 self-start">
+            <div className="lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pr-1">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
                 Preview em tempo real
               </p>
