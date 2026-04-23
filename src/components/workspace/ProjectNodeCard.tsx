@@ -281,20 +281,22 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
               e.stopPropagation();
               d.onQuickConnect?.("right");
             }}
-            className="absolute top-1/2 -right-3 z-10 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full bg-foreground/90 text-background shadow-lg transition-all hover:scale-110 hover:bg-foreground"
+            className="node-quick-add-btn absolute top-1/2 -right-8 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-border/80 bg-card text-foreground/70 shadow-md transition-all hover:scale-110 hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
             aria-label="Adicionar próximo node à direita"
+            style={{ pointerEvents: "all" }}
           >
-            <Plus className="h-3 w-3" strokeWidth={2.5} />
+            <Plus className="h-3.5 w-3.5" strokeWidth={2} />
           </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
               d.onQuickConnect?.("bottom");
             }}
-            className="absolute -bottom-3 left-1/2 z-10 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-foreground/90 text-background shadow-lg transition-all hover:scale-110 hover:bg-foreground"
+            className="node-quick-add-btn absolute -bottom-8 left-1/2 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full border border-border/80 bg-card text-foreground/70 shadow-md transition-all hover:scale-110 hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
             aria-label="Adicionar próximo node abaixo"
+            style={{ pointerEvents: "all" }}
           >
-            <Plus className="h-3 w-3" strokeWidth={2.5} />
+            <Plus className="h-3.5 w-3.5" strokeWidth={2} />
           </button>
         </>
       )}
