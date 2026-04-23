@@ -927,7 +927,7 @@ function CanvasStudioInner({
       workspace_id: workspaceId,
       client_id: clientId,
       node_type: "front",
-      title: ,
+      title: "Chat IA",
       status: "active",
       description: "Node de chat inteligente com contexto do workspace",
       pos_x,
