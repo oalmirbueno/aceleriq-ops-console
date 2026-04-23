@@ -115,7 +115,7 @@ function assignPrimaryBlock(entry: ContextEntry): string | null {
 
   // 3. First block with matching primary type
   for (const block of BLOCKS) {
-    if (block.primaryTypes.length > 0 && block.primaryTypes.includes(entry.context_type as any)) {
+    if (block.primaryTypes.length > 0 && (block.primaryTypes as readonly string[]).includes(entry.context_type)) {
       return block.key;
     }
   }
