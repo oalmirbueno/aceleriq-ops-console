@@ -303,7 +303,7 @@ function CanvasStudioInner({
         .eq("workspace_id", workspaceId)
         .order("created_at"),
       supabase.from("canvas_edges")
-        .select("id, source_node_id, target_node_id, edge_type, label, workspace_id")
+        .select("id, source_node_id, target_node_id, source_handle, target_handle, edge_type, label, workspace_id")
         .eq("workspace_id", workspaceId),
     ]);
     setDbNodes((nodesData ?? []) as CanvasNodeRow[]);
@@ -583,6 +583,8 @@ function CanvasStudioInner({
           id: e.id,
           source: e.source_node_id,
           target: e.target_node_id,
+          sourceHandle: (e as CanvasEdgeRecord & { source_handle?: string | null }).source_handle ?? undefined,
+          targetHandle: (e as CanvasEdgeRecord & { target_handle?: string | null }).target_handle ?? undefined,
           label: intent.label,
           animated: intent.animated,
           type: "bezier",
@@ -703,6 +705,8 @@ function CanvasStudioInner({
         workspace_id: workspaceId,
         source_node_id: conn.source,
         target_node_id: conn.target,
+        source_handle: conn.sourceHandle ?? null,
+        target_handle: conn.targetHandle ?? null,
         edge_type: "ops",
         label: validation.label,
       })
@@ -809,6 +813,8 @@ function CanvasStudioInner({
       .update({
         source_node_id: newConn.source,
         target_node_id: newConn.target,
+        source_handle: newConn.sourceHandle ?? null,
+        target_handle: newConn.targetHandle ?? null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", oldEdge.id);
@@ -821,7 +827,7 @@ function CanvasStudioInner({
     // Local state update
     setDbEdges((prev) => prev.map((e) =>
       e.id === oldEdge.id
-        ? { ...e, source_node_id: newConn.source!, target_node_id: newConn.target! }
+        ? { ...e, source_node_id: newConn.source!, target_node_id: newConn.target!, source_handle: newConn.sourceHandle ?? null, target_handle: newConn.targetHandle ?? null }
         : e
     ));
     toast({ title: "Conexão atualizada", description: `${sourceNode.title} → ${targetNode.title}` });
@@ -837,6 +843,73 @@ function CanvasStudioInner({
     }
     setSelectedNode(found);
   }, [dbNodes]);
+
+  /** ═══ CONNECTING STATE — ativa classe CSS .connecting durante drag de conexão.
+   *   Isso faz todos os 12 handles de TODOS os nodes ficarem visíveis, ajudando
+   *   o usuário a ver onde pode conectar. */
+  const onConnectStart = useCallback(() => {
+    document.querySelector(".canvas-flow")?.classList.add("connecting");
+  }, []);
+  const onConnectEnd = useCallback(() => {
+    document.querySelector(".canvas-flow")?.classList.remove("connecting");
+  }, []);
+
+  /** ═══ EDGE CONTEXT MENU — right-click na edge abre opções. */
+  const [edgeMenu, setEdgeMenu] = useState<{ x: number; y: number; edgeId: string } | null>(null);
+  const onEdgeContextMenu = useCallback((event: React.MouseEvent, edge: Edge) => {
+    event.preventDefault();
+    setEdgeMenu({ x: event.clientX, y: event.clientY, edgeId: edge.id });
+  }, []);
+
+  /** ═══ EDGE DOUBLE CLICK — editar label inline. */
+  const onEdgeDoubleClick = useCallback((event: React.MouseEvent, edge: Edge) => {
+    event.preventDefault();
+    const newLabel = window.prompt("Rótulo da conexão (vazio para remover):", String(edge.label ?? ""));
+    if (newLabel === null) return;
+    const cleanLabel = newLabel.trim() || null;
+    void supabase
+      .from("canvas_edges")
+      .update({ label: cleanLabel, updated_at: new Date().toISOString() })
+      .eq("id", edge.id)
+      .then(({ error }) => {
+        if (error) { toast({ title: "Erro ao editar rótulo", description: error.message, variant: "destructive" }); return; }
+        setDbEdges((prev) => prev.map((e) => e.id === edge.id ? { ...e, label: cleanLabel } : e));
+        toast({ title: cleanLabel ? "Rótulo atualizado" : "Rótulo removido" });
+      });
+  }, []);
+
+  /** ═══ INVERT EDGE DIRECTION — helper used by context menu. */
+  const invertEdgeDirection = useCallback(async (edgeId: string) => {
+    const edge = dbEdgesRef.current.find((e) => e.id === edgeId);
+    if (!edge) return;
+    const { error } = await supabase
+      .from("canvas_edges")
+      .update({
+        source_node_id: edge.target_node_id,
+        target_node_id: edge.source_node_id,
+        source_handle: (edge as CanvasEdgeRecord & { target_handle?: string | null }).target_handle ?? null,
+        target_handle: (edge as CanvasEdgeRecord & { source_handle?: string | null }).source_handle ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", edgeId);
+    if (error) { toast({ title: "Erro ao inverter", description: error.message, variant: "destructive" }); return; }
+    setDbEdges((prev) => prev.map((e) =>
+      e.id === edgeId
+        ? { ...e, source_node_id: edge.target_node_id, target_node_id: edge.source_node_id,
+            source_handle: (e as any).target_handle ?? null,
+            target_handle: (e as any).source_handle ?? null }
+        : e
+    ));
+    toast({ title: "Direção invertida" });
+  }, []);
+
+  /** Delete edge used by context menu */
+  const deleteEdgeById = useCallback(async (edgeId: string) => {
+    const { error } = await supabase.from("canvas_edges").delete().eq("id", edgeId);
+    if (error) { toast({ title: "Erro ao remover", description: error.message, variant: "destructive" }); return; }
+    setDbEdges((prev) => prev.filter((e) => e.id !== edgeId));
+    toast({ title: "Conexão removida" });
+  }, []);
 
   /* Pick parent: prioriza cliente da aba ativa */
   const pickParentGroup = useCallback((resolvedClientId?: string | null): string | null => {
@@ -2141,6 +2214,10 @@ function CanvasStudioInner({
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
+              onConnectStart={onConnectStart}
+              onConnectEnd={onConnectEnd}
+              onEdgeContextMenu={onEdgeContextMenu}
+              onEdgeDoubleClick={onEdgeDoubleClick}
               isValidConnection={isValidConnection}
               onNodeClick={onNodeClick}
               nodeTypes={nodeTypes}
@@ -2163,7 +2240,7 @@ function CanvasStudioInner({
               defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
               connectionLineStyle={CONNECTION_LINE_STYLE}
               connectionLineType={ConnectionLineType.Bezier}
-              connectionRadius={40}
+              connectionRadius={18}
               connectionMode={ConnectionMode.Loose}
               onlyRenderVisibleElements={rfNodes.length > 40}
               elevateNodesOnSelect
@@ -2256,6 +2333,50 @@ function CanvasStudioInner({
         generating={busyAction === "base"}
         onConfirm={(tpl) => applyEsteiraTemplate(tpl)}
       />
+
+      {/* ═══ Edge Context Menu (right-click na conexão) ═══ */}
+      {edgeMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setEdgeMenu(null)}
+            onContextMenu={(e) => { e.preventDefault(); setEdgeMenu(null); }}
+          />
+          <div
+            className="fixed z-50 min-w-[180px] rounded-lg border border-border bg-card shadow-xl overflow-hidden"
+            style={{ left: edgeMenu.x, top: edgeMenu.y }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                const edge = rfEdges.find(e => e.id === edgeMenu.edgeId);
+                if (edge) {
+                  onEdgeDoubleClick({} as React.MouseEvent, edge);
+                }
+                setEdgeMenu(null);
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-secondary transition-colors"
+            >
+              ✏️ Editar rótulo
+            </button>
+            <button
+              type="button"
+              onClick={() => { invertEdgeDirection(edgeMenu.edgeId); setEdgeMenu(null); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-secondary transition-colors"
+            >
+              ⇄ Inverter direção
+            </button>
+            <div className="h-px bg-border" />
+            <button
+              type="button"
+              onClick={() => { deleteEdgeById(edgeMenu.edgeId); setEdgeMenu(null); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-red-400/10 transition-colors"
+            >
+              🗑 Remover conexão
+            </button>
+          </div>
+        </>
+      )}
 
       <CanvasTemplatesDialog
         open={templatesDialogOpen}
