@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -172,10 +172,19 @@ export default function ProjectNodeDrawer({
   const checklistDone = checklist.filter((c) => c.done).length;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="center" className="canvas-node-popup p-0 flex min-h-0 flex-col overflow-hidden">
-        {/* Header */}
-        <div className={`px-5 py-4 border-b border-border ${meta?.bg ?? ""}`}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="p-0 gap-0 border border-white/10 max-w-3xl w-full max-h-[88vh] flex flex-col overflow-hidden sm:rounded-2xl"
+        style={{
+          background: "rgba(9,17,10,0.92)",
+          backdropFilter: "blur(32px) saturate(200%)",
+          WebkitBackdropFilter: "blur(32px) saturate(200%)",
+          boxShadow: "0 0 0 1px rgba(255,255,255,0.06), 0 32px 72px rgba(0,0,0,0.75)",
+        }}
+      >
+        <DialogTitle className="sr-only">{node.title}</DialogTitle>
+        {/* Header (pr-12 to leave room for built-in X) */}
+        <div className={`px-5 py-4 border-b border-white/8 pr-12 ${meta?.bg ?? ""}`}>
           <div className="flex items-start gap-3">
             <div className={`h-10 w-10 rounded-lg border-2 ${meta?.color ?? "border-border"} bg-background flex items-center justify-center shrink-0`}>
               <Icon className="h-5 w-5" />
