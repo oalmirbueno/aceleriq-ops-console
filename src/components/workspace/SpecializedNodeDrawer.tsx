@@ -12,7 +12,6 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -234,7 +233,7 @@ export default function SpecializedNodeDrawer({
         </div>
 
         {/* ─── Body ─── */}
-        <ScrollArea className="min-h-0 flex-1">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <div className="px-5 py-4 space-y-4">
             <NodePrefillStatus
               status={status === "ready" ? "ready" : status === "generating" || status === "loading" ? "generating" : status === "error" ? "error" : "empty"}
@@ -283,7 +282,7 @@ export default function SpecializedNodeDrawer({
               ))}
             </div>
           </div>
-        </ScrollArea>
+        </div>
       </DialogContent>
 
       {/* ─── AccessVaultDrawer empilhado por cima — consulta de credenciais sem sair do node ─── */}
