@@ -7,7 +7,7 @@ import {
   type ReactFlowInstance, type Viewport, SelectionMode, MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow, MousePointer2, Hand, Lock, Grid3X3, Camera, Type, Image, FileStack, Bot, Megaphone, Trophy } from "lucide-react";
+import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow, MousePointer2, Hand, Lock, Grid3X3, Camera, Type, Image, FileStack, Bot, Megaphone, Trophy, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,6 +19,7 @@ import ProjectNodeCard, { type ProjectNodeData } from "./ProjectNodeCard";
 import CanvasGroupNode from "./CanvasGroupNode";
 import AiOrbNode, { type AiOrbType } from "./AiOrbNode";
 import AiOrbConfigPanel from "./AiOrbConfigPanel";
+import ChatNode, { type ChatNodeData, type ChatNodeFunction, type ChatNodeScope } from "./ChatNode";
 import ProjectNodeDrawer from "./ProjectNodeDrawer";
 import CanvasInspector from "./CanvasInspector";
 import CanvasClientPicker from "./CanvasClientPicker";
@@ -65,6 +66,7 @@ const nodeTypes = {
   projectCard: ProjectNodeCard,
   canvasGroup: CanvasGroupNode,
   aiOrb: AiOrbNode,
+  chatNode: ChatNode,
 };
 
 const CLIENT_BAR_Y = 0;
@@ -147,6 +149,7 @@ const DOCK_GROUPS = [
   { id: "media", label: "Mídia", icon: Image, kinds: ["imagem", "video"] as ProjectNodeKind[] },
   { id: "ref", label: "Ref.", icon: FileStack, kinds: ["contexto_ops", "documento", "briefing", "acessos"] as ProjectNodeKind[] },
   { id: "ai", label: "IA", icon: Bot, kinds: [] as ProjectNodeKind[] },
+  { id: "chat", label: "Chat", icon: MessageCircle, kinds: [] as ProjectNodeKind[] },
   { id: "prod", label: "Prod.", icon: LayoutGrid, kinds: ["site", "landing_page", "automacao", "ia", "integracao", "funil"] as ProjectNodeKind[] },
   { id: "mkt", label: "Mkt", icon: Megaphone, kinds: ["trafego", "email_mkt", "social", "lancamento"] as ProjectNodeKind[] },
   { id: "proof", label: "Prova", icon: Trophy, kinds: ["metrica", "before_after", "case"] as ProjectNodeKind[] },
@@ -483,6 +486,28 @@ function CanvasStudioInner({
       const operationalMeta = (dataObj.operationalMeta ?? dataObj.operational_meta ?? {}) as CanvasOperationalMeta;
       const attachmentList = (dataObj.attachments as Array<{ url?: string; type?: string; label?: string }> | undefined) ?? [];
       const isAiOrb = n.node_type === "ai_orb" || dataObj.kind === "ai_orb";
+      const isChatNode = dataObj.kind === "chat_node";
+
+      if (isChatNode) {
+        // Collect connected node IDs from edges
+        const connectedIds = dbEdges
+          .filter((e) => e.source_node_id === n.id || e.target_node_id === n.id)
+          .map((e) => e.source_node_id === n.id ? e.target_node_id : e.source_node_id)
+          .filter((id) => id !== n.id);
+        return {
+          id: n.id,
+          type: "chatNode",
+          position: { x: Number(n.pos_x ?? 0), y: Number(n.pos_y ?? CONTENT_TOP) },
+          draggable: !lockedNodes,
+          data: {
+            ...(dataObj as ChatNodeData),
+            nodeId: n.id,
+            workspaceId,
+            clientId,
+            connectedNodeIds: connectedIds,
+          },
+        };
+      }
 
       return {
         id: n.id,
@@ -878,6 +903,39 @@ function CanvasStudioInner({
       toast({ title: "Erro ao criar AI Orb", description: error.message, variant: "destructive" });
       return;
     }
+    if (data) setDbNodes((prev) => [...prev, data as CanvasNodeRow]);
+  }, [clientId, dbNodes, ensureActiveClient, workspaceId]);
+
+  const addChatNode = useCallback(async (fn: ChatNodeFunction = "free") => {
+    const parent = ensureActiveClient();
+    if (!parent) return;
+    const existingChats = dbNodes.filter((n) => n.node_type === "front" && (n.data as Record<string,unknown> | null)?.kind === "chat_node" && n.parent_node_id === parent);
+    const pos_x = OPS_FLOW_X.engine + 460;
+    const pos_y = CONTENT_TOP + 40 + existingChats.length * 320;
+    const chatData: ChatNodeData = {
+      scope: "node",
+      fn,
+      label: "Chat IA",
+      messages: [],
+      connectedNodeIds: [],
+      workspaceId,
+      clientId,
+      isExpanded: true,
+      isProcessing: false,
+    };
+    const { data, error } = await supabase.from("canvas_nodes").insert({
+      workspace_id: workspaceId,
+      client_id: clientId,
+      node_type: "front",
+      title: ,
+      status: "active",
+      description: "Node de chat inteligente com contexto do workspace",
+      pos_x,
+      pos_y,
+      parent_node_id: parent,
+      data: { kind: "chat_node", ...chatData },
+    }).select().single();
+    if (error) { toast({ title: "Erro ao criar Chat", description: error.message, variant: "destructive" }); return; }
     if (data) setDbNodes((prev) => [...prev, data as CanvasNodeRow]);
   }, [clientId, dbNodes, ensureActiveClient, workspaceId]);
 
@@ -1522,6 +1580,11 @@ function CanvasStudioInner({
     setOpenDockGroup(null);
   }, [addAiOrb]);
 
+  const handleDockPickChat = useCallback((fn: ChatNodeFunction) => {
+    void addChatNode(fn);
+    setOpenDockGroup(null);
+  }, [addChatNode]);
+
   const hasFilters = !!search || !!typeFilter || !!statusFilter || approvalFilter !== "all" || blockedFilter !== "all" || !!ownerFilter;
   const interactionConfig = useMemo(() => getCanvasInteractionConfig(activeTool), [activeTool]);
   const existingClientIds = useMemo(
@@ -1838,6 +1901,7 @@ function CanvasStudioInner({
               onOpenGroup={handleDockGroupChange}
               onPickKind={handleDockPickKind}
               onPickOrb={handleDockPickOrb}
+              onPickChat={handleDockPickChat}
             />
           )}
         </div>
@@ -2045,13 +2109,22 @@ export const OperationalCanvasToolbar = memo(function OperationalCanvasToolbar({
   );
 });
 
+const CHAT_FN_OPTIONS: Array<{ fn: ChatNodeFunction; label: string; hint: string }> = [
+  { fn: "briefing",   label: "Briefing",      hint: "perguntas e preenchimento" },
+  { fn: "planning",   label: "Planejamento",   hint: "OKRs, roadmap, priorização" },
+  { fn: "production", label: "Produção",       hint: "organizar e produzir" },
+  { fn: "analysis",   label: "Análise",        hint: "diagnóstico e insights" },
+  { fn: "free",       label: "Livre",          hint: "conversa sem função fixa" },
+];
+
 export const NodeTypeDock = memo(function NodeTypeDock({
-  openGroup, onOpenGroup, onPickKind, onPickOrb,
+  openGroup, onOpenGroup, onPickKind, onPickOrb, onPickChat,
 }: {
   openGroup: string | null;
   onOpenGroup: (group: string | null) => void;
   onPickKind: (kind: ProjectNodeKind) => void;
   onPickOrb: (orbType: AiOrbType) => void;
+  onPickChat: (fn: ChatNodeFunction) => void;
 }) {
   return (
     <div className="node-type-dock-wrap">
@@ -2062,6 +2135,12 @@ export const NodeTypeDock = memo(function NodeTypeDock({
               <Bot className="h-3.5 w-3.5" />
               <span>{orb.label}</span>
               <small>{orb.specialization}</small>
+            </button>
+          )) : openGroup === "chat" ? CHAT_FN_OPTIONS.map((item) => (
+            <button key={item.fn} type="button" onClick={() => onPickChat(item.fn)} className="node-type-dock-option">
+              <MessageCircle className="h-3.5 w-3.5" />
+              <span>{item.label}</span>
+              <small>{item.hint}</small>
             </button>
           )) : DOCK_GROUPS.find((group) => group.id === openGroup)?.kinds.map((kind) => {
             const meta = getProjectTypeMeta(kind);
