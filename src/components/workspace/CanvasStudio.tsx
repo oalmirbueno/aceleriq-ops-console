@@ -77,7 +77,7 @@ const CANVAS_TRANSLATE_EXTENT: [[number, number], [number, number]] = [
 ];
 const FIT_VIEW_OPTIONS = { padding: 0.4 };
 const DEFAULT_EDGE_OPTIONS = { type: "smoothstep", animated: true };
-const PAN_ON_DRAG = [0, 1, 2] as const;
+const PAN_ON_DRAG = [0, 1, 2];
 const SELECTION_KEY_CODE = ["Shift"];
 const MULTI_SELECTION_KEY_CODE = ["Meta", "Control"];
 const CONNECTION_LINE_STYLE = { stroke: "hsl(var(--primary))", strokeWidth: 2.5 };
