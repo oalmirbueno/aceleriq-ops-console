@@ -1310,6 +1310,7 @@ function CanvasStudioInner({
   }, [addAiOrb]);
 
   const hasFilters = !!search || !!typeFilter || !!statusFilter || approvalFilter !== "all" || blockedFilter !== "all" || !!ownerFilter;
+  const interactionConfig = useMemo(() => getCanvasInteractionConfig(activeTool), [activeTool]);
   const existingClientIds = useMemo(
     () => clientGroups.filter((n) => n.linked_entity_id).map((n) => n.linked_entity_id as string),
     [clientGroups],
@@ -1597,12 +1598,12 @@ function CanvasStudioInner({
               fitViewOptions={FIT_VIEW_OPTIONS}
               minZoom={0.1}
               maxZoom={2}
-              panOnDrag={activeTool === "hand" ? true : PAN_ON_DRAG}
+              panOnDrag={interactionConfig.panOnDrag}
               panOnScroll={false}
               zoomOnScroll
               zoomOnPinch
               zoomOnDoubleClick={false}
-              selectionOnDrag={activeTool === "select"}
+              selectionOnDrag={interactionConfig.selectionOnDrag}
               selectionKeyCode={SELECTION_KEY_CODE}
               multiSelectionKeyCode={MULTI_SELECTION_KEY_CODE}
               selectionMode={SelectionMode.Partial}
@@ -1857,7 +1858,7 @@ export const NodeTypeDock = memo(function NodeTypeDock({
           const Icon = group.icon;
           const active = openGroup === group.id;
           return (
-            <button key={group.id} type="button" onClick={() => onOpenGroup(active ? null : group.id)} className={`node-type-dock-button dock-${group.id} ${active ? "is-active" : ""}`}>
+            <button key={group.id} type="button" onClick={() => onOpenGroup(resolveDockGroupClick(openGroup, group.id))} className={`node-type-dock-button dock-${group.id} ${active ? "is-active" : ""}`}>
               <Icon className="h-4 w-4" />
               <span>{group.label}</span>
             </button>
