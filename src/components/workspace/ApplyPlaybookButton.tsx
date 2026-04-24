@@ -15,7 +15,9 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { getPlaybookForPlan, playbookPos, type Playbook } from "./canvasPlaybooks";
+import { getPlaybookForType } from "./typePlaybooks";
 import { getPlanConfig } from "@/lib/planConfig";
+import { getProjectTypeMeta } from "@/lib/projectTypes";
 import { projectKindToDbNodeType } from "./canvasProjectTypes";
 
 interface Props {
@@ -23,6 +25,8 @@ interface Props {
   clientId: string;
   clientName: string;
   planName: string | null;
+  /** Tipo de projeto do cliente — determina qual playbook usar */
+  projectType?: string | null;
   /** Parent node id (cliente folder no canvas) */
   parentNodeId: string | null;
   /** Usuário confirma antes de aplicar? default true */
@@ -34,13 +38,22 @@ interface Props {
 }
 
 export default function ApplyPlaybookButton({
-  workspaceId, clientId, clientName, planName, parentNodeId,
+  workspaceId, clientId, clientName, planName, projectType, parentNodeId,
   currentNodeCount = 0, onApplied, variant = "toolbar",
 }: Props) {
   const [open, setOpen] = useState(false);
   const [applying, setApplying] = useState(false);
-  const playbook = useMemo(() => getPlaybookForPlan(planName), [planName]);
+
+  // Prioriza: playbook por tipo (site/auto/agente/marketing) > playbook por plano (AI-First)
+  const playbook = useMemo<Omit<Playbook, "planKey"> | Playbook | null>(() => {
+    const typePb = getPlaybookForType(projectType);
+    if (typePb) return typePb;
+    return getPlaybookForPlan(planName);
+  }, [projectType, planName]);
+
+  const typeMeta = getProjectTypeMeta(projectType);
   const planLabel = planName ? getPlanConfig()[planName as keyof ReturnType<typeof getPlanConfig>]?.label ?? planName : null;
+  const playbookLabel = playbook?.name ?? typeMeta.shortLabel ?? planLabel;
 
   const handleApply = async () => {
     if (!playbook || !parentNodeId) {
