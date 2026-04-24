@@ -803,21 +803,35 @@ export default function OperationalNodeDrawer({
   const prefillWithAI = useCallback(async () => {
     setPrefilling(true);
     try {
-      const { data, error } = await supabase.functions.invoke("prefill-node", {
-        body: { nodeId: node.id, workspaceId, clientId, kind, customPrompt: config.aiPrompt,
-          sections: config.sections.map((s) => ({ id: s.id, title: s.title, fields: s.fields.map((f) => ({ id: f.id, label: f.label, type: f.type })) })) },
+      const { data, error } = await supabase.functions.invoke("prefill-node-v2", {
+        body: {
+          nodeId: node.id,
+          workspaceId,
+          clientId,
+          kind,
+          nodeType: kind,
+          currentTitle: title,
+          currentData: values,
+        },
       });
       if (error) throw error;
+      if (data?.error) throw new Error(data.error + (data.detail ? ` — ${data.detail}` : ""));
       if (data?.fields) {
         const merged: Record<string, string> = { ...values };
-        Object.entries(data.fields as Record<string, string>).forEach(([k, v]) => { if (v && typeof v === "string") merged[k] = v; });
+        Object.entries(data.fields as Record<string, string>).forEach(([k, v]) => {
+          if (v && typeof v === "string") merged[k] = v;
+        });
         setValues(merged);
         toast({ title: "Preenchido com IA ✦", description: "Revise os campos e salve quando estiver bom." });
       }
     } catch (err) {
-      toast({ title: "Falha no preenchimento", description: err instanceof Error ? err.message : "Tente novamente", variant: "destructive" });
+      toast({
+        title: "Falha no preenchimento",
+        description: err instanceof Error ? err.message : "Tente novamente",
+        variant: "destructive",
+      });
     } finally { setPrefilling(false); }
-  }, [node.id, workspaceId, clientId, kind, config, values]);
+  }, [node.id, workspaceId, clientId, kind, title, values]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
