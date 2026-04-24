@@ -30,6 +30,7 @@ import WorkspaceTabCanvas from "@/components/workspace/WorkspaceTabCanvas";
 import WorkspaceTabConteudo from "@/components/workspace/WorkspaceTabConteudo";
 import ClientDrive from "@/components/workspace/ClientDrive";
 import AIFirstScoreCard from "@/components/workspace/AIFirstScoreCard";
+import HealthScoreCard from "@/components/workspace/HealthScoreCard";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { getStagePremiumLabel, PIPELINE_STAGES_ORDERED } from "@/components/workspace/aceleraConstants";
@@ -450,9 +451,16 @@ export default function WorkspaceDetailPage() {
         />
       </div>
 
-      {/* AI-First Score — indicador de densidade IA na operação */}
-      <div className="px-6 py-3">
+      {/* Score cards lado a lado — AI-First (mostrado ao cliente) + Health (só interno) */}
+      <div className="grid gap-3 px-6 py-3 lg:grid-cols-2">
         <AIFirstScoreCard clientId={ws.client_id} planName={planName} variant="full" />
+        <HealthScoreCard
+          clientId={ws.client_id}
+          workspaceId={ws.id}
+          clientMetadata={ws.clients?.metadata as Record<string, unknown> | null}
+          currentStage={ws.current_stage}
+          variant="full"
+        />
       </div>
 
       {/* ═══════════════════════════════════════════════════════════
