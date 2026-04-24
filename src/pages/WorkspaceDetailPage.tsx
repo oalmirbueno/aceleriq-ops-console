@@ -31,6 +31,7 @@ import WorkspaceTabConteudo from "@/components/workspace/WorkspaceTabConteudo";
 import ClientDrive from "@/components/workspace/ClientDrive";
 import AIFirstScoreCard from "@/components/workspace/AIFirstScoreCard";
 import HealthScoreCard from "@/components/workspace/HealthScoreCard";
+import ICPFitScoreCard from "@/components/workspace/ICPFitScoreCard";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { getStagePremiumLabel, PIPELINE_STAGES_ORDERED } from "@/components/workspace/aceleraConstants";
@@ -451,14 +452,19 @@ export default function WorkspaceDetailPage() {
         />
       </div>
 
-      {/* Score cards lado a lado — AI-First (mostrado ao cliente) + Health (só interno) */}
-      <div className="grid gap-3 px-6 py-3 lg:grid-cols-2">
+      {/* Score cards — AI-First (cliente pode ver futuramente) + Health + ICP-Fit (só interno) */}
+      <div className="grid gap-3 px-6 py-3 lg:grid-cols-3">
         <AIFirstScoreCard clientId={ws.client_id} planName={planName} variant="full" />
         <HealthScoreCard
           clientId={ws.client_id}
           workspaceId={ws.id}
           clientMetadata={ws.clients?.metadata as Record<string, unknown> | null}
           currentStage={ws.current_stage}
+          variant="full"
+        />
+        <ICPFitScoreCard
+          clientMetadata={ws.clients?.metadata as Record<string, unknown> | null}
+          currentPlan={planName}
           variant="full"
         />
       </div>
