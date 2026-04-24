@@ -29,6 +29,7 @@ import WorkspaceTabCase from "@/components/workspace/WorkspaceTabCase";
 import WorkspaceTabCanvas from "@/components/workspace/WorkspaceTabCanvas";
 import WorkspaceTabConteudo from "@/components/workspace/WorkspaceTabConteudo";
 import ClientDrive from "@/components/workspace/ClientDrive";
+import AIFirstScoreCard from "@/components/workspace/AIFirstScoreCard";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { getStagePremiumLabel, PIPELINE_STAGES_ORDERED } from "@/components/workspace/aceleraConstants";
@@ -435,7 +436,7 @@ export default function WorkspaceDetailPage() {
       </div>
 
       {/* ═══════════════════════════════════════════════════════════
-          WORKSPACE HEADER — stage selector + owner
+          WORKSPACE HEADER — stage selector + owner + AI-First Score
       ═══════════════════════════════════════════════════════════ */}
       <div className="px-6 py-3 border-b border-border/60 bg-card/40">
         <WorkspaceHeader
@@ -447,6 +448,11 @@ export default function WorkspaceDetailPage() {
           onStageChange={handleStageChange}
           planName={planName}
         />
+      </div>
+
+      {/* AI-First Score — indicador de densidade IA na operação */}
+      <div className="px-6 py-3">
+        <AIFirstScoreCard clientId={ws.client_id} planName={planName} variant="full" />
       </div>
 
       {/* ═══════════════════════════════════════════════════════════
