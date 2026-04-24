@@ -12,6 +12,7 @@ import HealthScoreCard from "@/components/workspace/HealthScoreCard";
 import ICPFitScoreCard from "@/components/workspace/ICPFitScoreCard";
 import DiagnosticQuizDialog from "@/components/workspace/DiagnosticQuizDialog";
 import ImportLeadsDialog from "@/components/workspace/ImportLeadsDialog";
+import ProjectTypeBadge from "@/components/workspace/ProjectTypeBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,8 @@ interface Client {
   segment: string | null;
   plan_name: string | null;
   portal_client_id: string | null;
+  project_type: string | null;
+  custom_monthly_value: number | null;
   metadata: Record<string, unknown> | null;
   workspaces: { id: string; current_stage: string }[];
 }
@@ -89,7 +92,7 @@ export default function ClientsPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from("clients")
-      .select("id, name, company_name, status, segment, plan_name, portal_client_id, metadata, workspaces(id, current_stage)")
+      .select("id, name, company_name, status, segment, plan_name, portal_client_id, project_type, custom_monthly_value, metadata, workspaces(id, current_stage)")
       .order("created_at", { ascending: false });
 
     if (!error && data) setClients(data as Client[]);
@@ -199,6 +202,7 @@ export default function ClientsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
+                  <TableHead>Tipo</TableHead>
                   <TableHead>Empresa</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Briefing</TableHead>
@@ -222,6 +226,9 @@ export default function ClientsPage() {
                   return (
                     <TableRow key={c.id} className="cursor-pointer" onClick={() => c.workspaces[0] ? openWorkspace(c) : undefined}>
                       <TableCell className="font-medium text-foreground">{c.name}</TableCell>
+                      <TableCell>
+                        <ProjectTypeBadge type={c.project_type} variant="compact" />
+                      </TableCell>
                       <TableCell className="text-muted-foreground">{c.company_name ?? "—"}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={statusColor[c.status] ?? ""}>
