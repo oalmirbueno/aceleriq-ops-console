@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { AiOrbType } from "./AiOrbNode";
 import { AI_ORB_DEFINITIONS, type AiEngine, type AiOrbData, type AiOrbGeneratedEdgeSpec, type AiOrbGeneratedNodeSpec } from "./aiOrbConstants";
+import { getAgent, type AgentId } from "@/lib/aiAgents";
 
 export type ConnectionValidation = { allowed: boolean; label: string | null; reason: string | null };
 
@@ -42,14 +43,28 @@ export async function invokeAiOrbGenerate(input: {
   workspaceId: string;
   clientId: string;
   orbType: AiOrbType;
-  aiEngine: AiEngine;
+  aiEngine?: AiEngine;
   customPrompt?: string;
   focusAreas?: string[];
   deterministic?: boolean;
-}): Promise<AiOrbGenerateResult> {
-  const { data, error } = await supabase.functions.invoke("ai-orb-generate", { body: input });
+  agentId?: AgentId;
+  targetNodes?: number;
+  model?: string;
+}): Promise<AiOrbGenerateResult & { model_used?: string; cost_usd?: number; agent_id?: string; context_stats?: Record<string, number> }> {
+  // Recupera system prompt do agente escolhido (ou default por orbType)
+  const agentId: AgentId = input.agentId ?? "strategist";
+  const agent = getAgent(agentId);
+
+  const { data, error } = await supabase.functions.invoke("ai-orb-generate", {
+    body: {
+      ...input,
+      agentId,
+      agentSystemPrompt: agent.systemPrompt,
+    },
+  });
   if (error) throw error;
-  return data as AiOrbGenerateResult;
+  if (data?.error) throw new Error(data.error + (data.detail ? ` — ${data.detail}` : ""));
+  return data as AiOrbGenerateResult & { model_used?: string; cost_usd?: number; agent_id?: string; context_stats?: Record<string, number> };
 }
 
 export function nextOrbDataAfterGeneration(current: AiOrbData, result: AiOrbGenerateResult, generatedNodeIds: string[]): AiOrbData {
