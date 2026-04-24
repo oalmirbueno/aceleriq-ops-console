@@ -18,7 +18,7 @@ export default function NodePrefillButton({ nodeId, nodeKind, workspaceId, onPre
     event.stopPropagation();
     setLoading(true);
     try {
-      const { error } = await supabase.functions.invoke("prefill-node-v2", {
+      const { error } = await supabase.functions.invoke("prefill-node", {
         body: { nodeId, nodeKind, workspaceId },
       });
       if (error) throw error;
