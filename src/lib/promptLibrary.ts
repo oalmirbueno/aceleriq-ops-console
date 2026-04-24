@@ -648,12 +648,12 @@ export function renderPrompt(template: PromptTemplate, vars: PromptVariables): s
   let result = template.template;
   for (const key of template.variables) {
     const value = (vars[key as keyof PromptVariables] as string) ?? `[${key.toUpperCase()} — preencher]`;
-    result = result.replaceAll(`{{${key}}}`, value);
+    result = result.split(`{{${key}}}`).join(value);
   }
   // Substitui variáveis extras se foram passadas mas não declaradas
   Object.entries(vars).forEach(([k, v]) => {
     if (typeof v === "string" && v.length > 0) {
-      result = result.replaceAll(`{{${k}}}`, v);
+      result = result.split(`{{${k}}}`).join(v);
     }
   });
   return result;
