@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft, CheckCircle2, RefreshCw, Sparkles, Target,
-  FolderKanban, Network, Circle, Dot,
+  FolderKanban, Network, Circle, Dot, MessageSquare,
 } from "lucide-react";
 import LoadingState from "@/components/LoadingState";
 import EmptyState from "@/components/EmptyState";
@@ -34,6 +34,7 @@ import HealthScoreCard from "@/components/workspace/HealthScoreCard";
 import ICPFitScoreCard from "@/components/workspace/ICPFitScoreCard";
 import PromptLibraryDialog from "@/components/workspace/PromptLibraryDialog";
 import ProjectTypeBadge from "@/components/workspace/ProjectTypeBadge";
+import WorkspaceChatDrawer from "@/components/workspace/WorkspaceChatDrawer";
 import { getProjectTypeMeta } from "@/lib/projectTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -160,6 +161,7 @@ export default function WorkspaceDetailPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") ?? "resumo");
   const [promptLibraryOpen, setPromptLibraryOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [canvasStatus] = useState<string | null>(searchParams.get("status"));
 
   const load = async () => {
@@ -340,6 +342,20 @@ export default function WorkspaceDetailPage() {
                   Vincule o cliente ao portal →
                 </button>
               )}
+              <Button
+                size="sm"
+                className="h-8 text-xs gap-1.5"
+                style={{
+                  background: "hsl(var(--primary)/0.18)",
+                  color: "hsl(var(--primary))",
+                  border: "1px solid hsl(var(--primary)/0.35)",
+                }}
+                onClick={() => setChatOpen(true)}
+                title="Chat IA contextual com todo o workspace carregado"
+              >
+                <MessageSquare className="h-3 w-3" />
+                Chat IA
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
@@ -607,6 +623,14 @@ export default function WorkspaceDetailPage() {
         open={promptLibraryOpen}
         onOpenChange={setPromptLibraryOpen}
         clientId={ws.client_id}
+      />
+
+      <WorkspaceChatDrawer
+        open={chatOpen}
+        onOpenChange={setChatOpen}
+        workspaceId={ws.id}
+        workspaceName={ws.name}
+        clientName={clientName}
       />
     </div>
   );
