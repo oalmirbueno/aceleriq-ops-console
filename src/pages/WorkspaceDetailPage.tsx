@@ -630,6 +630,7 @@ export default function WorkspaceDetailPage() {
         onOpenChange={setChatOpen}
         workspaceId={ws.id}
         workspaceName={ws.name}
+        clientId={ws.client_id}
         clientName={clientName}
       />
     </div>
