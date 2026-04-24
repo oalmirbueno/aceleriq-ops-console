@@ -803,7 +803,7 @@ export default function OperationalNodeDrawer({
   const prefillWithAI = useCallback(async () => {
     setPrefilling(true);
     try {
-      const { data, error } = await supabase.functions.invoke("prefill-node-v2", {
+      const { data, error } = await supabase.functions.invoke("prefill-node", {
         body: {
           nodeId: node.id,
           workspaceId,
