@@ -17,6 +17,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { getICPLevelColor, getICPLevelLabel } from "@/lib/icpFitScore";
+import { PROJECT_TYPE_OPTIONS, type ProjectType } from "@/lib/projectTypes";
+import ProjectTypeBadge from "./ProjectTypeBadge";
 import { cn } from "@/lib/utils";
 
 interface PendingLead {
@@ -56,6 +58,7 @@ export default function ImportLeadsDialog({ open, onOpenChange, onImported }: Pr
   const [search, setSearch] = useState("");
   const [importing, setImporting] = useState(false);
   const [createWorkspace, setCreateWorkspace] = useState(true);
+  const [selectedType, setSelectedType] = useState<ProjectType>("ai_first");
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
@@ -138,6 +141,7 @@ export default function ImportLeadsDialog({ open, onOpenChange, onImported }: Pr
             company_name: lead.lead_company,
             status: "onboarding",
             plan_name: lead.recommended_plan ?? "starter",
+            project_type: selectedType,
             metadata: {
               essential_briefing: essentialBriefing,
               lead_email: lead.lead_email,
@@ -211,13 +215,25 @@ export default function ImportLeadsDialog({ open, onOpenChange, onImported }: Pr
         </DialogHeader>
 
         {/* Toolbar */}
-        <div className="px-5 py-2 border-b border-border shrink-0 flex items-center gap-2 bg-secondary/20">
+        <div className="px-5 py-3 border-b border-border shrink-0 flex items-center gap-2 bg-secondary/20 flex-wrap">
           <Input value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nome, empresa ou email..." className="h-8 text-xs max-w-sm" />
           <div className="flex-1" />
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Importar como:</label>
+            <select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value as ProjectType)}
+              className="h-8 text-xs rounded-md border border-border bg-background px-2"
+            >
+              {PROJECT_TYPE_OPTIONS.map((opt) => (
+                <option key={opt.key} value={opt.key}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
           <label className="flex items-center gap-2 text-xs cursor-pointer">
             <Checkbox checked={createWorkspace} onCheckedChange={(v) => setCreateWorkspace(v === true)} />
-            Criar workspace ao importar
+            Criar workspace
           </label>
           <Button onClick={fetchLeads} size="sm" variant="ghost" className="h-8 gap-1.5 text-xs" disabled={loading}>
             <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} /> Atualizar
