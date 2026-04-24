@@ -40,6 +40,7 @@ import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 import { AI_ORBS, createAiOrbData } from "./aiOrbConstants";
 import { generatedNodePosition, validateOrbConnection } from "./aiOrbConnections";
 import { invokeAiOrbGenerate, nextOrbDataAfterGeneration, readAiOrbData } from "./aiOrbEngine";
+import type { AgentId } from "@/lib/aiAgents";
 
 // CanvasStudio é uma camada visual operacional complementar: não substitui o briefing mestre,
 // não cria nova lógica/tabela de sinais estruturados e não usa IA opaca como núcleo decisório.
@@ -1209,8 +1210,14 @@ function CanvasStudioInner({
     });
   }, [aiOrbConfigNode]);
 
-  const generateFromAiOrb = useCallback(async (options?: { agentId?: string; customPrompt?: string; targetNodes?: number; model?: string; deterministic?: boolean }) => {
+  const generateFromAiOrb = useCallback(async (options: { agentId: AgentId; customPrompt: string; targetNodes: number; model?: string } | boolean = {} as any) => {
     if (!aiOrbConfigNode) return;
+
+    // Compat: se vier boolean (chamada antiga), converte pra deterministic
+    const opts = typeof options === "boolean"
+      ? { agentId: "strategist" as AgentId, customPrompt: "", targetNodes: 10, deterministic: options }
+      : { agentId: (options.agentId ?? "strategist") as AgentId, customPrompt: options.customPrompt ?? "", targetNodes: options.targetNodes ?? 10, model: options.model, deterministic: false };
+
     const orb = readAiOrbData(aiOrbConfigNode.data as Record<string, unknown> | null);
     const generatingData = { ...orb, isGenerating: true, lastError: undefined };
     setBusyAction(`ai-orb-${aiOrbConfigNode.id}`);
@@ -1225,12 +1232,12 @@ function CanvasStudioInner({
         clientId,
         orbType: orb.orbType,
         aiEngine: orb.aiEngine,
-        customPrompt: options?.customPrompt || orb.systemPrompt,
+        customPrompt: opts.customPrompt || orb.systemPrompt,
         focusAreas: orb.focusAreas,
-        deterministic: options?.deterministic ?? false,
-        agentId: options?.agentId as never,
-        targetNodes: options?.targetNodes,
-        model: options?.model,
+        deterministic: opts.deterministic,
+        agentId: opts.agentId,
+        targetNodes: opts.targetNodes,
+        model: opts.model,
       });
       const orbX = Number(aiOrbConfigNode.pos_x ?? OPS_FLOW_X.engine);
       const orbY = Number(aiOrbConfigNode.pos_y ?? CONTENT_TOP + 520);
@@ -1241,6 +1248,8 @@ function CanvasStudioInner({
       const createdNodes: CanvasNodeRow[] = [];
       for (const [index, spec] of result.nodes.entries()) {
         const pos = generatedNodePosition(orbX, orbY, index, result.nodes.length);
+        // Merge: data específica retornada pela IA + metadados padrão
+        const specData = (spec as any).data && typeof (spec as any).data === "object" ? (spec as any).data : {};
         const { data, error } = await supabase.from("canvas_nodes").insert({
           workspace_id: workspaceId,
           client_id: clientId,
@@ -1251,7 +1260,15 @@ function CanvasStudioInner({
           pos_x: pos.x,
           pos_y: pos.y,
           parent_node_id: parent,
-          data: { kind: spec.kind, stage: spec.stage, checklist: getChecklistTemplate(spec.kind), generatedByAiOrb: aiOrbConfigNode.id, rationale: result.rationale },
+          data: {
+            kind: spec.kind,
+            stage: spec.stage,
+            checklist: getChecklistTemplate(spec.kind),
+            generatedByAiOrb: aiOrbConfigNode.id,
+            rationale: result.rationale,
+            agent_id: opts.agentId,
+            ...specData,
+          },
         }).select().single();
         if (error || !data) throw error ?? new Error("Falha ao criar node gerado pelo Orb.");
         createdByRef[spec.ref] = data as CanvasNodeRow;
@@ -1270,7 +1287,17 @@ function CanvasStudioInner({
       const { data: edgeRows, error: edgeError } = await supabase.from("canvas_edges").insert(generatedEdges.map((edge) => ({ workspace_id: workspaceId, edge_type: "ai", ...edge }))).select();
       if (edgeError) throw edgeError;
 
-      const finalData = nextOrbDataAfterGeneration(orb, result, createdNodes.map((node) => node.id));
+      const baseData = nextOrbDataAfterGeneration(orb, result, createdNodes.map((node) => node.id));
+      const finalData = {
+        ...baseData,
+        // v3: tracking rico
+        last_rationale: (result as any).rationale,
+        last_insights: (result as any).insights,
+        last_model: (result as any).model_used,
+        last_cost_usd: (result as any).cost_usd,
+        last_nodes_generated: createdNodes.length,
+        last_agent_id: opts.agentId,
+      };
       await supabase.from("canvas_nodes").update({ data: finalData, updated_at: new Date().toISOString() }).eq("id", aiOrbConfigNode.id);
       setDbNodes((prev) => prev.map((node) => node.id === aiOrbConfigNode.id ? { ...node, data: finalData } : node).concat(createdNodes));
       if (edgeRows?.length) setDbEdges((prev) => prev.concat(edgeRows as CanvasEdgeRecord[]));
@@ -1890,7 +1917,9 @@ function CanvasStudioInner({
     } else {
       toast({ title: "Node removido" });
       setSelectedNode(null);
-      await fetchData();
+      // Update otimista — apenas remove do state local sem refetch
+      setDbNodes((prev) => prev.filter((n) => n.id !== id && n.parent_node_id !== id));
+      setDbEdges((prev) => prev.filter((e) => e.source_node_id !== id && e.target_node_id !== id));
     }
   };
 
