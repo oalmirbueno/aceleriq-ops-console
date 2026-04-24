@@ -669,6 +669,8 @@ function ChatNodeComp({ data, selected, id: nodeId }: NodeProps) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
               placeholder="Pergunte algo..."
               className="nodrag nowheel"
               style={{

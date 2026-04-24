@@ -882,6 +882,8 @@ function CanvasStudioInner({
       setAiOrbConfigNode(found);
       return;
     }
+    // ChatNode handles interactions inline — não abre drawer
+    if (nodeKindOf(found) === "chat_node") return;
     setSelectedNode(found);
   }, [dbNodes]);
 
