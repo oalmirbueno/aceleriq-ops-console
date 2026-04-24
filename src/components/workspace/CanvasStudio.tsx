@@ -271,21 +271,25 @@ function CanvasStudioInner({
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
   // Plan name of the currently displayed client (fetched from clients table)
   const [clientPlanName, setClientPlanName] = useState<string | null>(null);
+  const [clientProjectType, setClientProjectType] = useState<string | null>(null);
 
   useEffect(() => { dbNodesRef.current = dbNodes; }, [dbNodes]);
   useEffect(() => { dbEdgesRef.current = dbEdges; }, [dbEdges]);
 
-  // Load client plan_name for ApplyPlaybookButton
+  // Load client plan_name + project_type for ApplyPlaybookButton
   useEffect(() => {
-    if (!clientId) { setClientPlanName(null); return; }
+    if (!clientId) { setClientPlanName(null); setClientProjectType(null); return; }
     let cancelled = false;
     (async () => {
       const { data } = await supabase
         .from("clients")
-        .select("plan_name")
+        .select("plan_name, project_type")
         .eq("id", clientId)
         .maybeSingle();
-      if (!cancelled) setClientPlanName((data?.plan_name as string | null) ?? null);
+      if (!cancelled) {
+        setClientPlanName((data?.plan_name as string | null) ?? null);
+        setClientProjectType((data?.project_type as string | null) ?? null);
+      }
     })();
     return () => { cancelled = true; };
   }, [clientId]);
@@ -2013,6 +2017,7 @@ function CanvasStudioInner({
               clientId={clientId}
               clientName={clientGroups.find(c => c.id === activeClientId)?.title ?? clientName}
               planName={clientPlanName}
+              projectType={clientProjectType}
               parentNodeId={activeClientId}
               currentNodeCount={scopedProjectNodes.length}
               onApplied={fetchData}
