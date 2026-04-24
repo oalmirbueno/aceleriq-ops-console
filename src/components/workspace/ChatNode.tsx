@@ -182,13 +182,15 @@ async function callAI(
   systemPrompt: string,
   workspaceId: string,
   clientId: string,
-): Promise<string> {
-  const { data, error } = await supabase.functions.invoke("chat-node", {
-    body: { messages, systemPrompt, workspaceId, clientId },
+  fn?: string,
+  model?: string,
+): Promise<{ reply: string; modelUsed?: string }> {
+  const { data, error } = await supabase.functions.invoke("chat-node-gemini", {
+    body: { messages, systemPrompt, workspaceId, clientId, fn, model },
   });
-  if (error) throw new Error(error.message ?? "Erro na edge function chat-node");
+  if (error) throw new Error(error.message ?? "Erro na edge function chat-node-gemini");
   if (data?.error) throw new Error(data.error);
-  return data?.reply ?? "Sem resposta.";
+  return { reply: data?.reply ?? "Sem resposta.", modelUsed: data?.model_used };
 }
 
 // ─── ChatNode Component ──────────────────────────────────────
@@ -203,6 +205,10 @@ function ChatNodeComp({ data, selected }: NodeProps) {
   const [processing, setProcessing] = useState(false);
   const [scope, setScope] = useState<ChatNodeScope>(d.scope ?? "node");
   const [fn, setFn] = useState<ChatNodeFunction>(d.fn ?? "free");
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    // Herda modelo preferido do chat global, ou usa auto-pick
+    return localStorage.getItem("aceleriq_preferred_model") ?? "";
+  });
   const [showSettings, setShowSettings] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -262,7 +268,7 @@ function ChatNodeComp({ data, selected }: NodeProps) {
 
       const systemPrompt = buildSystemPrompt(fn, scope, contextRef.current);
       const history = newMessages.slice(-12).map((m) => ({ role: m.role, content: m.content }));
-      const reply = await callAI(history, systemPrompt, d.workspaceId, d.clientId);
+      const { reply } = await callAI(history, systemPrompt, d.workspaceId, d.clientId, fn, selectedModel);
 
       const assistantMsg: ChatMessage = {
         id: crypto.randomUUID(),
