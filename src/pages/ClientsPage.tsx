@@ -9,6 +9,7 @@ import ClientBriefingDialog from "@/components/workspace/ClientBriefingDialog";
 import ClientPortalLinkButton from "@/components/workspace/ClientPortalLinkButton";
 import AIFirstScoreCard from "@/components/workspace/AIFirstScoreCard";
 import HealthScoreCard from "@/components/workspace/HealthScoreCard";
+import ICPFitScoreCard from "@/components/workspace/ICPFitScoreCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -196,6 +197,7 @@ export default function ClientsPage() {
                   <TableHead>Briefing</TableHead>
                   <TableHead>AI-First</TableHead>
                   <TableHead>Health</TableHead>
+                  <TableHead>ICP</TableHead>
                   <TableHead>Etapa</TableHead>
                   <TableHead>Plano</TableHead>
                   <TableHead>Portal</TableHead>
@@ -229,6 +231,9 @@ export default function ClientsPage() {
                       </TableCell>
                       <TableCell>
                         <HealthScoreCard clientId={c.id} clientMetadata={c.metadata} currentStage={stage} variant="compact" />
+                      </TableCell>
+                      <TableCell>
+                        <ICPFitScoreCard clientMetadata={c.metadata} currentPlan={c.plan_name as any} variant="compact" />
                       </TableCell>
                       <TableCell className="text-muted-foreground">{stage ? getStagePremiumLabel(stage) : "—"}</TableCell>
                       <TableCell className="text-muted-foreground capitalize">{c.plan_name ?? "—"}</TableCell>
