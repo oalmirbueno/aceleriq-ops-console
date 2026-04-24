@@ -33,6 +33,8 @@ import AIFirstScoreCard from "@/components/workspace/AIFirstScoreCard";
 import HealthScoreCard from "@/components/workspace/HealthScoreCard";
 import ICPFitScoreCard from "@/components/workspace/ICPFitScoreCard";
 import PromptLibraryDialog from "@/components/workspace/PromptLibraryDialog";
+import ProjectTypeBadge from "@/components/workspace/ProjectTypeBadge";
+import { getProjectTypeMeta } from "@/lib/projectTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { getStagePremiumLabel, PIPELINE_STAGES_ORDERED } from "@/components/workspace/aceleraConstants";
@@ -57,6 +59,8 @@ interface Workspace {
     company_name: string | null;
     segment: string | null;
     plan_name: string | null;
+    project_type: string | null;
+    custom_monthly_value: number | null;
     logo_url?: string | null;
     portal_client_id: string | null;
     metadata: Record<string, unknown> | null;
@@ -162,7 +166,7 @@ export default function WorkspaceDetailPage() {
     if (!workspaceId) return;
     const { data } = await supabase
       .from("workspaces")
-      .select("id, name, status, current_stage, primary_owner_id, client_id, summary, created_at, portal_project_id, metadata, clients(id, name, company_name, segment, plan_name, logo_url, portal_client_id, metadata), profiles:primary_owner_id(full_name, email)")
+      .select("id, name, status, current_stage, primary_owner_id, client_id, summary, created_at, portal_project_id, metadata, clients(id, name, company_name, segment, plan_name, project_type, custom_monthly_value, logo_url, portal_client_id, metadata), profiles:primary_owner_id(full_name, email)")
       .eq("id", workspaceId)
       .single();
     if (data) setWs(data as unknown as Workspace);
@@ -294,9 +298,14 @@ export default function WorkspaceDetailPage() {
                     </Badge>
                   )}
                 </div>
-                <h1 className="text-2xl font-semibold tracking-tight text-foreground leading-tight">
-                  {clientName}
-                </h1>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-2xl font-semibold tracking-tight text-foreground leading-tight">
+                    {clientName}
+                  </h1>
+                  {ws.clients?.project_type && (
+                    <ProjectTypeBadge type={ws.clients.project_type} variant="compact" />
+                  )}
+                </div>
                 {ws.clients?.company_name && (
                   <p className="text-sm text-muted-foreground mt-0.5">{ws.clients.company_name}</p>
                 )}
@@ -464,22 +473,45 @@ export default function WorkspaceDetailPage() {
         />
       </div>
 
-      {/* Score cards — AI-First (cliente pode ver futuramente) + Health + ICP-Fit (só interno) */}
-      <div className="grid gap-3 px-6 py-3 lg:grid-cols-3">
-        <AIFirstScoreCard clientId={ws.client_id} planName={planName} variant="full" />
-        <HealthScoreCard
-          clientId={ws.client_id}
-          workspaceId={ws.id}
-          clientMetadata={ws.clients?.metadata as Record<string, unknown> | null}
-          currentStage={ws.current_stage}
-          variant="full"
-        />
-        <ICPFitScoreCard
-          clientMetadata={ws.clients?.metadata as Record<string, unknown> | null}
-          currentPlan={planName}
-          variant="full"
-        />
-      </div>
+      {/* Score cards — visibilidade conforme tipo de projeto do cliente */}
+      {(() => {
+        const typeMeta = getProjectTypeMeta(ws.clients?.project_type as string | null);
+        const visibleScores = [
+          typeMeta.showAiFirstScore,
+          typeMeta.showHealthScore,
+          typeMeta.showIcpFitScore,
+        ].filter(Boolean).length;
+
+        if (visibleScores === 0) return null;
+
+        const gridCols = visibleScores === 1 ? "lg:grid-cols-1"
+                       : visibleScores === 2 ? "lg:grid-cols-2"
+                       : "lg:grid-cols-3";
+
+        return (
+          <div className={`grid gap-3 px-6 py-3 ${gridCols}`}>
+            {typeMeta.showAiFirstScore && (
+              <AIFirstScoreCard clientId={ws.client_id} planName={planName} variant="full" />
+            )}
+            {typeMeta.showHealthScore && (
+              <HealthScoreCard
+                clientId={ws.client_id}
+                workspaceId={ws.id}
+                clientMetadata={ws.clients?.metadata as Record<string, unknown> | null}
+                currentStage={ws.current_stage}
+                variant="full"
+              />
+            )}
+            {typeMeta.showIcpFitScore && (
+              <ICPFitScoreCard
+                clientMetadata={ws.clients?.metadata as Record<string, unknown> | null}
+                currentPlan={planName}
+                variant="full"
+              />
+            )}
+          </div>
+        );
+      })()}
 
       {/* ═══════════════════════════════════════════════════════════
           TABS
