@@ -109,7 +109,7 @@ function decodeLegacyToken(token: string): { workspaceId: string; clientId: stri
 }
 
 async function validateTokenPayload(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<any, "public", any>,
   workspaceId: string,
   clientId: string,
 ): Promise<boolean> {

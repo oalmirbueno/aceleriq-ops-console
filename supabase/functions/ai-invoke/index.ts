@@ -323,7 +323,7 @@ async function callGoogleGemini(args: ProviderCallArgs): Promise<ProviderCallRes
 }
 
 async function logEvent(
-  client: ReturnType<typeof createClient>,
+  client: SupabaseClient<any, "public", any>,
   payload: {
     route_key: string;
     workspace_id: string | null;
