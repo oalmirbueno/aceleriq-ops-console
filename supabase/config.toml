@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.generate-esteira-ai]
 verify_jwt = true
+
+[functions.receive-lead]
+verify_jwt = false
