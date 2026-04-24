@@ -6,7 +6,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  MessageSquare, Send, Loader2, X, Copy, RefreshCw,
+  MessageSquare, Send, Loader2, Copy, RefreshCw,
   Sparkles, User, Bot, Trash2,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import MarkdownMessage from "./MarkdownMessage";
 
 interface ChatMessage {
   id?: string;
@@ -192,7 +193,7 @@ export default function WorkspaceChatDrawer({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl w-full max-h-[90vh] p-0 gap-0 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="px-5 py-3 border-b border-border shrink-0 flex items-center gap-3">
+        <div className="px-5 py-3 border-b border-border shrink-0 flex items-center gap-3 pr-12">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15 border border-primary/30">
             <Sparkles className="h-4 w-4 text-primary" />
           </div>
@@ -246,9 +247,6 @@ export default function WorkspaceChatDrawer({
               </Button>
             </>
           )}
-          <Button onClick={() => onOpenChange(false)} variant="ghost" size="icon" className="h-8 w-8">
-            <X className="h-4 w-4" />
-          </Button>
         </div>
 
         {/* Messages */}
@@ -301,13 +299,17 @@ export default function WorkspaceChatDrawer({
                 )}
                 <div
                   className={cn(
-                    "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap",
+                    "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
                     m.role === "user"
-                      ? "bg-primary text-primary-foreground rounded-tr-sm"
+                      ? "bg-primary text-primary-foreground rounded-tr-sm whitespace-pre-wrap"
                       : "bg-secondary/70 text-foreground rounded-tl-sm"
                   )}
                 >
-                  {m.content}
+                  {m.role === "assistant" ? (
+                    <MarkdownMessage content={m.content} />
+                  ) : (
+                    m.content
+                  )}
                   {m.role === "assistant" && m.metadata && (
                     <div className="flex items-center gap-2 mt-2 pt-2 border-t border-foreground/10 text-[10px] text-muted-foreground">
                       {(m.metadata as any).nodes !== undefined && (
