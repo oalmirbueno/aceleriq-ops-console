@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Plus, Search, ExternalLink, FolderPlus, KeyRound, FileText } from "lucide-react";
+import { Users, Plus, Search, ExternalLink, FolderPlus, KeyRound, FileText, Sparkles } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import EmptyState from "@/components/EmptyState";
 import LoadingState from "@/components/LoadingState";
@@ -10,6 +10,7 @@ import ClientPortalLinkButton from "@/components/workspace/ClientPortalLinkButto
 import AIFirstScoreCard from "@/components/workspace/AIFirstScoreCard";
 import HealthScoreCard from "@/components/workspace/HealthScoreCard";
 import ICPFitScoreCard from "@/components/workspace/ICPFitScoreCard";
+import DiagnosticQuizDialog from "@/components/workspace/DiagnosticQuizDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -80,6 +81,7 @@ export default function ClientsPage() {
   const [stageFilter, setStageFilter] = useState("__all__");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [briefingClient, setBriefingClient] = useState<Client | null>(null);
+  const [quizClient, setQuizClient] = useState<Client | null>(null);
 
   const fetchClients = async () => {
     setLoading(true);
@@ -251,6 +253,14 @@ export default function ClientsPage() {
                           <Button
                             size="icon"
                             variant="ghost"
+                            onClick={(e) => { e.stopPropagation(); setQuizClient(c); }}
+                            title="Fazer diagnóstico guiado (quiz)"
+                          >
+                            <Sparkles className="h-4 w-4 text-primary/70" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
                             onClick={(e) => { e.stopPropagation(); setBriefingClient(c); }}
                             title="Editar briefing essencial"
                           >
@@ -303,6 +313,15 @@ export default function ClientsPage() {
           clientName={briefingClient.name}
           initialMetadata={briefingClient.metadata}
           onSaved={fetchClients}
+        />
+      )}
+      {quizClient && (
+        <DiagnosticQuizDialog
+          open={!!quizClient}
+          onOpenChange={(open) => !open && setQuizClient(null)}
+          clientId={quizClient.id}
+          clientName={quizClient.name}
+          onCompleted={fetchClients}
         />
       )}
     </>
