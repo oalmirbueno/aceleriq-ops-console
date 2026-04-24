@@ -25,6 +25,14 @@ interface ChatMessage {
   metadata?: Record<string, unknown>;
 }
 
+interface AIModel {
+  id: string;
+  displayName: string;
+  tier: "pro" | "flash" | "lite" | "exp" | "other";
+  description?: string;
+  inputTokenLimit?: number;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -49,8 +57,30 @@ export default function WorkspaceChatDrawer({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [availableModels, setAvailableModels] = useState<AIModel[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    return localStorage.getItem("aceleriq_preferred_model") ?? "gemini-2.5-flash";
+  });
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Carrega modelos disponíveis 1x por sessão
+  useEffect(() => {
+    if (availableModels.length > 0) return;
+    (async () => {
+      try {
+        const { data } = await supabase.functions.invoke("list-ai-models");
+        if (data?.models) setAvailableModels(data.models as AIModel[]);
+      } catch {
+        // silencia — se falhar, mantém modelo padrão
+      }
+    })();
+  }, [availableModels.length]);
+
+  // Salva modelo preferido
+  useEffect(() => {
+    localStorage.setItem("aceleriq_preferred_model", selectedModel);
+  }, [selectedModel]);
 
   // Carrega histórico ao abrir
   useEffect(() => {
@@ -105,6 +135,7 @@ export default function WorkspaceChatDrawer({
           workspace_id: workspaceId,
           message: msg,
           history: historyToSend,
+          model: selectedModel,
         },
       });
 
@@ -130,7 +161,7 @@ export default function WorkspaceChatDrawer({
     } finally {
       setLoading(false);
     }
-  }, [input, loading, messages, workspaceId]);
+  }, [input, loading, messages, workspaceId, selectedModel]);
 
   const clearHistory = useCallback(async () => {
     if (!confirm("Limpar todo o histórico de chat deste workspace?")) return;
@@ -173,6 +204,38 @@ export default function WorkspaceChatDrawer({
               Contexto carregado automaticamente: briefing, canvas, timeline, métricas
             </DialogDescription>
           </div>
+
+          {/* Model selector */}
+          {availableModels.length > 0 && (
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="h-8 text-[11px] rounded-md border border-border bg-background px-2 max-w-[180px]"
+              title="Escolha o modelo de IA"
+            >
+              <optgroup label="🚀 Pro (mais inteligente)">
+                {availableModels.filter(m => m.tier === "pro").map(m => (
+                  <option key={m.id} value={m.id}>{m.displayName}</option>
+                ))}
+              </optgroup>
+              <optgroup label="⚡ Flash (rápido, grátis)">
+                {availableModels.filter(m => m.tier === "flash").map(m => (
+                  <option key={m.id} value={m.id}>{m.displayName}</option>
+                ))}
+              </optgroup>
+              <optgroup label="🪶 Lite (mais barato)">
+                {availableModels.filter(m => m.tier === "lite").map(m => (
+                  <option key={m.id} value={m.id}>{m.displayName}</option>
+                ))}
+              </optgroup>
+              <optgroup label="🧪 Experimental">
+                {availableModels.filter(m => m.tier === "exp").map(m => (
+                  <option key={m.id} value={m.id}>{m.displayName}</option>
+                ))}
+              </optgroup>
+            </select>
+          )}
+
           {messages.length > 0 && (
             <>
               <Button onClick={copyConversation} variant="ghost" size="icon" className="h-8 w-8" title="Copiar conversa">
@@ -312,7 +375,7 @@ export default function WorkspaceChatDrawer({
             </Button>
           </div>
           <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
-            Gemini 2.5 Flash · contexto completo carregado automaticamente
+            {selectedModel} · contexto completo carregado automaticamente
           </p>
         </div>
       </DialogContent>
