@@ -13,6 +13,7 @@ import { toast } from "@/hooks/use-toast";
 import { Upload, X, ImageIcon } from "lucide-react";
 import ClientAvatar from "@/components/workspace/ClientAvatar";
 import { getPlanConfig, getPlanOrder } from "@/lib/planConfig";
+import { PROJECT_TYPE_OPTIONS } from "@/lib/projectTypes";
 
 interface Props {
   open: boolean;
@@ -34,6 +35,8 @@ export default function CreateClientDialog({ open, onOpenChange, onCreated }: Pr
     company_name: "",
     segment: "",
     plan_name: "growth",
+    project_type: "ai_first",
+    custom_monthly_value: "",
     executive_summary: "",
   });
 
@@ -93,6 +96,8 @@ export default function CreateClientDialog({ open, onOpenChange, onCreated }: Pr
           company_name: form.company_name.trim() || null,
           segment: form.segment || null,
           plan_name: form.plan_name || null,
+          project_type: form.project_type || "ai_first",
+          custom_monthly_value: form.custom_monthly_value ? parseFloat(form.custom_monthly_value) : null,
           status: "active",
           executive_summary: form.executive_summary.trim() || null,
         })
@@ -141,7 +146,7 @@ export default function CreateClientDialog({ open, onOpenChange, onCreated }: Pr
       }
 
       toast({ title: "Cliente criado", description: form.name });
-      setForm({ name: "", company_name: "", segment: "", plan_name: "growth", executive_summary: "" });
+      setForm({ name: "", company_name: "", segment: "", plan_name: "growth", project_type: "ai_first", custom_monthly_value: "", executive_summary: "" });
       setLogoFile(null);
       setLogoPreview(null);
       onOpenChange(false);
@@ -235,6 +240,27 @@ export default function CreateClientDialog({ open, onOpenChange, onCreated }: Pr
               </Select>
             </div>
             <div className="space-y-1.5">
+              <Label>Tipo de projeto</Label>
+              <Select value={form.project_type} onValueChange={(v) => set("project_type", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PROJECT_TYPE_OPTIONS.map((t) => (
+                    <SelectItem key={t.key} value={t.key}>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{t.shortLabel}</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {t.recurring ? "Recorrente" : "One-shot"}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
               <Label>Plano</Label>
               <Select value={form.plan_name} onValueChange={(v) => set("plan_name", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -252,6 +278,22 @@ export default function CreateClientDialog({ open, onOpenChange, onCreated }: Pr
                   })}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>
+                Valor mensal customizado
+                <span className="text-[10px] text-muted-foreground ml-1">(opcional)</span>
+              </Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={form.custom_monthly_value}
+                onChange={(e) => set("custom_monthly_value", e.target.value)}
+                placeholder={`Padrão: R$ ${getPlanConfig()[form.plan_name as keyof ReturnType<typeof getPlanConfig>]?.monthly.toLocaleString("pt-BR") ?? "0"}`}
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Só preencha se o valor for diferente do padrão do plano (ex: clientes legados).
+              </p>
             </div>
           </div>
 
