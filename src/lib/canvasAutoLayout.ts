@@ -13,7 +13,7 @@
  *  4. Evita sobreposição entre grupos de cliente (offset)
  */
 
-import type { AceleraStageKey } from "./canvasProjectTypes";
+import type { AceleraStageKey } from "@/components/workspace/canvasProjectTypes";
 
 export const LAYOUT_CONFIG = {
   COL_WIDTH: 360,        // largura de cada coluna de etapa
