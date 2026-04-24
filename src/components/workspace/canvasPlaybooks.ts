@@ -73,7 +73,7 @@ export function playbookPos(col: number, row: number): { pos_x: number; pos_y: n
 const PLAYBOOK_FUNDACAO: Playbook = {
   planKey: "starter",
   name: "Fundação",
-  description: "Esteira de 6 nodes cobrindo Abertura + Diagnóstico + Arquitetura Base. Entrega: contexto consolidado, diagnóstico, 1 LP, CRM básico e 1 automação essencial.",
+  description: "Esteira de 7 nodes cobrindo Abertura + Diagnóstico + Arquitetura Base. Entrega: contexto consolidado, diagnóstico, 1 LP, CRM básico, 1 automação essencial + Chat IA.",
   nodes: [
     // A — Abertura Estratégica
     { ref: "brief",     kind: "briefing",     stage: "entrada",        col: STAGE_COL.entrada,        row: 0, title: "Briefing Essencial",       description: "Captura e consolida contexto do cliente via IA." },
@@ -86,6 +86,10 @@ const PLAYBOOK_FUNDACAO: Playbook = {
     { ref: "crm",       kind: "crm",          stage: "estrutura_base", col: STAGE_COL.estrutura_base, row: 0, title: "CRM Base",                 description: "Estrutura inicial do CRM interno do cliente." },
     { ref: "lp",        kind: "landing_page", stage: "estrutura_base", col: STAGE_COL.estrutura_base, row: 1, title: "Landing Page de captura", description: "LP principal de conversão com copy + design + deploy." },
     { ref: "autom",     kind: "automacao",    stage: "estrutura_base", col: STAGE_COL.estrutura_base, row: 2, title: "Automação essencial",     description: "Fluxo mínimo: formulário da LP → CRM → notificação." },
+
+    // Chat IA — atalho direto ao assistente do workspace
+    { ref: "chat",      kind: "chat_node",    stage: "planejamento",   col: STAGE_COL.planejamento,   row: 0, title: "Chat IA Contextual",      description: "Assistente IA com acesso a briefing, diagnóstico e nodes conectados.",
+      data: { scope: "workspace", fn: "free", size: "M" } },
   ],
   edges: [
     { fromRef: "brief",  toRef: "diag",   label: "alimenta" },
@@ -94,6 +98,9 @@ const PLAYBOOK_FUNDACAO: Playbook = {
     { fromRef: "diag",   toRef: "lp",     label: "orienta" },
     { fromRef: "lp",     toRef: "autom",  label: "dispara" },
     { fromRef: "autom",  toRef: "crm",    label: "alimenta" },
+    // Chat IA conectado ao briefing e diagnóstico
+    { fromRef: "brief",  toRef: "chat",   label: "contexto" },
+    { fromRef: "diag",   toRef: "chat",   label: "contexto" },
   ],
 };
 
@@ -104,7 +111,7 @@ const PLAYBOOK_FUNDACAO: Playbook = {
 const PLAYBOOK_ACELERACAO: Playbook = {
   planKey: "growth",
   name: "Aceleração",
-  description: "Esteira de 14 nodes cobrindo Abertura até Ativação Assistida. Entrega: tudo da Fundação + funil comercial, estratégia de conteúdo, 2 campanhas, agente IA básico e dashboard.",
+  description: "Esteira de 15 nodes cobrindo Abertura até Ativação Assistida. Entrega: tudo da Fundação + funil comercial, estratégia de conteúdo, 2 campanhas, agente IA base, dashboard e Chat IA contextual.",
   nodes: [
     // A — Abertura
     { ref: "brief",     kind: "briefing",     stage: "entrada",        col: STAGE_COL.entrada,        row: 0, title: "Briefing Essencial",            description: "Captura e consolida contexto do cliente via IA." },
@@ -131,6 +138,10 @@ const PLAYBOOK_ACELERACAO: Playbook = {
     { ref: "trafego1",  kind: "trafego",      stage: "ativacao",       col: STAGE_COL.ativacao,       row: 0, title: "Campanha Meta Ads",             description: "Setup + otimização campanha de aquisição." },
     { ref: "trafego2",  kind: "trafego",      stage: "ativacao",       col: STAGE_COL.ativacao,       row: 1, title: "Campanha Google Ads",           description: "Setup + otimização campanha de search/display." },
     { ref: "dash",      kind: "metrica",      stage: "ativacao",       col: STAGE_COL.ativacao,       row: 2, title: "Dashboard de Métricas",         description: "Baseline vs meta, métricas por canal, alertas." },
+
+    // Chat IA — assistente contextual do workspace
+    { ref: "chat",      kind: "chat_node",    stage: "planejamento",   col: STAGE_COL.planejamento,   row: 1, title: "Chat IA Estratégico",           description: "Assistente IA contextual para planejamento, análise e ações.",
+      data: { scope: "workspace", fn: "planning", size: "L" } },
   ],
   edges: [
     // Abertura
@@ -157,6 +168,10 @@ const PLAYBOOK_ACELERACAO: Playbook = {
     { fromRef: "trafego1",  toRef: "dash",      label: "alimenta" },
     { fromRef: "trafego2",  toRef: "dash",      label: "alimenta" },
     { fromRef: "crm",       toRef: "dash",      label: "alimenta" },
+    // Chat IA conectado aos nodes estratégicos
+    { fromRef: "obj",       toRef: "chat",      label: "direciona" },
+    { fromRef: "icp",       toRef: "chat",      label: "contextualiza" },
+    { fromRef: "contentst", toRef: "chat",      label: "alimenta" },
   ],
 };
 
@@ -167,7 +182,7 @@ const PLAYBOOK_ACELERACAO: Playbook = {
 const PLAYBOOK_ESCALA: Playbook = {
   planKey: "enterprise",
   name: "Escala IA-First",
-  description: "Esteira de 24 nodes cobrindo todas as 8 etapas ACELERA. Entrega: Aceleração completa + 5+ agentes IA especializados, automações avançadas, BI custom, case e playbook replicável.",
+  description: "Esteira de 25 nodes cobrindo todas as 8 etapas ACELERA. Entrega: Aceleração completa + 5+ agentes IA especializados, automações avançadas, BI custom, case, playbook replicável e Chat IA Enterprise contextual.",
   nodes: [
     // A — Abertura
     { ref: "brief",     kind: "briefing",     stage: "entrada",        col: STAGE_COL.entrada,        row: 0, title: "Briefing Essencial",          description: "Captura e consolida contexto do cliente." },
@@ -209,6 +224,10 @@ const PLAYBOOK_ESCALA: Playbook = {
     // + — Escala
     { ref: "caseFinal", kind: "case",         stage: "expansao",       col: STAGE_COL.expansao,       row: 0, title: "Case documentado",            description: "Narrativa completa com before/after e resultados." },
     { ref: "playbook",  kind: "documento",    stage: "expansao",       col: STAGE_COL.expansao,       row: 1, title: "Playbook replicável",         description: "Playbook do negócio como ativo do cliente." },
+
+    // Chat IA — comando operacional do workspace
+    { ref: "chat",      kind: "chat_node",    stage: "planejamento",   col: STAGE_COL.planejamento,   row: 2, title: "Chat IA Enterprise",          description: "Assistente IA contextual com acesso total: briefing, ICP, métricas, agentes, resultados.",
+      data: { scope: "workspace", fn: "analysis", size: "XL" } },
   ],
   edges: [
     // Abertura → Diagnóstico
@@ -244,9 +263,14 @@ const PLAYBOOK_ESCALA: Playbook = {
     { fromRef: "dash",      toRef: "ba",        label: "evidencia" },
     { fromRef: "dash",      toRef: "ag4",       label: "analisa" },
     { fromRef: "ag4",       toRef: "dec1",      label: "sugere" },
-    // Expansão
+    // Escala
     { fromRef: "ba",        toRef: "caseFinal", label: "prova" },
     { fromRef: "caseFinal", toRef: "playbook",  label: "gera" },
+    // Chat IA conectado a tudo que tem valor estratégico
+    { fromRef: "aistrat",   toRef: "chat",      label: "estratégia" },
+    { fromRef: "icp",       toRef: "chat",      label: "contextualiza" },
+    { fromRef: "dash",      toRef: "chat",      label: "métricas" },
+    { fromRef: "ag4",       toRef: "chat",      label: "insights" },
   ],
 };
 
