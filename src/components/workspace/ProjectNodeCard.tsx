@@ -2,7 +2,7 @@
  * ProjectNodeCard — n8n-style node card com identidade visual por tipo.
  * Cada tipo tem accent color, ícone, ações rápidas e "capa" própria.
  */
-import { memo, useState, useCallback } from "react";
+import { memo, useState, useCallback, useMemo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import {
   Plus, Trash2, CheckCircle2, Circle, AlertTriangle, Clock3,
@@ -159,14 +159,14 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
 
   const isEngine = d.kind === "engine";
   const widthClass = isEngine ? "w-[400px]" : "w-[280px]";
-  const quickActions = getQuickActions(d, accent);
+  const quickActions = useMemo(() => getQuickActions(d, accent), [d.typeData, d.kind, accent]);
 
   const handleDelete = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     if (d.onDelete && window.confirm(`Excluir "${d.title}"?`)) {
       d.onDelete();
     }
-  }, [d]);
+  }, [d.onDelete, d.title]);
 
   return (
     <div

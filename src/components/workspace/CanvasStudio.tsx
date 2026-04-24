@@ -528,6 +528,22 @@ function CanvasStudioInner({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Cache de conexões por node — evita filter() linear de dbEdges em cada render
+  const connectionsByNodeId = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const e of dbEdges) {
+      // Adiciona target ao source
+      const fromList = map.get(e.source_node_id) ?? [];
+      fromList.push(e.target_node_id);
+      map.set(e.source_node_id, fromList);
+      // Adiciona source ao target (relação bidirecional para ChatNodes)
+      const toList = map.get(e.target_node_id) ?? [];
+      toList.push(e.source_node_id);
+      map.set(e.target_node_id, toList);
+    }
+    return map;
+  }, [dbEdges]);
+
   const reactFlowNodes = useMemo(() => {
     return visibleCanvasNodes.map((n): Node => {
       const owner = n.parent_node_id ? groupMeta[n.parent_node_id] : null;
@@ -538,11 +554,7 @@ function CanvasStudioInner({
       const isChatNode = dataObj.kind === "chat_node";
 
       if (isChatNode) {
-        // Collect connected node IDs from edges
-        const connectedIds = dbEdges
-          .filter((e) => e.source_node_id === n.id || e.target_node_id === n.id)
-          .map((e) => e.source_node_id === n.id ? e.target_node_id : e.source_node_id)
-          .filter((id) => id !== n.id);
+        const connectedIds = connectionsByNodeId.get(n.id) ?? [];
         return {
           id: n.id,
           type: "chatNode",
@@ -592,7 +604,7 @@ function CanvasStudioInner({
         } satisfies ProjectNodeData,
       };
     });
-  }, [visibleCanvasNodes, groupMeta, workspaceId, quickConnectFromNode, lockedNodes, stableOnPrefilled, stableOnDeleteNode, dbEdges, clientId]);
+  }, [visibleCanvasNodes, groupMeta, workspaceId, quickConnectFromNode, lockedNodes, stableOnPrefilled, stableOnDeleteNode, connectionsByNodeId, clientId]);
 
   /** Delete edge — instant local update + DB delete. Usado pelo DeletableEdge e context menu. */
   const deleteEdgeById = useCallback(async (edgeId: string) => {
@@ -667,23 +679,56 @@ function CanvasStudioInner({
   useEffect(() => {
     setRfNodes((currentRfNodes) => {
       const byId = new Map(currentRfNodes.map(n => [n.id, n]));
-      return reactFlowNodes.map((newNode) => {
+      const result: Node[] = [];
+      let hasChanges = currentRfNodes.length !== reactFlowNodes.length;
+
+      for (const newNode of reactFlowNodes) {
         const existing = byId.get(newNode.id);
+
         // Node novo → usa posição do DB
-        if (!existing) return newNode;
-        // Node sendo arrastado → mantém posição atual (já é a drag live)
-        if (draggingNodesRef.current.has(newNode.id)) {
-          return { ...newNode, position: existing.position };
+        if (!existing) {
+          result.push(newNode);
+          hasChanges = true;
+          continue;
         }
-        // Node existente → atualiza DATA mas MANTÉM posição local
-        // (a posição no DB só vale pra primeira renderização)
-        return { ...newNode, position: existing.position };
-      });
+
+        // Node sendo arrastado → mantém referência atual (não toca pra não interromper drag)
+        if (draggingNodesRef.current.has(newNode.id)) {
+          result.push(existing);
+          continue;
+        }
+
+        // Compara data e position — só recria se houve mudança real
+        const sameData = existing.data === newNode.data;
+        if (sameData) {
+          // Sem mudança em data — reusa objeto existente (mantém referência)
+          result.push(existing);
+        } else {
+          // Data mudou — atualiza mantendo posição local
+          result.push({ ...newNode, position: existing.position });
+          hasChanges = true;
+        }
+      }
+
+      // Se nada mudou, retorna o mesmo array pra não disparar re-render do React Flow
+      return hasChanges ? result : currentRfNodes;
     });
   }, [reactFlowNodes]);
 
   useEffect(() => {
-    setRfEdges(reactFlowEdges);
+    setRfEdges((current) => {
+      // Compara comprimento E identidade dos edges antes de substituir
+      if (current.length !== reactFlowEdges.length) return reactFlowEdges;
+      // Se algum edge mudou de identidade, substitui
+      const sameIds = current.every((e, i) => e.id === reactFlowEdges[i]?.id);
+      if (!sameIds) return reactFlowEdges;
+      // IDs iguais — só substitui se DATA ou STYLE mudaram
+      const dataChanged = current.some((e, i) => {
+        const ne = reactFlowEdges[i];
+        return e.data !== ne.data || e.label !== ne.label || e.animated !== ne.animated;
+      });
+      return dataChanged ? reactFlowEdges : current;
+    });
   }, [reactFlowEdges]);
 
   /* ReactFlow handlers */
