@@ -184,13 +184,41 @@ async function callAI(
   clientId: string,
   fn?: string,
   model?: string,
-): Promise<{ reply: string; modelUsed?: string }> {
-  const { data, error } = await supabase.functions.invoke("chat-node-gemini", {
-    body: { messages, systemPrompt, workspaceId, clientId, fn, model },
+  nodeId?: string,
+  connectedNodeIds?: string[],
+): Promise<{ reply: string; modelUsed?: string; costUsd?: number; contextStats?: Record<string, number> }> {
+  // Converte messages ao formato do engine
+  const history = messages.slice(0, -1).map((m) => ({
+    role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant",
+    content: m.content,
+  }));
+  const lastMessage = messages[messages.length - 1]?.content ?? "";
+
+  const { data, error } = await supabase.functions.invoke("ai-context-engine", {
+    body: {
+      scope: connectedNodeIds && connectedNodeIds.length > 0 ? "flow" : "node",
+      clientId,
+      workspaceId,
+      nodeId,
+      connectedNodeIds,
+      message: lastMessage,
+      history,
+      agentSystemPrompt: systemPrompt,
+      agentId: fn ?? "general",
+      model: model || "gemini-2.5-flash",
+      feature: `chat_node_${fn ?? "free"}`,
+      temperature: 0.7,
+    },
   });
-  if (error) throw new Error(error.message ?? "Erro na edge function chat-node-gemini");
+
+  if (error) throw new Error(error.message ?? "Erro na edge function");
   if (data?.error) throw new Error(data.error);
-  return { reply: data?.reply ?? "Sem resposta.", modelUsed: data?.model_used };
+  return {
+    reply: data?.answer ?? "Sem resposta.",
+    modelUsed: data?.model_used,
+    costUsd: data?.cost_usd,
+    contextStats: data?.context_stats,
+  };
 }
 
 // ─── ChatNode Component ──────────────────────────────────────
@@ -268,7 +296,17 @@ function ChatNodeComp({ data, selected }: NodeProps) {
 
       const systemPrompt = buildSystemPrompt(fn, scope, contextRef.current);
       const history = newMessages.slice(-12).map((m) => ({ role: m.role, content: m.content }));
-      const { reply } = await callAI(history, systemPrompt, d.workspaceId, d.clientId, fn, selectedModel);
+      const nodeId = (data as Record<string, unknown>).nodeId as string | undefined;
+      const { reply } = await callAI(
+        history,
+        systemPrompt,
+        d.workspaceId,
+        d.clientId,
+        fn,
+        selectedModel,
+        nodeId,
+        d.connectedNodeIds,
+      );
 
       const assistantMsg: ChatMessage = {
         id: crypto.randomUUID(),
