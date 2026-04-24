@@ -3,18 +3,19 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import {
   MessageCircle, Send, Sparkles, ChevronDown, ChevronUp,
   Brain, Layers, FileText, X, Loader2, RotateCcw,
+  Maximize2, Minimize2, MoreHorizontal, Copy, Download, Trash2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import MarkdownMessage from "./MarkdownMessage";
+import { toast } from "@/hooks/use-toast";
 
 // ─── Types ──────────────────────────────────────────────────
 
 export type ChatNodeScope = "node" | "flow" | "workspace";
 export type ChatNodeFunction =
-  | "planning"    // planejamento estratégico
-  | "briefing"    // conduzir briefing com perguntas
-  | "production"  // organizar e produzir entregáveis
-  | "analysis"    // analisar contexto e dar diagnóstico
-  | "free";       // conversa livre
+  | "planning" | "briefing" | "production" | "analysis" | "free";
+
+export type ChatNodeSize = "S" | "M" | "L" | "XL";
 
 export interface ChatMessage {
   id: string;
@@ -39,9 +40,10 @@ export interface ChatNodeData extends Record<string, unknown> {
   isExpanded: boolean;
   isProcessing: boolean;
   systemContext?: string;
+  size?: ChatNodeSize;
 }
 
-// ─── Scope / Function meta ───────────────────────────────────
+// ─── Meta ───────────────────────────────────────────────────
 
 const SCOPE_META: Record<ChatNodeScope, { label: string; color: string; bg: string }> = {
   node:      { label: "Node",      color: "#5B9FFF", bg: "rgba(91,159,255,0.08)" },
@@ -57,125 +59,112 @@ const FN_META: Record<ChatNodeFunction, { label: string; icon: string; hint: str
   free:       { label: "Livre",         icon: "💬",  hint: "Conversa sem função fixa" },
 };
 
+const SIZE_PRESETS: Record<ChatNodeSize, { width: number; messagesHeight: number; label: string }> = {
+  S:  { width: 320, messagesHeight: 260, label: "Pequeno" },
+  M:  { width: 420, messagesHeight: 380, label: "Médio" },
+  L:  { width: 560, messagesHeight: 500, label: "Grande" },
+  XL: { width: 720, messagesHeight: 640, label: "Extra" },
+};
+
 // ─── System prompts por função ───────────────────────────────
 
 function buildSystemPrompt(fn: ChatNodeFunction, scope: ChatNodeScope, context: string): string {
-  const scopeDesc = scope === "node" ? "neste node específico" : scope === "flow" ? "neste fluxo de nodes conectados" : "em todo o workspace do cliente";
+  const scopeDesc = scope === "node" ? "neste node específico"
+    : scope === "flow" ? "neste fluxo de nodes conectados"
+    : "em todo o workspace do cliente";
 
   const base = `Você é o assistente operacional interno da Aceleriq — especialista em estruturação empresarial, marketing digital e implantação de sistemas.
-Você está trabalhando ${scopeDesc}.
-Você TEM ACESSO ao contexto real do cliente abaixo. Use-o para PERSONALIZAR cada resposta.
-Nunca invente dados — se não souber algo, pergunte.
-Responda sempre em português. Seja direto, prático e orientado a resultado.
 
-CONTEXTO DO CLIENTE:
-${context || "(sem contexto carregado — peça ao usuário para conectar nodes de contexto)"}`;
+Você está trabalhando ${scopeDesc}. Você tem acesso ao contexto REAL do cliente abaixo. Use-o para PERSONALIZAR cada resposta.
+
+## FORMATAÇÃO OBRIGATÓRIA
+- Português direto, prático, orientado a resultado
+- NÃO use asteriscos duplos para negrito (**assim**). Ficam literais e feios
+- Para ênfase, use MAIÚSCULAS pontuais em palavras-chave
+- Listas com hífen "-", NÃO asterisco
+- Quebras de linha generosas entre ideias
+- Seja CONCISO — respostas longas aborrecem
+
+## REGRA ABSOLUTA
+Nunca invente dados. Se não souber algo, pergunte.`;
 
   const fnPrompts: Record<ChatNodeFunction, string> = {
     planning: `${base}
 
-SUA FUNÇÃO: Conduzir o planejamento estratégico operacional.
-- Faça perguntas para entender objetivos, restrições e prioridades
-- Use framework OKR: Objetivo + Resultados-Chave mensuráveis
-- Priorize por impacto × esforço (ICE score)
-- Ao final de cada resposta, sugira a próxima ação concreta
-- Quando tiver dados suficientes, ofereça gerar o plano operacional em nodes`,
-
+## MODO PLANEJAMENTO
+Objetivo: ajudar o time a planejar e priorizar.
+- OKRs SMART com métricas claras
+- Roadmap 30/60/90 dias
+- Priorização por impacto × esforço
+- Identifique 1-3 ações concretas por resposta`,
     briefing: `${base}
 
-SUA FUNÇÃO: Conduzir o briefing do cliente com perguntas estruturadas.
-- Faça UMA pergunta por vez — não sobrecarregue
-- Perguntas em ordem lógica: empresa → mercado → objetivos → público → restrições
-- Ao receber respostas, confirme e aprofunde
-- Quando um campo está claro o suficiente, diga "✓ [campo] registrado"
-- Ao final, ofereça preencher automaticamente os campos do node conectado`,
-
+## MODO BRIEFING
+Objetivo: fazer perguntas estratégicas que destravem o cliente.
+- Perguntas abertas que geram reflexão
+- Identifique gaps no contexto atual
+- Sugira o próximo entregável a produzir
+- Máximo 3 perguntas por resposta`,
     production: `${base}
 
-SUA FUNÇÃO: Organizar e produzir entregáveis operacionais.
-- Analise o que está conectado e identifique o próximo entregável prioritário
-- Para cada entregável, liste: o que fazer, como fazer, critério de aceite
-- Sugira dividir em tasks quando necessário
-- Quando tiver contexto suficiente, ofereça gerar o conteúdo diretamente`,
-
+## MODO PRODUÇÃO
+Objetivo: organizar e produzir entregáveis reais.
+- Estrutura clara: o que fazer, como, quando
+- Checklists numerados quando aplicável
+- Referencie nodes conectados quando pertinente
+- Prefira output pronto pra copiar e usar`,
     analysis: `${base}
 
-SUA FUNÇÃO: Analisar o contexto e gerar diagnóstico operacional.
-- Identifique gaps, riscos e oportunidades com base no contexto
-- Use estrutura: Situação atual → Problema central → Causa raiz → Impacto → Recomendação
-- Priorize o que tem maior alavancagem com menor esforço
-- Cite evidências do contexto quando disponível`,
-
+## MODO ANÁLISE
+Objetivo: diagnosticar o estado atual e apontar insights.
+- Identifique gargalos e padrões
+- Quantifique quando possível (% de avanço, frentes ativas)
+- Separe dados de interpretação
+- 1 insight central + 2-3 secundários`,
     free: `${base}
 
-SUA FUNÇÃO: Assistir livremente no que for necessário.
-- Responda perguntas sobre o cliente, projeto ou operação
-- Ajude a redigir, revisar, planejar ou decidir
-- Quando pertinente, sugira conectar mais nodes para enriquecer o contexto`,
+## MODO LIVRE
+Conversa aberta. Seja útil, conciso, prático.`,
   };
 
-  return fnPrompts[fn];
+  return `${fnPrompts[fn]}
+
+---
+
+CONTEXTO DO CLIENTE:
+${context || "(sem contexto carregado — peça ao usuário para conectar nodes de contexto)"}`;
 }
 
-// ─── Fetch context from connected nodes ─────────────────────
+// ─── Buscar contexto de nodes conectados ─────────────────────
 
 async function fetchConnectedContext(
   connectedNodeIds: string[],
   workspaceId: string,
   clientId: string,
 ): Promise<string> {
+  if (connectedNodeIds.length === 0) return "";
+  const { data: nodes } = await supabase
+    .from("canvas_nodes")
+    .select("title, node_type, description, data")
+    .in("id", connectedNodeIds);
+  if (!nodes?.length) return "";
+
   const parts: string[] = [];
-
-  // Client + workspace base
-  const [clientRes, briefingsRes, contextRes] = await Promise.all([
-    supabase.from("clients").select("name,company_name,segment,plan_name,notes").eq("id", clientId).maybeSingle(),
-    supabase.from("context_entries").select("context_type,title,content,tags").eq("client_id", clientId)
-      .in("context_type", ["briefing"]).order("created_at", { ascending: false }).limit(3),
-    supabase.from("context_entries").select("context_type,title,content").eq("workspace_id", workspaceId)
-      .not("context_type", "eq", "briefing").order("created_at", { ascending: false }).limit(8),
-  ]);
-
-  if (clientRes.data) {
-    const c = clientRes.data;
-    parts.push(`CLIENTE: ${c.name} | Empresa: ${c.company_name ?? "—"} | Segmento: ${c.segment ?? "—"} | Plano: ${c.plan_name ?? "—"}`);
-    if (c.notes) parts.push(`Notas: ${c.notes}`);
-  }
-
-  if (briefingsRes.data?.length) {
-    parts.push("\nBRIEFINGS:");
-    briefingsRes.data.forEach((b) => {
-      if (b.content) parts.push(`• ${b.title ?? b.context_type}: ${String(b.content).slice(0, 400)}`);
-    });
-  }
-
-  if (contextRes.data?.length) {
-    parts.push("\nCONTEXTO RECENTE:");
-    contextRes.data.forEach((c) => {
-      if (c.content) parts.push(`• [${c.context_type}] ${c.title ?? ""}: ${String(c.content).slice(0, 300)}`);
-    });
-  }
-
-  // Connected nodes
-  if (connectedNodeIds.length > 0) {
-    const { data: nodes } = await supabase
-      .from("canvas_nodes")
-      .select("title,description,node_type,data,status")
-      .in("id", connectedNodeIds)
-      .limit(10);
-    if (nodes?.length) {
-      parts.push("\nNODES CONECTADOS:");
-      nodes.forEach((n) => {
-        parts.push(`• [${n.node_type}] ${n.title}: ${n.description ?? ""}`);
-        const d = n.data as Record<string, unknown> | null;
-        if (d?.content) parts.push(`  Conteúdo: ${String(d.content).slice(0, 200)}`);
-      });
+  parts.push(`NODES CONECTADOS (${nodes.length}):`);
+  for (const n of nodes) {
+    parts.push(`- [${n.node_type}] ${n.title}${n.description ? `: ${String(n.description).slice(0, 200)}` : ""}`);
+    if (n.data && typeof n.data === "object") {
+      for (const [k, v] of Object.entries(n.data).slice(0, 5)) {
+        if (typeof v === "string" && v.length > 10 && v.length < 300 && k !== "kind") {
+          parts.push(`    ${k}: ${v.slice(0, 200)}`);
+        }
+      }
     }
   }
-
   return parts.join("\n");
 }
 
-// ─── Call AI ────────────────────────────────────────────────
+// ─── AI Call via ai-context-engine ───────────────────────────
 
 async function callAI(
   messages: Array<{ role: string; content: string }>,
@@ -187,7 +176,6 @@ async function callAI(
   nodeId?: string,
   connectedNodeIds?: string[],
 ): Promise<{ reply: string; modelUsed?: string; costUsd?: number; contextStats?: Record<string, number> }> {
-  // Converte messages ao formato do engine
   const history = messages.slice(0, -1).map((m) => ({
     role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant",
     content: m.content,
@@ -223,60 +211,68 @@ async function callAI(
 
 // ─── ChatNode Component ──────────────────────────────────────
 
-function ChatNodeComp({ data, selected }: NodeProps) {
+function ChatNodeComp({ data, selected, id: nodeId }: NodeProps) {
   const d = data as ChatNodeData;
   const scopeMeta = SCOPE_META[d.scope ?? "node"];
   const fnMeta = FN_META[d.fn ?? "free"];
   const [expanded, setExpanded] = useState(d.isExpanded ?? true);
+  const [size, setSize] = useState<ChatNodeSize>(d.size ?? "M");
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>(d.messages ?? []);
   const [processing, setProcessing] = useState(false);
   const [scope, setScope] = useState<ChatNodeScope>(d.scope ?? "node");
   const [fn, setFn] = useState<ChatNodeFunction>(d.fn ?? "free");
-  const [selectedModel, setSelectedModel] = useState<string>(() => {
-    // Herda modelo preferido do chat global, ou usa auto-pick
-    return localStorage.getItem("aceleriq_preferred_model") ?? "";
-  });
+  const [selectedModel, setSelectedModel] = useState<string>(
+    () => localStorage.getItem("aceleriq_preferred_model") ?? ""
+  );
   const [showSettings, setShowSettings] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const contextRef = useRef<string>("");
 
+  // Fecha menu ao clicar fora
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    if (showMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showMenu]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
 
-  // Auto-load context on mount
   useEffect(() => {
-    if (!d.workspaceId || !d.clientId) return;
-    fetchConnectedContext(d.connectedNodeIds ?? [], d.workspaceId, d.clientId)
-      .then((ctx) => { contextRef.current = ctx; })
-      .catch(() => {});
-  }, [d.workspaceId, d.clientId, d.connectedNodeIds]);
+    contextRef.current = "";
+  }, [d.connectedNodeIds, scope]);
 
-  // Initial greeting based on function
-  useEffect(() => {
-    if (messages.length > 0) return;
-    const greetings: Record<ChatNodeFunction, string> = {
-      briefing:   `Olá! Vou conduzir o briefing com você. Vamos começar: **qual é o principal objetivo do cliente com este projeto?**`,
-      planning:   `Pronto para planejar. Já carreguei o contexto disponível. **Qual é o horizonte de planejamento que você quer trabalhar agora? (30, 60 ou 90 dias?)**`,
-      production: `Vamos produzir. Analisando os nodes conectados... **Qual entregável você quer atacar primeiro?**`,
-      analysis:   `Carregando contexto para análise... **Quer que eu comece com o diagnóstico geral ou há um problema específico que você quer entender?**`,
-      free:       `Olá! Estou conectado ao contexto do workspace. **O que você precisa agora?**`,
-    };
-    const greeting: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: greetings[fn],
-      timestamp: new Date().toISOString(),
-    };
-    setMessages([greeting]);
-  }, [fn]);
+  const persist = useCallback(async (patch: Partial<ChatNodeData>) => {
+    if (!d.workspaceId || !nodeId) return;
+    const { data: current } = await supabase.from("canvas_nodes").select("data").eq("id", nodeId).maybeSingle();
+    const currentData = (current?.data as Record<string, unknown>) ?? {};
+    await supabase.from("canvas_nodes").update({
+      data: { ...currentData, ...patch },
+      updated_at: new Date().toISOString(),
+    }).eq("id", nodeId);
+  }, [d.workspaceId, nodeId]);
+
+  const changeSize = (newSize: ChatNodeSize) => {
+    setSize(newSize);
+    persist({ size: newSize });
+  };
 
   const send = useCallback(async () => {
     const text = input.trim();
     if (!text || processing) return;
     setInput("");
+    setProcessing(true);
 
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
@@ -286,26 +282,19 @@ function ChatNodeComp({ data, selected }: NodeProps) {
     };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
-    setProcessing(true);
 
     try {
-      // Refresh context if needed
       if (!contextRef.current && d.workspaceId && d.clientId) {
-        contextRef.current = await fetchConnectedContext(d.connectedNodeIds ?? [], d.workspaceId, d.clientId);
+        contextRef.current = await fetchConnectedContext(
+          d.connectedNodeIds ?? [], d.workspaceId, d.clientId
+        );
       }
 
       const systemPrompt = buildSystemPrompt(fn, scope, contextRef.current);
       const history = newMessages.slice(-12).map((m) => ({ role: m.role, content: m.content }));
-      const nodeId = (data as Record<string, unknown>).nodeId as string | undefined;
       const { reply } = await callAI(
-        history,
-        systemPrompt,
-        d.workspaceId,
-        d.clientId,
-        fn,
-        selectedModel,
-        nodeId,
-        d.connectedNodeIds,
+        history, systemPrompt, d.workspaceId, d.clientId,
+        fn, selectedModel, nodeId, d.connectedNodeIds
       );
 
       const assistantMsg: ChatMessage = {
@@ -318,15 +307,8 @@ function ChatNodeComp({ data, selected }: NodeProps) {
       const finalMessages = [...newMessages, assistantMsg];
       setMessages(finalMessages);
 
-      // Persist messages to node data
       if (d.workspaceId) {
-        const nodeId = (data as Record<string, unknown>).nodeId as string | undefined;
-        if (nodeId) {
-          await supabase.from("canvas_nodes").update({
-            data: { ...d, messages: finalMessages, isExpanded: true },
-            updated_at: new Date().toISOString(),
-          }).eq("id", nodeId);
-        }
+        await persist({ messages: finalMessages, isExpanded: true });
       }
     } catch (err) {
       setMessages((prev) => [
@@ -334,7 +316,7 @@ function ChatNodeComp({ data, selected }: NodeProps) {
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: "Erro ao processar. Tente novamente.",
+          content: `Erro: ${err instanceof Error ? err.message : "desconhecido"}`,
           timestamp: new Date().toISOString(),
         },
       ]);
@@ -342,27 +324,51 @@ function ChatNodeComp({ data, selected }: NodeProps) {
       setProcessing(false);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [input, messages, processing, fn, scope, d]);
+  }, [input, messages, processing, fn, scope, d, nodeId, selectedModel, persist]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   };
 
-  const clearHistory = () => setMessages([]);
+  const clearHistory = () => {
+    if (!confirm("Limpar todas as mensagens deste chat?")) return;
+    setMessages([]);
+    persist({ messages: [] });
+    setShowMenu(false);
+  };
+
+  const copyAllConversation = () => {
+    const text = messages.map(m =>
+      `[${m.role === "user" ? "Você" : "Aceleriq AI"}]\n${m.content}`
+    ).join("\n\n---\n\n");
+    navigator.clipboard.writeText(text);
+    toast({ title: "Conversa copiada" });
+    setShowMenu(false);
+  };
+
+  const downloadConversation = () => {
+    const text = `# Conversa — ${fnMeta.label} (${scopeMeta.label})\n\nGerado: ${new Date().toLocaleString("pt-BR")}\n\n---\n\n` +
+      messages.map(m => `## ${m.role === "user" ? "Você" : "Aceleriq AI"}\n\n${m.content}`).join("\n\n---\n\n");
+    const blob = new Blob([text], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `aceleriq-chat-${Date.now()}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "Conversa baixada" });
+    setShowMenu(false);
+  };
+
+  const copyMessage = (content: string) => {
+    navigator.clipboard.writeText(content);
+    toast({ title: "Mensagem copiada" });
+  };
+
+  const currentPreset = SIZE_PRESETS[size];
 
   const renderMessage = (msg: ChatMessage) => {
     const isUser = msg.role === "user";
-    // Simple markdown: **bold**, bullet points
-    const formatted = msg.content
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/^• /gm, "• ")
-      .split("\n").map((line, i) => (
-        <span key={i}>
-          {i > 0 && <br />}
-          <span dangerouslySetInnerHTML={{ __html: line }} />
-        </span>
-      ));
-
     return (
       <div
         key={msg.id}
@@ -373,6 +379,7 @@ function ChatNodeComp({ data, selected }: NodeProps) {
           marginBottom: 10,
           alignItems: "flex-start",
         }}
+        className="group/msg"
       >
         {!isUser && (
           <div style={{
@@ -385,17 +392,46 @@ function ChatNodeComp({ data, selected }: NodeProps) {
             {fnMeta.icon}
           </div>
         )}
-        <div style={{
-          maxWidth: "82%",
-          background: isUser ? "rgba(255,255,255,0.06)" : `${scopeMeta.color}08`,
-          border: `0.5px solid ${isUser ? "rgba(255,255,255,0.08)" : `${scopeMeta.color}20`}`,
-          borderRadius: isUser ? "12px 3px 12px 12px" : "3px 12px 12px 12px",
-          padding: "8px 11px",
-          fontSize: 11.5,
-          color: "#D8E0D0",
-          lineHeight: 1.6,
-        }}>
-          {formatted}
+        <div style={{ maxWidth: "85%", minWidth: 0, flex: 1 }}>
+          <div style={{
+            background: isUser ? "rgba(255,255,255,0.06)" : `${scopeMeta.color}08`,
+            border: `0.5px solid ${isUser ? "rgba(255,255,255,0.08)" : `${scopeMeta.color}20`}`,
+            borderRadius: isUser ? "12px 3px 12px 12px" : "3px 12px 12px 12px",
+            padding: "8px 11px",
+            fontSize: 11.5,
+            color: "#D8E0D0",
+            lineHeight: 1.6,
+            wordWrap: "break-word",
+          }}>
+            {isUser ? (
+              <div style={{ whiteSpace: "pre-wrap" }}>{msg.content}</div>
+            ) : (
+              <div className="chat-markdown">
+                <MarkdownMessage content={msg.content} />
+              </div>
+            )}
+          </div>
+          {/* Actions por mensagem (aparecem no hover) */}
+          {!isUser && (
+            <div
+              style={{
+                display: "flex", gap: 4, marginTop: 3, fontSize: 9,
+                opacity: 0, transition: "opacity 0.15s",
+              }}
+              className="group-hover/msg:!opacity-100"
+            >
+              <button
+                onClick={(e) => { e.stopPropagation(); copyMessage(msg.content); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 3,
+                  background: "transparent", border: "none", color: "#7A8870",
+                  cursor: "pointer", padding: "2px 4px", borderRadius: 3,
+                }}
+              >
+                <Copy size={9} /> Copiar
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -404,7 +440,7 @@ function ChatNodeComp({ data, selected }: NodeProps) {
   return (
     <div
       style={{
-        width: expanded ? 320 : 200,
+        width: expanded ? currentPreset.width : 200,
         background: "#0E1009",
         border: selected ? `1.5px solid ${scopeMeta.color}` : `0.5px solid ${scopeMeta.color}30`,
         borderRadius: 14,
@@ -413,7 +449,7 @@ function ChatNodeComp({ data, selected }: NodeProps) {
           : "0 2px 12px rgba(0,0,0,0.3)",
         fontFamily: "'Outfit', sans-serif",
         transition: "width 0.25s ease, border-color 0.2s",
-        overflow: "hidden",
+        overflow: "visible", // overflow visible pro menu dropdown aparecer
         position: "relative",
       }}
     >
@@ -427,6 +463,7 @@ function ChatNodeComp({ data, selected }: NodeProps) {
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "10px 12px", borderBottom: `0.5px solid ${scopeMeta.color}15`,
         background: `linear-gradient(135deg, ${scopeMeta.color}06, transparent)`,
+        borderTopLeftRadius: 14, borderTopRightRadius: 14,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <div style={{
@@ -443,23 +480,105 @@ function ChatNodeComp({ data, selected }: NodeProps) {
               {fnMeta.icon} {fnMeta.label}
             </div>
             <div style={{ fontSize: 9, color: scopeMeta.color, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-              {scopeMeta.label}
+              {scopeMeta.label} · {size}
             </div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 3 }}>
+        <div style={{ display: "flex", gap: 3, position: "relative" }}>
+          {/* Botão SIZE */}
+          {expanded && (
+            <div style={{ display: "flex", gap: 2, marginRight: 2 }}>
+              {(["S", "M", "L", "XL"] as ChatNodeSize[]).map((s) => (
+                <button
+                  key={s}
+                  onClick={(e) => { e.stopPropagation(); changeSize(s); }}
+                  title={SIZE_PRESETS[s].label}
+                  style={{
+                    width: 18, height: 20, borderRadius: 4,
+                    background: size === s ? `${scopeMeta.color}25` : "rgba(255,255,255,0.04)",
+                    border: `0.5px solid ${size === s ? scopeMeta.color + "60" : "rgba(255,255,255,0.07)"}`,
+                    color: size === s ? scopeMeta.color : "#7A8870",
+                    fontSize: 8, fontWeight: 600,
+                    cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+          {/* Botão Settings */}
           <button
             onClick={(e) => { e.stopPropagation(); setShowSettings((v) => !v); }}
+            title="Configurações"
             style={{ width: 20, height: 20, borderRadius: 5, background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.07)", color: "#7A8870", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
           >
             <Layers size={10} />
           </button>
+          {/* Botão "..." — menu */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowMenu((v) => !v); }}
+            title="Mais ações"
+            style={{ width: 20, height: 20, borderRadius: 5, background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.07)", color: "#7A8870", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            <MoreHorizontal size={10} />
+          </button>
+          {/* Botão Expand */}
           <button
             onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+            title={expanded ? "Minimizar" : "Expandir"}
             style={{ width: 20, height: 20, borderRadius: 5, background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.07)", color: "#7A8870", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
           >
             {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
           </button>
+
+          {/* Menu dropdown */}
+          {showMenu && (
+            <div
+              ref={menuRef}
+              style={{
+                position: "absolute",
+                top: 26, right: 0,
+                background: "#12160F",
+                border: `0.5px solid ${scopeMeta.color}40`,
+                borderRadius: 8,
+                padding: 4,
+                minWidth: 180,
+                zIndex: 100,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+              }}
+            >
+              <MenuItem
+                icon={<Copy size={11} />}
+                label="Copiar conversa completa"
+                onClick={copyAllConversation}
+                disabled={messages.length === 0}
+                color={scopeMeta.color}
+              />
+              <MenuItem
+                icon={<Download size={11} />}
+                label="Baixar como .md"
+                onClick={downloadConversation}
+                disabled={messages.length === 0}
+                color={scopeMeta.color}
+              />
+              <MenuItem
+                icon={<RotateCcw size={11} />}
+                label="Recarregar contexto"
+                onClick={() => { contextRef.current = ""; setShowMenu(false); toast({ title: "Contexto será recarregado na próxima mensagem" }); }}
+                color={scopeMeta.color}
+              />
+              <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "3px 0" }} />
+              <MenuItem
+                icon={<Trash2 size={11} />}
+                label="Limpar todas as mensagens"
+                onClick={clearHistory}
+                disabled={messages.length === 0}
+                color="#EF4444"
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -469,12 +588,17 @@ function ChatNodeComp({ data, selected }: NodeProps) {
           <div style={{ fontSize: 9, color: "#7A8870", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Função</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
             {(Object.keys(FN_META) as ChatNodeFunction[]).map((f) => (
-              <button key={f} onClick={(e) => { e.stopPropagation(); setFn(f); setMessages([]); setShowSettings(false); }} style={{
-                fontSize: 10, padding: "3px 8px", borderRadius: 5, cursor: "pointer",
-                background: fn === f ? `${scopeMeta.color}15` : "rgba(255,255,255,0.03)",
-                border: `0.5px solid ${fn === f ? scopeMeta.color + "50" : "rgba(255,255,255,0.07)"}`,
-                color: fn === f ? scopeMeta.color : "#7A8870",
-              }}>
+              <button
+                key={f}
+                onClick={(e) => { e.stopPropagation(); setFn(f); persist({ fn: f }); }}
+                style={{
+                  padding: "4px 8px", borderRadius: 5, fontSize: 10,
+                  background: fn === f ? `${scopeMeta.color}20` : "rgba(255,255,255,0.03)",
+                  border: `0.5px solid ${fn === f ? scopeMeta.color + "40" : "rgba(255,255,255,0.07)"}`,
+                  color: fn === f ? scopeMeta.color : "#9DA593",
+                  cursor: "pointer",
+                }}
+              >
                 {FN_META[f].icon} {FN_META[f].label}
               </button>
             ))}
@@ -482,12 +606,17 @@ function ChatNodeComp({ data, selected }: NodeProps) {
           <div style={{ fontSize: 9, color: "#7A8870", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Escopo</div>
           <div style={{ display: "flex", gap: 4 }}>
             {(Object.keys(SCOPE_META) as ChatNodeScope[]).map((s) => (
-              <button key={s} onClick={(e) => { e.stopPropagation(); setScope(s); }} style={{
-                fontSize: 10, padding: "3px 8px", borderRadius: 5, cursor: "pointer",
-                background: scope === s ? `${SCOPE_META[s].color}15` : "rgba(255,255,255,0.03)",
-                border: `0.5px solid ${scope === s ? SCOPE_META[s].color + "50" : "rgba(255,255,255,0.07)"}`,
-                color: scope === s ? SCOPE_META[s].color : "#7A8870",
-              }}>
+              <button
+                key={s}
+                onClick={(e) => { e.stopPropagation(); setScope(s); persist({ scope: s }); contextRef.current = ""; }}
+                style={{
+                  padding: "4px 8px", borderRadius: 5, fontSize: 10,
+                  background: scope === s ? `${SCOPE_META[s].color}20` : "rgba(255,255,255,0.03)",
+                  border: `0.5px solid ${scope === s ? SCOPE_META[s].color + "40" : "rgba(255,255,255,0.07)"}`,
+                  color: scope === s ? SCOPE_META[s].color : "#9DA593",
+                  cursor: "pointer",
+                }}
+              >
                 {SCOPE_META[s].label}
               </button>
             ))}
@@ -495,46 +624,61 @@ function ChatNodeComp({ data, selected }: NodeProps) {
         </div>
       )}
 
-      {/* Messages */}
+      {/* Body */}
       {expanded && (
-        <div style={{ height: 220, overflowY: "auto", padding: "10px 12px", scrollbarWidth: "thin" }}>
-          {messages.length === 0 && (
-            <div style={{ textAlign: "center", color: "#4A5240", fontSize: 11, marginTop: 60 }}>
-              <Brain size={20} style={{ margin: "0 auto 8px", opacity: 0.3 }} />
-              Conecte nodes de contexto e comece a conversar
-            </div>
-          )}
-          {messages.map(renderMessage)}
-          {processing && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#7A8870", fontSize: 11 }}>
-              <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} />
-              processando...
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-      )}
+        <>
+          {/* Messages */}
+          <div style={{
+            padding: "12px 12px 4px",
+            height: currentPreset.messagesHeight,
+            overflowY: "auto",
+            background: "rgba(0,0,0,0.15)",
+            transition: "height 0.25s",
+          }}
+            className="nodrag nowheel"
+          >
+            {messages.length === 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 8, color: "#5D6A56" }}>
+                <Brain size={28} style={{ opacity: 0.3 }} />
+                <div style={{ fontSize: 10, textAlign: "center", maxWidth: 220, lineHeight: 1.5 }}>
+                  {fnMeta.hint}
+                  <br/><br/>
+                  Conecte este chat a outros nodes para dar contexto.
+                </div>
+              </div>
+            ) : (
+              messages.map(renderMessage)
+            )}
+            {processing && (
+              <div style={{ display: "flex", gap: 6, alignItems: "center", color: scopeMeta.color, fontSize: 10, padding: "4px 0" }}>
+                <Loader2 size={11} className="animate-spin" />
+                Pensando...
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
 
-      {/* Input */}
-      {expanded && (
-        <div style={{ padding: "8px 10px", borderTop: `0.5px solid rgba(255,255,255,0.05)` }}>
-          <div style={{ display: "flex", gap: 6, alignItems: "flex-end" }}>
+          {/* Input */}
+          <div style={{
+            padding: "8px 12px 12px", borderTop: `0.5px solid rgba(255,255,255,0.05)`,
+            display: "flex", gap: 6, alignItems: "flex-end",
+            borderBottomLeftRadius: 14, borderBottomRightRadius: 14,
+          }}>
             <textarea
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-              placeholder="Mensagem... (Enter para enviar)"
-              rows={1}
+              placeholder="Pergunte algo..."
+              className="nodrag nowheel"
               style={{
-                flex: 1, background: "rgba(255,255,255,0.04)",
+                flex: 1, minHeight: 32,
+                background: "rgba(255,255,255,0.04)",
                 border: "0.5px solid rgba(255,255,255,0.08)",
-                borderRadius: 8, padding: "7px 10px",
-                fontSize: 11.5, color: "#D8E0D0",
+                borderRadius: 8, padding: "6px 8px",
+                color: "#D8E0D0", fontSize: 11,
                 resize: "none", outline: "none",
-                fontFamily: "inherit", lineHeight: 1.4,
+                fontFamily: "inherit",
                 maxHeight: 80, overflowY: "auto",
               }}
             />
@@ -543,31 +687,51 @@ function ChatNodeComp({ data, selected }: NodeProps) {
               disabled={!input.trim() || processing}
               style={{
                 width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-                background: input.trim() && !processing ? `${scopeMeta.color}15` : "rgba(255,255,255,0.03)",
-                border: `0.5px solid ${input.trim() && !processing ? scopeMeta.color + "50" : "rgba(255,255,255,0.07)"}`,
-                color: input.trim() && !processing ? scopeMeta.color : "#4A5240",
+                background: input.trim() && !processing ? scopeMeta.color : "rgba(255,255,255,0.04)",
+                border: `0.5px solid ${input.trim() && !processing ? scopeMeta.color : "rgba(255,255,255,0.07)"}`,
+                color: input.trim() && !processing ? "#0E1009" : "#5D6A56",
                 cursor: input.trim() && !processing ? "pointer" : "not-allowed",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                transition: "all 0.15s",
               }}
             >
-              {processing ? <Loader2 size={12} /> : <Send size={12} />}
+              {processing ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
             </button>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5, padding: "0 2px" }}>
-            <span style={{ fontSize: 9, color: "#3A4230" }}>
-              {(d.connectedNodeIds ?? []).length} nodes conectados · {scope}
-            </span>
-            <button
-              onClick={(e) => { e.stopPropagation(); clearHistory(); }}
-              style={{ fontSize: 9, color: "#4A5240", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 3 }}
-            >
-              <RotateCcw size={8} /> limpar
-            </button>
-          </div>
-        </div>
+        </>
       )}
     </div>
+  );
+}
+
+function MenuItem({ icon, label, onClick, disabled, color }: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  color: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        display: "flex", alignItems: "center", gap: 8,
+        width: "100%", padding: "6px 8px", borderRadius: 5,
+        background: "transparent", border: "none",
+        color: disabled ? "#5D6A56" : color,
+        fontSize: 10.5, textAlign: "left",
+        cursor: disabled ? "not-allowed" : "pointer",
+        transition: "background 0.1s",
+      }}
+      onMouseEnter={(e) => {
+        if (!disabled) e.currentTarget.style.background = `${color}10`;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "transparent";
+      }}
+    >
+      {icon} {label}
+    </button>
   );
 }
 

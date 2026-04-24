@@ -867,7 +867,7 @@ export default function OperationalNodeDrawer({
               Gerar com IA
             </Button>
             {onOpenChat && (
-              <Button onClick={() => onOpenChat(node.id)} size="sm" variant="outline" className="h-7 gap-1.5 text-[11px]">
+              <Button onClick={() => { onOpenChange(false); onOpenChat(node.id); }} size="sm" variant="outline" className="h-7 gap-1.5 text-[11px]">
                 <MessageCircle className="h-3 w-3" />
                 Chat
               </Button>
