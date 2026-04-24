@@ -32,6 +32,7 @@ import ClientDrive from "@/components/workspace/ClientDrive";
 import AIFirstScoreCard from "@/components/workspace/AIFirstScoreCard";
 import HealthScoreCard from "@/components/workspace/HealthScoreCard";
 import ICPFitScoreCard from "@/components/workspace/ICPFitScoreCard";
+import PromptLibraryDialog from "@/components/workspace/PromptLibraryDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { getStagePremiumLabel, PIPELINE_STAGES_ORDERED } from "@/components/workspace/aceleraConstants";
@@ -154,6 +155,7 @@ export default function WorkspaceDetailPage() {
   const [changingStage, setChangingStage] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") ?? "resumo");
+  const [promptLibraryOpen, setPromptLibraryOpen] = useState(false);
   const [canvasStatus] = useState<string | null>(searchParams.get("status"));
 
   const load = async () => {
@@ -329,6 +331,16 @@ export default function WorkspaceDetailPage() {
                   Vincule o cliente ao portal →
                 </button>
               )}
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs gap-1.5"
+                onClick={() => setPromptLibraryOpen(true)}
+                title="Biblioteca de prompts IA calibrados"
+              >
+                <Sparkles className="h-3 w-3" />
+                Prompts IA
+              </Button>
               <Button
                 size="sm"
                 className="h-8 text-xs gap-1.5"
@@ -558,6 +570,12 @@ export default function WorkspaceDetailPage() {
           </TabsContent>
         </div>
       </Tabs>
+
+      <PromptLibraryDialog
+        open={promptLibraryOpen}
+        onOpenChange={setPromptLibraryOpen}
+        clientId={ws.client_id}
+      />
     </div>
   );
 }
