@@ -114,11 +114,15 @@ export function useNodePrefill({
     (sectionId: string, fieldId: string, value: PrefillFieldValue) => {
       setPrefill((curr) => {
         if (!curr) return curr;
+        const prevSection = curr.sections[sectionId] ?? { fields: {} };
         const next: NodePrefillPayload = {
           ...curr,
           sections: {
             ...curr.sections,
-            [sectionId]: { ...(curr.sections[sectionId] ?? {}), [fieldId]: value },
+            [sectionId]: {
+              ...prevSection,
+              fields: { ...(prevSection.fields ?? {}), [fieldId]: value },
+            },
           },
         };
         persistLocal(next);
@@ -129,10 +133,16 @@ export function useNodePrefill({
   );
 
   const updateMethod = useCallback(
-    (method: MethodChecklistState[]) => {
+    (itemId: string, done: boolean) => {
       setPrefill((curr) => {
         if (!curr) return curr;
-        const next: NodePrefillPayload = { ...curr, method };
+        const method_state: MethodChecklistState = {
+          ...(curr.method_state ?? {}),
+          [itemId]: done
+            ? { done: true, checked_at: new Date().toISOString() }
+            : { done: false },
+        };
+        const next: NodePrefillPayload = { ...curr, method_state };
         persistLocal(next);
         return next;
       });
@@ -140,5 +150,13 @@ export function useNodePrefill({
     [persistLocal]
   );
 
-  return { prefill, status, error, regenerate, updateField, updateMethod };
+  return {
+    prefill,
+    status,
+    error,
+    generate: run,
+    regenerate,
+    updateField,
+    updateMethod,
+  };
 }
