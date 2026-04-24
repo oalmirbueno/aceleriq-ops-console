@@ -13,6 +13,7 @@ import ICPFitScoreCard from "@/components/workspace/ICPFitScoreCard";
 import DiagnosticQuizDialog from "@/components/workspace/DiagnosticQuizDialog";
 import ImportLeadsDialog from "@/components/workspace/ImportLeadsDialog";
 import ProjectTypeBadge from "@/components/workspace/ProjectTypeBadge";
+import ClientTypeEditorDialog from "@/components/workspace/ClientTypeEditorDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -87,6 +88,7 @@ export default function ClientsPage() {
   const [briefingClient, setBriefingClient] = useState<Client | null>(null);
   const [quizClient, setQuizClient] = useState<Client | null>(null);
   const [importLeadsOpen, setImportLeadsOpen] = useState(false);
+  const [typeEditorClient, setTypeEditorClient] = useState<Client | null>(null);
 
   const fetchClients = async () => {
     setLoading(true);
@@ -227,7 +229,14 @@ export default function ClientsPage() {
                     <TableRow key={c.id} className="cursor-pointer" onClick={() => c.workspaces[0] ? openWorkspace(c) : undefined}>
                       <TableCell className="font-medium text-foreground">{c.name}</TableCell>
                       <TableCell>
-                        <ProjectTypeBadge type={c.project_type} variant="compact" />
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setTypeEditorClient(c); }}
+                          className="hover:opacity-80 transition-opacity"
+                          title="Editar tipo, plano e valor customizado"
+                        >
+                          <ProjectTypeBadge type={c.project_type} variant="compact" />
+                        </button>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{c.company_name ?? "—"}</TableCell>
                       <TableCell>
@@ -341,6 +350,18 @@ export default function ClientsPage() {
         onOpenChange={setImportLeadsOpen}
         onImported={fetchClients}
       />
+      {typeEditorClient && (
+        <ClientTypeEditorDialog
+          open={!!typeEditorClient}
+          onOpenChange={(open) => !open && setTypeEditorClient(null)}
+          clientId={typeEditorClient.id}
+          clientName={typeEditorClient.name}
+          initialType={typeEditorClient.project_type}
+          initialCustomValue={typeEditorClient.custom_monthly_value}
+          initialPlan={typeEditorClient.plan_name}
+          onSaved={fetchClients}
+        />
+      )}
     </>
   );
 }
