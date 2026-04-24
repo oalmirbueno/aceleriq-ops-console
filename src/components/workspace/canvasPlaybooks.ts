@@ -258,6 +258,7 @@ export const PLAYBOOKS: Record<PlanKey, Playbook> = {
   starter:    PLAYBOOK_FUNDACAO,
   growth:     PLAYBOOK_ACELERACAO,
   enterprise: PLAYBOOK_ESCALA,
+  marketing:  PLAYBOOK_FUNDACAO,
 };
 
 export function getPlaybookForPlan(planName: string | null | undefined): Playbook | null {

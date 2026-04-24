@@ -21,6 +21,7 @@ const PLAN_META: Record<PlanKey, { icon: React.ElementType; hsl: string; letter:
   starter:    { icon: Shield, hsl: "145 60% 46%", letter: "F" }, // primary green
   growth:     { icon: Rocket, hsl: "200 70% 58%", letter: "A" }, // info blue
   enterprise: { icon: Crown,  hsl: "43 80% 58%",  letter: "E" }, // gold
+  marketing:  { icon: Sparkles, hsl: "330 70% 60%", letter: "M" }, // pink
 };
 
 interface Props {

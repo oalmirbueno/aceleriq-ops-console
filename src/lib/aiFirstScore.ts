@@ -39,6 +39,7 @@ export const AI_FIRST_TARGETS: Record<PlanKey, number> = {
   starter:    15,
   growth:     50,
   enterprise: 85,
+  marketing:  10,
 };
 
 export interface AIFirstScore {
