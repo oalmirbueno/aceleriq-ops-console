@@ -65,7 +65,8 @@ export type ProjectNodeKind =
   | "conteudo" | "trafego" | "email_mkt" | "social"
   | "crm" | "checklist" | "asset" | "metrica"
   | "before_after" | "case" | "video" | "imagem"
-  | "contato" | "objetivo" | "lancamento";
+  | "contato" | "objetivo" | "lancamento"
+  | "ai_orb";
 
 export type NodeFamily =
   | "entry" | "structure" | "plan" | "build"
@@ -152,6 +153,7 @@ const KIND_TO_FAMILY: Record<ProjectNodeKind, NodeFamily> = {
   lancamento: "launch", trafego: "launch", email_mkt: "launch", social: "launch",
   crm: "growth", metrica: "proof",
   before_after: "proof", case: "proof",
+  ai_orb: "tech",
 };
 
 export function getNodeFamily(kind: string): NodeFamily {
@@ -208,7 +210,7 @@ export const PROJECT_TYPE_GROUPS: Array<{ stage: AceleraStageKey; types: Project
 ];
 
 /** Map ProjectNodeKind → DB node_type enum value (existing canvas_nodes.node_type uses CanvasNodeType) */
-export function projectKindToDbNodeType(kind: ProjectNodeKind): string { switch (kind) { case "site": return "site"; case "landing_page": return "landing_page"; case "automacao": return "automation"; case "ia": return "ai_agent"; case "agente": return "ai_agent"; case "conteudo": return "content"; case "video": return "content"; case "imagem": return "content"; case "social": return "content"; case "email_mkt": return "content"; case "trafego": return "traffic"; case "lancamento": return "traffic"; case "metrica": return "metric"; case "before_after": return "before_after"; case "case": return "case"; case "asset": return "asset"; case "briefing": case "contexto_ops": case "reuniao": case "ideia": case "objetivo": case "acessos": case "contato": case "documento": return "context"; case "checklist": return "task"; case "crm": return "front"; case "funil": return "front"; case "integracao": return "front"; case "instrucao": return "front"; case "engine": return "front"; case "resultado": return "front"; case "decisao": return "front"; default: return "front"; } }
+export function projectKindToDbNodeType(kind: ProjectNodeKind): string { switch (kind) { case "site": return "site"; case "landing_page": return "landing_page"; case "automacao": return "automation"; case "ia": return "ai_agent"; case "agente": return "ai_agent"; case "ai_orb": return "ai_agent"; case "conteudo": return "content"; case "video": return "content"; case "imagem": return "content"; case "social": return "content"; case "email_mkt": return "content"; case "trafego": return "traffic"; case "lancamento": return "traffic"; case "metrica": return "metric"; case "before_after": return "before_after"; case "case": return "case"; case "asset": return "asset"; case "briefing": case "contexto_ops": case "reuniao": case "ideia": case "objetivo": case "acessos": case "contato": case "documento": return "context"; case "checklist": return "task"; case "crm": return "front"; case "funil": return "front"; case "integracao": return "front"; case "instrucao": return "front"; case "engine": return "front"; case "resultado": return "front"; case "decisao": return "front"; default: return "front"; } }
 
 /** Reverse lookup helper from stored data.kind */
 export function readKindFromData(data: Record<string, unknown> | null | undefined): ProjectNodeKind | null {
