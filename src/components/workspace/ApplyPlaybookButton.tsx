@@ -1,37 +1,52 @@
 /**
- * ApplyPlaybookButton — botão que aplica a esteira automática baseada no plano do cliente.
+ * ApplyPlaybookButton — botão que abre dialog com TODOS os playbooks disponíveis.
  *
- * Ao clicar:
- *  1. Busca o playbook correspondente ao plano do cliente
- *  2. Cria todos os nodes + edges automaticamente
- *  3. Registra evento na timeline
- *  4. Opcionalmente sincroniza com o portal (passo futuro)
+ * Agora é um SELETOR, não mais aplica direto. Usuário:
+ *  1. Clica em "Aplicar Playbook"
+ *  2. Dialog abre com lista de playbooks (por tipo + por plano)
+ *  3. Playbook sugerido (baseado no tipo do cliente) aparece destacado
+ *  4. Usuário escolhe qual aplicar
+ *  5. Preview + confirmação + aplicação
  */
 import { useState, useMemo } from "react";
-import { Sparkles, Loader2, Rocket, AlertCircle, CheckCircle2, X } from "lucide-react";
+import {
+  Sparkles, Loader2, Rocket, AlertCircle, CheckCircle2, X, ChevronRight,
+  Globe, Workflow, Bot, Megaphone, Package,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { getPlaybookForPlan, playbookPos, type Playbook } from "./canvasPlaybooks";
-import { getPlaybookForType } from "./typePlaybooks";
-import { getPlanConfig } from "@/lib/planConfig";
-import { getProjectTypeMeta } from "@/lib/projectTypes";
+import { getPlaybookForPlan, playbookPos, type Playbook, PLAYBOOKS } from "./canvasPlaybooks";
+import { TYPE_PLAYBOOKS, getPlaybookForType } from "./typePlaybooks";
+import { getPlanConfig, type PlanKey } from "@/lib/planConfig";
+import { getProjectTypeMeta, type ProjectType } from "@/lib/projectTypes";
 import { projectKindToDbNodeType } from "./canvasProjectTypes";
+import { cn } from "@/lib/utils";
+
+const TYPE_ICONS = { Globe, Workflow, Bot, Megaphone };
+
+interface PlaybookOption {
+  key: string;
+  source: "type" | "plan";
+  name: string;
+  description: string;
+  nodeCount: number;
+  edgeCount: number;
+  playbook: Omit<Playbook, "planKey"> | Playbook;
+  color?: string;
+  icon?: string;
+  suggested?: boolean;
+}
 
 interface Props {
   workspaceId: string;
   clientId: string;
   clientName: string;
   planName: string | null;
-  /** Tipo de projeto do cliente — determina qual playbook usar */
   projectType?: string | null;
-  /** Parent node id (cliente folder no canvas) */
   parentNodeId: string | null;
-  /** Usuário confirma antes de aplicar? default true */
-  confirm?: boolean;
-  /** Current nodes count — usado para avisar se canvas não está vazio */
   currentNodeCount?: number;
   onApplied?: () => Promise<void> | void;
   variant?: "button" | "toolbar";
@@ -39,31 +54,83 @@ interface Props {
 
 export default function ApplyPlaybookButton({
   workspaceId, clientId, clientName, planName, projectType, parentNodeId,
-  currentNodeCount = 0, onApplied, variant = "toolbar",
+  currentNodeCount = 0, onApplied,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
 
-  // Prioriza: playbook por tipo (site/auto/agente/marketing) > playbook por plano (AI-First)
-  const playbook = useMemo<Omit<Playbook, "planKey"> | Playbook | null>(() => {
-    const typePb = getPlaybookForType(projectType);
-    if (typePb) return typePb;
-    return getPlaybookForPlan(planName);
+  // Build playbook options list
+  const options = useMemo<PlaybookOption[]>(() => {
+    const list: PlaybookOption[] = [];
+
+    // Playbooks por plano (AI-First tracks)
+    const PLAN_META: Record<string, { label: string; color: string }> = {
+      starter: { label: "Fundação", color: "#00FF88" },
+      growth: { label: "Aceleração", color: "#60A5FA" },
+      enterprise: { label: "Escala IA-First", color: "#FBBF24" },
+    };
+    (["starter", "growth", "enterprise"] as const).forEach((planKey) => {
+      const pb = PLAYBOOKS[planKey];
+      if (!pb) return;
+      list.push({
+        key: `plan:${planKey}`,
+        source: "plan",
+        name: `${pb.name} (AI-First)`,
+        description: pb.description,
+        nodeCount: pb.nodes.length,
+        edgeCount: pb.edges.length,
+        playbook: pb,
+        color: PLAN_META[planKey].color,
+        icon: "Sparkles",
+        suggested: !projectType || projectType === "ai_first" ? (planName === planKey) : false,
+      });
+    });
+
+    // Playbooks por tipo (one-shots + marketing)
+    const TYPE_META_MAP: Record<string, { color: string; icon: string }> = {
+      one_shot_site: { color: "#60A5FA", icon: "Globe" },
+      one_shot_automation: { color: "#FB923C", icon: "Workflow" },
+      one_shot_agent: { color: "#06B6D4", icon: "Bot" },
+      marketing_service: { color: "#F472B6", icon: "Megaphone" },
+    };
+    Object.entries(TYPE_PLAYBOOKS).forEach(([type, pb]) => {
+      if (!pb) return;
+      const meta = TYPE_META_MAP[type];
+      list.push({
+        key: `type:${type}`,
+        source: "type",
+        name: pb.name,
+        description: pb.description,
+        nodeCount: pb.nodes.length,
+        edgeCount: pb.edges.length,
+        playbook: pb,
+        color: meta?.color,
+        icon: meta?.icon,
+        suggested: projectType === type,
+      });
+    });
+
+    return list;
   }, [projectType, planName]);
 
-  const typeMeta = getProjectTypeMeta(projectType);
-  const planLabel = planName ? getPlanConfig()[planName as keyof ReturnType<typeof getPlanConfig>]?.label ?? planName : null;
-  const playbookLabel = playbook?.name ?? typeMeta.shortLabel ?? planLabel;
+  const selected = options.find((o) => o.key === selectedKey);
+  const suggested = options.find((o) => o.suggested);
+
+  const openDialog = () => {
+    setOpen(true);
+    setSelectedKey(suggested?.key ?? null);
+  };
 
   const handleApply = async () => {
-    if (!playbook || !parentNodeId) {
-      toast({ title: "Não foi possível aplicar", description: "Plano não reconhecido ou pasta do cliente não encontrada.", variant: "destructive" });
+    if (!selected || !parentNodeId) {
+      toast({ title: "Selecione um playbook", variant: "destructive" });
       return;
     }
     setApplying(true);
     try {
-      // Posições relativas → absolutas + node_type
-      const nodesToInsert = playbook.nodes.map((n) => {
+      const pb = selected.playbook;
+      const nodesToInsert = pb.nodes.map((n) => {
         const pos = playbookPos(n.col, n.row);
         return {
           workspace_id: workspaceId,
@@ -85,14 +152,12 @@ export default function ApplyPlaybookButton({
         .select();
       if (nErr) throw new Error(nErr.message);
 
-      // Mapear ref → id de DB
       const refToId = new Map<string, string>();
       (created as Array<{ id: string }> | null)?.forEach((row, i) => {
-        refToId.set(playbook.nodes[i].ref, row.id);
+        refToId.set(pb.nodes[i].ref, row.id);
       });
 
-      // Criar edges
-      const edgesToInsert = playbook.edges.map((e) => {
+      const edgesToInsert = pb.edges.map((e) => {
         const src = refToId.get(e.fromRef);
         const tgt = refToId.get(e.toRef);
         if (!src || !tgt) return null;
@@ -109,19 +174,18 @@ export default function ApplyPlaybookButton({
         await supabase.from("canvas_edges").insert(edgesToInsert);
       }
 
-      // Timeline event
       await supabase.from("timeline_events").insert({
         workspace_id: workspaceId,
         client_id: clientId,
         event_type: "playbook_applied",
-        title: `Playbook "${playbook.name}" aplicado`,
-        description: `Esteira automática do plano ${planLabel}: ${playbook.nodes.length} nodes + ${playbook.edges.length} conexões.`,
+        title: `Playbook "${pb.name}" aplicado`,
+        description: `${pb.nodes.length} nodes + ${pb.edges.length} conexões para ${clientName}.`,
         happened_at: new Date().toISOString(),
       });
 
       toast({
         title: "Playbook aplicado ✓",
-        description: `${playbook.nodes.length} nodes · ${playbook.edges.length} conexões criados para ${clientName}`,
+        description: `${pb.nodes.length} nodes · ${pb.edges.length} conexões criados`,
       });
       setOpen(false);
       await onApplied?.();
@@ -136,113 +200,144 @@ export default function ApplyPlaybookButton({
     }
   };
 
-  // Se não tem plano, não mostra
-  if (!planName || !playbook) {
-    return (
-      <Button
-        size="sm" variant="outline" className="h-8 text-xs gap-1.5 opacity-50 cursor-not-allowed"
-        disabled
-        title="Selecione um plano para o cliente primeiro"
-      >
-        <Rocket className="h-3.5 w-3.5" />
-        Aplicar playbook
-      </Button>
-    );
-  }
-
-  // Contagem de nodes por etapa para preview
-  const nodesByStage = playbook.nodes.reduce<Record<string, number>>((acc, n) => {
-    acc[n.stage] = (acc[n.stage] ?? 0) + 1;
-    return acc;
-  }, {});
-
   return (
     <>
       <Button
-        onClick={() => setOpen(true)}
+        onClick={openDialog}
         disabled={!parentNodeId}
         size="sm"
         variant="outline"
         className="h-8 text-xs gap-1.5"
-        title={`Aplicar esteira automática do plano ${planLabel}`}
+        title="Escolher e aplicar playbook no canvas"
       >
         <Rocket className="h-3.5 w-3.5" />
-        Playbook {planLabel}
+        Playbook
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg p-0 gap-0">
-          <DialogHeader className="px-5 py-4 border-b border-border">
+        <DialogContent className="max-w-3xl w-full max-h-[88vh] p-0 gap-0 flex flex-col overflow-hidden">
+          <DialogHeader className="px-5 py-4 border-b border-border shrink-0">
             <DialogTitle className="flex items-center gap-2 text-base">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 border border-primary/30">
                 <Rocket className="h-4 w-4 text-primary" />
               </div>
-              Aplicar playbook {playbook.name}
+              Escolher Playbook para {clientName}
             </DialogTitle>
-            <DialogDescription className="text-xs pt-1">
-              {playbook.description}
+            <DialogDescription className="text-xs">
+              Selecione o fluxo de canvas mais adequado para este projeto. Cada playbook cria nodes pré-organizados por etapa ACELERA.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="px-5 py-4 space-y-4">
-            {/* Resumo */}
-            <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 text-center">
-                <p className="text-2xl font-bold text-primary tabular-nums">{playbook.nodes.length}</p>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Nodes</p>
-              </div>
-              <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 text-center">
-                <p className="text-2xl font-bold text-primary tabular-nums">{playbook.edges.length}</p>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Conexões</p>
-              </div>
-              <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 text-center">
-                <p className="text-2xl font-bold text-primary tabular-nums">{Object.keys(nodesByStage).length}</p>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Etapas</p>
+          {/* Warning se canvas tem nodes */}
+          {currentNodeCount > 0 && (
+            <div className="px-5 py-2 border-b border-amber-400/30 bg-amber-400/5">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  <span className="font-semibold text-amber-400">{currentNodeCount} nodes</span> já existem. Playbook ADICIONA (não remove os existentes).
+                </p>
               </div>
             </div>
+          )}
 
-            {/* Breakdown por etapa */}
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
-                Nodes por etapa ACELERA
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {Object.entries(nodesByStage).map(([stage, count]) => (
-                  <Badge key={stage} variant="outline" className="text-[10px]">
-                    {stage.replace(/_/g, " ")} · {count}
-                  </Badge>
-                ))}
-              </div>
+          {/* Lista de playbooks */}
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4">
+            <div className="space-y-2">
+              {options.map((opt) => {
+                const isSelected = opt.key === selectedKey;
+                const Icon = opt.icon ? (TYPE_ICONS[opt.icon as keyof typeof TYPE_ICONS] ?? Sparkles) : Sparkles;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setSelectedKey(opt.key)}
+                    className={cn(
+                      "w-full text-left rounded-xl border-2 p-4 transition-all flex items-start gap-3",
+                      isSelected
+                        ? "bg-opacity-10"
+                        : "border-border hover:border-primary/30 hover:bg-secondary/30"
+                    )}
+                    style={isSelected ? {
+                      borderColor: opt.color ?? "#00FF88",
+                      background: `${opt.color ?? "#00FF88"}10`,
+                    } : undefined}
+                  >
+                    <div
+                      className="flex h-10 w-10 items-center justify-center rounded-lg shrink-0"
+                      style={{
+                        background: `${opt.color ?? "#00FF88"}15`,
+                        border: `1px solid ${opt.color ?? "#00FF88"}40`,
+                      }}
+                    >
+                      <Icon className="h-5 w-5" style={{ color: opt.color ?? "#00FF88" }} />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <p className="text-sm font-semibold" style={{ color: isSelected ? opt.color : undefined }}>
+                          {opt.name}
+                        </p>
+                        {opt.suggested && (
+                          <Badge
+                            className="text-[9px] px-1.5 py-0 h-4 border"
+                            style={{
+                              background: `${opt.color ?? "#00FF88"}20`,
+                              color: opt.color ?? "#00FF88",
+                              borderColor: `${opt.color ?? "#00FF88"}40`,
+                            }}
+                          >
+                            ✓ sugerido pelo tipo
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
+                          {opt.nodeCount} nodes
+                        </Badge>
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
+                          {opt.edgeCount} conexões
+                        </Badge>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-snug">
+                        {opt.description}
+                      </p>
+                    </div>
+
+                    <ChevronRight className={cn("h-4 w-4 shrink-0 mt-1 transition-all",
+                      isSelected ? "opacity-100" : "opacity-30")}
+                      style={isSelected ? { color: opt.color } : undefined}
+                    />
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Warning se canvas não está vazio */}
-            {currentNodeCount > 0 && (
-              <div className="rounded-lg border border-amber-400/30 bg-amber-400/5 p-3">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-amber-400">
-                      Canvas não está vazio
-                    </p>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">
-                      {currentNodeCount} nodes já existem para este cliente. Os nodes do playbook serão adicionados SEM remover os atuais.
-                      Se quiser esteira limpa, apague os nodes existentes antes.
-                    </p>
-                  </div>
-                </div>
+            {options.length === 0 && (
+              <div className="text-center py-10">
+                <Package className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">Nenhum playbook disponível.</p>
               </div>
             )}
           </div>
 
-          <div className="px-5 py-3 border-t border-border flex items-center justify-end gap-2">
-            <Button onClick={() => setOpen(false)} variant="outline" size="sm" className="h-8 text-xs">
-              Cancelar
-            </Button>
-            <Button onClick={handleApply} disabled={applying || !parentNodeId} size="sm"
-              className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground">
-              {applying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-              Aplicar esteira
-            </Button>
+          <div className="px-5 py-3 border-t border-border flex items-center justify-between gap-2 shrink-0">
+            <p className="text-[11px] text-muted-foreground">
+              {selected
+                ? `Aplicará "${selected.name}" com ${selected.nodeCount} nodes`
+                : "Selecione um playbook acima"}
+            </p>
+            <div className="flex gap-2">
+              <Button onClick={() => setOpen(false)} variant="ghost" size="sm" className="h-8 text-xs">
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleApply}
+                disabled={!selected || applying || !parentNodeId}
+                size="sm"
+                className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground"
+              >
+                {applying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                Aplicar playbook
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
