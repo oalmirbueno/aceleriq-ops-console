@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import BeforeAfterRecordDialog, { type BeforeAfterRecord } from "./BeforeAfterRecordDialog";
+import BeforeAfterAutoPanel from "./BeforeAfterAutoPanel";
 import {
   BEFORE_AFTER_STATUS_OPTIONS,
   getBeforeAfterStatusColor,
@@ -75,6 +76,9 @@ export default function WorkspaceTabBeforeAfter({ workspaceId, clientId, onTimel
 
   return (
     <div className="space-y-4 animate-fade-in">
+      {/* ═══ AUTO panel — before/after calculado automaticamente das métricas ═══ */}
+      <BeforeAfterAutoPanel workspaceId={workspaceId} clientId={clientId} />
+
       {/* Header */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
