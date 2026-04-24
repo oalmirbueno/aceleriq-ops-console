@@ -40,6 +40,7 @@ import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 import { AI_ORBS, createAiOrbData } from "./aiOrbConstants";
 import { generatedNodePosition, validateOrbConnection } from "./aiOrbConnections";
 import { invokeAiOrbGenerate, nextOrbDataAfterGeneration, readAiOrbData } from "./aiOrbEngine";
+import type { AgentId } from "@/lib/aiAgents";
 
 // CanvasStudio é uma camada visual operacional complementar: não substitui o briefing mestre,
 // não cria nova lógica/tabela de sinais estruturados e não usa IA opaca como núcleo decisório.
@@ -1209,13 +1210,13 @@ function CanvasStudioInner({
     });
   }, [aiOrbConfigNode]);
 
-  const generateFromAiOrb = useCallback(async (options: { agentId: string; customPrompt: string; targetNodes: number; model?: string } | boolean = {} as any) => {
+  const generateFromAiOrb = useCallback(async (options: { agentId: AgentId; customPrompt: string; targetNodes: number; model?: string } | boolean = {} as any) => {
     if (!aiOrbConfigNode) return;
 
     // Compat: se vier boolean (chamada antiga), converte pra deterministic
     const opts = typeof options === "boolean"
-      ? { agentId: "strategist", customPrompt: "", targetNodes: 10, deterministic: options }
-      : { agentId: options.agentId ?? "strategist", customPrompt: options.customPrompt ?? "", targetNodes: options.targetNodes ?? 10, model: options.model, deterministic: false };
+      ? { agentId: "strategist" as AgentId, customPrompt: "", targetNodes: 10, deterministic: options }
+      : { agentId: (options.agentId ?? "strategist") as AgentId, customPrompt: options.customPrompt ?? "", targetNodes: options.targetNodes ?? 10, model: options.model, deterministic: false };
 
     const orb = readAiOrbData(aiOrbConfigNode.data as Record<string, unknown> | null);
     const generatingData = { ...orb, isGenerating: true, lastError: undefined };
