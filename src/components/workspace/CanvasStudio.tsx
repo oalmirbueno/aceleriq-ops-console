@@ -1209,7 +1209,7 @@ function CanvasStudioInner({
     });
   }, [aiOrbConfigNode]);
 
-  const generateFromAiOrb = useCallback(async (deterministic = false) => {
+  const generateFromAiOrb = useCallback(async (options?: { agentId?: string; customPrompt?: string; targetNodes?: number; model?: string; deterministic?: boolean }) => {
     if (!aiOrbConfigNode) return;
     const orb = readAiOrbData(aiOrbConfigNode.data as Record<string, unknown> | null);
     const generatingData = { ...orb, isGenerating: true, lastError: undefined };
@@ -1225,9 +1225,12 @@ function CanvasStudioInner({
         clientId,
         orbType: orb.orbType,
         aiEngine: orb.aiEngine,
-        customPrompt: orb.systemPrompt,
+        customPrompt: options?.customPrompt || orb.systemPrompt,
         focusAreas: orb.focusAreas,
-        deterministic,
+        deterministic: options?.deterministic ?? false,
+        agentId: options?.agentId as never,
+        targetNodes: options?.targetNodes,
+        model: options?.model,
       });
       const orbX = Number(aiOrbConfigNode.pos_x ?? OPS_FLOW_X.engine);
       const orbY = Number(aiOrbConfigNode.pos_y ?? CONTENT_TOP + 520);
