@@ -35,7 +35,7 @@ export function useNodePrefill({
   const callEdge = useCallback(
     async (force: boolean, cacheOnly: boolean) => {
       if (!blueprint) throw new Error("Sem blueprint pra esse tipo de node");
-      const { data, error } = await supabase.functions.invoke("prefill-node", {
+      const { data, error } = await supabase.functions.invoke("prefill-node-v2", {
         body: {
           nodeId, workspaceId, clientId,
           blueprint: {
@@ -47,7 +47,6 @@ export function useNodePrefill({
                 id: f.id, label: f.label, type: f.type, hint: f.hint, decisionOnly: f.decisionOnly,
               })),
             })),
-            // Auto-contexto UNIVERSAL: une fontes do blueprint + Dossiê/Tasks/Métricas/Assets/Timeline.
             sources: expandUniversalSources(blueprint.sources),
             prefillPrompt: blueprint.prefillPrompt,
           },
@@ -58,122 +57,88 @@ export function useNodePrefill({
       if (data?.error) throw new Error(data.error);
       return data as { prefill: NodePrefillPayload | null; cached: boolean };
     },
-    [nodeId, workspaceId, clientId, blueprint],
+    [blueprint, nodeId, workspaceId, clientId]
   );
 
-  // Mount: try cache
-  useEffect(() => {
-    if (!enabled || !blueprint || !nodeId) return;
-    let cancelled = false;
-    triedAutoRef.current = false;
-    setStatus("loading");
-    setError(null);
-    callEdge(false, true)
-      .then((res) => {
-        if (cancelled) return;
-        if (res.prefill) {
-          setPrefill(res.prefill);
-          setStatus("ready");
-        } else {
-          setStatus("idle"); // empty — drawer mostra CTA "Auto-preencher"
+  const run = useCallback(
+    async (force: boolean) => {
+      if (!enabled || !blueprint) return;
+      setStatus(force ? "generating" : "loading");
+      setError(null);
+      try {
+        // Tenta cache primeiro
+        if (!force) {
+          const cacheResult = await callEdge(false, true);
+          if (cacheResult.prefill) {
+            setPrefill(cacheResult.prefill);
+            setStatus("ready");
+            return;
+          }
         }
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setError(e instanceof Error ? e.message : "Erro");
-        setStatus("error");
-      });
-    return () => { cancelled = true; };
-  }, [enabled, blueprint, nodeId, callEdge]);
-
-  const generate = useCallback(async (force = false) => {
-    if (!blueprint) return;
-    setStatus("generating");
-    setError(null);
-    try {
-      const res = await callEdge(force, false);
-      if (res.prefill) {
-        setPrefill(res.prefill);
+        // Gera
+        setStatus("generating");
+        const result = await callEdge(force, false);
+        setPrefill(result.prefill);
         setStatus("ready");
-      } else {
-        setStatus("idle");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Erro ao gerar prefill");
+        setStatus("error");
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro");
-      setStatus("error");
-    }
-  }, [blueprint, callEdge]);
+    },
+    [callEdge, enabled, blueprint]
+  );
 
-  // Auto-trigger first time when status=idle (lazy: only when drawer is visible)
+  // Auto-dispara na montagem
   useEffect(() => {
-    if (status === "idle" && enabled && blueprint && !triedAutoRef.current) {
-      triedAutoRef.current = true;
-      generate(false);
-    }
-  }, [status, enabled, blueprint, generate]);
+    if (!enabled || triedAutoRef.current) return;
+    triedAutoRef.current = true;
+    void run(false);
+  }, [enabled, run]);
 
-  // ── Mutations (debounced persist)
-  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const persistRef = useRef<NodePrefillPayload | null>(null);
-  persistRef.current = prefill;
+  const regenerate = useCallback(() => run(true), [run]);
 
-  const schedulePersist = useCallback(() => {
-    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
-    persistTimerRef.current = setTimeout(async () => {
-      const current = persistRef.current;
-      if (!current) return;
-      // read current metadata, merge prefill, update
-      const { data: cur } = await supabase
-        .from("canvas_nodes").select("metadata").eq("id", nodeId).maybeSingle();
-      const newMeta = { ...(cur?.metadata as Record<string, unknown> | null ?? {}), prefill: current };
-      await supabase.from("canvas_nodes")
-        .update({ metadata: newMeta, updated_at: new Date().toISOString() })
-        .eq("id", nodeId);
-    }, 800);
-  }, [nodeId]);
+  const persistDebouncedRef = useRef<number | null>(null);
+  const persistLocal = useCallback(
+    (next: NodePrefillPayload) => {
+      if (persistDebouncedRef.current) window.clearTimeout(persistDebouncedRef.current);
+      persistDebouncedRef.current = window.setTimeout(async () => {
+        const { data: node } = await supabase.from("canvas_nodes").select("metadata").eq("id", nodeId).maybeSingle();
+        const newMeta = { ...((node?.metadata as Record<string, unknown>) ?? {}), prefill: next };
+        await supabase.from("canvas_nodes").update({ metadata: newMeta }).eq("id", nodeId);
+      }, 800);
+    },
+    [nodeId]
+  );
 
-  useEffect(() => () => {
-    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
-  }, []);
+  const updateField = useCallback(
+    (sectionId: string, fieldId: string, value: PrefillFieldValue) => {
+      setPrefill((curr) => {
+        if (!curr) return curr;
+        const next: NodePrefillPayload = {
+          ...curr,
+          sections: {
+            ...curr.sections,
+            [sectionId]: { ...(curr.sections[sectionId] ?? {}), [fieldId]: value },
+          },
+        };
+        persistLocal(next);
+        return next;
+      });
+    },
+    [persistLocal]
+  );
 
-  const updateField = useCallback((sectionId: string, fieldId: string, next: PrefillFieldValue) => {
-    setPrefill((prev) => {
-      if (!prev) return prev;
-      const sections = { ...prev.sections };
-      const section = sections[sectionId] ?? { fields: {} };
-      sections[sectionId] = { ...section, fields: { ...section.fields, [fieldId]: next } };
-      return { ...prev, sections };
-    });
-    schedulePersist();
-  }, [schedulePersist]);
+  const updateMethod = useCallback(
+    (method: MethodChecklistState[]) => {
+      setPrefill((curr) => {
+        if (!curr) return curr;
+        const next: NodePrefillPayload = { ...curr, method };
+        persistLocal(next);
+        return next;
+      });
+    },
+    [persistLocal]
+  );
 
-  const updateMethod = useCallback((itemId: string, done: boolean) => {
-    setPrefill((prev) => {
-      const base: NodePrefillPayload = prev ?? {
-        blueprint_kind: blueprint?.kind ?? "",
-        sections: {},
-        method_state: {},
-        sources_used: [],
-        generated_at: new Date().toISOString(),
-        ai_model: "manual",
-        schema_version: 1,
-      };
-      const ms: MethodChecklistState = { ...(base.method_state ?? {}) };
-      ms[itemId] = done
-        ? { done: true, checked_at: new Date().toISOString() }
-        : { done: false };
-      return { ...base, method_state: ms };
-    });
-    schedulePersist();
-  }, [blueprint, schedulePersist]);
-
-  return {
-    prefill,
-    status,
-    error,
-    generate,
-    regenerate: () => generate(true),
-    updateField,
-    updateMethod,
-  };
+  return { prefill, status, error, regenerate, updateField, updateMethod };
 }
