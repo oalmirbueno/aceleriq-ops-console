@@ -26,3 +26,6 @@ verify_jwt = true
 
 [functions.receive-lead]
 verify_jwt = false
+
+[functions.receive-portal-sync]
+verify_jwt = false
