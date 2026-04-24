@@ -350,6 +350,9 @@ function CanvasStudioInner({
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Mantém refs estáveis sincronizados
+  useEffect(() => { fetchDataRef.current = fetchData; }, [fetchData]);
+
   /* Derive groups (clients) and per-stage lanes */
   const clientGroups = useMemo(
     () => dbNodes
@@ -412,6 +415,13 @@ function CanvasStudioInner({
   const quickConnectFromNode = useCallback((sourceId: string, dir: "right" | "bottom") => {
     setQuickAddState({ open: true, sourceId, dir });
   }, []);
+
+  // Refs estáveis pra handlers passados dentro de data dos nodes
+  // Evita que reactFlowNodes seja invalidado sempre que fetchData/handleDeleteNode mudam
+  const fetchDataRef = useRef<() => Promise<void>>();
+  const handleDeleteNodeRef = useRef<(id: string) => Promise<void>>();
+  const stableOnPrefilled = useCallback(() => { void fetchDataRef.current?.(); }, []);
+  const stableOnDeleteNode = useCallback((id: string) => { void handleDeleteNodeRef.current?.(id); }, []);
 
   const visibleCanvasNodes = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
@@ -573,16 +583,16 @@ function CanvasStudioInner({
           operationalMeta,
           nodeId: n.id,
           workspaceId,
-          onPrefilled: fetchData,
+          onPrefilled: stableOnPrefilled,
           onQuickConnect: (dir: "right" | "bottom") => quickConnectFromNode(n.id, dir),
-          onDelete: () => { void handleDeleteNode(n.id); },
+          onDelete: () => stableOnDeleteNode(n.id),
           canExpandHub: nodeKindOf(n) === "engine",
           onExpandHub: () => expandEngineHubRef.current?.(n.id),
           typeData: dataObj,
         } satisfies ProjectNodeData,
       };
     });
-  }, [visibleCanvasNodes, groupMeta, workspaceId, fetchData, quickConnectFromNode, lockedNodes]);
+  }, [visibleCanvasNodes, groupMeta, workspaceId, quickConnectFromNode, lockedNodes, stableOnPrefilled, stableOnDeleteNode, dbEdges, clientId]);
 
   /** Delete edge — instant local update + DB delete. Usado pelo DeletableEdge e context menu. */
   const deleteEdgeById = useCallback(async (edgeId: string) => {
@@ -613,6 +623,17 @@ function CanvasStudioInner({
     toast({ title: newLabel ? "Rótulo atualizado" : "Rótulo removido" });
   }, [fetchData]);
 
+  // Refs estáveis das callbacks para evitar que reactFlowEdges seja invalidado
+  // sempre que deleteEdgeById/editEdgeLabel mudarem de identidade.
+  // As edges passam essas refs no data e DeletableEdge chama através delas.
+  const deleteEdgeByIdRef = useRef(deleteEdgeById);
+  const editEdgeLabelRef = useRef(editEdgeLabel);
+  useEffect(() => { deleteEdgeByIdRef.current = deleteEdgeById; }, [deleteEdgeById]);
+  useEffect(() => { editEdgeLabelRef.current = editEdgeLabel; }, [editEdgeLabel]);
+
+  const stableOnDelete = useCallback((edgeId: string) => deleteEdgeByIdRef.current(edgeId), []);
+  const stableOnEditLabel = useCallback((edgeId: string, label: string | null) => editEdgeLabelRef.current(edgeId, label), []);
+
   const reactFlowEdges = useMemo(() => {
     const visibleIds = new Set(visibleCanvasNodes.map((n) => n.id));
     const visibleById = new Map(visibleCanvasNodes.map((n) => [n.id, n]));
@@ -633,12 +654,12 @@ function CanvasStudioInner({
           markerEnd: { type: MarkerType.ArrowClosed, color: intent.stroke, width: 18, height: 18 },
           style: { stroke: intent.stroke, strokeWidth: intent.strokeWidth },
           data: {
-            onDelete: deleteEdgeById,
-            onEditLabel: editEdgeLabel,
+            onDelete: stableOnDelete,
+            onEditLabel: stableOnEditLabel,
           },
         };
       });
-  }, [dbEdges, visibleCanvasNodes, deleteEdgeById, editEdgeLabel]);
+  }, [dbEdges, visibleCanvasNodes, stableOnDelete, stableOnEditLabel]);
 
   /* DB → ReactFlow — preserva posição LOCAL quando o node já existe no canvas.
    * Motivo: sem isso, ao adicionar/editar qualquer node TODOS os outros voltam
@@ -707,13 +728,20 @@ function CanvasStudioInner({
     setRfEdges((eds) => applyEdgeChanges(changes, eds));
     for (const c of changes) {
       if (c.type === "remove") {
+        // Update otimista — remove do state imediatamente + deleta em background
+        setDbEdges((prev) => prev.filter((e) => e.id !== c.id));
         supabase.from("canvas_edges").delete().eq("id", c.id).then(({ error }) => {
-          if (error) toast({ title: "Erro ao remover conexão", description: error.message, variant: "destructive" });
-          else fetchData();
+          if (error) {
+            toast({ title: "Erro ao remover conexão", description: error.message, variant: "destructive" });
+            // Se falhou, recarrega só as edges (não tudo)
+            supabase.from("canvas_edges").select("*").eq("workspace_id", workspaceId).then(({ data }) => {
+              if (data) setDbEdges(data as CanvasEdgeRecord[]);
+            });
+          }
         });
       }
     }
-  }, [fetchData]);
+  }, [workspaceId]);
 
   const onConnect = useCallback(async (conn: Connection) => {
     if (!conn.source || !conn.target || conn.source === conn.target) return;
@@ -1924,6 +1952,9 @@ function CanvasStudioInner({
       setDbEdges((prev) => prev.filter((e) => e.source_node_id !== id && e.target_node_id !== id));
     }
   };
+
+  // Sincroniza ref para que stableOnDeleteNode use a versão mais recente sem invalidar memos
+  useEffect(() => { handleDeleteNodeRef.current = handleDeleteNode; });
 
   const summary = useMemo(() => ({
     clients: clientGroups.length,
