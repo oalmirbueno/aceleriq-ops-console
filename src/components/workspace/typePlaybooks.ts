@@ -54,6 +54,9 @@ const PLAYBOOK_SITE: Omit<Playbook, "planKey"> = {
     { ref: "orb_insight", kind: "ai_orb",       stage: "otimizacao",     col: STAGE_COL.otimizacao,     row: 0, title: "Orb: Análise de tráfego 30d",  description: "IA analisa dados pós-launch e sugere melhorias." },
     // Expansão
     { ref: "handoff",     kind: "documento",    stage: "expansao",       col: STAGE_COL.expansao,       row: 0, title: "Handoff + tutorial CMS",      description: "Manual de edição, vídeos, acesso." },
+    // Chat IA — apoio ao time
+    { ref: "chat",        kind: "chat_node",    stage: "planejamento",   col: STAGE_COL.planejamento,   row: 1, title: "Chat IA do projeto",          description: "Assistente IA com contexto do briefing, arquitetura e copy.",
+      data: { scope: "workspace", fn: "production", size: "M" } },
   ],
   edges: [
     { fromRef: "brief",     toRef: "orb_ctx",     label: "alimenta" },
@@ -81,6 +84,9 @@ const PLAYBOOK_SITE: Omit<Playbook, "planKey"> = {
     { fromRef: "analytics", toRef: "orb_insight", label: "alimenta" },
     { fromRef: "golive",    toRef: "orb_insight", label: "observa" },
     { fromRef: "orb_insight",toRef: "handoff",    label: "documenta" },
+    // Chat IA
+    { fromRef: "arch",      toRef: "chat",        label: "contextualiza" },
+    { fromRef: "copy",      toRef: "chat",        label: "alimenta" },
   ],
 };
 
@@ -120,6 +126,9 @@ const PLAYBOOK_AUTOMATION: Omit<Playbook, "planKey"> = {
     { ref: "orb_iter",    kind: "ai_orb",     stage: "otimizacao",     col: STAGE_COL.otimizacao,     row: 1, title: "Orb: Insights e iteração",       description: "IA analisa logs e sugere ajustes no fluxo." },
     // Expansão
     { ref: "handoff",     kind: "documento",  stage: "expansao",       col: STAGE_COL.expansao,       row: 0, title: "Documentação + SLA",              description: "Manual, vídeos, canal de suporte." },
+    // Chat IA — copiloto da automação
+    { ref: "chat",        kind: "chat_node",  stage: "planejamento",   col: STAGE_COL.planejamento,   row: 1, title: "Chat IA da Automação",            description: "Copiloto para debug, análise de logs e otimização do fluxo.",
+      data: { scope: "workspace", fn: "analysis", size: "M" } },
   ],
   edges: [
     { fromRef: "brief",        toRef: "orb_ctx",      label: "alimenta" },
@@ -148,6 +157,9 @@ const PLAYBOOK_AUTOMATION: Omit<Playbook, "planKey"> = {
     { fromRef: "monitor",      toRef: "orb_iter",     label: "alimenta" },
     { fromRef: "orb_iter",     toRef: "handoff",      label: "melhora" },
     { fromRef: "governance",   toRef: "handoff",      label: "documenta" },
+    // Chat IA
+    { fromRef: "arch",         toRef: "chat",         label: "contextualiza" },
+    { fromRef: "monitor",      toRef: "chat",         label: "logs" },
   ],
 };
 
@@ -189,6 +201,9 @@ const PLAYBOOK_AGENT: Omit<Playbook, "planKey"> = {
     { ref: "tune",        kind: "ia",         stage: "otimizacao",     col: STAGE_COL.otimizacao,     row: 2, title: "Agente: Prompt refinado",        description: "Nova versão do agente com ajustes." },
     // Expansão
     { ref: "handoff",     kind: "documento",  stage: "expansao",       col: STAGE_COL.expansao,       row: 0, title: "Documentação + SLA",             description: "Manual, canal de ajustes, SLA." },
+    // Chat IA — meta-agente que ajuda a construir o agente
+    { ref: "chat",        kind: "chat_node",  stage: "planejamento",   col: STAGE_COL.planejamento,   row: 1, title: "Chat IA do Projeto",             description: "Assistente para refinar persona, prompt base e guardrails iterativamente.",
+      data: { scope: "workspace", fn: "briefing", size: "L" } },
   ],
   edges: [
     { fromRef: "brief",       toRef: "orb_ctx",      label: "alimenta" },
@@ -219,6 +234,9 @@ const PLAYBOOK_AGENT: Omit<Playbook, "planKey"> = {
     { fromRef: "tune",        toRef: "launch",       label: "substitui" },
     { fromRef: "escalation",  toRef: "launch",       label: "suporta" },
     { fromRef: "tune",        toRef: "handoff",      label: "documenta" },
+    // Chat IA
+    { fromRef: "persona",     toRef: "chat",         label: "alimenta" },
+    { fromRef: "prompt_base", toRef: "chat",         label: "refina" },
   ],
 };
 
@@ -259,6 +277,9 @@ const PLAYBOOK_MARKETING: Omit<Playbook, "planKey"> = {
     { ref: "report",      kind: "documento",    stage: "otimizacao",     col: STAGE_COL.otimizacao,     row: 2, title: "Relatório mensal",               description: "Resultados, aprendizados, plano próximo mês." },
     // Expansão
     { ref: "expand",      kind: "decisao",      stage: "expansao",       col: STAGE_COL.expansao,       row: 0, title: "Decisão de expansão",            description: "Escalar canal que funciona, cortar que não." },
+    // Chat IA — assistente de marketing
+    { ref: "chat",        kind: "chat_node",    stage: "planejamento",   col: STAGE_COL.planejamento,   row: 2, title: "Chat IA de Marketing",           description: "Copiloto para calendário, copy e análise de campanhas.",
+      data: { scope: "workspace", fn: "production", size: "L" } },
   ],
   edges: [
     { fromRef: "brief",       toRef: "orb_ctx",      label: "alimenta" },
@@ -288,6 +309,10 @@ const PLAYBOOK_MARKETING: Omit<Playbook, "planKey"> = {
     { fromRef: "report",      toRef: "expand",       label: "informa" },
     { fromRef: "access",      toRef: "ads_meta",     label: "habilita" },
     { fromRef: "access",      toRef: "email",        label: "habilita" },
+    // Chat IA
+    { fromRef: "icp",         toRef: "chat",         label: "contextualiza" },
+    { fromRef: "calendar",    toRef: "chat",         label: "planeja" },
+    { fromRef: "dash",        toRef: "chat",         label: "métricas" },
   ],
 };
 

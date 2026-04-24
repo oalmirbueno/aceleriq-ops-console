@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { getPlaybookForPlan, playbookPos, type Playbook, PLAYBOOKS } from "./canvasPlaybooks";
+import { calculateLayout, LAYOUT_CONFIG } from "@/lib/canvasAutoLayout";
 import { TYPE_PLAYBOOKS, getPlaybookForType } from "./typePlaybooks";
 import { getPlanConfig, type PlanKey } from "@/lib/planConfig";
 import { getProjectTypeMeta, type ProjectType } from "@/lib/projectTypes";
@@ -130,8 +131,25 @@ export default function ApplyPlaybookButton({
     setApplying(true);
     try {
       const pb = selected.playbook;
+
+      // ═══ AUTO-LAYOUT inteligente ═══
+      // Calcula posições usando algoritmo barycenter que minimiza cruzamentos
+      const layoutInput = pb.nodes.map((n) => ({
+        ref: n.ref,
+        stage: n.stage,
+        kind: n.kind,
+      }));
+      const layoutEdges = pb.edges.map((e) => ({ fromRef: e.fromRef, toRef: e.toRef }));
+      const positions = calculateLayout(
+        layoutInput,
+        layoutEdges,
+        LAYOUT_CONFIG.ORIGIN_X,
+        LAYOUT_CONFIG.ORIGIN_Y,
+      );
+
       const nodesToInsert = pb.nodes.map((n) => {
-        const pos = playbookPos(n.col, n.row);
+        // Usa posição calculada pelo auto-layout (fallback para playbookPos se não encontrar)
+        const pos = positions[n.ref] ?? playbookPos(n.col, n.row);
         return {
           workspace_id: workspaceId,
           client_id: clientId,
