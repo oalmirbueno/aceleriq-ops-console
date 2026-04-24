@@ -179,7 +179,7 @@ export function LandingPageDrawer(props: NodeDrawerProps) {
   const prefill = async () => {
     setPrefilling(true);
     try {
-      const { data } = await supabase.functions.invoke("prefill-node", {
+      const { data } = await supabase.functions.invoke("prefill-node-v2", {
         body: { nodeId: props.node.id, workspaceId: props.workspaceId, clientId: props.clientId, kind: "landing_page" },
       });
       if (data?.sections) {
@@ -462,7 +462,7 @@ export function ConteudoDrawer(props: NodeDrawerProps) {
   const prefill = async () => {
     setPrefilling(true);
     try {
-      const { data } = await supabase.functions.invoke("prefill-node", {
+      const { data } = await supabase.functions.invoke("prefill-node-v2", {
         body: { nodeId: props.node.id, workspaceId: props.workspaceId, clientId: props.clientId, kind: "conteudo" },
       });
       if (data?.sections?.copy) {
@@ -676,7 +676,7 @@ export function IAAgentDrawer(props: NodeDrawerProps) {
   const prefill = async () => {
     setPrefilling(true);
     try {
-      const { data } = await supabase.functions.invoke("prefill-node", {
+      const { data } = await supabase.functions.invoke("prefill-node-v2", {
         body: { nodeId: props.node.id, workspaceId: props.workspaceId, clientId: props.clientId, kind: "ia" },
       });
       if (data?.sections?.overview) {
@@ -930,7 +930,7 @@ export function CaseDrawer(props: NodeDrawerProps) {
   const prefill = async () => {
     setPrefilling(true);
     try {
-      const { data } = await supabase.functions.invoke("prefill-node", {
+      const { data } = await supabase.functions.invoke("prefill-node-v2", {
         body: { nodeId: props.node.id, workspaceId: props.workspaceId, clientId: props.clientId, kind: "case" },
       });
       if (data?.sections?.overview) {
