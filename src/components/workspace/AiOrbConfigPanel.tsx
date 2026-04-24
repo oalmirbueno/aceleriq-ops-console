@@ -83,11 +83,11 @@ export default function AiOrbConfigPanel({ open, onOpenChange, data, onDataChang
         <DialogHeader className="px-5 py-3 border-b border-border shrink-0 pr-12">
           <DialogTitle className="flex items-center gap-2 text-base">
             <span className={`ai-orb-mini ai-orb-${data.orbType}`} />
-            <span>{def.title}</span>
+            <span>{def.label}</span>
             <Badge variant="outline" className="text-[10px] ml-1">{data.orbType}</Badge>
           </DialogTitle>
           <DialogDescription className="text-xs">
-            {def.description}
+            {def.specialization}
           </DialogDescription>
         </DialogHeader>
 
@@ -146,7 +146,7 @@ export default function AiOrbConfigPanel({ open, onOpenChange, data, onDataChang
               disabled={generating}
             />
             <p className="text-[10px] text-muted-foreground mt-1">
-              {agent.emoji} {agent.name} vai gerar com foco em: {def.title}
+              {agent.emoji} {agent.name} vai gerar com foco em: {def.label}
             </p>
           </div>
 
@@ -229,30 +229,30 @@ export default function AiOrbConfigPanel({ open, onOpenChange, data, onDataChang
           </div>
 
           {/* ═══ ÚLTIMA GERAÇÃO (rationale + insights) ═══ */}
-          {data.last_rationale && !generating && (
+          {data.last_rationale != null && !generating && (
             <div className="rounded-lg border border-border bg-card p-3">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
                 Última geração
               </p>
               <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
-                {data.last_rationale}
+                {String(data.last_rationale)}
               </p>
-              {Array.isArray(data.last_insights) && data.last_insights.length > 0 && (
+              {Array.isArray(data.last_insights) && (data.last_insights as unknown[]).length > 0 && (
                 <div className="mt-2 pt-2 border-t border-border/40 space-y-1">
-                  {data.last_insights.slice(0, 5).map((insight, i) => (
+                  {(data.last_insights as unknown[]).slice(0, 5).map((insight, i) => (
                     <div key={i} className="text-[11px] text-muted-foreground flex items-start gap-1.5">
                       <Sparkles className="h-2.5 w-2.5 text-primary shrink-0 mt-0.5" />
-                      <span>{insight}</span>
+                      <span>{String(insight)}</span>
                     </div>
                   ))}
                 </div>
               )}
               {data.last_cost_usd !== undefined && (
                 <div className="mt-2 pt-2 border-t border-border/40 flex items-center gap-3 text-[10px] text-muted-foreground">
-                  {data.last_model && <span>{data.last_model}</span>}
-                  {data.last_nodes_generated !== undefined && <span>{data.last_nodes_generated} nodes</span>}
-                  {data.last_cost_usd !== undefined && data.last_cost_usd > 0 && (
-                    <span>${data.last_cost_usd.toFixed(5)}</span>
+                  {data.last_model != null && <span>{String(data.last_model)}</span>}
+                  {data.last_nodes_generated !== undefined && <span>{String(data.last_nodes_generated)} nodes</span>}
+                  {typeof data.last_cost_usd === "number" && data.last_cost_usd > 0 && (
+                    <span>${(data.last_cost_usd as number).toFixed(5)}</span>
                   )}
                 </div>
               )}
@@ -260,7 +260,7 @@ export default function AiOrbConfigPanel({ open, onOpenChange, data, onDataChang
           )}
 
           {/* ═══ LOG GERAÇÃO (componente existente) ═══ */}
-          {generating && <AiOrbGenerationLog />}
+          {generating && <AiOrbGenerationLog data={data} />}
         </div>
 
         {/* ═══ FOOTER — AÇÕES ═══ */}
