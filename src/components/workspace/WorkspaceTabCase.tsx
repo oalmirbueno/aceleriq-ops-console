@@ -10,6 +10,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import CaseRecordDialog, { type CaseRecord } from "./CaseRecordDialog";
+import CaseGeneratorDialog from "./CaseGeneratorDialog";
 import {
   CASE_STATUS_OPTIONS, getCaseStatusColor, getCaseStatusLabel,
   seedCaseFromBeforeAfter, type CaseStatus, type BeforeAfterSeed,
@@ -36,6 +37,7 @@ export default function WorkspaceTabCase({ workspaceId, clientId, onTimelineRefr
   const [seed, setSeed] = useState<Partial<CaseRecord> | null>(null);
 
   const [generateOpen, setGenerateOpen] = useState(false);
+  const [autoGenOpen, setAutoGenOpen] = useState(false);
   const [baOptions, setBaOptions] = useState<BARecordLite[]>([]);
   const [selectedBaId, setSelectedBaId] = useState<string>("");
   const [generating, setGenerating] = useState(false);
@@ -131,8 +133,12 @@ export default function WorkspaceTabCase({ workspaceId, clientId, onTimelineRefr
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setAutoGenOpen(true)}
+            className="gap-1.5 border-primary/30 text-primary hover:bg-primary/10">
+            <Sparkles className="h-4 w-4" /> Gerar Case automaticamente
+          </Button>
           <Button size="sm" variant="outline" onClick={openGenerate}>
-            <Sparkles className="h-4 w-4 mr-1" /> Gerar de Before/After
+            <Sparkles className="h-4 w-4 mr-1" /> Manual (de Before/After)
           </Button>
           <Button size="sm" onClick={openCreate}>
             <Plus className="h-4 w-4 mr-1" /> Novo case
@@ -275,6 +281,16 @@ export default function WorkspaceTabCase({ workspaceId, clientId, onTimelineRefr
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Auto case generator — agrega before/after, nodes done, briefing */}
+      <CaseGeneratorDialog
+        open={autoGenOpen}
+        onOpenChange={setAutoGenOpen}
+        workspaceId={workspaceId}
+        clientId={clientId}
+        clientName="Cliente"
+        onSaved={fetchData}
+      />
     </div>
   );
 }
