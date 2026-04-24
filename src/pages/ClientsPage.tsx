@@ -11,6 +11,7 @@ import AIFirstScoreCard from "@/components/workspace/AIFirstScoreCard";
 import HealthScoreCard from "@/components/workspace/HealthScoreCard";
 import ICPFitScoreCard from "@/components/workspace/ICPFitScoreCard";
 import DiagnosticQuizDialog from "@/components/workspace/DiagnosticQuizDialog";
+import ImportLeadsDialog from "@/components/workspace/ImportLeadsDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -82,6 +83,7 @@ export default function ClientsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [briefingClient, setBriefingClient] = useState<Client | null>(null);
   const [quizClient, setQuizClient] = useState<Client | null>(null);
+  const [importLeadsOpen, setImportLeadsOpen] = useState(false);
 
   const fetchClients = async () => {
     setLoading(true);
@@ -174,6 +176,9 @@ export default function ClientsPage() {
               {STAGE_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
+          <Button onClick={() => setImportLeadsOpen(true)} size="sm" variant="outline" className="h-9 gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" /> Importar do portal
+          </Button>
           <Button onClick={() => setDialogOpen(true)} size="sm" className="h-9 gap-1.5">
             <Plus className="h-3.5 w-3.5" /> Novo cliente
           </Button>
@@ -324,6 +329,11 @@ export default function ClientsPage() {
           onCompleted={fetchClients}
         />
       )}
+      <ImportLeadsDialog
+        open={importLeadsOpen}
+        onOpenChange={setImportLeadsOpen}
+        onImported={fetchClients}
+      />
     </>
   );
 }
