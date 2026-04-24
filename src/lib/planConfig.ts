@@ -6,7 +6,7 @@
  * foram reestruturados em Fundação / Aceleração / Escala IA-First.
  */
 
-export type PlanKey = "starter" | "growth" | "enterprise";
+export type PlanKey = "starter" | "growth" | "enterprise" | "marketing";
 
 /** Categoria de entregável — organiza a lista de entregas dentro de cada plano */
 export interface DeliverableGroup {
@@ -202,9 +202,65 @@ const DEFAULT_CONFIG: Record<PlanKey, PlanConfig> = {
       "Anual Strategic Planning (dia inteiro)",
     ],
   },
+
+  // ═══════════════════════════════════════════════════════════
+  // MARKETING — Serviço recorrente de marketing (porta de entrada)
+  // ═══════════════════════════════════════════════════════════
+  marketing: {
+    label: "Marketing",
+    tagline: "Sua operação de marketing com método, todo mês.",
+    description: "Para empresas que precisam de marketing consistente. Estratégia, conteúdo, tráfego e relatórios mensais. Porta de entrada ideal — pode migrar para AI-First quando o cliente quiser escalar.",
+    monthly: 1997,
+    min_contract_months: 3,
+    target_revenue: "R$ 50k a R$ 500k/mês",
+    stages_covered: ["entrada", "diagnostico", "planejamento", "producao", "ativacao"],
+    max_active_fronts: 3,
+    deliverables: [
+      {
+        category: "Estratégia",
+        items: [
+          "Reunião de planejamento mensal",
+          "Calendário editorial",
+          "Posicionamento e mensagens-chave",
+        ],
+      },
+      {
+        category: "Produção mensal",
+        items: [
+          "8 peças de conteúdo/mês (posts, carrosséis)",
+          "Copy para anúncios inclusa",
+          "1 Landing Page por trimestre",
+        ],
+      },
+      {
+        category: "Aquisição paga",
+        items: [
+          "Gestão de 1 canal de tráfego (Meta OU Google)",
+          "Setup e otimização recorrente",
+          "Instrumentação de pixel e UTMs",
+        ],
+      },
+      {
+        category: "Análise",
+        items: [
+          "Relatório mensal de resultados",
+          "Métricas de conversão e CPL",
+        ],
+      },
+    ],
+    extras: [
+      "Acesso ao portal aceleriq.online",
+      "Aprovação de peças pelo cliente",
+    ],
+    rituals: [
+      "Kickoff do serviço (1h)",
+      "Alignment semanal (30min)",
+      "Reunião mensal estratégica (1h)",
+    ],
+  },
 };
 
-const PLAN_KEYS_ORDERED: PlanKey[] = ["starter", "growth", "enterprise"];
+const PLAN_KEYS_ORDERED: PlanKey[] = ["starter", "growth", "enterprise", "marketing"];
 
 /** Read plan config from localStorage, fallback to defaults */
 export function getPlanConfig(): Record<PlanKey, PlanConfig> {
