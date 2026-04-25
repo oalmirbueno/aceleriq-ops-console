@@ -20,6 +20,7 @@ import CanvasGroupNode from "./CanvasGroupNode";
 import AiOrbNode, { type AiOrbType } from "./AiOrbNode";
 import AiOrbConfigPanel from "./AiOrbConfigPanel";
 import ChatNode, { type ChatNodeData, type ChatNodeFunction, type ChatNodeScope } from "./ChatNode";
+import { CanvasViewport } from "./CanvasViewport";
 import ProjectNodeDrawer from "./ProjectNodeDrawer";
 import CanvasInspector from "./CanvasInspector";
 import CanvasClientPicker from "./CanvasClientPicker";
@@ -2351,9 +2352,11 @@ function CanvasStudioInner({
               </div>
             </div>
           ) : (
-            <ReactFlow
+            <CanvasViewport
               nodes={rfNodes}
               edges={rfEdges}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
@@ -2363,41 +2366,14 @@ function CanvasStudioInner({
               onEdgeDoubleClick={onEdgeDoubleClick}
               isValidConnection={isValidConnection}
               onNodeClick={onNodeClick}
-              nodeTypes={nodeTypes}
-              edgeTypes={edgeTypes}
               onInit={handleRfInit}
               onMoveEnd={handleMoveEnd}
-              fitViewOptions={FIT_VIEW_OPTIONS}
-              minZoom={0.1}
-              maxZoom={2}
-              panOnDrag={interactionConfig.panOnDrag}
-              panOnScroll={false}
-              zoomOnScroll
-              zoomOnPinch
-              zoomOnDoubleClick={false}
-              selectionOnDrag={interactionConfig.selectionOnDrag}
-              selectionKeyCode={SELECTION_KEY_CODE}
-              multiSelectionKeyCode={MULTI_SELECTION_KEY_CODE}
-              selectionMode={SelectionMode.Partial}
-              proOptions={PRO_OPTIONS}
-              className="bg-background canvas-flow acelera-ops-flow"
-              defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
-              connectionLineStyle={CONNECTION_LINE_STYLE}
-              connectionLineType={ConnectionLineType.Bezier}
-              connectionRadius={18}
-              connectionMode={ConnectionMode.Loose}
-              onlyRenderVisibleElements={rfNodes.length > 40}
-              elevateNodesOnSelect
-              nodesDraggable={!lockedNodes}
-              edgesFocusable
-              edgesReconnectable
               onReconnect={handleReconnectEdge}
-              deleteKeyCode={["Backspace", "Delete"]}
-              nodesConnectable
-              onPaneContextMenu={(event) => event.preventDefault()}
-            >
-              {gridVisible && <Background gap={32} size={1} className="opacity-20" />}
-            </ReactFlow>
+              panOnDrag={interactionConfig.panOnDrag}
+              selectionOnDrag={interactionConfig.selectionOnDrag}
+              gridVisible={gridVisible}
+              lockedNodes={lockedNodes}
+            />
           )}
           {!loading && clientGroups.length > 0 && (
             <NodeTypeDock
