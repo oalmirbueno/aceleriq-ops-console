@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Plus, Search, ExternalLink, FolderPlus, KeyRound, FileText, Sparkles, Archive, ArchiveRestore } from "lucide-react";
+import { Users, Plus, Search, ExternalLink, FolderPlus, KeyRound, FileText, Sparkles, Archive, ArchiveRestore, Gauge, GaugeCircle } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import EmptyState from "@/components/EmptyState";
 import LoadingState from "@/components/LoadingState";
@@ -90,6 +90,7 @@ export default function ClientsPage() {
   const [quizClient, setQuizClient] = useState<Client | null>(null);
   const [importLeadsOpen, setImportLeadsOpen] = useState(false);
   const [typeEditorClient, setTypeEditorClient] = useState<Client | null>(null);
+  const [showScores, setShowScores] = useState(false);
 
   const fetchClients = async () => {
     setLoading(true);
@@ -203,6 +204,17 @@ export default function ClientsPage() {
           <Button onClick={() => setImportLeadsOpen(true)} size="sm" variant="outline" className="h-9 gap-1.5">
             <Sparkles className="h-3.5 w-3.5" /> Importar do portal
           </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={showScores ? "default" : "outline"}
+            className="h-9 gap-1.5"
+            onClick={() => setShowScores((v) => !v)}
+            title={showScores ? "Ocultar scores avançados" : "Mostrar scores avançados"}
+          >
+            <Gauge className="h-3.5 w-3.5" />
+            {showScores ? "Ocultar scores" : "Mostrar scores"}
+          </Button>
           <Button onClick={() => setDialogOpen(true)} size="sm" className="h-9 gap-1.5">
             <Plus className="h-3.5 w-3.5" /> Novo cliente
           </Button>
@@ -223,13 +235,13 @@ export default function ClientsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
-                  <TableHead>Tipo</TableHead>
+                  {showScores && <TableHead>Tipo</TableHead>}
                   <TableHead>Empresa</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Briefing</TableHead>
-                  <TableHead>AI-First</TableHead>
-                  <TableHead>Health</TableHead>
-                  <TableHead>ICP</TableHead>
+                  {showScores && <TableHead>AI-First</TableHead>}
+                  {showScores && <TableHead>Health</TableHead>}
+                  {showScores && <TableHead>ICP</TableHead>}
                   <TableHead>Etapa</TableHead>
                   <TableHead>Plano</TableHead>
                   <TableHead>Portal</TableHead>
@@ -247,16 +259,18 @@ export default function ClientsPage() {
                   return (
                     <TableRow key={c.id} className="cursor-pointer" onClick={() => openWorkspace(c)}>
                       <TableCell className="font-medium text-foreground">{c.name}</TableCell>
-                      <TableCell>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setTypeEditorClient(c); }}
-                          className="hover:opacity-80 transition-opacity"
-                          title="Editar tipo, plano e valor customizado"
-                        >
-                          <ProjectTypeBadge type={c.project_type} variant="compact" />
-                        </button>
-                      </TableCell>
+                      {showScores && (
+                        <TableCell>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setTypeEditorClient(c); }}
+                            className="hover:opacity-80 transition-opacity"
+                            title="Editar tipo, plano e valor customizado"
+                          >
+                            <ProjectTypeBadge type={c.project_type} variant="compact" />
+                          </button>
+                        </TableCell>
+                      )}
                       <TableCell className="text-muted-foreground">{c.company_name ?? "—"}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={statusColor[c.status] ?? ""}>
@@ -268,15 +282,21 @@ export default function ClientsPage() {
                           {brPct > 0 ? `${brPct}%` : "Preencher"}
                         </button>
                       </TableCell>
-                      <TableCell>
-                        <AIFirstScoreCard clientId={c.id} planName={c.plan_name} variant="compact" />
-                      </TableCell>
-                      <TableCell>
-                        <HealthScoreCard clientId={c.id} clientMetadata={c.metadata} currentStage={stage} variant="compact" />
-                      </TableCell>
-                      <TableCell>
-                        <ICPFitScoreCard clientMetadata={c.metadata} currentPlan={c.plan_name as any} variant="compact" />
-                      </TableCell>
+                      {showScores && (
+                        <TableCell>
+                          <AIFirstScoreCard clientId={c.id} planName={c.plan_name} variant="compact" />
+                        </TableCell>
+                      )}
+                      {showScores && (
+                        <TableCell>
+                          <HealthScoreCard clientId={c.id} clientMetadata={c.metadata} currentStage={stage} variant="compact" />
+                        </TableCell>
+                      )}
+                      {showScores && (
+                        <TableCell>
+                          <ICPFitScoreCard clientMetadata={c.metadata} currentPlan={c.plan_name as any} variant="compact" />
+                        </TableCell>
+                      )}
                       <TableCell className="text-muted-foreground">{stage ? getStagePremiumLabel(stage) : "—"}</TableCell>
                       <TableCell className="text-muted-foreground capitalize">{c.plan_name ?? "—"}</TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>

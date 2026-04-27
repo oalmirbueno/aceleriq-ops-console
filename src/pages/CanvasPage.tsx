@@ -59,6 +59,7 @@ export default function CanvasPage() {
   const [nodeCounts, setNodeCounts] = useState<Record<string, number>>({});
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [collapsedInitialized, setCollapsedInitialized] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
   const fetchWorkspaces = async () => {
@@ -112,6 +113,25 @@ export default function CanvasPage() {
   };
 
   useEffect(() => { fetchWorkspaces(); }, []);
+
+  // Pastas recolhidas por padrão na primeira carga (mais limpo)
+  useEffect(() => {
+    if (collapsedInitialized || workspaces.length === 0) return;
+    const init: Record<string, boolean> = {};
+    workspaces.forEach(w => {
+      const cId = w.clients?.id ?? w.client_id;
+      init[cId] = true;
+    });
+    setCollapsed(init);
+    setCollapsedInitialized(true);
+  }, [workspaces, collapsedInitialized]);
+
+  // Quando há busca ativa, expande automaticamente para mostrar resultados
+  useEffect(() => {
+    if (query.trim().length > 0) {
+      setCollapsed({});
+    }
+  }, [query]);
 
   const filtered = workspaces.filter((ws) => {
     if (!showArchived) {
@@ -285,17 +305,24 @@ export default function CanvasPage() {
                               <div className="flex items-center gap-3">
                                 <FolderKanban className="h-5 w-5 text-primary/70 shrink-0" />
                                 <div className="min-w-0 flex-1">
-                                  <p className="truncate text-base font-semibold text-foreground leading-tight">{ws.name}</p>
-                                  <p className="text-xs text-muted-foreground/70 mt-1 truncate">
-                                    <span className="inline-flex h-4 w-4 items-center justify-center rounded border border-border bg-background font-mono text-[10px] font-bold text-foreground/60 mr-1 align-middle">
-                                      {stageMeta.letter}
+                                  <div className="flex items-center gap-2">
+                                    <p className="truncate text-base font-semibold text-foreground leading-tight">{ws.name}</p>
+                                    <span
+                                      className="hidden sm:inline-flex h-5 items-center gap-1 rounded border border-border bg-background/60 px-1.5 font-mono text-[10px] font-semibold text-muted-foreground shrink-0"
+                                      title={getStagePremiumLabel(stage)}
+                                    >
+                                      <span className="text-foreground/80">{stageMeta.letter}</span>
+                                      <span className="text-muted-foreground/70">·</span>
+                                      <span className="truncate max-w-[110px]">{getStagePremiumLabel(stage)}</span>
                                     </span>
-                                    {getStagePremiumLabel(stage)} · {nodes} node{nodes !== 1 ? "s" : ""}
+                                  </div>
+                                  <p className="text-[11px] text-muted-foreground/60 mt-1 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {nodes} node{nodes !== 1 ? "s" : ""}
                                   </p>
                                 </div>
-                                <div className="hidden sm:flex flex-col items-end gap-1 w-24 shrink-0">
-                                  <span className="text-xs font-semibold text-primary tabular-nums">{progress}%</span>
-                                  <Progress value={progress} className="h-1.5 w-full" />
+                                <div className="hidden sm:flex flex-col items-end gap-1 w-20 shrink-0">
+                                  <span className="text-[11px] font-semibold text-primary/80 tabular-nums opacity-60 group-hover:opacity-100 transition-opacity">{progress}%</span>
+                                  <Progress value={progress} className="h-1 w-full" />
                                 </div>
                                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                                   <Button
