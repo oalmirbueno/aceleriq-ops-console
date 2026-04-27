@@ -118,24 +118,13 @@ export default function ClientsPage() {
     return list;
   }, [clients, search, statusFilter, stageFilter]);
 
-  const openClientOrWorkspace = (client: Client) => {
-    // Se tem mais de 1 workspace, vai pra página do cliente (lista projetos)
-    if (client.workspaces.length > 1) {
-      navigate(`/ops/clients/${client.id}`);
-      return;
-    }
-    // Se tem 1 workspace, abre direto
+  const openWorkspace = (client: Client) => {
+    // 1 workspace → abre direto. 0 ou 2+ → vai pra detalhe do cliente.
     if (client.workspaces.length === 1) {
       navigate(`/ops/workspaces/${client.workspaces[0].id}`);
-      return;
+    } else {
+      navigate(`/ops/clients/${client.id}`);
     }
-    // Sem workspace → vai pra página do cliente (lá cria o primeiro projeto)
-    navigate(`/ops/clients/${client.id}`);
-  };
-
-  const openClientDetail = (clientId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigate(`/ops/clients/${clientId}`);
   };
 
   const createWorkspaceForClient = async (client: Client) => {
@@ -241,7 +230,7 @@ export default function ClientsPage() {
                               : brPct > 0 ? "text-amber-400"
                               : "text-muted-foreground/50";
                   return (
-                    <TableRow key={c.id} className="cursor-pointer" onClick={() => openClientOrWorkspace(c)}>
+                    <TableRow key={c.id} className="cursor-pointer" onClick={() => openWorkspace(c)}>
                       <TableCell className="font-medium text-foreground">{c.name}</TableCell>
                       <TableCell>
                         <button
@@ -310,25 +299,14 @@ export default function ClientsPage() {
                           >
                             <KeyRound className="h-4 w-4 text-muted-foreground" />
                           </Button>
-                          {c.workspaces[0] ? (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={(e) => { e.stopPropagation(); openClientOrWorkspace(c); }}
-                              title={c.workspaces.length > 1 ? `${c.workspaces.length} projetos — clique pra ver` : "Abrir workspace"}
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          ) : (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={(e) => { e.stopPropagation(); navigate(`/ops/clients/${c.id}`); }}
-                              title="Ver cliente e criar projeto"
-                            >
-                              <FolderPlus className="h-4 w-4 text-primary" />
-                            </Button>
-                          )}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={(e) => { e.stopPropagation(); openWorkspace(c); }}
+                            title={c.workspaces.length === 1 ? "Abrir workspace" : "Ver projetos do cliente"}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
