@@ -480,6 +480,7 @@ export default function WorkspaceDetailPage() {
       <div className="px-6 py-3 border-b border-border/60 bg-card/40">
         <WorkspaceHeader
           clientName={clientName}
+          projectName={ws.name}
           ownerName={ownerName}
           status={ws.status}
           currentStage={ws.current_stage}
