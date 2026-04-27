@@ -243,27 +243,27 @@ export default function CanvasPage() {
                   <button
                     type="button"
                     onClick={() => toggleCollapse(client.id)}
-                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-card/80 transition-colors text-left"
+                    className="w-full flex items-center gap-4 px-6 py-5 hover:bg-card/80 transition-colors text-left"
                   >
-                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                    <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
                     <div className="text-primary">
-                      {isCollapsed ? <Folder className="h-5 w-5" /> : <FolderOpen className="h-5 w-5" />}
+                      {isCollapsed ? <Folder className="h-6 w-6" /> : <FolderOpen className="h-6 w-6" />}
                     </div>
-                    <ClientAvatar name={client.name} seed={client.id} logoUrl={client.logo_url} size="sm" />
+                    <ClientAvatar name={client.name} seed={client.id} logoUrl={client.logo_url} size="md" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-base font-semibold text-foreground">{client.name}</p>
-                      {client.company_name && <p className="truncate text-xs text-muted-foreground">{client.company_name}</p>}
+                      <p className="truncate text-lg font-semibold text-foreground">{client.name}</p>
+                      {client.company_name && <p className="truncate text-sm text-muted-foreground">{client.company_name}</p>}
                     </div>
-                    <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+                    <Badge variant="outline" className="text-xs uppercase tracking-wider">
                       {items.length} projeto{items.length > 1 ? "s" : ""}
                     </Badge>
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-8 gap-1 text-xs"
+                      className="h-9 gap-1 text-sm"
                       onClick={(e) => { e.stopPropagation(); navigate(`/ops/clients/${client.id}`); }}
                     >
-                      Gerir <ArrowRight className="h-3 w-3" />
+                      Gerir <ArrowRight className="h-4 w-4" />
                     </Button>
                   </button>
 
@@ -279,46 +279,46 @@ export default function CanvasPage() {
                           return (
                             <div
                               key={ws.id}
-                              className="group relative rounded-lg border border-border bg-card px-3 py-2.5 transition-all hover:border-primary/40 hover:shadow-sm cursor-pointer"
+                              className="group relative rounded-lg border border-border bg-card px-4 py-3.5 transition-all hover:border-primary/40 hover:shadow-sm cursor-pointer"
                               onClick={(e) => openCanvas(ws, e)}
                             >
                               <div className="flex items-center gap-3">
-                                <FolderKanban className="h-4 w-4 text-primary/70 shrink-0" />
+                                <FolderKanban className="h-5 w-5 text-primary/70 shrink-0" />
                                 <div className="min-w-0 flex-1">
-                                  <p className="truncate text-sm font-semibold text-foreground leading-tight">{ws.name}</p>
-                                  <p className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">
-                                    <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded border border-border bg-background font-mono text-[8px] font-bold text-foreground/60 mr-1 align-middle">
+                                  <p className="truncate text-base font-semibold text-foreground leading-tight">{ws.name}</p>
+                                  <p className="text-xs text-muted-foreground/70 mt-1 truncate">
+                                    <span className="inline-flex h-4 w-4 items-center justify-center rounded border border-border bg-background font-mono text-[10px] font-bold text-foreground/60 mr-1 align-middle">
                                       {stageMeta.letter}
                                     </span>
                                     {getStagePremiumLabel(stage)} · {nodes} node{nodes !== 1 ? "s" : ""}
                                   </p>
                                 </div>
-                                <div className="hidden sm:flex flex-col items-end gap-1 w-20 shrink-0">
-                                  <span className="text-[10px] font-semibold text-primary tabular-nums">{progress}%</span>
-                                  <Progress value={progress} className="h-1 w-full" />
+                                <div className="hidden sm:flex flex-col items-end gap-1 w-24 shrink-0">
+                                  <span className="text-xs font-semibold text-primary tabular-nums">{progress}%</span>
+                                  <Progress value={progress} className="h-1.5 w-full" />
                                 </div>
                                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                                   <Button
                                     size="icon"
                                     variant="ghost"
-                                    className="h-7 w-7 hover:bg-secondary"
+                                    className="h-8 w-8 hover:bg-secondary"
                                     title={ws.status === "archived" ? "Reativar projeto" : "Arquivar projeto"}
                                     onClick={(e) => { e.stopPropagation(); toggleArchiveWorkspace(ws); }}
                                   >
                                     {ws.status === "archived"
-                                      ? <ArchiveRestore className="h-3.5 w-3.5 text-primary" />
-                                      : <Archive className="h-3.5 w-3.5 text-muted-foreground" />}
+                                      ? <ArchiveRestore className="h-4 w-4 text-primary" />
+                                      : <Archive className="h-4 w-4 text-muted-foreground" />}
                                   </Button>
                                   <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                       <Button
                                         size="icon"
                                         variant="ghost"
-                                        className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                                        className="h-8 w-8 text-destructive hover:bg-destructive/10"
                                         title="Remover projeto"
                                         onClick={(e) => e.stopPropagation()}
                                       >
-                                        <Trash2 className="h-3.5 w-3.5" />
+                                        <Trash2 className="h-4 w-4" />
                                       </Button>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent onClick={(e) => e.stopPropagation()}>
@@ -333,7 +333,7 @@ export default function CanvasPage() {
                                     </AlertDialogContent>
                                   </AlertDialog>
                                 </div>
-                                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-primary transition-colors shrink-0" />
+                                <ArrowRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-primary transition-colors shrink-0" />
                               </div>
                             </div>
                           );
