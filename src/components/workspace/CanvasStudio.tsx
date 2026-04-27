@@ -718,6 +718,7 @@ function CanvasStudioInner({
           label: intent.label,
           animated: intent.animated,
           type: "deletable",
+          zIndex: 30,
           className: intent.className,
           markerEnd: { type: MarkerType.ArrowClosed, color: intent.stroke, width: 18, height: 18 },
           style: { stroke: intent.stroke, strokeWidth: intent.strokeWidth },
