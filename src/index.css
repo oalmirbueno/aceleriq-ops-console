@@ -278,8 +278,8 @@
 }
 
 .react-flow__edge-path {
-  stroke: hsl(var(--border));
-  stroke-width: 1.8px;
+  stroke: hsl(var(--foreground) / 0.55);
+  stroke-width: 2px;
 }
 .react-flow__edge {
   outline: none;
