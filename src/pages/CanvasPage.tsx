@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FolderKanban, Search, Layout, Trash2, ArrowRight, ChevronDown, Folder, FolderOpen, Plus } from "lucide-react";
+import { FolderKanban, Search, Layout, Trash2, ArrowRight, ChevronDown, Folder, FolderOpen, Plus, Archive, ArchiveRestore, Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,7 @@ interface WorkspaceOption {
   current_stage: string;
   status: string;
   updated_at: string | null;
-  clients: { id: string; name: string; company_name: string | null; logo_url?: string | null } | null;
+  clients: { id: string; name: string; company_name: string | null; logo_url?: string | null; status?: string | null } | null;
 }
 
 const STAGE_KEYS: AceleraStageKey[] = ACELERA_STAGES.map(s => s.key);
@@ -59,12 +59,13 @@ export default function CanvasPage() {
   const [nodeCounts, setNodeCounts] = useState<Record<string, number>>({});
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [showArchived, setShowArchived] = useState(false);
 
   const fetchWorkspaces = async () => {
     setLoading(true);
     const { data } = await supabase
       .from("workspaces")
-      .select("id, name, client_id, current_stage, status, updated_at, clients(id, name, company_name, logo_url)")
+      .select("id, name, client_id, current_stage, status, updated_at, clients(id, name, company_name, logo_url, status)")
       .order("updated_at", { ascending: false })
       .limit(200);
     const list = (data ?? []) as unknown as WorkspaceOption[];
@@ -113,6 +114,10 @@ export default function CanvasPage() {
   useEffect(() => { fetchWorkspaces(); }, []);
 
   const filtered = workspaces.filter((ws) => {
+    if (!showArchived) {
+      if (ws.status === "archived") return false;
+      if (ws.clients?.status === "archived") return false;
+    }
     const q = query.trim().toLowerCase();
     if (!q) return true;
     return (
@@ -154,6 +159,18 @@ export default function CanvasPage() {
       });
     } catch (err: any) {
       toast({ title: "Erro ao remover", description: err?.message, variant: "destructive" });
+    }
+  };
+
+  const toggleArchiveWorkspace = async (ws: WorkspaceOption) => {
+    const next = ws.status === "archived" ? "active" : "archived";
+    try {
+      const { error } = await supabase.from("workspaces").update({ status: next }).eq("id", ws.id);
+      if (error) throw error;
+      toast({ title: next === "archived" ? "Projeto arquivado" : "Projeto reativado" });
+      setWorkspaces(prev => prev.map(w => w.id === ws.id ? { ...w, status: next } : w));
+    } catch (err: any) {
+      toast({ title: "Erro ao atualizar", description: err?.message, variant: "destructive" });
     }
   };
 
@@ -199,6 +216,17 @@ export default function CanvasPage() {
               className="pl-9 h-10"
             />
           </div>
+          <Button
+            type="button"
+            size="sm"
+            variant={showArchived ? "default" : "outline"}
+            className="h-10 gap-1.5"
+            onClick={() => setShowArchived(v => !v)}
+            title={showArchived ? "Ocultar arquivados" : "Mostrar arquivados"}
+          >
+            {showArchived ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            {showArchived ? "Ocultar arquivados" : "Mostrar arquivados"}
+          </Button>
         </div>
 
         {loading ? (
