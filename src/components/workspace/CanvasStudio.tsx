@@ -742,9 +742,10 @@ function CanvasStudioInner({
           continue;
         }
 
-        // Compara data e position — só recria se houve mudança real
-        const sameData = existing.data === newNode.data;
-        if (sameData) {
+        // Compara conteúdo da data — callbacks estáveis não invalidam render.
+        const sameData = canvasNodeDataEqual(existing.data as Record<string, unknown>, newNode.data as Record<string, unknown>);
+        const sameConfig = existing.type === newNode.type && existing.draggable === newNode.draggable;
+        if (sameData && sameConfig) {
           // Sem mudança em data — reusa objeto existente (mantém referência)
           result.push(existing);
         } else {
@@ -776,8 +777,9 @@ function CanvasStudioInner({
           || e.data !== ne.data
           || e.label !== ne.label
           || e.animated !== ne.animated
-          || e.style !== ne.style
-          || e.markerEnd !== ne.markerEnd;
+          || (e.style as React.CSSProperties | undefined)?.stroke !== (ne.style as React.CSSProperties | undefined)?.stroke
+          || (e.style as React.CSSProperties | undefined)?.strokeWidth !== (ne.style as React.CSSProperties | undefined)?.strokeWidth
+          || (e.markerEnd as { color?: string } | undefined)?.color !== (ne.markerEnd as { color?: string } | undefined)?.color;
       });
       return changed ? reactFlowEdges : current;
     });
