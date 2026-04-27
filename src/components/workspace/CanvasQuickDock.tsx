@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { getProjectTypeMeta, type ProjectNodeKind } from "./canvasProjectTypes";
@@ -16,7 +17,7 @@ const QUICK_DOCK_ITEMS: Array<{ label: string; tooltip: string; kind: ProjectNod
   { label: "Agente", tooltip: "Executor operacional conectado ao fluxo", kind: "agente" },
 ];
 
-export default function CanvasQuickDock({ activeKind, onCreate }: CanvasQuickDockProps) {
+function CanvasQuickDockComp({ activeKind, onCreate }: CanvasQuickDockProps) {
   return (
     <TooltipProvider delayDuration={120}>
       <div className="flex items-center gap-1 rounded-lg border border-border bg-card/90 p-1.5 shadow-2xl shadow-background/50 backdrop-blur-xl animate-fade-in">
@@ -52,3 +53,4 @@ export default function CanvasQuickDock({ activeKind, onCreate }: CanvasQuickDoc
     </TooltipProvider>
   );
 }
+export default memo(CanvasQuickDockComp);
