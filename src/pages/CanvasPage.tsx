@@ -243,27 +243,27 @@ export default function CanvasPage() {
                   <button
                     type="button"
                     onClick={() => toggleCollapse(client.id)}
-                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-card/80 transition-colors text-left"
+                    className="w-full flex items-center gap-4 px-6 py-5 hover:bg-card/80 transition-colors text-left"
                   >
-                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                    <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
                     <div className="text-primary">
-                      {isCollapsed ? <Folder className="h-5 w-5" /> : <FolderOpen className="h-5 w-5" />}
+                      {isCollapsed ? <Folder className="h-6 w-6" /> : <FolderOpen className="h-6 w-6" />}
                     </div>
-                    <ClientAvatar name={client.name} seed={client.id} logoUrl={client.logo_url} size="sm" />
+                    <ClientAvatar name={client.name} seed={client.id} logoUrl={client.logo_url} size="md" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-base font-semibold text-foreground">{client.name}</p>
-                      {client.company_name && <p className="truncate text-xs text-muted-foreground">{client.company_name}</p>}
+                      <p className="truncate text-lg font-semibold text-foreground">{client.name}</p>
+                      {client.company_name && <p className="truncate text-sm text-muted-foreground">{client.company_name}</p>}
                     </div>
-                    <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+                    <Badge variant="outline" className="text-xs uppercase tracking-wider">
                       {items.length} projeto{items.length > 1 ? "s" : ""}
                     </Badge>
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-8 gap-1 text-xs"
+                      className="h-9 gap-1 text-sm"
                       onClick={(e) => { e.stopPropagation(); navigate(`/ops/clients/${client.id}`); }}
                     >
-                      Gerir <ArrowRight className="h-3 w-3" />
+                      Gerir <ArrowRight className="h-4 w-4" />
                     </Button>
                   </button>
 
