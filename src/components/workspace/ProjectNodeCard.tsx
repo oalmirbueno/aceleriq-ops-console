@@ -80,10 +80,10 @@ export interface ProjectNodeData extends Record<string, unknown> {
   nodeId?: string;
   workspaceId?: string;
   onPrefilled?: () => void;
-  onQuickConnect?: (dir: "right" | "bottom") => void;
-  onDelete?: () => void;
+  onQuickConnect?: (nodeId: string, dir: "right" | "bottom") => void;
+  onDelete?: (nodeId: string) => void;
   canExpandHub?: boolean;
-  onExpandHub?: () => void;
+  onExpandHub?: (nodeId: string) => void;
   /** Preview/action data per kind */
   typeData?: Record<string, unknown>;
 }
@@ -163,10 +163,10 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
 
   const handleDelete = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    if (d.onDelete && window.confirm(`Excluir "${d.title}"?`)) {
-      d.onDelete();
+    if (d.onDelete && d.nodeId && window.confirm(`Excluir "${d.title}"?`)) {
+      d.onDelete(d.nodeId);
     }
-  }, [d.onDelete, d.title]);
+  }, [d.onDelete, d.nodeId, d.title]);
 
   return (
     <div
@@ -331,7 +331,7 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
         <>
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); d.onQuickConnect?.("right"); }}
+            onClick={(e) => { e.stopPropagation(); d.nodeId && d.onQuickConnect?.(d.nodeId, "right"); }}
             className="absolute top-1/2 -right-3.5 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border-2 text-white/70 transition-all hover:scale-110"
             style={{
               background: "#0F1B11",
@@ -345,7 +345,7 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
           </button>
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); d.onQuickConnect?.("bottom"); }}
+            onClick={(e) => { e.stopPropagation(); d.nodeId && d.onQuickConnect?.(d.nodeId, "bottom"); }}
             className="absolute -bottom-3.5 left-1/2 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full border-2 text-white/50 transition-all hover:scale-110"
             style={{
               background: "#0F1B11",
