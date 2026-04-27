@@ -277,14 +277,18 @@
   color: hsl(var(--muted-foreground)) !important;
 }
 
-.react-flow__edge-path {
+.canvas-flow.acelera-ops-flow .react-flow__edge-path {
   /* Cor visível sobre fundo escuro — antes usava --border (quase invisível: 15% de luminância sobre 5%). */
-  stroke: hsl(0 0% 55%);
-  stroke-width: 1.6px;
+  stroke: hsl(var(--foreground) / 0.72) !important;
+  stroke-width: 2.4px !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: drop-shadow(0 0 5px hsl(var(--background) / 0.95));
 }
-.react-flow__edge {
+.canvas-flow.acelera-ops-flow .react-flow__edge {
   outline: none;
   cursor: pointer;
+  opacity: 1 !important;
 }
 /* Hit area maior — edge mais fácil de clicar */
 .react-flow__edge .react-flow__edge-interaction {
@@ -301,10 +305,10 @@
   stroke-width: 2.2px !important;
 }
 /* Marker (seta) também precisa herdar visibilidade */
-.react-flow__arrowhead polyline,
-.react-flow__arrowhead path {
-  fill: hsl(0 0% 65%);
-  stroke: hsl(0 0% 65%);
+.canvas-flow.acelera-ops-flow .react-flow__arrowhead polyline,
+.canvas-flow.acelera-ops-flow .react-flow__arrowhead path {
+  fill: hsl(var(--foreground) / 0.82) !important;
+  stroke: hsl(var(--foreground) / 0.82) !important;
 }
 /* Endpoints visíveis quando selecionado — para reconectar */
 .react-flow__edgeupdater {
@@ -357,8 +361,15 @@
   will-change: transform;
 }
 /* Edges em SVG: container isolado */
-.react-flow__edges {
+.canvas-flow.acelera-ops-flow .react-flow__edges {
   contain: layout paint style;
+  z-index: 30 !important;
+}
+.canvas-flow.acelera-ops-flow .react-flow__nodes {
+  z-index: 20 !important;
+}
+.canvas-flow.acelera-ops-flow .react-flow__edgelabel-renderer {
+  z-index: 35 !important;
 }
 .canvas-node-popup {
   height: min(88vh, calc(100vh - 48px));
