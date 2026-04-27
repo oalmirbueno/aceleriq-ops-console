@@ -453,10 +453,14 @@ function ChatNodeComp({ data, selected, id: nodeId }: NodeProps) {
         position: "relative",
       }}
     >
-      <Handle type="target" position={Position.Left} style={{ background: scopeMeta.color, border: "2px solid #0E1009", width: 10, height: 10 }} />
-      <Handle type="target" position={Position.Top} style={{ background: scopeMeta.color, border: "2px solid #0E1009", width: 10, height: 10 }} />
-      <Handle type="source" position={Position.Right} style={{ background: scopeMeta.color, border: "2px solid #0E1009", width: 10, height: 10 }} />
-      <Handle type="source" position={Position.Bottom} style={{ background: scopeMeta.color, border: "2px solid #0E1009", width: 10, height: 10 }} />
+      <Handle type="target" position={Position.Left} id="l" style={{ background: scopeMeta.color, border: "2px solid #0E1009", width: 10, height: 10 }} />
+      <Handle type="source" position={Position.Left} id="l" style={{ background: scopeMeta.color, border: "2px solid #0E1009", width: 10, height: 10 }} />
+      <Handle type="target" position={Position.Top} id="t" style={{ background: scopeMeta.color, border: "2px solid #0E1009", width: 10, height: 10 }} />
+      <Handle type="source" position={Position.Top} id="t" style={{ background: scopeMeta.color, border: "2px solid #0E1009", width: 10, height: 10 }} />
+      <Handle type="target" position={Position.Right} id="r" style={{ background: scopeMeta.color, border: "2px solid #0E1009", width: 10, height: 10 }} />
+      <Handle type="source" position={Position.Right} id="r" style={{ background: scopeMeta.color, border: "2px solid #0E1009", width: 10, height: 10 }} />
+      <Handle type="target" position={Position.Bottom} id="b" style={{ background: scopeMeta.color, border: "2px solid #0E1009", width: 10, height: 10 }} />
+      <Handle type="source" position={Position.Bottom} id="b" style={{ background: scopeMeta.color, border: "2px solid #0E1009", width: 10, height: 10 }} />
 
       {/* Header */}
       <div style={{

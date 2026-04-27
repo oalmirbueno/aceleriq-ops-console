@@ -27,11 +27,15 @@ function AiOrbNodeComp({ data, selected }: NodeProps) {
 
   return (
     <div className={`ai-orb-node ai-orb-${d.orbType} ${selected ? "is-selected" : ""} ${generating ? "is-generating" : ""}`}>
-      {/* Handles múltiplos — 2 por lado = 8 total */}
+      {/* Handles bidirecionais — source/target no mesmo ponto para a edge grudar na bolinha */}
       <Handle type="target" position={Position.Left}   id="l1" className="ai-orb-handle" style={{ top: "40%" }} />
+      <Handle type="source" position={Position.Left}   id="l1" className="ai-orb-handle" style={{ top: "40%" }} />
       <Handle type="target" position={Position.Left}   id="l2" className="ai-orb-handle" style={{ top: "60%" }} />
+      <Handle type="source" position={Position.Left}   id="l2" className="ai-orb-handle" style={{ top: "60%" }} />
       <Handle type="target" position={Position.Top}    id="t1" className="ai-orb-handle" style={{ left: "40%" }} />
+      <Handle type="source" position={Position.Top}    id="t1" className="ai-orb-handle" style={{ left: "40%" }} />
       <Handle type="target" position={Position.Top}    id="t2" className="ai-orb-handle" style={{ left: "60%" }} />
+      <Handle type="source" position={Position.Top}    id="t2" className="ai-orb-handle" style={{ left: "60%" }} />
       <div className="ai-orb-shell" aria-label={d.label}>
         <span className="ai-orb-ring" />
         <span className="ai-orb-pulse" />
@@ -44,9 +48,13 @@ function AiOrbNodeComp({ data, selected }: NodeProps) {
         </span>
       </div>
       <p className="ai-orb-caption">{d.specialization}</p>
+      <Handle type="target" position={Position.Right}  id="r1" className="ai-orb-handle" style={{ top: "40%" }} />
       <Handle type="source" position={Position.Right}  id="r1" className="ai-orb-handle" style={{ top: "40%" }} />
+      <Handle type="target" position={Position.Right}  id="r2" className="ai-orb-handle" style={{ top: "60%" }} />
       <Handle type="source" position={Position.Right}  id="r2" className="ai-orb-handle" style={{ top: "60%" }} />
+      <Handle type="target" position={Position.Bottom} id="b1" className="ai-orb-handle" style={{ left: "40%" }} />
       <Handle type="source" position={Position.Bottom} id="b1" className="ai-orb-handle" style={{ left: "40%" }} />
+      <Handle type="target" position={Position.Bottom} id="b2" className="ai-orb-handle" style={{ left: "60%" }} />
       <Handle type="source" position={Position.Bottom} id="b2" className="ai-orb-handle" style={{ left: "60%" }} />
     </div>
   );

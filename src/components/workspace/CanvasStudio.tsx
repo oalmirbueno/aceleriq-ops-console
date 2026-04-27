@@ -51,6 +51,8 @@ interface CanvasEdgeRecord {
   workspace_id: string;
   source_node_id: string;
   target_node_id: string;
+  source_handle?: string | null;
+  target_handle?: string | null;
   edge_type: string | null;
   label: string | null;
 }
@@ -226,12 +228,12 @@ export function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNo
 function edgeIntent(edge: CanvasEdgeRecord, nodesById: Map<string, CanvasNodeRow>) {
   const sourceKind = edge.source_node_id && nodesById.get(edge.source_node_id) ? nodeKindOf(nodesById.get(edge.source_node_id)!) : "";
   const targetKind = edge.target_node_id && nodesById.get(edge.target_node_id) ? nodeKindOf(nodesById.get(edge.target_node_id)!) : "";
-  if (sourceKind === "ai_orb" || targetKind === "ai_orb") return { label: edge.label ?? "IA", stroke: "hsl(var(--node-tech))", animated: true, className: "edge-ai", strokeWidth: 2.4 };
+  if (sourceKind === "ai_orb" || targetKind === "ai_orb") return { label: edge.label ?? "IA", stroke: "hsl(var(--node-tech))", animated: false, className: "edge-ai", strokeWidth: 2.4 };
   if (PROOF_KINDS.has(targetKind) || PROOF_KINDS.has(sourceKind)) return { label: edge.label ?? "prova", stroke: "hsl(var(--node-proof))", animated: false, className: "edge-proof", strokeWidth: 2.8 };
-  if (targetKind === "engine") return { label: edge.label ?? "input", stroke: "hsl(var(--node-tech))", animated: true, className: "edge-input", strokeWidth: 2.6 };
-  if (sourceKind === "engine") return { label: edge.label ?? "gera", stroke: "hsl(var(--node-build))", animated: true, className: "edge-engine", strokeWidth: 3 };
+  if (targetKind === "engine") return { label: edge.label ?? "input", stroke: "hsl(var(--node-tech))", animated: false, className: "edge-input", strokeWidth: 2.6 };
+  if (sourceKind === "engine") return { label: edge.label ?? "gera", stroke: "hsl(var(--node-build))", animated: false, className: "edge-engine", strokeWidth: 3 };
   if (targetKind === "decisao" || sourceKind === "decisao") return { label: edge.label ?? "aprova", stroke: "hsl(var(--node-growth))", animated: false, className: "edge-decision", strokeWidth: 2.5 };
-  return { label: edge.label ?? undefined, stroke: "hsl(var(--primary))", animated: true, className: "edge-flow", strokeWidth: 2.3 };
+  return { label: edge.label ?? undefined, stroke: "hsl(var(--primary))", animated: false, className: "edge-flow", strokeWidth: 2.3 };
 }
 
 function CanvasStudioInner({
@@ -654,12 +656,14 @@ function CanvasStudioInner({
       .filter((e) => visibleIds.has(e.source_node_id) && visibleIds.has(e.target_node_id))
       .map((e): Edge => {
         const intent = edgeIntent(e, visibleById);
+        const sourceHandle = e.source_handle ?? undefined;
+        const targetHandle = e.target_handle ?? undefined;
         return {
           id: e.id,
           source: e.source_node_id,
           target: e.target_node_id,
-          sourceHandle: (e as CanvasEdgeRecord & { source_handle?: string | null }).source_handle ?? undefined,
-          targetHandle: (e as CanvasEdgeRecord & { target_handle?: string | null }).target_handle ?? undefined,
+          sourceHandle,
+          targetHandle,
           label: intent.label,
           animated: intent.animated,
           type: "deletable",
@@ -723,12 +727,20 @@ function CanvasStudioInner({
       // Se algum edge mudou de identidade, substitui
       const sameIds = current.every((e, i) => e.id === reactFlowEdges[i]?.id);
       if (!sameIds) return reactFlowEdges;
-      // IDs iguais — só substitui se DATA ou STYLE mudaram
-      const dataChanged = current.some((e, i) => {
+      // IDs iguais — só substitui se conexão, rótulo ou aparência mudaram de fato
+      const changed = current.some((e, i) => {
         const ne = reactFlowEdges[i];
-        return e.data !== ne.data || e.label !== ne.label || e.animated !== ne.animated;
+        return e.source !== ne.source
+          || e.target !== ne.target
+          || e.sourceHandle !== ne.sourceHandle
+          || e.targetHandle !== ne.targetHandle
+          || e.data !== ne.data
+          || e.label !== ne.label
+          || e.animated !== ne.animated
+          || e.style !== ne.style
+          || e.markerEnd !== ne.markerEnd;
       });
-      return dataChanged ? reactFlowEdges : current;
+      return changed ? reactFlowEdges : current;
     });
   }, [reactFlowEdges]);
 

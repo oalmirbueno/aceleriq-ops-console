@@ -174,18 +174,21 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      {/* ═══ MÚLTIPLOS HANDLES — 3 por lado para conexões flexíveis ═══
-         IDs: t1/t2/t3 (top), r1/r2/r3 (right), b1/b2/b3 (bottom), l1/l2/l3 (left)
-         Cada handle é um ponto de ancoragem distinto. Usuário escolhe qual usa.
-      */}
-      {/* Left handles (type target — entrada) */}
+      {/* ═══ MÚLTIPLOS HANDLES — pares source/target no mesmo ponto ═══
+         Mantém a edge presa na bolinha escolhida mesmo quando a conexão começa
+         por um lado que antes era só target/source em ConnectionMode.Loose. */}
       <Handle type="target" position={Position.Left} id="l1" className="flex-handle" style={{ top: "25%", background: accent }} />
+      <Handle type="source" position={Position.Left} id="l1" className="flex-handle" style={{ top: "25%", background: accent }} />
       <Handle type="target" position={Position.Left} id="l2" className="flex-handle" style={{ top: "50%", background: accent }} />
+      <Handle type="source" position={Position.Left} id="l2" className="flex-handle" style={{ top: "50%", background: accent }} />
       <Handle type="target" position={Position.Left} id="l3" className="flex-handle" style={{ top: "75%", background: accent }} />
-      {/* Top handles (type target) */}
+      <Handle type="source" position={Position.Left} id="l3" className="flex-handle" style={{ top: "75%", background: accent }} />
       <Handle type="target" position={Position.Top} id="t1" className="flex-handle" style={{ left: "25%", background: accent }} />
+      <Handle type="source" position={Position.Top} id="t1" className="flex-handle" style={{ left: "25%", background: accent }} />
       <Handle type="target" position={Position.Top} id="t2" className="flex-handle" style={{ left: "50%", background: accent }} />
+      <Handle type="source" position={Position.Top} id="t2" className="flex-handle" style={{ left: "50%", background: accent }} />
       <Handle type="target" position={Position.Top} id="t3" className="flex-handle" style={{ left: "75%", background: accent }} />
+      <Handle type="source" position={Position.Top} id="t3" className="flex-handle" style={{ left: "75%", background: accent }} />
 
       {/* ═══ THE CARD ═══════════════════════════════════════════ */}
       <div
@@ -356,13 +359,18 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
         </>
       )}
 
-      {/* Right handles (type source — saída) */}
+      {/* Right/bottom handles também são bidirecionais para reconexão lisa */}
+      <Handle type="target" position={Position.Right} id="r1" className="flex-handle" style={{ top: "25%", background: accent }} />
       <Handle type="source" position={Position.Right} id="r1" className="flex-handle" style={{ top: "25%", background: accent }} />
+      <Handle type="target" position={Position.Right} id="r2" className="flex-handle" style={{ top: "50%", background: accent }} />
       <Handle type="source" position={Position.Right} id="r2" className="flex-handle" style={{ top: "50%", background: accent }} />
+      <Handle type="target" position={Position.Right} id="r3" className="flex-handle" style={{ top: "75%", background: accent }} />
       <Handle type="source" position={Position.Right} id="r3" className="flex-handle" style={{ top: "75%", background: accent }} />
-      {/* Bottom handles (type source) */}
+      <Handle type="target" position={Position.Bottom} id="b1" className="flex-handle" style={{ left: "25%", background: accent }} />
       <Handle type="source" position={Position.Bottom} id="b1" className="flex-handle" style={{ left: "25%", background: accent }} />
+      <Handle type="target" position={Position.Bottom} id="b2" className="flex-handle" style={{ left: "50%", background: accent }} />
       <Handle type="source" position={Position.Bottom} id="b2" className="flex-handle" style={{ left: "50%", background: accent }} />
+      <Handle type="target" position={Position.Bottom} id="b3" className="flex-handle" style={{ left: "75%", background: accent }} />
       <Handle type="source" position={Position.Bottom} id="b3" className="flex-handle" style={{ left: "75%", background: accent }} />
     </div>
   );
