@@ -1,4 +1,4 @@
-import { User, ChevronRight } from "lucide-react";
+import { User, ChevronRight, FolderKanban } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getStagePremiumLabel, PIPELINE_STAGES_ORDERED } from "./aceleraConstants";
@@ -8,6 +8,7 @@ const STAGES: string[] = [...PIPELINE_STAGES_ORDERED];
 
 interface WorkspaceHeaderProps {
   clientName: string;
+  projectName?: string | null;
   ownerName: string | null;
   status: string;
   currentStage: string;
@@ -17,18 +18,33 @@ interface WorkspaceHeaderProps {
 }
 
 export default function WorkspaceHeader({
-  clientName, ownerName, status, currentStage, changingStage, onStageChange, planName,
+  clientName, projectName, ownerName, status, currentStage, changingStage, onStageChange, planName,
 }: WorkspaceHeaderProps) {
   const stageIdx = (s: string) => STAGES.indexOf(s);
   const current = stageIdx(currentStage);
   const plan = getPlanDefinition(planName);
+  // Mostra o nome do projeto quando difere do nome do cliente (evita "Acme — Acme — Workspace")
+  const showProject = !!projectName && projectName.trim().toLowerCase() !== clientName.trim().toLowerCase();
 
   return (
     <div className="space-y-5 rounded-lg border border-border bg-card p-5 shadow-sm">
       <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0">
-          <p className="label-sm mb-2">Workspace em execução</p>
-          <h1 className="truncate text-3xl font-semibold tracking-tight text-foreground">{clientName}</h1>
+          <p className="label-sm mb-2 inline-flex items-center gap-1.5">
+            Workspace em execução
+            <span className="text-muted-foreground/60">·</span>
+            <span className="text-muted-foreground">{clientName}</span>
+          </p>
+          <h1 className="truncate text-3xl font-semibold tracking-tight text-foreground inline-flex items-center gap-2">
+            {showProject ? (
+              <>
+                <FolderKanban className="h-6 w-6 text-primary/70 shrink-0" />
+                <span className="truncate">{projectName}</span>
+              </>
+            ) : (
+              <span className="truncate">{clientName}</span>
+            )}
+          </h1>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <Badge variant="outline" className="h-7 px-3 text-xs">{status}</Badge>
             {plan && <Badge className="h-7 border-primary/30 bg-primary/15 px-3 text-xs text-primary">{plan.label}</Badge>}
