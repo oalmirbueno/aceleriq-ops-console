@@ -376,4 +376,28 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
   );
 }
 
-export default memo(ProjectNodeCardComp);
+function shallowArrayEqual(a: unknown[], b: unknown[]) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every((item, index) => item === b[index]);
+}
+
+function areProjectNodePropsEqual(prev: NodeProps, next: NodeProps): boolean {
+  if (prev.selected !== next.selected) return false;
+  const a = prev.data as ProjectNodeData;
+  const b = next.data as ProjectNodeData;
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
+    const av = a[key];
+    const bv = b[key];
+    if (typeof av === "function" && typeof bv === "function") continue;
+    if (Array.isArray(av) && Array.isArray(bv)) {
+      if (!shallowArrayEqual(av, bv)) return false;
+      continue;
+    }
+    if (av !== bv) return false;
+  }
+  return true;
+}
+
+export default memo(ProjectNodeCardComp, areProjectNodePropsEqual);
