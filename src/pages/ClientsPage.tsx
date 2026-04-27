@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Plus, Search, ExternalLink, FolderPlus, KeyRound, FileText, Sparkles, Archive, ArchiveRestore } from "lucide-react";
+import { Users, Plus, Search, ExternalLink, FolderPlus, KeyRound, FileText, Sparkles, Archive, ArchiveRestore, Gauge, GaugeCircle } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import EmptyState from "@/components/EmptyState";
 import LoadingState from "@/components/LoadingState";
@@ -90,6 +90,7 @@ export default function ClientsPage() {
   const [quizClient, setQuizClient] = useState<Client | null>(null);
   const [importLeadsOpen, setImportLeadsOpen] = useState(false);
   const [typeEditorClient, setTypeEditorClient] = useState<Client | null>(null);
+  const [showScores, setShowScores] = useState(false);
 
   const fetchClients = async () => {
     setLoading(true);
@@ -202,6 +203,17 @@ export default function ClientsPage() {
           </Select>
           <Button onClick={() => setImportLeadsOpen(true)} size="sm" variant="outline" className="h-9 gap-1.5">
             <Sparkles className="h-3.5 w-3.5" /> Importar do portal
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={showScores ? "default" : "outline"}
+            className="h-9 gap-1.5"
+            onClick={() => setShowScores((v) => !v)}
+            title={showScores ? "Ocultar scores avançados" : "Mostrar scores avançados"}
+          >
+            <Gauge className="h-3.5 w-3.5" />
+            {showScores ? "Ocultar scores" : "Mostrar scores"}
           </Button>
           <Button onClick={() => setDialogOpen(true)} size="sm" className="h-9 gap-1.5">
             <Plus className="h-3.5 w-3.5" /> Novo cliente
