@@ -1018,7 +1018,7 @@ function CanvasStudioInner({
   }, [setDbEdgesImmediate]);
 
   const onNodeClick = useCallback((_e: React.MouseEvent, node: Node) => {
-    const found = dbNodes.find((n) => n.id === node.id);
+    const found = dbNodesRef.current.find((n) => n.id === node.id);
     if (!found) return;
     if (found.node_type === "client") return; // client groups don't open drawer
     if (nodeKindOf(found) === "ai_orb") {
@@ -1028,7 +1028,7 @@ function CanvasStudioInner({
     // ChatNode handles interactions inline — não abre drawer
     if (nodeKindOf(found) === "chat_node") return;
     setSelectedNode(found);
-  }, [dbNodes]);
+  }, []);
 
   /** ═══ CONNECTING STATE — ativa classe CSS .connecting durante drag de conexão.
    *   Isso faz todos os 12 handles de TODOS os nodes ficarem visíveis, ajudando
