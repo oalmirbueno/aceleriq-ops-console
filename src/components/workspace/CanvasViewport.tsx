@@ -50,7 +50,7 @@ const DEFAULT_EDGE_OPTIONS = {
   markerEnd: { type: MarkerType.ArrowClosed, color: "#737373", width: 18, height: 18 },
   style: { stroke: "#737373", strokeWidth: 1.5 },
 };
-const CONNECTION_LINE_STYLE = { stroke: "#00FF88", strokeWidth: 2 };
+const CONNECTION_LINE_STYLE = { stroke: "hsl(var(--primary))", strokeWidth: 3, opacity: 1 };
 
 function CanvasViewportComp({
   nodes, edges, nodeTypes, edgeTypes,
@@ -93,7 +93,7 @@ function CanvasViewportComp({
       defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
       connectionLineStyle={CONNECTION_LINE_STYLE}
       connectionLineType={ConnectionLineType.Bezier}
-      connectionRadius={18}
+      connectionRadius={34}
       connectionMode={ConnectionMode.Loose}
       onlyRenderVisibleElements
       nodesDraggable={!lockedNodes}
