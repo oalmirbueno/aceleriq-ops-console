@@ -16,6 +16,7 @@ import CanvasPage from "@/pages/CanvasPage";
 import CanvasFullscreenPage from "@/pages/CanvasFullscreenPage";
 import SettingsPage from "@/pages/SettingsPage";
 import AiManagementPage from "@/pages/AiManagementPage";
+import ClientDetailPage from "@/pages/ClientDetailPage";
 import AdminRoute from "@/components/AdminRoute";
 import NotFound from "@/pages/NotFound";
 import ClientBriefingPage from "@/pages/ClientBriefingPage";
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/ops" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route index element={<DashboardPage />} />
               <Route path="clients" element={<ClientsPage />} />
+              <Route path="clients/:id" element={<ClientDetailPage />} />
               <Route path="clients/:id/vault" element={<ClientVaultPage />} />
               <Route path="workspaces" element={<WorkspacesPage />} />
               <Route path="workspaces/:workspaceId/execution" element={<WorkspaceDetailPage />} />
