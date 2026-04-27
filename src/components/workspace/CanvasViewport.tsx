@@ -84,6 +84,9 @@ function CanvasViewportComp({
       zoomOnScroll
       zoomOnPinch
       zoomOnDoubleClick={false}
+      noWheelClassName="nowheel"
+      noPanClassName="nopan"
+      noDragClassName="nodrag"
       selectionOnDrag={selectionOnDrag}
       selectionKeyCode={SELECTION_KEY_CODE}
       multiSelectionKeyCode={MULTI_SELECTION_KEY_CODE}
