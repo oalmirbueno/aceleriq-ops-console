@@ -656,12 +656,14 @@ function CanvasStudioInner({
       .filter((e) => visibleIds.has(e.source_node_id) && visibleIds.has(e.target_node_id))
       .map((e): Edge => {
         const intent = edgeIntent(e, visibleById);
+        const sourceHandle = e.source_handle ?? undefined;
+        const targetHandle = e.target_handle ?? undefined;
         return {
           id: e.id,
           source: e.source_node_id,
           target: e.target_node_id,
-          sourceHandle: (e as CanvasEdgeRecord & { source_handle?: string | null }).source_handle ?? undefined,
-          targetHandle: (e as CanvasEdgeRecord & { target_handle?: string | null }).target_handle ?? undefined,
+          sourceHandle,
+          targetHandle,
           label: intent.label,
           animated: intent.animated,
           type: "deletable",
@@ -725,12 +727,20 @@ function CanvasStudioInner({
       // Se algum edge mudou de identidade, substitui
       const sameIds = current.every((e, i) => e.id === reactFlowEdges[i]?.id);
       if (!sameIds) return reactFlowEdges;
-      // IDs iguais — só substitui se DATA ou STYLE mudaram
-      const dataChanged = current.some((e, i) => {
+      // IDs iguais — só substitui se conexão, rótulo ou aparência mudaram de fato
+      const changed = current.some((e, i) => {
         const ne = reactFlowEdges[i];
-        return e.data !== ne.data || e.label !== ne.label || e.animated !== ne.animated;
+        return e.source !== ne.source
+          || e.target !== ne.target
+          || e.sourceHandle !== ne.sourceHandle
+          || e.targetHandle !== ne.targetHandle
+          || e.data !== ne.data
+          || e.label !== ne.label
+          || e.animated !== ne.animated
+          || e.style !== ne.style
+          || e.markerEnd !== ne.markerEnd;
       });
-      return dataChanged ? reactFlowEdges : current;
+      return changed ? reactFlowEdges : current;
     });
   }, [reactFlowEdges]);
 
