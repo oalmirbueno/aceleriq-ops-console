@@ -119,8 +119,12 @@ export default function ClientsPage() {
   }, [clients, search, statusFilter, stageFilter]);
 
   const openWorkspace = (client: Client) => {
-    const ws = client.workspaces[0];
-    if (ws) navigate(`/ops/workspaces/${ws.id}`);
+    // 1 workspace → abre direto. 0 ou 2+ → vai pra detalhe do cliente.
+    if (client.workspaces.length === 1) {
+      navigate(`/ops/workspaces/${client.workspaces[0].id}`);
+    } else {
+      navigate(`/ops/clients/${client.id}`);
+    }
   };
 
   const createWorkspaceForClient = async (client: Client) => {
@@ -226,7 +230,7 @@ export default function ClientsPage() {
                               : brPct > 0 ? "text-amber-400"
                               : "text-muted-foreground/50";
                   return (
-                    <TableRow key={c.id} className="cursor-pointer" onClick={() => c.workspaces[0] ? openWorkspace(c) : undefined}>
+                    <TableRow key={c.id} className="cursor-pointer" onClick={() => openWorkspace(c)}>
                       <TableCell className="font-medium text-foreground">{c.name}</TableCell>
                       <TableCell>
                         <button
@@ -295,25 +299,14 @@ export default function ClientsPage() {
                           >
                             <KeyRound className="h-4 w-4 text-muted-foreground" />
                           </Button>
-                          {c.workspaces[0] ? (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={(e) => { e.stopPropagation(); openWorkspace(c); }}
-                              title="Abrir workspace"
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          ) : (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={(e) => { e.stopPropagation(); createWorkspaceForClient(c); }}
-                              title="Criar workspace"
-                            >
-                              <FolderPlus className="h-4 w-4 text-primary" />
-                            </Button>
-                          )}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={(e) => { e.stopPropagation(); openWorkspace(c); }}
+                            title={c.workspaces.length === 1 ? "Abrir workspace" : "Ver projetos do cliente"}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
