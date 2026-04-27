@@ -47,8 +47,8 @@ const MULTI_SELECTION_KEY_CODE = ["Meta", "Control"];
 const PRO_OPTIONS = { hideAttribution: true };
 const DEFAULT_EDGE_OPTIONS = {
   type: "deletable",
-  markerEnd: { type: MarkerType.ArrowClosed, color: "#737373", width: 18, height: 18 },
-  style: { stroke: "#737373", strokeWidth: 1.5 },
+  markerEnd: { type: MarkerType.ArrowClosed, color: "#A3A3A3", width: 18, height: 18 },
+  style: { stroke: "#A3A3A3", strokeWidth: 1.8 },
 };
 const CONNECTION_LINE_STYLE = { stroke: "hsl(var(--primary))", strokeWidth: 3, opacity: 1 };
 
