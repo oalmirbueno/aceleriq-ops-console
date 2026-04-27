@@ -278,7 +278,9 @@
 }
 
 .react-flow__edge-path {
-  stroke: hsl(var(--border));
+  /* Cor visível sobre fundo escuro — antes usava --border (quase invisível: 15% de luminância sobre 5%). */
+  stroke: hsl(0 0% 55%);
+  stroke-width: 1.6px;
 }
 .react-flow__edge {
   outline: none;
@@ -291,12 +293,18 @@
 }
 .react-flow__edge.selected .react-flow__edge-path,
 .react-flow__edge:focus .react-flow__edge-path {
-  stroke: hsl(var(--primary));
-  stroke-width: 2.5px;
+  stroke: hsl(var(--primary)) !important;
+  stroke-width: 2.6px !important;
 }
 .react-flow__edge:hover .react-flow__edge-path {
-  stroke: hsl(var(--primary) / 0.6);
-  stroke-width: 2px;
+  stroke: hsl(var(--primary) / 0.85) !important;
+  stroke-width: 2.2px !important;
+}
+/* Marker (seta) também precisa herdar visibilidade */
+.react-flow__arrowhead polyline,
+.react-flow__arrowhead path {
+  fill: hsl(0 0% 65%);
+  stroke: hsl(0 0% 65%);
 }
 /* Endpoints visíveis quando selecionado — para reconectar */
 .react-flow__edgeupdater {
