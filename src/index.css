@@ -305,30 +305,22 @@
   stroke-width: 2px;
   r: 5;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: none;
 }
 .react-flow__edge.selected .react-flow__edgeupdater,
 .react-flow__edge:hover .react-flow__edgeupdater {
   opacity: 1;
 }
-.react-flow__edge-path {
-  filter: drop-shadow(0 0 7px hsl(var(--background) / 0.92));
-}
-.edge-engine .react-flow__edge-path,
-.edge-input .react-flow__edge-path {
-  filter: drop-shadow(0 0 10px hsl(var(--node-tech) / 0.22));
-}
+/* Sem drop-shadow / animação em edges — caro durante zoom/pan.
+   Mantém apenas variações de dasharray (renderização SVG nativa, leve). */
 .edge-proof .react-flow__edge-path {
   stroke-dasharray: 7 5;
-  filter: drop-shadow(0 0 10px hsl(var(--node-proof) / 0.28));
 }
 .edge-decision .react-flow__edge-path {
   stroke-dasharray: 3 4;
 }
 .edge-ai .react-flow__edge-path {
   stroke-dasharray: 8 4;
-  filter: drop-shadow(0 0 12px hsl(var(--node-tech) / 0.35));
-  animation: edgeFlow 1.6s linear infinite;
 }
 .react-flow__edge-textbg {
   rx: 999px;
@@ -337,14 +329,9 @@
   stroke-width: 1px;
 }
 .canvas-flow.acelera-ops-flow {
-  background:
-    radial-gradient(circle, hsl(var(--foreground) / 0.03) 1px, transparent 1px),
-    radial-gradient(ellipse at 30% 20%, hsl(var(--node-tech) / 0.04), transparent 50%),
-    radial-gradient(ellipse at 70% 70%, hsl(var(--primary) / 0.03), transparent 50%),
-    linear-gradient(90deg, transparent 0 26%, hsl(var(--node-tech) / 0.035) 26% 42%, transparent 42% 100%),
-    linear-gradient(180deg, transparent 0 56%, hsl(var(--node-proof) / 0.045) 56% 78%, transparent 78% 100%),
-    hsl(var(--background));
-  background-size: 32px 32px, auto, auto, auto, auto, auto;
+  /* Cor sólida — gradientes complexos eram repaint pesado a cada zoom/pan.
+     O grid pontilhado vem do <Background> do React Flow (SVG, otimizado). */
+  background: hsl(var(--background));
 }
 .canvas-node-popup {
   height: min(88vh, calc(100vh - 48px));
