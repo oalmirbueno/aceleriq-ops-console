@@ -2714,9 +2714,9 @@ export const NodeTypeDock = memo(function NodeTypeDock({
 });
 
 /* Inspector adapter — reuses existing component with filter callbacks but ignores group nodes */
-function CanvasInspectorAdapter(props: React.ComponentProps<typeof CanvasInspector>) {
+const CanvasInspectorAdapter = memo(function CanvasInspectorAdapter(props: React.ComponentProps<typeof CanvasInspector>) {
   return <CanvasInspector {...props} />;
-}
+});
 
 export default function CanvasStudio(props: Props) {
   return (

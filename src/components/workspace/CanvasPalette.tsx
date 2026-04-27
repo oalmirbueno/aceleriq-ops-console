@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
@@ -10,7 +11,7 @@ interface Props {
   onToggleCollapse: () => void;
 }
 
-export default function CanvasPalette({ onAdd, onOpenDialog, collapsed, onToggleCollapse }: Props) {
+function CanvasPaletteComp({ onAdd, onOpenDialog, collapsed, onToggleCollapse }: Props) {
   if (collapsed) {
     return (
       <div className="w-7 shrink-0 border-r border-border bg-card/40 backdrop-blur-sm flex items-start justify-center pt-3">
@@ -79,3 +80,5 @@ export default function CanvasPalette({ onAdd, onOpenDialog, collapsed, onToggle
     </TooltipProvider>
   );
 }
+
+export default memo(CanvasPaletteComp);

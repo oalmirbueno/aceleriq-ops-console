@@ -4,7 +4,7 @@
  * Mantém a leitura das etapas A.C.E.L.E.R.A de forma discreta, mas sem virar
  * um controle de zoom: aqui o comportamento é somente navegação horizontal.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReactFlow, useStore } from "@xyflow/react";
 import { ACELERA_STAGES, STAGE_COLUMN_WIDTH } from "./canvasProjectTypes";
 
@@ -16,7 +16,7 @@ interface Props {
 /* Track total content width = soma das colunas das etapas */
 const TOTAL_CONTENT_WIDTH = STAGE_COLUMN_WIDTH * ACELERA_STAGES.length;
 
-export default function CanvasStageNavigator({ counts = {}, doneCounts = {} }: Props) {
+function CanvasStageNavigatorComp({ counts = {}, doneCounts = {} }: Props) {
   const rf = useReactFlow();
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -153,3 +153,5 @@ export default function CanvasStageNavigator({ counts = {}, doneCounts = {} }: P
     </div>
   );
 }
+
+export default memo(CanvasStageNavigatorComp);
