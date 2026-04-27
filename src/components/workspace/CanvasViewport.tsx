@@ -113,9 +113,9 @@ function CanvasViewportComp({
       {gridVisible && (
         <Background
           variant={BackgroundVariant.Dots}
-          gap={48}
-          size={1}
-          color="hsl(var(--foreground) / 0.08)"
+          gap={32}
+          size={1.4}
+          color="hsl(var(--foreground) / 0.18)"
         />
       )}
     </ReactFlow>
