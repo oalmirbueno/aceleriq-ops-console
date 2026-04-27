@@ -352,9 +352,15 @@
   contain: layout paint style;
   will-change: transform;
 }
-/* Edges em SVG: container isolado */
-.react-flow__edges {
-  contain: layout paint style;
+/* Edges acima dos nodes para ficarem visíveis em qualquer caso.
+   (Sem `contain` aqui — criava stacking context que escondia o SVG.) */
+.react-flow__edges,
+.react-flow__edges svg {
+  z-index: 1001 !important;
+  pointer-events: none;
+}
+.react-flow__edges .react-flow__edge {
+  pointer-events: all;
 }
 .canvas-node-popup {
   height: min(88vh, calc(100vh - 48px));
