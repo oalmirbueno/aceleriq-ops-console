@@ -301,24 +301,24 @@ export default function CanvasPage() {
                                   <Button
                                     size="icon"
                                     variant="ghost"
-                                    className="h-7 w-7 hover:bg-secondary"
+                                    className="h-8 w-8 hover:bg-secondary"
                                     title={ws.status === "archived" ? "Reativar projeto" : "Arquivar projeto"}
                                     onClick={(e) => { e.stopPropagation(); toggleArchiveWorkspace(ws); }}
                                   >
                                     {ws.status === "archived"
-                                      ? <ArchiveRestore className="h-3.5 w-3.5 text-primary" />
-                                      : <Archive className="h-3.5 w-3.5 text-muted-foreground" />}
+                                      ? <ArchiveRestore className="h-4 w-4 text-primary" />
+                                      : <Archive className="h-4 w-4 text-muted-foreground" />}
                                   </Button>
                                   <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                       <Button
                                         size="icon"
                                         variant="ghost"
-                                        className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                                        className="h-8 w-8 text-destructive hover:bg-destructive/10"
                                         title="Remover projeto"
                                         onClick={(e) => e.stopPropagation()}
                                       >
-                                        <Trash2 className="h-3.5 w-3.5" />
+                                        <Trash2 className="h-4 w-4" />
                                       </Button>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent onClick={(e) => e.stopPropagation()}>
@@ -333,7 +333,7 @@ export default function CanvasPage() {
                                     </AlertDialogContent>
                                   </AlertDialog>
                                 </div>
-                                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-primary transition-colors shrink-0" />
+                                <ArrowRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-primary transition-colors shrink-0" />
                               </div>
                             </div>
                           );
