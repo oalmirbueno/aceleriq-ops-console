@@ -51,13 +51,22 @@ function canvasUrl(workspace: WorkspaceHubItem) {
 function WorkspaceMiniCard({ workspace, nodeCount, onOpen, onCanvas }: { workspace: WorkspaceHubItem; nodeCount: number; onOpen: () => void; onCanvas: () => void }) {
   const client = workspace.clients;
   const progress = progressFor(workspace.current_stage);
+  // Mostra projeto como título principal e cliente como contexto.
+  // Se nome do projeto == nome do cliente, evita duplicação ocultando o subtítulo.
+  const projectTitle = workspace.name;
+  const clientLabel = client?.name ?? "—";
+  const companyLabel = client?.company_name ?? null;
+  const isSameAsClient = projectTitle.trim().toLowerCase() === clientLabel.trim().toLowerCase();
   return (
     <article className="workspace-hub-card accent-border-left">
       <div className="flex items-start gap-3">
-        <ClientAvatar name={client?.name ?? workspace.name} seed={client?.id ?? workspace.id} logoUrl={client?.logo_url} size="md" />
+        <ClientAvatar name={clientLabel} seed={client?.id ?? workspace.id} logoUrl={client?.logo_url} size="md" />
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-sm font-semibold text-foreground">{client?.name ?? workspace.name}</h2>
-          <p className="truncate text-xs text-muted-foreground">{client?.company_name ?? workspace.name}</p>
+          <h2 className="truncate text-sm font-semibold text-foreground">{projectTitle}</h2>
+          <p className="truncate text-[11px] text-muted-foreground">
+            <span className="text-foreground/70">{clientLabel}</span>
+            {!isSameAsClient && companyLabel && <span className="text-muted-foreground/70"> · {companyLabel}</span>}
+          </p>
         </div>
         <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">{client?.plan_name ?? workspace.status}</Badge>
       </div>
@@ -328,7 +337,13 @@ export default function WorkspacesPage() {
             {filtered.map((workspace) => (
               <button key={workspace.id} onClick={() => openWorkspace(workspace)} className="flex w-full items-center gap-3 border-b border-border/60 p-4 text-left transition-colors last:border-0 hover:bg-secondary/50">
                 <ClientAvatar name={workspace.clients?.name ?? workspace.name} seed={workspace.clients?.id ?? workspace.id} logoUrl={workspace.clients?.logo_url} size="sm" />
-                <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-foreground">{workspace.clients?.name ?? workspace.name}</p><p className="text-xs text-muted-foreground">{getStagePremiumLabel(workspace.current_stage)} · {nodeCounts[workspace.id] ?? 0} nodes</p></div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">{workspace.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    <span className="text-foreground/70">{workspace.clients?.name ?? "—"}</span>
+                    <span className="text-muted-foreground/60"> · {getStagePremiumLabel(workspace.current_stage)} · {nodeCounts[workspace.id] ?? 0} nodes</span>
+                  </p>
+                </div>
                 <ArrowRight className="h-4 w-4 text-muted-foreground" />
               </button>
             ))}
