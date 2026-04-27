@@ -165,6 +165,18 @@ export default function ClientsPage() {
     }
   };
 
+  const toggleArchive = async (client: Client) => {
+    const next = client.status === "archived" ? "active" : "archived";
+    try {
+      const { error } = await supabase.from("clients").update({ status: next }).eq("id", client.id);
+      if (error) throw error;
+      toast({ title: next === "archived" ? "Cliente arquivado" : "Cliente reativado", description: client.name });
+      setClients(prev => prev.map(c => c.id === client.id ? { ...c, status: next } : c));
+    } catch (err: any) {
+      toast({ title: "Erro ao arquivar", description: err?.message, variant: "destructive" });
+    }
+  };
+
   return (
     <>
       <AppHeader title="Clientes" subtitle="Gestão de clientes da operação" />
@@ -301,6 +313,16 @@ export default function ClientsPage() {
                             title="Ver acessos do cliente"
                           >
                             <KeyRound className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={(e) => { e.stopPropagation(); toggleArchive(c); }}
+                            title={c.status === "archived" ? "Reativar cliente" : "Arquivar cliente"}
+                          >
+                            {c.status === "archived"
+                              ? <ArchiveRestore className="h-4 w-4 text-primary" />
+                              : <Archive className="h-4 w-4 text-muted-foreground" />}
                           </Button>
                           <Button
                             size="icon"
