@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Columns3, FolderKanban, Grid3X3, List, Network, Search } from "lucide-react";
+import { ArrowRight, ChevronDown, Columns3, Eye, EyeOff, Folder, FolderKanban, FolderOpen, Grid3X3, List, Network, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import AppHeader from "@/components/AppHeader";
 import EmptyState from "@/components/EmptyState";
@@ -29,13 +29,14 @@ interface WorkspaceHubItem {
     segment: string | null;
     plan_name: string | null;
     logo_url?: string | null;
+    status?: string | null;
   } | null;
 }
 
 const STAGES = ["entrada", "diagnostico", "estrutura_base", "planejamento", "producao", "ativacao", "otimizacao", "expansao"];
 const STAGE_LETTERS = ["A", "C", "E", "L", "E", "R", "A", "+"];
 
-type ViewMode = "line" | "cards" | "list";
+type ViewMode = "folders" | "line" | "cards" | "list";
 
 function progressFor(stage: string) {
   const index = Math.max(0, STAGES.indexOf(stage));
@@ -86,14 +87,16 @@ export default function WorkspacesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("__all__");
-  const [viewMode, setViewMode] = useState<ViewMode>("line");
+  const [viewMode, setViewMode] = useState<ViewMode>("folders");
+  const [showArchived, setShowArchived] = useState(false);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     async function fetchWorkspaces() {
       setLoading(true);
       const { data, error } = await supabase
         .from("workspaces")
-        .select("id, name, status, current_stage, summary, updated_at, created_at, clients(id, name, company_name, segment, plan_name, logo_url)")
+        .select("id, name, status, current_stage, summary, updated_at, created_at, clients(id, name, company_name, segment, plan_name, logo_url, status)")
         .order("updated_at", { ascending: false });
 
       if (!error && data) {
@@ -117,11 +120,39 @@ export default function WorkspacesPage() {
     const q = search.trim().toLowerCase();
     return workspaces.filter((workspace) => {
       const client = workspace.clients;
+      if (!showArchived) {
+        if (workspace.status === "archived") return false;
+        if (client?.status === "archived") return false;
+      }
       const matchesSearch = !q || workspace.name.toLowerCase().includes(q) || client?.name.toLowerCase().includes(q) || client?.company_name?.toLowerCase().includes(q);
       const matchesStage = stageFilter === "__all__" || workspace.current_stage === stageFilter;
       return matchesSearch && matchesStage;
     });
-  }, [workspaces, search, stageFilter]);
+  }, [workspaces, search, stageFilter, showArchived]);
+
+  // Agrupa por cliente — mesma estrutura do CanvasPage
+  const groupedByClient = useMemo(() => {
+    const map = new Map<string, { client: { id: string; name: string; company_name: string | null; logo_url: string | null; plan_name: string | null }; items: WorkspaceHubItem[] }>();
+    filtered.forEach((ws) => {
+      const cId = ws.clients?.id ?? ws.id;
+      const cName = ws.clients?.name ?? "Cliente sem nome";
+      const existing = map.get(cId);
+      if (existing) existing.items.push(ws);
+      else map.set(cId, {
+        client: {
+          id: cId,
+          name: cName,
+          company_name: ws.clients?.company_name ?? null,
+          logo_url: ws.clients?.logo_url ?? null,
+          plan_name: ws.clients?.plan_name ?? null,
+        },
+        items: [ws],
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => a.client.name.localeCompare(b.client.name));
+  }, [filtered]);
+
+  const toggleCollapse = (clientId: string) => setCollapsed((prev) => ({ ...prev, [clientId]: !prev[clientId] }));
 
   const byStage = useMemo(() => {
     const map: Record<string, WorkspaceHubItem[]> = Object.fromEntries(STAGES.map((stage) => [stage, []]));
@@ -149,16 +180,121 @@ export default function WorkspacesPage() {
             </SelectContent>
           </Select>
           <div className="ml-auto flex rounded-md border border-border bg-card p-1">
-            {[{ id: "line", icon: Columns3 }, { id: "cards", icon: Grid3X3 }, { id: "list", icon: List }].map((item) => {
+            {[{ id: "folders", icon: Folder }, { id: "line", icon: Columns3 }, { id: "cards", icon: Grid3X3 }, { id: "list", icon: List }].map((item) => {
               const Icon = item.icon;
               return <button key={item.id} onClick={() => setViewMode(item.id as ViewMode)} className={cn("h-8 w-8 rounded text-muted-foreground transition-colors hover:text-foreground", viewMode === item.id && "bg-primary/10 text-primary")}><Icon className="mx-auto h-4 w-4" /></button>;
             })}
           </div>
+          <Button
+            type="button"
+            size="sm"
+            variant={showArchived ? "default" : "outline"}
+            className="h-9 gap-1.5"
+            onClick={() => setShowArchived((v) => !v)}
+            title={showArchived ? "Ocultar arquivados" : "Mostrar arquivados"}
+          >
+            {showArchived ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            {showArchived ? "Ocultar arquivados" : "Mostrar arquivados"}
+          </Button>
           <Button variant="outline" onClick={() => navigate("/ops/clients")}>+ Novo cliente</Button>
         </div>
 
         {loading ? <LoadingState /> : filtered.length === 0 ? (
           <EmptyState icon={FolderKanban} title={workspaces.length === 0 ? "Nenhum workspace criado" : "Nenhum workspace encontrado"} description={workspaces.length === 0 ? "Crie ou selecione clientes para iniciar os hubs de projeto." : "Ajuste busca ou filtro de etapa."} />
+        ) : viewMode === "folders" ? (
+          <div className="space-y-5">
+            {groupedByClient.map(({ client, items }) => {
+              const isCollapsed = collapsed[client.id];
+              return (
+                <section key={client.id} className="rounded-xl border border-border bg-card/40 overflow-hidden transition-all hover:border-border">
+                  {/* Folder header */}
+                  <button
+                    type="button"
+                    onClick={() => toggleCollapse(client.id)}
+                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-card/80 transition-colors text-left"
+                  >
+                    <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", isCollapsed && "-rotate-90")} />
+                    <div className="text-primary">
+                      {isCollapsed ? <Folder className="h-5 w-5" /> : <FolderOpen className="h-5 w-5" />}
+                    </div>
+                    <ClientAvatar name={client.name} seed={client.id} logoUrl={client.logo_url} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-base font-semibold text-foreground">{client.name}</p>
+                      {client.company_name && <p className="truncate text-xs text-muted-foreground">{client.company_name}</p>}
+                    </div>
+                    {client.plan_name && (
+                      <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary text-[10px] uppercase tracking-wider">
+                        {client.plan_name}
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+                      {items.length} projeto{items.length > 1 ? "s" : ""}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 gap-1 text-xs"
+                      onClick={(e) => { e.stopPropagation(); navigate(`/ops/clients/${client.id}`); }}
+                    >
+                      Gerir <ArrowRight className="h-3 w-3" />
+                    </Button>
+                  </button>
+
+                  {/* Projects grid */}
+                  {!isCollapsed && (
+                    <div className="border-t border-border/50 bg-background/30 p-4">
+                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {items.map((ws) => {
+                          const progress = progressFor(ws.current_stage);
+                          const nodes = nodeCounts[ws.id] ?? 0;
+                          return (
+                            <div
+                              key={ws.id}
+                              className="group relative rounded-lg border border-border bg-card p-4 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md cursor-pointer"
+                              onClick={() => openWorkspace(ws)}
+                            >
+                              <div className="flex items-start gap-2 pr-7">
+                                <FolderKanban className="h-4 w-4 text-primary/70 shrink-0 mt-0.5" />
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-sm font-semibold text-foreground">{ws.name}</p>
+                                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mt-0.5">
+                                    {ws.status} · {nodes} node{nodes !== 1 ? "s" : ""}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="mt-3 space-y-1.5">
+                                <div className="flex items-center justify-between gap-2 text-[11px]">
+                                  <span className="truncate text-foreground/80 font-medium">{getStagePremiumLabel(ws.current_stage)}</span>
+                                  <span className="font-semibold text-primary tabular-nums">{progress}%</span>
+                                </div>
+                                <Progress value={progress} className="h-1" />
+                              </div>
+                              <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground/70">
+                                <span>{ws.updated_at ? new Date(ws.updated_at).toLocaleDateString("pt-BR") : "—"}</span>
+                                <span className="inline-flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); openCanvas(ws); }}
+                                    className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary font-medium"
+                                    title="Abrir canvas"
+                                  >
+                                    <Network className="h-3 w-3" /> Canvas
+                                  </button>
+                                  <span className="inline-flex items-center gap-1 text-primary font-medium">
+                                    Abrir <ArrowRight className="h-3 w-3" />
+                                  </span>
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+          </div>
         ) : viewMode === "line" ? (
           <section className="production-line-wrap surface-2">
             <div className="production-line">
