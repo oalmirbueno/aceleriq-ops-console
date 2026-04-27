@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useEffect, useCallback } from "react";
+import { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import {
   MessageCircle, Send, Sparkles, ChevronDown, ChevronUp,
@@ -211,7 +211,7 @@ async function callAI(
 
 // ─── ChatNode Component ──────────────────────────────────────
 
-function ChatNodeComp({ data, selected, id: nodeId }: NodeProps) {
+function ChatNodeComp({ data, selected, id: nodeId, dragging }: NodeProps) {
   const d = data as ChatNodeData;
   const scopeMeta = SCOPE_META[d.scope ?? "node"];
   const fnMeta = FN_META[d.fn ?? "free"];
@@ -246,7 +246,7 @@ function ChatNodeComp({ data, selected, id: nodeId }: NodeProps) {
   }, [showMenu]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
   }, [messages]);
 
   useEffect(() => {
@@ -366,6 +366,7 @@ function ChatNodeComp({ data, selected, id: nodeId }: NodeProps) {
   };
 
   const currentPreset = SIZE_PRESETS[size];
+  const visibleMessages = useMemo(() => messages.slice(-20), [messages]);
 
   const renderMessage = (msg: ChatMessage) => {
     const isUser = msg.role === "user";
@@ -451,6 +452,8 @@ function ChatNodeComp({ data, selected, id: nodeId }: NodeProps) {
         transition: "width 0.25s ease, border-color 0.2s",
         overflow: "visible", // overflow visible pro menu dropdown aparecer
         position: "relative",
+        contain: "layout paint style",
+        willChange: dragging ? "transform" : undefined,
       }}
     >
       <Handle type="target" position={Position.Left} id="l" style={{ background: scopeMeta.color, border: "2px solid #0E1009", width: 10, height: 10 }} />
@@ -629,7 +632,11 @@ function ChatNodeComp({ data, selected, id: nodeId }: NodeProps) {
       )}
 
       {/* Body */}
-      {expanded && (
+      {expanded && dragging && (
+        <div style={{ height: currentPreset.messagesHeight + 51, background: "rgba(0,0,0,0.12)", borderBottomLeftRadius: 14, borderBottomRightRadius: 14 }} />
+      )}
+
+      {expanded && !dragging && (
         <>
           {/* Messages */}
           <div style={{
@@ -651,7 +658,7 @@ function ChatNodeComp({ data, selected, id: nodeId }: NodeProps) {
                 </div>
               </div>
             ) : (
-              messages.map(renderMessage)
+              visibleMessages.map(renderMessage)
             )}
             {processing && (
               <div style={{ display: "flex", gap: 6, alignItems: "center", color: scopeMeta.color, fontSize: 10, padding: "4px 0" }}>

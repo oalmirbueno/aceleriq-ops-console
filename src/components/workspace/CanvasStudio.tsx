@@ -236,6 +236,31 @@ function edgeIntent(edge: CanvasEdgeRecord, nodesById: Map<string, CanvasNodeRow
   return { label: edge.label ?? undefined, stroke: "hsl(var(--primary))", animated: false, className: "edge-flow", strokeWidth: 2.3 };
 }
 
+const EMPTY_OPERATIONAL_META = {} as CanvasOperationalMeta;
+
+function shallowArrayEqual(a: unknown[], b: unknown[]) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every((item, index) => item === b[index]);
+}
+
+function canvasNodeDataEqual(a: Record<string, unknown> | undefined, b: Record<string, unknown> | undefined) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
+    const av = a[key];
+    const bv = b[key];
+    if (typeof av === "function" && typeof bv === "function") continue;
+    if (Array.isArray(av) && Array.isArray(bv)) {
+      if (!shallowArrayEqual(av, bv)) return false;
+      continue;
+    }
+    if (av !== bv) return false;
+  }
+  return true;
+}
+
 function CanvasStudioInner({
   workspaceId, clientId, clientName,
   fullscreen, onToggleFullscreen, onTimelineRefresh, initialStatusFilter,
@@ -433,6 +458,12 @@ function CanvasStudioInner({
   const handleDeleteNodeRef = useRef<(id: string) => Promise<void>>();
   const stableOnPrefilled = useCallback(() => { void fetchDataRef.current?.(); }, []);
   const stableOnDeleteNode = useCallback((id: string) => { void handleDeleteNodeRef.current?.(id); }, []);
+  const stableOnQuickConnect = useCallback((sourceId: string, dir: "right" | "bottom") => {
+    setQuickAddState({ open: true, sourceId, dir });
+  }, []);
+  const stableOnExpandHub = useCallback((engineNodeId: string) => {
+    void expandEngineHubRef.current?.(engineNodeId);
+  }, []);
 
   const visibleCanvasNodes = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
@@ -559,7 +590,7 @@ function CanvasStudioInner({
     return visibleCanvasNodes.map((n): Node => {
       const owner = n.parent_node_id ? groupMeta[n.parent_node_id] : null;
       const dataObj = (n.data as Record<string, unknown> | null) ?? {};
-      const operationalMeta = (dataObj.operationalMeta ?? dataObj.operational_meta ?? {}) as CanvasOperationalMeta;
+      const operationalMeta = (dataObj.operationalMeta ?? dataObj.operational_meta ?? EMPTY_OPERATIONAL_META) as CanvasOperationalMeta;
       const attachmentList = (dataObj.attachments as Array<{ url?: string; type?: string; label?: string }> | undefined) ?? [];
       const isAiOrb = n.node_type === "ai_orb" || dataObj.kind === "ai_orb";
       const isChatNode = dataObj.kind === "chat_node";
@@ -607,15 +638,15 @@ function CanvasStudioInner({
           nodeId: n.id,
           workspaceId,
           onPrefilled: stableOnPrefilled,
-          onQuickConnect: (dir: "right" | "bottom") => quickConnectFromNode(n.id, dir),
-          onDelete: () => stableOnDeleteNode(n.id),
+            onQuickConnect: stableOnQuickConnect,
+            onDelete: stableOnDeleteNode,
           canExpandHub: nodeKindOf(n) === "engine",
-          onExpandHub: () => expandEngineHubRef.current?.(n.id),
+            onExpandHub: stableOnExpandHub,
           typeData: dataObj,
         } satisfies ProjectNodeData,
       };
     });
-  }, [visibleCanvasNodes, groupMeta, workspaceId, quickConnectFromNode, lockedNodes, stableOnPrefilled, stableOnDeleteNode, connectionsByNodeId, clientId]);
+  }, [visibleCanvasNodes, groupMeta, workspaceId, lockedNodes, stableOnPrefilled, stableOnQuickConnect, stableOnDeleteNode, stableOnExpandHub, connectionsByNodeId, clientId]);
 
   /** Delete edge — instant local update + DB delete. Usado pelo DeletableEdge e context menu. */
   const deleteEdgeById = useCallback(async (edgeId: string) => {
@@ -711,9 +742,10 @@ function CanvasStudioInner({
           continue;
         }
 
-        // Compara data e position — só recria se houve mudança real
-        const sameData = existing.data === newNode.data;
-        if (sameData) {
+        // Compara conteúdo da data — callbacks estáveis não invalidam render.
+        const sameData = canvasNodeDataEqual(existing.data as Record<string, unknown>, newNode.data as Record<string, unknown>);
+        const sameConfig = existing.type === newNode.type && existing.draggable === newNode.draggable;
+        if (sameData && sameConfig) {
           // Sem mudança em data — reusa objeto existente (mantém referência)
           result.push(existing);
         } else {
@@ -745,8 +777,9 @@ function CanvasStudioInner({
           || e.data !== ne.data
           || e.label !== ne.label
           || e.animated !== ne.animated
-          || e.style !== ne.style
-          || e.markerEnd !== ne.markerEnd;
+          || (e.style as React.CSSProperties | undefined)?.stroke !== (ne.style as React.CSSProperties | undefined)?.stroke
+          || (e.style as React.CSSProperties | undefined)?.strokeWidth !== (ne.style as React.CSSProperties | undefined)?.strokeWidth
+          || (e.markerEnd as { color?: string } | undefined)?.color !== (ne.markerEnd as { color?: string } | undefined)?.color;
       });
       return changed ? reactFlowEdges : current;
     });
@@ -985,7 +1018,7 @@ function CanvasStudioInner({
   }, [setDbEdgesImmediate]);
 
   const onNodeClick = useCallback((_e: React.MouseEvent, node: Node) => {
-    const found = dbNodes.find((n) => n.id === node.id);
+    const found = dbNodesRef.current.find((n) => n.id === node.id);
     if (!found) return;
     if (found.node_type === "client") return; // client groups don't open drawer
     if (nodeKindOf(found) === "ai_orb") {
@@ -995,7 +1028,7 @@ function CanvasStudioInner({
     // ChatNode handles interactions inline — não abre drawer
     if (nodeKindOf(found) === "chat_node") return;
     setSelectedNode(found);
-  }, [dbNodes]);
+  }, []);
 
   /** ═══ CONNECTING STATE — ativa classe CSS .connecting durante drag de conexão.
    *   Isso faz todos os 12 handles de TODOS os nodes ficarem visíveis, ajudando
