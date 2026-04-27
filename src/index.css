@@ -520,9 +520,8 @@
 }
 .react-flow__connection-path {
   stroke: hsl(var(--primary)) !important;
-  stroke-width: 3.5 !important;
+  stroke-width: 3 !important;
   opacity: 1 !important;
-  filter: drop-shadow(0 0 10px hsl(var(--primary) / 0.34));
   visibility: visible !important;
 }
 .react-flow__connectionline.invalid .react-flow__connection-path {
@@ -588,11 +587,12 @@
    3 handles por lado (12 total). Invisíveis por padrão,
    revelam no hover do node. Mouse pode escolher qualquer ponto. */
 .flex-handle {
-  width: 10px !important;
-  height: 10px !important;
+  width: 14px !important;
+  height: 14px !important;
+  margin: -7px 0 0 -7px !important;
   border: 2px solid rgba(255, 255, 255, 0.25) !important;
-  opacity: 0;
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  opacity: 0.12;
+  transition: none;
   pointer-events: auto !important;
 }
 /* Hover no node pai → mostra todos os handles dele */
@@ -603,8 +603,6 @@
 /* Hover direto no handle → destaca ele */
 .flex-handle:hover {
   opacity: 1 !important;
-  transform: scale(1.6);
-  box-shadow: 0 0 12px currentColor;
   z-index: 20;
 }
 /* Durante conexão ativa — todos os handles visíveis */
@@ -613,12 +611,13 @@
 }
 /* AI orb handles também ganham estado progressivo */
 .ai-orb-handle {
-  width: 10px !important;
-  height: 10px !important;
+  width: 14px !important;
+  height: 14px !important;
+  margin: -7px 0 0 -7px !important;
   background: hsl(var(--orb-color)) !important;
   border: 2px solid hsl(var(--background)) !important;
   opacity: 0.35;
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition: none;
 }
 .ai-orb-node:hover .ai-orb-handle,
 .ai-orb-node.is-selected .ai-orb-handle {
@@ -626,8 +625,6 @@
 }
 .ai-orb-handle:hover {
   opacity: 1 !important;
-  transform: scale(1.5);
-  box-shadow: 0 0 14px hsl(var(--orb-color) / 0.8) !important;
 }
 .ai-orb-particle { position: absolute; left: 36px; top: 36px; width: 5px; height: 5px; border-radius: 999px; background: hsl(var(--orb-color)); opacity: 0; }
 .ai-orb-node.is-generating .ai-orb-particle { opacity: .9; animation: orbParticle1 1.8s linear infinite; }
