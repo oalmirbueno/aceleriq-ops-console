@@ -1,8 +1,5 @@
 project_id = "grxljyocuadywcksfyvu"
 
-[functions.ai-invoke]
-verify_jwt = true
-
 [functions.consolidate-briefing]
 verify_jwt = true
 
