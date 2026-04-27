@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Plus, X, Layers, Pencil, Image as ImageIcon, ArrowLeftToLine, Trash2 } from "lucide-react";
@@ -39,7 +39,7 @@ interface Props {
   showAllTab?: boolean;
 }
 
-export default function CanvasClientTabs({
+function CanvasClientTabsComp({
   tabs,
   activeId,
   onSelect,
@@ -332,3 +332,5 @@ export default function CanvasClientTabs({
     </TooltipProvider>
   );
 }
+
+export default memo(CanvasClientTabsComp);
