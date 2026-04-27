@@ -284,7 +284,7 @@ export default function WorkspacesPage() {
                                 <FolderKanban className="h-4 w-4 text-primary/70 shrink-0 mt-0.5" />
                                 <div className="min-w-0 flex-1">
                                   <p className="truncate text-sm font-semibold text-foreground">{ws.name}</p>
-                                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mt-0.5">
+                                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                     {ws.status} · {nodes} node{nodes !== 1 ? "s" : ""}
                                   </p>
                                 </div>
@@ -292,12 +292,12 @@ export default function WorkspacesPage() {
                               <div className="mt-3 space-y-1.5">
                                 <div className="flex items-center justify-between gap-2 text-[11px]">
                                   <span className="truncate text-foreground/80 font-medium">{getStagePremiumLabel(ws.current_stage)}</span>
-                                  <span className="font-semibold text-primary tabular-nums">{progress}%</span>
+                                  <span className="font-semibold text-primary/80 tabular-nums opacity-60 group-hover:opacity-100 transition-opacity">{progress}%</span>
                                 </div>
                                 <Progress value={progress} className="h-1" />
                               </div>
-                              <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground/70">
-                                <span>{ws.updated_at ? new Date(ws.updated_at).toLocaleDateString("pt-BR") : "—"}</span>
+                              <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground/70 min-h-[16px]">
+                                <span className="opacity-0 group-hover:opacity-100 transition-opacity">{ws.updated_at ? new Date(ws.updated_at).toLocaleDateString("pt-BR") : "—"}</span>
                                 <span className="inline-flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <button
                                     type="button"
