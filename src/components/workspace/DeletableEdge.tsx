@@ -53,8 +53,8 @@ function DeletableEdgeComp(props: EdgeProps) {
 
   const edgeStyle = useMemo(() => ({
     ...style,
-    stroke: selected ? "#00FF88" : hover ? "#A0A0A0" : (style?.stroke ?? "#737373"),
-    strokeWidth: selected ? 2.5 : hover ? 2 : 1.5,
+    stroke: selected ? "#00FF88" : hover ? "#E5E5E5" : "#A3A3A3",
+    strokeWidth: selected ? 2.6 : hover ? 2.2 : 1.8,
     transition: "stroke 0.15s, stroke-width 0.15s",
   }), [style, hover, selected]);
 
