@@ -957,7 +957,14 @@ function CanvasStudioInner({
       return;
     }
 
-    // Update edge in DB
+    const previousEdge = dbEdgesRef.current.find((e) => e.id === oldEdge.id) ?? null;
+    setDbEdgesImmediate((prev) => prev.map((e) =>
+      e.id === oldEdge.id
+        ? { ...e, source_node_id: newConn.source!, target_node_id: newConn.target!, source_handle: newConn.sourceHandle ?? null, target_handle: newConn.targetHandle ?? null }
+        : e
+    ));
+
+    // Persistência em background — visual já mudou no canvas
     const { error } = await supabase
       .from("canvas_edges")
       .update({
@@ -970,18 +977,12 @@ function CanvasStudioInner({
       .eq("id", oldEdge.id);
 
     if (error) {
+      if (previousEdge) setDbEdgesImmediate((prev) => prev.map((e) => e.id === oldEdge.id ? previousEdge : e));
       toast({ title: "Erro ao reconectar", description: error.message, variant: "destructive" });
       return;
     }
-
-    // Local state update
-    setDbEdges((prev) => prev.map((e) =>
-      e.id === oldEdge.id
-        ? { ...e, source_node_id: newConn.source!, target_node_id: newConn.target!, source_handle: newConn.sourceHandle ?? null, target_handle: newConn.targetHandle ?? null }
-        : e
-    ));
     toast({ title: "Conexão atualizada", description: `${sourceNode.title} → ${targetNode.title}` });
-  }, []);
+  }, [setDbEdgesImmediate]);
 
   const onNodeClick = useCallback((_e: React.MouseEvent, node: Node) => {
     const found = dbNodes.find((n) => n.id === node.id);
