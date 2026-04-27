@@ -584,7 +584,7 @@ function CanvasStudioInner({
     return visibleCanvasNodes.map((n): Node => {
       const owner = n.parent_node_id ? groupMeta[n.parent_node_id] : null;
       const dataObj = (n.data as Record<string, unknown> | null) ?? {};
-      const operationalMeta = (dataObj.operationalMeta ?? dataObj.operational_meta ?? {}) as CanvasOperationalMeta;
+      const operationalMeta = (dataObj.operationalMeta ?? dataObj.operational_meta ?? EMPTY_OPERATIONAL_META) as CanvasOperationalMeta;
       const attachmentList = (dataObj.attachments as Array<{ url?: string; type?: string; label?: string }> | undefined) ?? [];
       const isAiOrb = n.node_type === "ai_orb" || dataObj.kind === "ai_orb";
       const isChatNode = dataObj.kind === "chat_node";
@@ -632,15 +632,15 @@ function CanvasStudioInner({
           nodeId: n.id,
           workspaceId,
           onPrefilled: stableOnPrefilled,
-          onQuickConnect: (dir: "right" | "bottom") => quickConnectFromNode(n.id, dir),
-          onDelete: () => stableOnDeleteNode(n.id),
+            onQuickConnect: stableOnQuickConnect,
+            onDelete: stableOnDeleteNode,
           canExpandHub: nodeKindOf(n) === "engine",
-          onExpandHub: () => expandEngineHubRef.current?.(n.id),
+            onExpandHub: stableOnExpandHub,
           typeData: dataObj,
         } satisfies ProjectNodeData,
       };
     });
-  }, [visibleCanvasNodes, groupMeta, workspaceId, quickConnectFromNode, lockedNodes, stableOnPrefilled, stableOnDeleteNode, connectionsByNodeId, clientId]);
+  }, [visibleCanvasNodes, groupMeta, workspaceId, lockedNodes, stableOnPrefilled, stableOnQuickConnect, stableOnDeleteNode, stableOnExpandHub, connectionsByNodeId, clientId]);
 
   /** Delete edge — instant local update + DB delete. Usado pelo DeletableEdge e context menu. */
   const deleteEdgeById = useCallback(async (edgeId: string) => {
