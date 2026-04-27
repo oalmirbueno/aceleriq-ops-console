@@ -280,6 +280,14 @@ function CanvasStudioInner({
   useEffect(() => { dbNodesRef.current = dbNodes; }, [dbNodes]);
   useEffect(() => { dbEdgesRef.current = dbEdges; }, [dbEdges]);
 
+  const setDbEdgesImmediate = useCallback((updater: CanvasEdgeRecord[] | ((prev: CanvasEdgeRecord[]) => CanvasEdgeRecord[])) => {
+    setDbEdges((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      dbEdgesRef.current = next;
+      return next;
+    });
+  }, []);
+
   // Load client plan_name + project_type for ApplyPlaybookButton
   useEffect(() => {
     if (!clientId) { setClientPlanName(null); setClientProjectType(null); return; }
@@ -826,6 +834,18 @@ function CanvasStudioInner({
       return;
     }
 
+    const optimisticEdge: CanvasEdgeRecord = {
+      id: `temp-${crypto.randomUUID()}`,
+      workspace_id: workspaceId,
+      source_node_id: conn.source,
+      target_node_id: conn.target,
+      source_handle: conn.sourceHandle ?? null,
+      target_handle: conn.targetHandle ?? null,
+      edge_type: "ops",
+      label: validation.label,
+    };
+    setDbEdgesImmediate((prev) => [...prev, optimisticEdge]);
+
     const { data, error } = await supabase
       .from("canvas_edges")
       .insert({
@@ -841,10 +861,13 @@ function CanvasStudioInner({
       .single();
 
     if (error) {
+      setDbEdgesImmediate((prev) => prev.filter((e) => e.id !== optimisticEdge.id));
       toast({ title: "Erro ao conectar", description: error.message, variant: "destructive" });
       return;
     }
-    if (data) setDbEdges((prev) => [...prev, data as CanvasEdgeRecord]);
+    if (data) {
+      setDbEdgesImmediate((prev) => prev.map((e) => e.id === optimisticEdge.id ? data as CanvasEdgeRecord : e));
+    }
 
     if (INPUT_KINDS.has(sourceKind)) {
       const targetData = (targetNode.data as Record<string, unknown> | null) ?? {};
@@ -896,7 +919,7 @@ function CanvasStudioInner({
     }
 
     await onTimelineRefresh?.();
-  }, [workspaceId, onTimelineRefresh]);
+  }, [workspaceId, onTimelineRefresh, setDbEdgesImmediate]);
 
   const isValidConnection = useCallback((conn: Connection) => {
     if (!conn.source || !conn.target || conn.source === conn.target) return false;
