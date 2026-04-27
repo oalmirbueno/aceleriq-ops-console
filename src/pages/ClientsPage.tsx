@@ -268,13 +268,13 @@ export default function ClientsPage() {
                           {brPct > 0 ? `${brPct}%` : "Preencher"}
                         </button>
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <AIFirstScoreCard clientId={c.id} planName={c.plan_name} variant="compact" />
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <HealthScoreCard clientId={c.id} clientMetadata={c.metadata} currentStage={stage} variant="compact" />
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <ICPFitScoreCard clientMetadata={c.metadata} currentPlan={c.plan_name as any} variant="compact" />
                       </TableCell>
                       <TableCell className="text-muted-foreground">{stage ? getStagePremiumLabel(stage) : "—"}</TableCell>
