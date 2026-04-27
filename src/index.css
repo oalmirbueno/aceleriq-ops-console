@@ -333,6 +333,25 @@
      O grid pontilhado vem do <Background> do React Flow (SVG, otimizado). */
   background: hsl(var(--background));
 }
+/* ─── GPU compositing para zoom/pan suaves ───────────────────────
+   O viewport é o que sofre transform durante zoom/pan. Forçar uma
+   layer GPU evita repaints custosos do conteúdo (nodes/edges). */
+.react-flow__viewport {
+  will-change: transform;
+  transform: translateZ(0);
+}
+.react-flow__pane {
+  will-change: transform;
+}
+/* Isola cada node em sua própria layer — repaint não cascateia */
+.react-flow__node {
+  contain: layout paint style;
+  will-change: transform;
+}
+/* Edges em SVG: container isolado */
+.react-flow__edges {
+  contain: layout paint style;
+}
 .canvas-node-popup {
   height: min(88vh, calc(100vh - 48px));
   min-height: 0;
