@@ -99,6 +99,7 @@ export default function WorkspacesPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("folders");
   const [showArchived, setShowArchived] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [collapsedInitialized, setCollapsedInitialized] = useState(false);
 
   useEffect(() => {
     async function fetchWorkspaces() {
@@ -124,6 +125,23 @@ export default function WorkspacesPage() {
     }
     fetchWorkspaces();
   }, []);
+
+  // Pastas recolhidas por padrão (visão limpa)
+  useEffect(() => {
+    if (collapsedInitialized || workspaces.length === 0) return;
+    const init: Record<string, boolean> = {};
+    workspaces.forEach((w) => {
+      const cId = w.clients?.id ?? w.id;
+      init[cId] = true;
+    });
+    setCollapsed(init);
+    setCollapsedInitialized(true);
+  }, [workspaces, collapsedInitialized]);
+
+  // Busca ativa expande automaticamente
+  useEffect(() => {
+    if (search.trim().length > 0) setCollapsed({});
+  }, [search]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
