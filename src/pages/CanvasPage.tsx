@@ -140,7 +140,18 @@ export default function CanvasPage() {
       const { error } = await supabase.from("workspaces").delete().eq("id", ws.id);
       if (error) throw error;
       toast({ title: "Workspace removido" });
-      await fetchWorkspaces();
+      // Update otimista — remove do estado sem refetch (evita "reinício" da página)
+      setWorkspaces(prev => prev.filter(w => w.id !== ws.id));
+      setNodeCounts(prev => {
+        const next = { ...prev };
+        delete next[ws.id];
+        return next;
+      });
+      setDerivedStages(prev => {
+        const next = { ...prev };
+        delete next[ws.id];
+        return next;
+      });
     } catch (err: any) {
       toast({ title: "Erro ao remover", description: err?.message, variant: "destructive" });
     }
