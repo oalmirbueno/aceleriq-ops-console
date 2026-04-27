@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, Building2, ExternalLink, FolderPlus, Trash2, Users, Target,
-  Sparkles, AlertTriangle, Layers, TrendingUp, FileText,
+  Sparkles, AlertTriangle, Layers, TrendingUp, FileText, Archive, ArchiveRestore,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingState from "@/components/LoadingState";
@@ -128,6 +128,31 @@ export default function ClientDetailPage() {
     }
   };
 
+  const toggleArchiveClient = async () => {
+    if (!client) return;
+    const next = client.status === "archived" ? "active" : "archived";
+    try {
+      const { error } = await supabase.from("clients").update({ status: next }).eq("id", client.id);
+      if (error) throw error;
+      toast({ title: next === "archived" ? "Cliente arquivado" : "Cliente reativado" });
+      setClient({ ...client, status: next });
+    } catch (err: any) {
+      toast({ title: "Erro ao atualizar status", description: err?.message, variant: "destructive" });
+    }
+  };
+
+  const toggleArchiveWorkspace = async (ws: WorkspaceRow) => {
+    const next = ws.status === "archived" ? "active" : "archived";
+    try {
+      const { error } = await supabase.from("workspaces").update({ status: next }).eq("id", ws.id);
+      if (error) throw error;
+      toast({ title: next === "archived" ? "Projeto arquivado" : "Projeto reativado" });
+      setWorkspaces(prev => prev.map(w => w.id === ws.id ? { ...w, status: next } : w));
+    } catch (err: any) {
+      toast({ title: "Erro ao atualizar status", description: err?.message, variant: "destructive" });
+    }
+  };
+
   if (loading) return (<><AppHeader title="Cliente" subtitle="Carregando…" /><LoadingState /></>);
   if (!client) return (<><AppHeader title="Cliente" subtitle="Não encontrado" /><EmptyState icon={Users} title="Cliente não encontrado" description="Volte para a lista de clientes." /></>);
 
@@ -205,6 +230,17 @@ export default function ClientDetailPage() {
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => navigate(`/ops/workspaces/${ws.id}`)} title="Abrir">
                       <ExternalLink className="h-3.5 w-3.5" />
                     </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      onClick={() => toggleArchiveWorkspace(ws)}
+                      title={ws.status === "archived" ? "Reativar projeto" : "Arquivar projeto"}
+                    >
+                      {ws.status === "archived"
+                        ? <ArchiveRestore className="h-3.5 w-3.5 text-primary" />
+                        : <Archive className="h-3.5 w-3.5 text-muted-foreground" />}
+                    </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10" title="Remover">
@@ -235,8 +271,18 @@ export default function ClientDetailPage() {
             <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
             <div className="flex-1">
               <h3 className="text-sm font-semibold text-destructive">Zona de perigo</h3>
-              <p className="text-xs text-muted-foreground mt-1">Remover este cliente apaga todos os workspaces, nodes e dados associados. Ação irreversível.</p>
+              <p className="text-xs text-muted-foreground mt-1">Arquivar oculta o cliente da operação preservando todos os dados. Excluir apaga tudo de forma irreversível.</p>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5"
+              onClick={toggleArchiveClient}
+            >
+              {client.status === "archived"
+                ? <><ArchiveRestore className="h-3.5 w-3.5" /> Reativar cliente</>
+                : <><Archive className="h-3.5 w-3.5" /> Arquivar cliente</>}
+            </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" size="sm" className="h-9 gap-1.5"><Trash2 className="h-3.5 w-3.5" /> Excluir cliente</Button>
