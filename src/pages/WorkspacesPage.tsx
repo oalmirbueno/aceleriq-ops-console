@@ -337,7 +337,13 @@ export default function WorkspacesPage() {
             {filtered.map((workspace) => (
               <button key={workspace.id} onClick={() => openWorkspace(workspace)} className="flex w-full items-center gap-3 border-b border-border/60 p-4 text-left transition-colors last:border-0 hover:bg-secondary/50">
                 <ClientAvatar name={workspace.clients?.name ?? workspace.name} seed={workspace.clients?.id ?? workspace.id} logoUrl={workspace.clients?.logo_url} size="sm" />
-                <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-foreground">{workspace.clients?.name ?? workspace.name}</p><p className="text-xs text-muted-foreground">{getStagePremiumLabel(workspace.current_stage)} · {nodeCounts[workspace.id] ?? 0} nodes</p></div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">{workspace.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    <span className="text-foreground/70">{workspace.clients?.name ?? "—"}</span>
+                    <span className="text-muted-foreground/60"> · {getStagePremiumLabel(workspace.current_stage)} · {nodeCounts[workspace.id] ?? 0} nodes</span>
+                  </p>
+                </div>
                 <ArrowRight className="h-4 w-4 text-muted-foreground" />
               </button>
             ))}
