@@ -357,6 +357,7 @@ export default function CanvasPage() {
                       </div>
                     </div>
                   )}
+                  {/* (compact list rendered above) */}
                 </section>
               );
             })}
