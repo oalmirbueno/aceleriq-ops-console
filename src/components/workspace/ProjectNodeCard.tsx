@@ -194,7 +194,7 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
       <div
         data-selected={selected ? "true" : "false"}
         className={cn(
-          "relative rounded-xl transition-all cursor-pointer overflow-hidden",
+          "relative rounded-xl cursor-pointer overflow-hidden",
           widthClass,
           "border bg-[#0F1B11]",
           selected && "ring-2 ring-offset-2 ring-offset-[#0B0F0C]",

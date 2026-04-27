@@ -13,7 +13,7 @@
  */
 import { memo } from "react";
 import {
-  ReactFlow, Background, ConnectionLineType, ConnectionMode, MarkerType,
+  ReactFlow, Background, BackgroundVariant, ConnectionLineType, ConnectionMode, MarkerType,
   type Node, type Edge, type Connection, type NodeChange, type EdgeChange,
   type ReactFlowInstance, type Viewport, SelectionMode,
 } from "@xyflow/react";
@@ -110,7 +110,14 @@ function CanvasViewportComp({
       snapToGrid={false}
       elementsSelectable
     >
-      {gridVisible && <Background gap={32} size={1} className="opacity-20" />}
+      {gridVisible && (
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={48}
+          size={1}
+          color="hsl(var(--foreground) / 0.08)"
+        />
+      )}
     </ReactFlow>
   );
 }
