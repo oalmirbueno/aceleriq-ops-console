@@ -92,10 +92,20 @@ export default function CanvasPage() {
       });
       setNodeCounts(counts);
       const derived: Record<string, AceleraStageKey> = {};
+      const toUpdate: Array<{ id: string; stage: AceleraStageKey }> = [];
       list.forEach(ws => {
-        derived[ws.id] = deriveStage(ws.current_stage, perWsStage[ws.id] ?? {});
+        const d = deriveStage(ws.current_stage, perWsStage[ws.id] ?? {});
+        derived[ws.id] = d;
+        // Persiste avanço se etapa derivada for mais avançada que a salva
+        const savedIdx = STAGE_KEYS.indexOf(ws.current_stage as AceleraStageKey);
+        const newIdx = STAGE_KEYS.indexOf(d);
+        if (newIdx > savedIdx) toUpdate.push({ id: ws.id, stage: d });
       });
       setDerivedStages(derived);
+      // Sincroniza em background — não bloqueia render
+      toUpdate.forEach(u => {
+        supabase.from("workspaces").update({ current_stage: u.stage }).eq("id", u.id).then(() => {});
+      });
     }
     setLoading(false);
   };
