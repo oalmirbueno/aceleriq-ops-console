@@ -520,8 +520,10 @@
 }
 .react-flow__connection-path {
   stroke: hsl(var(--primary)) !important;
-  stroke-width: 2.5;
-  filter: drop-shadow(0 0 10px hsl(var(--primary) / 0.28));
+  stroke-width: 3.5 !important;
+  opacity: 1 !important;
+  filter: drop-shadow(0 0 10px hsl(var(--primary) / 0.34));
+  visibility: visible !important;
 }
 .react-flow__connectionline.invalid .react-flow__connection-path {
   stroke: hsl(var(--destructive)) !important;
