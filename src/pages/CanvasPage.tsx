@@ -234,11 +234,11 @@ export default function CanvasPage() {
         ) : groupedByClient.length === 0 ? (
           <EmptyState icon={FolderKanban} title="Nenhum projeto disponível" description="Crie um workspace para acessar o canvas." />
         ) : (
-          <div className="space-y-5">
+          <div className="grid gap-5 lg:grid-cols-2">
             {groupedByClient.map(({ client, items }) => {
               const isCollapsed = collapsed[client.id];
               return (
-                <section key={client.id} className="rounded-xl border border-border bg-card/40 overflow-hidden transition-all hover:border-border">
+                <section key={client.id} className="rounded-xl border border-border bg-card/40 overflow-hidden transition-all hover:border-border self-start">
                   {/* Folder header */}
                   <button
                     type="button"
