@@ -458,6 +458,12 @@ function CanvasStudioInner({
   const handleDeleteNodeRef = useRef<(id: string) => Promise<void>>();
   const stableOnPrefilled = useCallback(() => { void fetchDataRef.current?.(); }, []);
   const stableOnDeleteNode = useCallback((id: string) => { void handleDeleteNodeRef.current?.(id); }, []);
+  const stableOnQuickConnect = useCallback((sourceId: string, dir: "right" | "bottom") => {
+    setQuickAddState({ open: true, sourceId, dir });
+  }, []);
+  const stableOnExpandHub = useCallback((engineNodeId: string) => {
+    void expandEngineHubRef.current?.(engineNodeId);
+  }, []);
 
   const visibleCanvasNodes = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
