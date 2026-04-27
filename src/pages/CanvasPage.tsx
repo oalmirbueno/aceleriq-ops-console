@@ -59,6 +59,7 @@ export default function CanvasPage() {
   const [nodeCounts, setNodeCounts] = useState<Record<string, number>>({});
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [collapsedInitialized, setCollapsedInitialized] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
   const fetchWorkspaces = async () => {
@@ -112,6 +113,25 @@ export default function CanvasPage() {
   };
 
   useEffect(() => { fetchWorkspaces(); }, []);
+
+  // Pastas recolhidas por padrão na primeira carga (mais limpo)
+  useEffect(() => {
+    if (collapsedInitialized || workspaces.length === 0) return;
+    const init: Record<string, boolean> = {};
+    workspaces.forEach(w => {
+      const cId = w.clients?.id ?? w.client_id;
+      init[cId] = true;
+    });
+    setCollapsed(init);
+    setCollapsedInitialized(true);
+  }, [workspaces, collapsedInitialized]);
+
+  // Quando há busca ativa, expande automaticamente para mostrar resultados
+  useEffect(() => {
+    if (query.trim().length > 0) {
+      setCollapsed({});
+    }
+  }, [query]);
 
   const filtered = workspaces.filter((ws) => {
     if (!showArchived) {
