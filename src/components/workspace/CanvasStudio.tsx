@@ -236,6 +236,31 @@ function edgeIntent(edge: CanvasEdgeRecord, nodesById: Map<string, CanvasNodeRow
   return { label: edge.label ?? undefined, stroke: "hsl(var(--primary))", animated: false, className: "edge-flow", strokeWidth: 2.3 };
 }
 
+const EMPTY_OPERATIONAL_META = {} as CanvasOperationalMeta;
+
+function shallowArrayEqual(a: unknown[], b: unknown[]) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every((item, index) => item === b[index]);
+}
+
+function canvasNodeDataEqual(a: Record<string, unknown> | undefined, b: Record<string, unknown> | undefined) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
+    const av = a[key];
+    const bv = b[key];
+    if (typeof av === "function" && typeof bv === "function") continue;
+    if (Array.isArray(av) && Array.isArray(bv)) {
+      if (!shallowArrayEqual(av, bv)) return false;
+      continue;
+    }
+    if (av !== bv) return false;
+  }
+  return true;
+}
+
 function CanvasStudioInner({
   workspaceId, clientId, clientName,
   fullscreen, onToggleFullscreen, onTimelineRefresh, initialStatusFilter,
