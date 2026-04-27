@@ -10,6 +10,7 @@ import LoginPage from "@/pages/LoginPage";
 import DashboardPage from "@/pages/DashboardPage";
 import ClientsPage from "@/pages/ClientsPage";
 import ClientVaultPage from "@/pages/ClientVaultPage";
+import ClientDetailPage from "@/pages/ClientDetailPage";
 import WorkspacesPage from "@/pages/WorkspacesPage";
 import WorkspaceDetailPage from "@/pages/WorkspaceDetailPage";
 import CanvasPage from "@/pages/CanvasPage";
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/ops" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route index element={<DashboardPage />} />
               <Route path="clients" element={<ClientsPage />} />
+              <Route path="clients/:id" element={<ClientDetailPage />} />
               <Route path="clients/:id/vault" element={<ClientVaultPage />} />
               <Route path="workspaces" element={<WorkspacesPage />} />
               <Route path="workspaces/:workspaceId/execution" element={<WorkspaceDetailPage />} />
