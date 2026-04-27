@@ -315,12 +315,24 @@ export default function CanvasPage() {
                               </div>
 
                               {/* Delete button */}
+                              <div className="absolute top-2 right-2 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 hover:bg-secondary"
+                                title={ws.status === "archived" ? "Reativar projeto" : "Arquivar projeto"}
+                                onClick={(e) => { e.stopPropagation(); toggleArchiveWorkspace(ws); }}
+                              >
+                                {ws.status === "archived"
+                                  ? <ArchiveRestore className="h-3 w-3 text-primary" />
+                                  : <Archive className="h-3 w-3 text-muted-foreground" />}
+                              </Button>
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button
                                     size="icon"
                                     variant="ghost"
-                                    className="absolute top-2 right-2 h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10"
+                                    className="h-6 w-6 text-destructive hover:bg-destructive/10"
                                     title="Remover projeto"
                                     onClick={(e) => e.stopPropagation()}
                                   >
@@ -338,6 +350,7 @@ export default function CanvasPage() {
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
                               </AlertDialog>
+                              </div>
                             </div>
                           );
                         })}
