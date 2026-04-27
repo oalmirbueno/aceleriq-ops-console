@@ -234,11 +234,11 @@ export default function CanvasPage() {
         ) : groupedByClient.length === 0 ? (
           <EmptyState icon={FolderKanban} title="Nenhum projeto disponível" description="Crie um workspace para acessar o canvas." />
         ) : (
-          <div className="space-y-5">
+          <div className="grid gap-5 lg:grid-cols-2">
             {groupedByClient.map(({ client, items }) => {
               const isCollapsed = collapsed[client.id];
               return (
-                <section key={client.id} className="rounded-xl border border-border bg-card/40 overflow-hidden transition-all hover:border-border">
+                <section key={client.id} className="rounded-xl border border-border bg-card/40 overflow-hidden transition-all hover:border-border self-start">
                   {/* Folder header */}
                   <button
                     type="button"
@@ -269,8 +269,8 @@ export default function CanvasPage() {
 
                   {/* Projects grid */}
                   {!isCollapsed && (
-                    <div className="border-t border-border/50 bg-background/30 p-4">
-                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="border-t border-border/50 bg-background/30 p-3">
+                      <div className="flex flex-col gap-1.5">
                         {items.map(ws => {
                           const stage = derivedStages[ws.id] ?? (ws.current_stage as AceleraStageKey);
                           const stageMeta = ACELERA_STAGES.find(s => s.key === stage) ?? ACELERA_STAGES[0];
@@ -279,77 +279,61 @@ export default function CanvasPage() {
                           return (
                             <div
                               key={ws.id}
-                              className="group relative rounded-lg border border-border bg-card p-4 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md cursor-pointer"
+                              className="group relative rounded-lg border border-border bg-card px-3 py-2.5 transition-all hover:border-primary/40 hover:shadow-sm cursor-pointer"
                               onClick={(e) => openCanvas(ws, e)}
                             >
-                              {/* Project name */}
-                              <div className="flex items-start gap-2 pr-7">
-                                <FolderKanban className="h-4 w-4 text-primary/70 shrink-0 mt-0.5" />
+                              <div className="flex items-center gap-3">
+                                <FolderKanban className="h-4 w-4 text-primary/70 shrink-0" />
                                 <div className="min-w-0 flex-1">
-                                  <p className="truncate text-sm font-semibold text-foreground">{ws.name}</p>
-                                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mt-0.5">
-                                    {ws.status} · {nodes} node{nodes !== 1 ? "s" : ""}
-                                  </p>
-                                </div>
-                              </div>
-
-                              {/* Stage + progress */}
-                              <div className="mt-3 space-y-1.5">
-                                <div className="flex items-center justify-between gap-2 text-[11px]">
-                                  <span className="inline-flex items-center gap-1.5 text-foreground/80 font-medium">
-                                    <span className="inline-flex h-4 w-4 items-center justify-center rounded border border-border bg-background font-mono text-[9px] font-bold text-foreground/60">
+                                  <p className="truncate text-sm font-semibold text-foreground leading-tight">{ws.name}</p>
+                                  <p className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">
+                                    <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded border border-border bg-background font-mono text-[8px] font-bold text-foreground/60 mr-1 align-middle">
                                       {stageMeta.letter}
                                     </span>
-                                    <span className="truncate">{getStagePremiumLabel(stage)}</span>
-                                  </span>
-                                  <span className="font-semibold text-primary tabular-nums">{progress}%</span>
+                                    {getStagePremiumLabel(stage)} · {nodes} node{nodes !== 1 ? "s" : ""}
+                                  </p>
                                 </div>
-                                <Progress value={progress} className="h-1" />
-                              </div>
-
-                              <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground/70">
-                                <span>{ws.updated_at ? new Date(ws.updated_at).toLocaleDateString("pt-BR") : "—"}</span>
-                                <span className="inline-flex items-center gap-1 text-primary opacity-0 group-hover:opacity-100 transition-opacity font-medium">
-                                  Abrir <ArrowRight className="h-3 w-3" />
-                                </span>
-                              </div>
-
-                              {/* Delete button */}
-                              <div className="absolute top-2 right-2 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-6 w-6 hover:bg-secondary"
-                                title={ws.status === "archived" ? "Reativar projeto" : "Arquivar projeto"}
-                                onClick={(e) => { e.stopPropagation(); toggleArchiveWorkspace(ws); }}
-                              >
-                                {ws.status === "archived"
-                                  ? <ArchiveRestore className="h-3 w-3 text-primary" />
-                                  : <Archive className="h-3 w-3 text-muted-foreground" />}
-                              </Button>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
+                                <div className="hidden sm:flex flex-col items-end gap-1 w-20 shrink-0">
+                                  <span className="text-[10px] font-semibold text-primary tabular-nums">{progress}%</span>
+                                  <Progress value={progress} className="h-1 w-full" />
+                                </div>
+                                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                                   <Button
                                     size="icon"
                                     variant="ghost"
-                                    className="h-6 w-6 text-destructive hover:bg-destructive/10"
-                                    title="Remover projeto"
-                                    onClick={(e) => e.stopPropagation()}
+                                    className="h-7 w-7 hover:bg-secondary"
+                                    title={ws.status === "archived" ? "Reativar projeto" : "Arquivar projeto"}
+                                    onClick={(e) => { e.stopPropagation(); toggleArchiveWorkspace(ws); }}
                                   >
-                                    <Trash2 className="h-3 w-3" />
+                                    {ws.status === "archived"
+                                      ? <ArchiveRestore className="h-3.5 w-3.5 text-primary" />
+                                      : <Archive className="h-3.5 w-3.5 text-muted-foreground" />}
                                   </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Remover projeto?</AlertDialogTitle>
-                                    <AlertDialogDescription>"{ws.name}" e todos os nodes/edges/timeline associados serão removidos. Ação irreversível.</AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => deleteWorkspace(ws)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remover</AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                                        title="Remover projeto"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Remover projeto?</AlertDialogTitle>
+                                        <AlertDialogDescription>"{ws.name}" e todos os nodes/edges/timeline associados serão removidos. Ação irreversível.</AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => deleteWorkspace(ws)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remover</AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-primary transition-colors shrink-0" />
                               </div>
                             </div>
                           );
@@ -357,6 +341,7 @@ export default function CanvasPage() {
                       </div>
                     </div>
                   )}
+                  {/* (compact list rendered above) */}
                 </section>
               );
             })}

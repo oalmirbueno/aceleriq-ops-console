@@ -266,10 +266,17 @@ function CanvasStudioInner({
   fullscreen, onToggleFullscreen, onTimelineRefresh, initialStatusFilter,
 }: Props) {
   
-  const [dbNodes, setDbNodes] = useState<CanvasNodeRow[]>([]);
-  const [dbEdges, setDbEdges] = useState<CanvasEdgeRecord[]>([]);
-  const [clientLogos, setClientLogos] = useState<Record<string, string | null>>({});
-  const [loading, setLoading] = useState(true);
+  // Cache em memória por workspaceId — evita "carrega ao abrir / carrega ao sair"
+  // Quando voltar ao mesmo workspace, mostramos cache instantâneo e revalidamos em background.
+  const cacheRef = useRef<Map<string, { nodes: CanvasNodeRow[]; edges: CanvasEdgeRecord[]; logos: Record<string, string | null> }>>(
+    (CanvasStudioInner as any).__cache ?? ((CanvasStudioInner as any).__cache = new Map())
+  );
+  const cached = cacheRef.current.get(workspaceId);
+  const [dbNodes, setDbNodes] = useState<CanvasNodeRow[]>(cached?.nodes ?? []);
+  const [dbEdges, setDbEdges] = useState<CanvasEdgeRecord[]>(cached?.edges ?? []);
+  const [clientLogos, setClientLogos] = useState<Record<string, string | null>>(cached?.logos ?? {});
+  // Só mostra spinner na PRIMEIRA carga sem cache. Voltas usam cache enquanto revalida.
+  const [loading, setLoading] = useState(!cached);
   const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState<CanvasNodeRow | null>(null);
   const [aiOrbConfigNode, setAiOrbConfigNode] = useState<CanvasNodeRow | null>(null);
@@ -343,7 +350,8 @@ function CanvasStudioInner({
   const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
+    // Só ativa skeleton se não tem nada em tela ainda
+    setLoading((prev) => prev && dbNodesRef.current.length === 0);
     const [{ data: nodesData }, { data: edgesData }] = await Promise.all([
       // Only fields the card/drawer actually need — cuts ~40% of payload
       supabase.from("canvas_nodes")
@@ -354,8 +362,10 @@ function CanvasStudioInner({
         .select("id, source_node_id, target_node_id, source_handle, target_handle, edge_type, label, workspace_id")
         .eq("workspace_id", workspaceId),
     ]);
-    setDbNodes((nodesData ?? []) as CanvasNodeRow[]);
-    setDbEdges((edgesData ?? []) as CanvasEdgeRecord[]);
+    const nodes = (nodesData ?? []) as CanvasNodeRow[];
+    const edges = (edgesData ?? []) as CanvasEdgeRecord[];
+    setDbNodes(nodes);
+    setDbEdges(edges);
 
     // Fetch logos for all linked clients (tolerant if column doesn't exist)
     const linkedIds = Array.from(
@@ -376,9 +386,11 @@ function CanvasStudioInner({
           map[c.id] = c.logo_url ?? null;
         });
         setClientLogos(map);
+        cacheRef.current.set(workspaceId, { nodes, edges, logos: map });
       }
     } else {
       setClientLogos({});
+      cacheRef.current.set(workspaceId, { nodes, edges, logos: {} });
     }
 
     setLoading(false);
