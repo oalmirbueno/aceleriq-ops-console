@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Plus, Search, ExternalLink, FolderPlus, KeyRound, FileText, Sparkles } from "lucide-react";
+import { Users, Plus, Search, ExternalLink, FolderPlus, KeyRound, FileText, Sparkles, Archive, ArchiveRestore } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import EmptyState from "@/components/EmptyState";
 import LoadingState from "@/components/LoadingState";
@@ -38,7 +38,8 @@ interface Client {
 }
 
 const STATUS_OPTIONS = [
-  { value: "__all__", label: "Todos os status" },
+  { value: "__active__", label: "Ativos (padrão)" },
+  { value: "__all__", label: "Todos (inclui arquivados)" },
   { value: "lead_imported", label: "Lead importado" },
   { value: "onboarding", label: "Onboarding" },
   { value: "active", label: "Ativo" },
@@ -82,7 +83,7 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("__all__");
+  const [statusFilter, setStatusFilter] = useState("__active__");
   const [stageFilter, setStageFilter] = useState("__all__");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [briefingClient, setBriefingClient] = useState<Client | null>(null);
@@ -109,7 +110,9 @@ export default function ClientsPage() {
       const q = search.toLowerCase();
       list = list.filter((c) => c.name.toLowerCase().includes(q) || c.company_name?.toLowerCase().includes(q));
     }
-    if (statusFilter !== "__all__") {
+    if (statusFilter === "__active__") {
+      list = list.filter((c) => c.status !== "archived");
+    } else if (statusFilter !== "__all__") {
       list = list.filter((c) => c.status === statusFilter);
     }
     if (stageFilter !== "__all__") {
@@ -174,7 +177,7 @@ export default function ClientsPage() {
               className="pl-9 h-9" />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-9 w-44"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
             <SelectContent>
               {STATUS_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
