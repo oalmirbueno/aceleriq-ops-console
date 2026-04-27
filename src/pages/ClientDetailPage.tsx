@@ -195,7 +195,6 @@ export default function ClientDetailPage() {
       <AppHeader
         title={client.name}
         subtitle={client.company_name ?? client.segment ?? "Cliente"}
-        breadcrumb={[{ label: "Clientes", href: "/ops/clients" }, { label: client.name }]}
       />
 
       <div className="p-5 space-y-5 max-w-5xl">
