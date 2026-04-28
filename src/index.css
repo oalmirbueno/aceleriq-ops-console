@@ -304,7 +304,7 @@
 /* Hit area estreita — permite selecionar edges sobrepostas individualmente.
    Antes: 24px bloqueava cliques nas edges de trás quando duas linhas passavam próximas. */
 .react-flow__edge .react-flow__edge-interaction {
-  stroke-width: 10px;
+  stroke-width: 6px;
   stroke: transparent;
   pointer-events: stroke;
 }
