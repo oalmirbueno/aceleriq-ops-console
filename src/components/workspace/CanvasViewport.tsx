@@ -47,8 +47,8 @@ const MULTI_SELECTION_KEY_CODE = ["Meta", "Control"];
 const PRO_OPTIONS = { hideAttribution: true };
 const DEFAULT_EDGE_OPTIONS = {
   type: "deletable",
-  markerEnd: { type: MarkerType.ArrowClosed, color: "#A3A3A3", width: 18, height: 18 },
-  style: { stroke: "#A3A3A3", strokeWidth: 1.8 },
+  markerEnd: { type: MarkerType.ArrowClosed, color: "hsl(var(--foreground) / 0.82)", width: 18, height: 18 },
+  style: { stroke: "hsl(var(--foreground) / 0.82)", strokeWidth: 3.2 },
 };
 const CONNECTION_LINE_STYLE = { stroke: "hsl(var(--primary))", strokeWidth: 3, opacity: 1 };
 
@@ -98,7 +98,6 @@ function CanvasViewportComp({
       connectionLineType={ConnectionLineType.Bezier}
       connectionRadius={34}
       connectionMode={ConnectionMode.Loose}
-      onlyRenderVisibleElements
       nodesDraggable={!lockedNodes}
       edgesFocusable
       edgesReconnectable
