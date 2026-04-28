@@ -130,9 +130,38 @@ function handleForNodeSide(node: CanvasNodeRow, side: EdgeSide) {
   return nodeKindOf(node) === "chat_node" ? CHAT_HANDLE_BY_SIDE[side] : HANDLE_BY_SIDE[side];
 }
 
+function handleVariantsForNodeSide(node: CanvasNodeRow, side: EdgeSide) {
+  if (nodeKindOf(node) === "chat_node") return [CHAT_HANDLE_BY_SIDE[side]];
+  const prefix = side[0];
+  const variants = nodeKindOf(node) === "ai_orb" ? [2, 1] : [2, 1, 3];
+  return variants.map((slot) => `${prefix}${slot}`);
+}
+
 function normalizeEdgeHandle(node: CanvasNodeRow, handle?: string | null, fallback?: string | null) {
   const side = sideFromHandle(handle) ?? sideFromHandle(fallback);
-  return side ? handleForNodeSide(node, side) : undefined;
+  if (!side) return undefined;
+  const variants = handleVariantsForNodeSide(node, side);
+  if (handle && variants.includes(handle)) return handle;
+  if (fallback && variants.includes(fallback)) return fallback;
+  return handleForNodeSide(node, side);
+}
+
+function reserveEdgeHandle(node: CanvasNodeRow, handle: string | undefined, usage: Map<string, Set<string>>) {
+  const side = sideFromHandle(handle);
+  if (!side) return handle;
+  const variants = handleVariantsForNodeSide(node, side);
+  if (variants.length <= 1) return variants[0] ?? handle;
+
+  const key = `${node.id}:${side}`;
+  const used = usage.get(key) ?? new Set<string>();
+  const preferred = handle && variants.includes(handle) ? handle : handleForNodeSide(node, side);
+  const chosen = !used.has(preferred)
+    ? preferred
+    : variants.find((candidate) => !used.has(candidate)) ?? variants[used.size % variants.length];
+
+  used.add(chosen);
+  usage.set(key, used);
+  return chosen;
 }
 
 function inferNodeSize(node: CanvasNodeRow) {
