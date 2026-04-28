@@ -440,6 +440,8 @@ function CanvasStudioInner({
     ]);
     const nodes = (nodesData ?? []) as CanvasNodeRow[];
     const edges = (edgesData ?? []) as CanvasEdgeRecord[];
+    dbNodesRef.current = nodes;
+    dbEdgesRef.current = edges;
     setDbNodes(nodes);
     setDbEdges(edges);
 
@@ -461,10 +463,12 @@ function CanvasStudioInner({
         (logos as Array<{ id: string; logo_url: string | null }>).forEach((c) => {
           map[c.id] = c.logo_url ?? null;
         });
+        clientLogosRef.current = map;
         setClientLogos(map);
         cacheRef.current.set(workspaceId, { nodes, edges, logos: map });
       }
     } else {
+      clientLogosRef.current = {};
       setClientLogos({});
       cacheRef.current.set(workspaceId, { nodes, edges, logos: {} });
     }
