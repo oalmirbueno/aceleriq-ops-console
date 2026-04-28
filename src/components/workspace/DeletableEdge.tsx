@@ -4,7 +4,7 @@
  * Melhorias v3:
  *  - Endpoints arrastáveis visíveis ao selecionar (indica que pode reconectar)
  *  - Linha mais grossa e colorida ao hover/select
- *  - Área clicável mais larga (20px) para facilitar seleção
+ *  - Área clicável precisa para não bloquear edges sobrepostas
  *  - Tooltip "Arraste as pontas para reconectar"
  *  - Comparador customizado mantido para performance
  */
@@ -17,6 +17,7 @@ import { X, Pencil, MoveHorizontal } from "lucide-react";
 export interface DeletableEdgeData extends Record<string, unknown> {
   onDelete?: (edgeId: string) => void | Promise<void>;
   onEditLabel?: (edgeId: string, newLabel: string | null) => void | Promise<void>;
+  onSelect?: (edgeId: string) => void;
 }
 
 function DeletableEdgeComp(props: EdgeProps) {
@@ -47,6 +48,11 @@ function DeletableEdgeComp(props: EdgeProps) {
     if (next === null) return;
     edgeData.onEditLabel?.(id, next.trim() || null);
   }, [id, label, edgeData]);
+
+  const handleSelectEndpoint = useCallback((e: React.MouseEvent<SVGCircleElement>) => {
+    e.stopPropagation();
+    edgeData.onSelect?.(id);
+  }, [id, edgeData]);
 
   const edgeStyle = useMemo(() => {
     const baseStroke = typeof style?.stroke === "string" ? style.stroke : "hsl(var(--foreground) / 0.82)";
@@ -87,18 +93,43 @@ function DeletableEdgeComp(props: EdgeProps) {
       />
 
       {/* Área clicável estreita — permite selecionar edges sobrepostas individualmente.
-          Usamos stroke fino (8px) para que cada linha tenha sua própria zona de hit
+          Usamos stroke fino (6px) para que cada linha tenha sua própria zona de hit
           e não bloqueie cliques nas edges de trás. */}
       <path
         d={edgePath}
         fill="none"
         stroke="transparent"
-        strokeWidth={8}
+        strokeWidth={6}
         strokeLinecap="round"
         vectorEffect="non-scaling-stroke"
         className="react-flow__edge-interaction"
         style={{ cursor: "pointer" }}
       />
+
+      {!selected && (
+        <>
+          <circle
+            cx={sourceX}
+            cy={sourceY}
+            r={5.5}
+            fill={edgeStyle.stroke}
+            stroke="hsl(var(--background))"
+            strokeWidth={2}
+            className="canvas-edge-endpoint-picker"
+            onClick={handleSelectEndpoint}
+          />
+          <circle
+            cx={targetX}
+            cy={targetY}
+            r={5.5}
+            fill={edgeStyle.stroke}
+            stroke="hsl(var(--background))"
+            strokeWidth={2}
+            className="canvas-edge-endpoint-picker"
+            onClick={handleSelectEndpoint}
+          />
+        </>
+      )}
       </g>
 
       {/* Label do rótulo */}

@@ -130,9 +130,38 @@ function handleForNodeSide(node: CanvasNodeRow, side: EdgeSide) {
   return nodeKindOf(node) === "chat_node" ? CHAT_HANDLE_BY_SIDE[side] : HANDLE_BY_SIDE[side];
 }
 
+function handleVariantsForNodeSide(node: CanvasNodeRow, side: EdgeSide) {
+  if (nodeKindOf(node) === "chat_node") return [CHAT_HANDLE_BY_SIDE[side]];
+  const prefix = side[0];
+  const variants = nodeKindOf(node) === "ai_orb" ? [2, 1] : [2, 1, 3];
+  return variants.map((slot) => `${prefix}${slot}`);
+}
+
 function normalizeEdgeHandle(node: CanvasNodeRow, handle?: string | null, fallback?: string | null) {
   const side = sideFromHandle(handle) ?? sideFromHandle(fallback);
-  return side ? handleForNodeSide(node, side) : undefined;
+  if (!side) return undefined;
+  const variants = handleVariantsForNodeSide(node, side);
+  if (handle && variants.includes(handle)) return handle;
+  if (fallback && variants.includes(fallback)) return fallback;
+  return handleForNodeSide(node, side);
+}
+
+function reserveEdgeHandle(node: CanvasNodeRow, handle: string | undefined, usage: Map<string, Set<string>>) {
+  const side = sideFromHandle(handle);
+  if (!side) return handle;
+  const variants = handleVariantsForNodeSide(node, side);
+  if (variants.length <= 1) return variants[0] ?? handle;
+
+  const key = `${node.id}:${side}`;
+  const used = usage.get(key) ?? new Set<string>();
+  const preferred = handle && variants.includes(handle) ? handle : handleForNodeSide(node, side);
+  const chosen = !used.has(preferred)
+    ? preferred
+    : variants.find((candidate) => !used.has(candidate)) ?? variants[used.size % variants.length];
+
+  used.add(chosen);
+  usage.set(key, used);
+  return chosen;
 }
 
 function inferNodeSize(node: CanvasNodeRow) {
@@ -779,10 +808,15 @@ function CanvasStudioInner({
 
   const stableOnDelete = useCallback((edgeId: string) => deleteEdgeByIdRef.current(edgeId), []);
   const stableOnEditLabel = useCallback((edgeId: string, label: string | null) => editEdgeLabelRef.current(edgeId, label), []);
+  const stableOnSelectEdge = useCallback((edgeId: string) => {
+    setRfEdges((edges) => edges.map((edge) => ({ ...edge, selected: edge.id === edgeId })));
+    setRfNodes((nodes) => nodes.map((node) => ({ ...node, selected: false })));
+  }, []);
 
   const reactFlowEdges = useMemo(() => {
     const visibleIds = new Set(visibleCanvasNodes.map((n) => n.id));
     const visibleById = new Map(visibleCanvasNodes.map((n) => [n.id, n]));
+    const edgeHandleUsage = new Map<string, Set<string>>();
     return dbEdges
       .filter((e) => visibleIds.has(e.source_node_id) && visibleIds.has(e.target_node_id))
       .map((e): Edge => {
@@ -790,8 +824,10 @@ function CanvasStudioInner({
         const sourceNode = visibleById.get(e.source_node_id);
         const targetNode = visibleById.get(e.target_node_id);
         const inferredHandles = sourceNode && targetNode ? inferEdgeHandles(sourceNode, targetNode) : null;
-        const sourceHandle = sourceNode ? normalizeEdgeHandle(sourceNode, e.source_handle, inferredHandles?.sourceHandle) : undefined;
-        const targetHandle = targetNode ? normalizeEdgeHandle(targetNode, e.target_handle, inferredHandles?.targetHandle) : undefined;
+        const normalizedSourceHandle = sourceNode ? normalizeEdgeHandle(sourceNode, e.source_handle, inferredHandles?.sourceHandle) : undefined;
+        const normalizedTargetHandle = targetNode ? normalizeEdgeHandle(targetNode, e.target_handle, inferredHandles?.targetHandle) : undefined;
+        const sourceHandle = sourceNode ? reserveEdgeHandle(sourceNode, normalizedSourceHandle, edgeHandleUsage) : undefined;
+        const targetHandle = targetNode ? reserveEdgeHandle(targetNode, normalizedTargetHandle, edgeHandleUsage) : undefined;
         return {
           id: e.id,
           source: e.source_node_id,
@@ -808,10 +844,11 @@ function CanvasStudioInner({
           data: {
             onDelete: stableOnDelete,
             onEditLabel: stableOnEditLabel,
+            onSelect: stableOnSelectEdge,
           },
         };
       });
-  }, [dbEdges, visibleCanvasNodes, stableOnDelete, stableOnEditLabel]);
+  }, [dbEdges, visibleCanvasNodes, stableOnDelete, stableOnEditLabel, stableOnSelectEdge]);
 
   /* DB → ReactFlow — preserva posição LOCAL quando o node já existe no canvas.
    * Motivo: sem isso, ao adicionar/editar qualquer node TODOS os outros voltam
