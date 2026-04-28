@@ -20,7 +20,13 @@ export default function CanvasFullscreenPage() {
         clientId={clientId}
         clientName={clientName}
         fullscreen
-        onToggleFullscreen={() => navigate(-1)}
+        onToggleFullscreen={() => {
+          if (window.history.length > 1) {
+            navigate(-1);
+          } else {
+            navigate(`/ops/workspaces/${workspaceId}`);
+          }
+        }}
         onTimelineRefresh={() => {}}
       />
     </div>
