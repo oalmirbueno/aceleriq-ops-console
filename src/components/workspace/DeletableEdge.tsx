@@ -91,7 +91,7 @@ function DeletableEdgeComp(props: EdgeProps) {
         d={edgePath}
         fill="none"
         stroke="transparent"
-        strokeWidth={20}
+        strokeWidth={18}
         strokeLinecap="round"
         vectorEffect="non-scaling-stroke"
         className="react-flow__edge-interaction"
