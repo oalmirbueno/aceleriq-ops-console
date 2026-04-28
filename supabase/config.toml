@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.receive-portal-sync]
 verify_jwt = false
+
+[functions.pull-portal-leads]
+verify_jwt = true
