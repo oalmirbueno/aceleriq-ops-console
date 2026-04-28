@@ -744,8 +744,11 @@ function CanvasStudioInner({
       .filter((e) => visibleIds.has(e.source_node_id) && visibleIds.has(e.target_node_id))
       .map((e): Edge => {
         const intent = edgeIntent(e, visibleById);
-        const sourceHandle = e.source_handle ?? undefined;
-        const targetHandle = e.target_handle ?? undefined;
+        const sourceNode = visibleById.get(e.source_node_id);
+        const targetNode = visibleById.get(e.target_node_id);
+        const inferredHandles = sourceNode && targetNode ? inferEdgeHandles(sourceNode, targetNode) : null;
+        const sourceHandle = e.source_handle ?? inferredHandles?.sourceHandle;
+        const targetHandle = e.target_handle ?? inferredHandles?.targetHandle;
         return {
           id: e.id,
           source: e.source_node_id,
