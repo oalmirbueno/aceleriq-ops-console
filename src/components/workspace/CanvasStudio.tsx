@@ -774,8 +774,8 @@ function CanvasStudioInner({
         const sourceNode = visibleById.get(e.source_node_id);
         const targetNode = visibleById.get(e.target_node_id);
         const inferredHandles = sourceNode && targetNode ? inferEdgeHandles(sourceNode, targetNode) : null;
-        const sourceHandle = e.source_handle ?? inferredHandles?.sourceHandle;
-        const targetHandle = e.target_handle ?? inferredHandles?.targetHandle;
+        const sourceHandle = sourceNode ? normalizeEdgeHandle(sourceNode, e.source_handle, inferredHandles?.sourceHandle) : undefined;
+        const targetHandle = targetNode ? normalizeEdgeHandle(targetNode, e.target_handle, inferredHandles?.targetHandle) : undefined;
         return {
           id: e.id,
           source: e.source_node_id,
