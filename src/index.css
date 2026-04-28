@@ -284,7 +284,7 @@
   opacity: 1 !important;
   visibility: visible !important;
   vector-effect: non-scaling-stroke;
-  filter: drop-shadow(0 0 4px hsl(var(--background) / 0.95));
+  filter: drop-shadow(0 0 2px hsl(var(--background) / 0.95));
 }
 .canvas-flow.acelera-ops-flow .canvas-edge-path,
 .canvas-flow.acelera-ops-flow .react-flow__edge-visibility-halo {
@@ -295,6 +295,7 @@
   outline: none;
   cursor: pointer;
   opacity: 1 !important;
+  overflow: visible !important;
 }
 /* Hit area maior — edge mais fácil de clicar */
 .react-flow__edge .react-flow__edge-interaction {
@@ -304,11 +305,11 @@
 .react-flow__edge.selected .react-flow__edge-path,
 .react-flow__edge:focus .react-flow__edge-path {
   stroke: hsl(var(--primary)) !important;
-  stroke-width: 2.6px !important;
+  stroke-width: 4.4px !important;
 }
 .react-flow__edge:hover .react-flow__edge-path {
   stroke: hsl(var(--primary) / 0.85) !important;
-  stroke-width: 2.2px !important;
+  stroke-width: 3.8px !important;
 }
 /* Marker (seta) também precisa herdar visibilidade */
 .canvas-flow.acelera-ops-flow .react-flow__arrowhead polyline,
@@ -363,16 +364,17 @@
 }
 /* Isola cada node em sua própria layer — repaint não cascateia */
 .react-flow__node {
-  contain: layout paint style;
+  contain: layout style;
   will-change: transform;
 }
 /* Edges em SVG: container isolado */
 .canvas-flow.acelera-ops-flow .react-flow__edges {
-  contain: layout paint style;
-  z-index: 30 !important;
+  contain: layout style;
+  overflow: visible !important;
+  z-index: 5 !important;
 }
 .canvas-flow.acelera-ops-flow .react-flow__nodes {
-  z-index: 20 !important;
+  z-index: 10 !important;
 }
 .canvas-flow.acelera-ops-flow .react-flow__edgelabel-renderer {
   z-index: 35 !important;
