@@ -59,7 +59,8 @@ function DeletableEdgeComp(props: EdgeProps) {
   }), [style, hover, selected]);
 
   return (
-    <g onMouseEnter={onEnter} onMouseLeave={onLeave}>
+    <>
+      <g onMouseEnter={onEnter} onMouseLeave={onLeave}>
       {/* Linha visual */}
       <BaseEdge path={edgePath} markerEnd={markerEnd} style={edgeStyle} />
 
@@ -72,6 +73,7 @@ function DeletableEdgeComp(props: EdgeProps) {
         strokeLinecap="round"
         style={{ cursor: "pointer" }}
       />
+      </g>
 
       {/* Label do rótulo */}
       {label && (
@@ -171,7 +173,7 @@ function DeletableEdgeComp(props: EdgeProps) {
           </div>
         </EdgeLabelRenderer>
       )}
-    </g>
+    </>
   );
 }
 
