@@ -163,7 +163,7 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
 
   const handleDelete = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    if (d.onDelete && d.nodeId && window.confirm(`Excluir "${d.title}"?`)) {
+    if (d.onDelete && d.nodeId) {
       d.onDelete(d.nodeId);
     }
   }, [d.onDelete, d.nodeId, d.title]);
