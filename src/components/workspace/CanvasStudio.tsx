@@ -2151,7 +2151,16 @@ function CanvasStudioInner({
   };
 
   const handleDeleteNode = async (id: string) => {
-    const node = dbNodes.find((n) => n.id === id);
+    const previousNodes = dbNodesRef.current;
+    const previousEdges = dbEdgesRef.current;
+    const node = previousNodes.find((n) => n.id === id);
+    if (!node) return;
+
+    setSelectedNode((current) => (current?.id === id ? null : current));
+    setAiOrbConfigNode((current) => (current?.id === id ? null : current));
+    setDbNodesImmediate((prev) => prev.filter((n) => n.id !== id && n.parent_node_id !== id));
+    setDbEdgesImmediate((prev) => prev.filter((e) => e.source_node_id !== id && e.target_node_id !== id));
+
     if (node?.node_type === "client") {
       await supabase.from("canvas_nodes").update({ parent_node_id: null }).eq("parent_node_id", id);
     }
@@ -2159,12 +2168,10 @@ function CanvasStudioInner({
     const { error } = await supabase.from("canvas_nodes").delete().eq("id", id);
     if (error) {
       toast({ title: "Erro ao remover", description: error.message, variant: "destructive" });
+      setDbNodesImmediate(previousNodes);
+      setDbEdgesImmediate(previousEdges);
     } else {
       toast({ title: "Node removido" });
-      setSelectedNode(null);
-      // Update otimista — apenas remove do state local sem refetch
-      setDbNodes((prev) => prev.filter((n) => n.id !== id && n.parent_node_id !== id));
-      setDbEdges((prev) => prev.filter((e) => e.source_node_id !== id && e.target_node_id !== id));
     }
   };
 
