@@ -86,12 +86,14 @@ function DeletableEdgeComp(props: EdgeProps) {
         pointerEvents="none"
       />
 
-      {/* Área clicável mais larga (20px) — muito mais fácil de selecionar */}
+      {/* Área clicável estreita — permite selecionar edges sobrepostas individualmente.
+          Usamos stroke fino (8px) para que cada linha tenha sua própria zona de hit
+          e não bloqueie cliques nas edges de trás. */}
       <path
         d={edgePath}
         fill="none"
         stroke="transparent"
-        strokeWidth={18}
+        strokeWidth={8}
         strokeLinecap="round"
         vectorEffect="non-scaling-stroke"
         className="react-flow__edge-interaction"
