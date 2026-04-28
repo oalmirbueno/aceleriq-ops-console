@@ -18,16 +18,15 @@ export default function CanvasFullscreenPage() {
   return (
     <div className="h-screen w-screen overflow-hidden bg-background">
       {/* Botão voltar — sempre visível, sobreposto ao canvas */}
-      <Button
+      <button
         type="button"
-        size="sm"
-        variant="secondary"
-        className="absolute top-3 left-3 z-50 h-9 gap-1.5 shadow-md border border-border/60"
         onClick={() => navigate(-1)}
         title="Voltar"
+        className="group absolute top-3 left-3 z-50 inline-flex items-center gap-2 h-9 rounded-md border border-primary/30 bg-background/80 px-3 text-xs font-mono uppercase tracking-wider text-primary backdrop-blur-md transition-all hover:border-primary/60 hover:bg-primary/10 hover:shadow-[0_0_18px_-4px_hsl(var(--primary)/0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
       >
-        <ArrowLeft className="h-4 w-4" /> Voltar
-      </Button>
+        <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
+        Voltar
+      </button>
       <CanvasStudio
         workspaceId={workspaceId}
         clientId={clientId}
