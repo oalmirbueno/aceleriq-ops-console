@@ -101,12 +101,39 @@ const MULTI_SELECTION_KEY_CODE = ["Meta", "Control"];
 const CONNECTION_LINE_STYLE = { stroke: "hsl(var(--primary))", strokeWidth: 2.5, strokeDasharray: "8 4", opacity: 0.85 };
 const PRO_OPTIONS = { hideAttribution: true };
 
-const HANDLE_BY_SIDE = {
+type EdgeSide = "left" | "right" | "top" | "bottom";
+
+const HANDLE_BY_SIDE: Record<EdgeSide, string> = {
   left: "l2",
   right: "r2",
   top: "t2",
   bottom: "b2",
-} as const;
+};
+
+const CHAT_HANDLE_BY_SIDE: Record<EdgeSide, string> = {
+  left: "l",
+  right: "r",
+  top: "t",
+  bottom: "b",
+};
+
+function sideFromHandle(handle?: string | null): EdgeSide | null {
+  const prefix = handle?.[0];
+  if (prefix === "l") return "left";
+  if (prefix === "r") return "right";
+  if (prefix === "t") return "top";
+  if (prefix === "b") return "bottom";
+  return null;
+}
+
+function handleForNodeSide(node: CanvasNodeRow, side: EdgeSide) {
+  return nodeKindOf(node) === "chat_node" ? CHAT_HANDLE_BY_SIDE[side] : HANDLE_BY_SIDE[side];
+}
+
+function normalizeEdgeHandle(node: CanvasNodeRow, handle?: string | null, fallback?: string | null) {
+  const side = sideFromHandle(handle) ?? sideFromHandle(fallback);
+  return side ? handleForNodeSide(node, side) : undefined;
+}
 
 function inferNodeSize(node: CanvasNodeRow) {
   const data = (node.data as Record<string, unknown> | null) ?? {};
@@ -133,9 +160,9 @@ function inferEdgeHandles(source: CanvasNodeRow, target: CanvasNodeRow) {
   const dx = targetCenter.x - sourceCenter.x;
   const dy = targetCenter.y - sourceCenter.y;
   const horizontal = Math.abs(dx) >= Math.abs(dy);
-  const sourceSide = horizontal ? (dx >= 0 ? "right" : "left") : (dy >= 0 ? "bottom" : "top");
-  const targetSide = horizontal ? (dx >= 0 ? "left" : "right") : (dy >= 0 ? "top" : "bottom");
-  return { sourceHandle: HANDLE_BY_SIDE[sourceSide], targetHandle: HANDLE_BY_SIDE[targetSide] };
+  const sourceSide: EdgeSide = horizontal ? (dx >= 0 ? "right" : "left") : (dy >= 0 ? "bottom" : "top");
+  const targetSide: EdgeSide = horizontal ? (dx >= 0 ? "left" : "right") : (dy >= 0 ? "top" : "bottom");
+  return { sourceHandle: handleForNodeSide(source, sourceSide), targetHandle: handleForNodeSide(target, targetSide) };
 }
 
 export function getCanvasInteractionConfig(activeTool: "select" | "hand") {
