@@ -812,6 +812,7 @@ function CanvasStudioInner({
   const reactFlowEdges = useMemo(() => {
     const visibleIds = new Set(visibleCanvasNodes.map((n) => n.id));
     const visibleById = new Map(visibleCanvasNodes.map((n) => [n.id, n]));
+    const edgeHandleUsage = new Map<string, Set<string>>();
     return dbEdges
       .filter((e) => visibleIds.has(e.source_node_id) && visibleIds.has(e.target_node_id))
       .map((e): Edge => {
@@ -819,8 +820,10 @@ function CanvasStudioInner({
         const sourceNode = visibleById.get(e.source_node_id);
         const targetNode = visibleById.get(e.target_node_id);
         const inferredHandles = sourceNode && targetNode ? inferEdgeHandles(sourceNode, targetNode) : null;
-        const sourceHandle = sourceNode ? normalizeEdgeHandle(sourceNode, e.source_handle, inferredHandles?.sourceHandle) : undefined;
-        const targetHandle = targetNode ? normalizeEdgeHandle(targetNode, e.target_handle, inferredHandles?.targetHandle) : undefined;
+        const normalizedSourceHandle = sourceNode ? normalizeEdgeHandle(sourceNode, e.source_handle, inferredHandles?.sourceHandle) : undefined;
+        const normalizedTargetHandle = targetNode ? normalizeEdgeHandle(targetNode, e.target_handle, inferredHandles?.targetHandle) : undefined;
+        const sourceHandle = sourceNode ? reserveEdgeHandle(sourceNode, normalizedSourceHandle, edgeHandleUsage) : undefined;
+        const targetHandle = targetNode ? reserveEdgeHandle(targetNode, normalizedTargetHandle, edgeHandleUsage) : undefined;
         return {
           id: e.id,
           source: e.source_node_id,
