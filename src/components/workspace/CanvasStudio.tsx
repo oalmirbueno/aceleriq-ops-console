@@ -366,6 +366,7 @@ function CanvasStudioInner({
   const [openDockGroup, setOpenDockGroup] = useState<string | null>(null);
   const dbNodesRef = useRef<CanvasNodeRow[]>([]);
   const dbEdgesRef = useRef<CanvasEdgeRecord[]>([]);
+  const clientLogosRef = useRef<Record<string, string | null>>({});
 
   // Active client folder (null = "Todos")
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
@@ -375,14 +376,25 @@ function CanvasStudioInner({
 
   useEffect(() => { dbNodesRef.current = dbNodes; }, [dbNodes]);
   useEffect(() => { dbEdgesRef.current = dbEdges; }, [dbEdges]);
+  useEffect(() => { clientLogosRef.current = clientLogos; }, [clientLogos]);
+
+  const setDbNodesImmediate = useCallback((updater: CanvasNodeRow[] | ((prev: CanvasNodeRow[]) => CanvasNodeRow[])) => {
+    setDbNodes((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      dbNodesRef.current = next;
+      cacheRef.current.set(workspaceId, { nodes: next, edges: dbEdgesRef.current, logos: clientLogosRef.current });
+      return next;
+    });
+  }, [workspaceId]);
 
   const setDbEdgesImmediate = useCallback((updater: CanvasEdgeRecord[] | ((prev: CanvasEdgeRecord[]) => CanvasEdgeRecord[])) => {
     setDbEdges((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       dbEdgesRef.current = next;
+      cacheRef.current.set(workspaceId, { nodes: dbNodesRef.current, edges: next, logos: clientLogosRef.current });
       return next;
     });
-  }, []);
+  }, [workspaceId]);
 
   // Load client plan_name + project_type for ApplyPlaybookButton
   useEffect(() => {
