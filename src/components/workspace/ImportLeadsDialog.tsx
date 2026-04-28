@@ -59,38 +59,6 @@ export default function ImportLeadsDialog({ open, onOpenChange, onImported }: Pr
   const [importing, setImporting] = useState(false);
   const [createWorkspace, setCreateWorkspace] = useState(true);
   const [selectedType, setSelectedType] = useState<ProjectType>("ai_first");
-  const [syncing, setSyncing] = useState(false);
-  const [syncWarning, setSyncWarning] = useState<string | null>(null);
-  const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
-
-  /** Pull ATIVO do portal: garante que leads recentes apareçam mesmo se
-   * o webhook do portal falhou. Faz upsert em pending_leads via edge fn. */
-  const pullFromPortal = useCallback(async (full = false) => {
-    setSyncing(true);
-    setSyncWarning(null);
-    try {
-      const { data, error } = await supabase.functions.invoke("pull-portal-leads", {
-        body: { full },
-      });
-      if (error) throw new Error(error.message);
-      if (data?.error) {
-        setSyncWarning(data.hint ?? data.error);
-      } else {
-        if (data?.warning) setSyncWarning(data.warning);
-        setLastSyncAt(new Date());
-        if (typeof data?.upserted === "number" && data.upserted > 0) {
-          toast({
-            title: `${data.upserted} lead${data.upserted > 1 ? "s" : ""} sincronizado${data.upserted > 1 ? "s" : ""} do portal`,
-            description: data.fetched ? `${data.fetched} verificados.` : undefined,
-          });
-        }
-      }
-    } catch (err) {
-      setSyncWarning(err instanceof Error ? err.message : "Falha ao sincronizar com o portal");
-    } finally {
-      setSyncing(false);
-    }
-  }, []);
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
@@ -103,16 +71,10 @@ export default function ImportLeadsDialog({ open, onOpenChange, onImported }: Pr
     setLoading(false);
   }, []);
 
-  /** Refresh combinado: puxa do portal + recarrega lista local */
-  const handleRefresh = useCallback(async (full = false) => {
-    await pullFromPortal(full);
-    await fetchLeads();
-  }, [pullFromPortal, fetchLeads]);
-
   useEffect(() => {
-    if (open) handleRefresh(false);
+    if (open) fetchLeads();
     else { setSelected(new Set()); }
-  }, [open, handleRefresh]);
+  }, [open, fetchLeads]);
 
   // Realtime — novos leads aparecem automaticamente
   useEffect(() => {
@@ -196,12 +158,32 @@ export default function ImportLeadsDialog({ open, onOpenChange, onImported }: Pr
         if (!client) throw new Error("Cliente não retornado");
 
         if (createWorkspace) {
-          await supabase.from("workspaces").insert({
+          const { data: ws } = await supabase.from("workspaces").insert({
             client_id: client.id,
             name: `${lead.lead_name} — Workspace`,
             status: "setup",
             current_stage: "entrada",
-          });
+            project_type: selectedType,
+            metadata: {
+              portal_sync: {
+                auto_created: true,
+                source: "lead_import",
+                imported_at: new Date().toISOString(),
+              },
+            },
+          }).select("id").single();
+
+          // Cria timeline event de boas-vindas
+          if (ws) {
+            await supabase.from("timeline_events").insert({
+              workspace_id: ws.id,
+              client_id: client.id,
+              event_type: "workspace_created",
+              title: "Workspace criado via importação de lead",
+              happened_at: new Date().toISOString(),
+              metadata: { source: "lead_import", portal_token: lead.token },
+            });
+          }
         }
 
         // Marca lead como importado (não some, fica registrado)
@@ -248,16 +230,9 @@ export default function ImportLeadsDialog({ open, onOpenChange, onImported }: Pr
             Leads pendentes
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Leads enviados pelo portal que ainda não foram importados como clientes. Sincroniza ativamente com o portal a cada abertura.
+            Leads enviados pelo portal que ainda não foram importados como clientes. Atualização em tempo real.
           </DialogDescription>
         </DialogHeader>
-
-        {syncWarning && (
-          <div className="px-5 py-2 border-b border-amber-500/30 bg-amber-500/10 text-[11px] text-amber-200 flex items-start gap-2 shrink-0">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-            <span>{syncWarning}</span>
-          </div>
-        )}
 
         {/* Toolbar */}
         <div className="px-5 py-3 border-b border-border shrink-0 flex items-center gap-2 bg-secondary/20 flex-wrap">
@@ -280,26 +255,8 @@ export default function ImportLeadsDialog({ open, onOpenChange, onImported }: Pr
             <Checkbox checked={createWorkspace} onCheckedChange={(v) => setCreateWorkspace(v === true)} />
             Criar workspace
           </label>
-          <Button
-            onClick={() => handleRefresh(false)}
-            size="sm"
-            variant="ghost"
-            className="h-8 gap-1.5 text-xs"
-            disabled={loading || syncing}
-            title={lastSyncAt ? `Última sincronização: ${lastSyncAt.toLocaleTimeString("pt-BR")}` : "Sincroniza com o portal e recarrega"}
-          >
-            <RefreshCw className={cn("h-3 w-3", (loading || syncing) && "animate-spin")} />
-            {syncing ? "Sincronizando..." : "Atualizar"}
-          </Button>
-          <Button
-            onClick={() => handleRefresh(true)}
-            size="sm"
-            variant="ghost"
-            className="h-8 gap-1.5 text-xs"
-            disabled={loading || syncing}
-            title="Força um refetch completo de TODOS os leads do portal"
-          >
-            Resync total
+          <Button onClick={fetchLeads} size="sm" variant="ghost" className="h-8 gap-1.5 text-xs" disabled={loading}>
+            <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} /> Atualizar
           </Button>
         </div>
 
