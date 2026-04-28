@@ -104,16 +104,11 @@ serve(async (req) => {
     // ─── 1. Busca todos os profiles do portal ─────────────────────
     let profiles: any[] = [];
     try {
-      profiles = await portalFetch("profiles?select=id,email,full_name,company_name,phone,whatsapp,role,created_at,metadata,plan_name,segment&role=eq.client&order=created_at.desc");
+      // Seleção conservadora: o portal atual não tem role/whatsapp em profiles.
+      profiles = await portalFetch("profiles?select=*&order=created_at.desc");
     } catch (err) {
-      // Tenta tabela alternativa se "profiles" não funcionar
-      try {
-        profiles = await portalFetch("users?select=id,email,full_name,company_name,role,created_at,metadata&role=eq.client");
-      } catch {
-        stats.errors.push(`Não foi possível buscar profiles: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      stats.errors.push(`Não foi possível buscar profiles: ${err instanceof Error ? err.message : String(err)}`);
     }
-    stats.profiles_found = profiles.length;
 
     // ─── 2. Busca todos os projetos do portal ─────────────────────
     let projects: any[] = [];
@@ -131,11 +126,31 @@ serve(async (req) => {
       // quiz_submissions pode não existir ou ter nome diferente — ok
     }
 
-    // Index submissions por user_id para lookup rápido
+    // Se o portal não tiver profiles populado, usa quiz_submissions como fonte
+    // de perfis sintéticos para backfill inicial de clientes/leads.
+    if (profiles.length === 0 && submissions.length > 0) {
+      profiles = submissions.map((s) => ({
+        id: s.user_id || s.token || s.id,
+        email: s.lead_email ?? null,
+        full_name: s.lead_name ?? s.lead_email ?? "Cliente Portal",
+        company_name: s.lead_company ?? null,
+        phone: s.lead_whatsapp ?? null,
+        whatsapp: s.lead_whatsapp ?? null,
+        created_at: s.submitted_at ?? s.created_at ?? null,
+        metadata: { source_table: "quiz_submissions", quiz_submission_id: s.id, token: s.token },
+        plan_name: s.recommended_plan ?? null,
+        segment: null,
+      }));
+    }
+    stats.profiles_found = profiles.length;
+
+    // Index submissions por user_id/token/id para lookup rápido
     const submissionsByUser = new Map<string, any>();
     for (const s of submissions) {
-      if (s.user_id && !submissionsByUser.has(s.user_id)) {
-        submissionsByUser.set(s.user_id, s);
+      for (const key of [s.user_id, s.token, s.id]) {
+        if (key && !submissionsByUser.has(key)) {
+          submissionsByUser.set(key, s);
+        }
       }
     }
 
