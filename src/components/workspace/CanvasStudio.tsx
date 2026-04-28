@@ -910,14 +910,18 @@ function CanvasStudioInner({
           draggingNodesRef.current.add(c.id);
         } else if (c.dragging === false && c.position) {
           draggingNodesRef.current.delete(c.id);
+            const nextPosition = { x: c.position.x, y: c.position.y };
+            setDbNodesImmediate((prev) => prev.map((node) => (
+              node.id === c.id ? { ...node, pos_x: nextPosition.x, pos_y: nextPosition.y } : node
+            )));
           // Enqueue instead of firing DB call immediately
-          positionUpdateQueueRef.current.set(c.id, { x: c.position.x, y: c.position.y });
+            positionUpdateQueueRef.current.set(c.id, nextPosition);
           if (positionFlushTimerRef.current) window.clearTimeout(positionFlushTimerRef.current);
           positionFlushTimerRef.current = window.setTimeout(flushPositionUpdates, 400);
         }
       }
     }
-  }, [flushPositionUpdates]);
+  }, [flushPositionUpdates, setDbNodesImmediate]);
 
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
     setRfEdges((eds) => applyEdgeChanges(changes, eds));
