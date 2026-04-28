@@ -13,12 +13,19 @@
  * Idempotente: pode ser chamada quantas vezes for necessário.
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.104.0";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+function json(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...cors, "Content-Type": "application/json" },
+  });
+}
 
 const PORTAL_BASE = "https://gicbrgagstyvbaaumprj.supabase.co/functions/v1";
 
@@ -110,22 +117,44 @@ async function fetchPortalLeads(
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("VITE_SUPABASE_ANON_KEY");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
+    return json({ error: "Configuração interna do Ops incompleta" }, 500);
+  }
+
+  const authHeader = req.headers.get("Authorization") ?? req.headers.get("authorization") ?? "";
+  if (!authHeader.startsWith("Bearer ")) {
+    return json({ error: "Unauthorized" }, 401);
+  }
+
+  const token = authHeader.replace("Bearer ", "").trim();
+  const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
+  if (claimsError || !claimsData?.claims?.sub) {
+    return json({ error: "Unauthorized" }, 401);
+  }
 
   const SECRET = Deno.env.get("PORTAL_WEBHOOK_SECRET") ?? "";
   const PORTAL_ANON = Deno.env.get("PORTAL_ANON_KEY") ?? "";
 
   if (!SECRET || !PORTAL_ANON) {
-    return new Response(JSON.stringify({
+    return json({
       error: "Configuração faltando",
       hint: "Configure PORTAL_WEBHOOK_SECRET e PORTAL_ANON_KEY nos secrets do Ops.",
-    }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
+    }, 500);
   }
 
   try {
     const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      supabaseUrl,
+      serviceRoleKey,
     );
 
     // Pega o submitted_at mais recente já existente — incremental fetch.
@@ -201,7 +230,7 @@ serve(async (req) => {
       else upserted++;
     }
 
-    return new Response(JSON.stringify({
+    return json({
       ok: true,
       fetched: leads.length,
       upserted,
@@ -209,10 +238,10 @@ serve(async (req) => {
       errors,
       warning,
       since,
-    }), { headers: { ...cors, "Content-Type": "application/json" } });
+    });
   } catch (err) {
-    return new Response(JSON.stringify({
+    return json({
       error: err instanceof Error ? err.message : String(err),
-    }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
+    }, 500);
   }
 });
