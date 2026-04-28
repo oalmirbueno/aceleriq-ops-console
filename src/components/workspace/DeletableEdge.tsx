@@ -126,33 +126,11 @@ function DeletableEdgeComp(props: EdgeProps) {
         </EdgeLabelRenderer>
       )}
 
-      {/* Endpoints arrastáveis — só aparecem ao selecionar — indicam que pode reconectar */}
-      {selected && (
-        <EdgeLabelRenderer>
-          <div
-            style={{
-              position: "absolute",
-              transform: `translate(-50%, -50%) translate(${sourceX}px, ${sourceY}px)`,
-              width: 14, height: 14, borderRadius: "50%",
-              background: "#00FF88", border: "2.5px solid #0E1009",
-              boxShadow: "0 0 0 3px #00FF8830",
-              pointerEvents: "none", zIndex: 10,
-            }}
-            title="Arraste para reconectar a origem"
-          />
-          <div
-            style={{
-              position: "absolute",
-              transform: `translate(-50%, -50%) translate(${targetX}px, ${targetY}px)`,
-              width: 14, height: 14, borderRadius: "50%",
-              background: "#00FF88", border: "2.5px solid #0E1009",
-              boxShadow: "0 0 0 3px #00FF8830",
-              pointerEvents: "none", zIndex: 10,
-            }}
-            title="Arraste para reconectar o destino"
-          />
-        </EdgeLabelRenderer>
-      )}
+      {/* Endpoints arrastáveis nativos: o React Flow renderiza os
+          .react-flow__edgeupdater (círculos SVG) automaticamente nas
+          extremidades. Estilizamos via CSS em index.css para que sejam
+          visíveis e clicáveis ao selecionar a edge. Não desenhamos
+          decorações próprias aqui para não bloquear o drag nativo. */}
 
       {/* Botões de ação */}
       {show && (
