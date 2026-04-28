@@ -301,10 +301,17 @@
   overflow: visible !important;
   will-change: transform;
 }
-/* Hit area maior — edge mais fácil de clicar */
+/* Hit area estreita — permite selecionar edges sobrepostas individualmente.
+   Antes: 24px bloqueava cliques nas edges de trás quando duas linhas passavam próximas. */
 .react-flow__edge .react-flow__edge-interaction {
-  stroke-width: 24px;
+  stroke-width: 10px;
   stroke: transparent;
+  pointer-events: stroke;
+}
+/* Edge selecionada vai para o topo da pilha — assim a próxima edge clicada
+   (que é a "de trás") fica acessível normalmente. */
+.react-flow__edge.selected {
+  z-index: 10;
 }
 .react-flow__edge.selected .react-flow__edge-path,
 .react-flow__edge:focus .react-flow__edge-path {
