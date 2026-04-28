@@ -129,18 +129,29 @@ serve(async (req) => {
     // Se o portal não tiver profiles populado, usa quiz_submissions como fonte
     // de perfis sintéticos para backfill inicial de clientes/leads.
     if (profiles.length === 0 && submissions.length > 0) {
-      profiles = submissions.map((s) => ({
-        id: s.user_id || s.token || s.id,
-        email: s.lead_email ?? null,
-        full_name: s.lead_name ?? s.lead_email ?? "Cliente Portal",
-        company_name: s.lead_company ?? null,
-        phone: s.lead_whatsapp ?? null,
-        whatsapp: s.lead_whatsapp ?? null,
-        created_at: s.submitted_at ?? s.created_at ?? null,
-        metadata: { source_table: "quiz_submissions", quiz_submission_id: s.id, token: s.token },
-        plan_name: s.recommended_plan ?? null,
-        segment: null,
-      }));
+      // quiz_submissions pode ter múltiplas respostas para o mesmo lead/email.
+      // Mantém a primeira da ordenação desc (mais recente) para não violar
+      // índices únicos de email no Ops nem duplicar clientes.
+      const seenSynthetic = new Set<string>();
+      const syntheticProfiles: any[] = [];
+      for (const s of submissions) {
+        const dedupeKey = String(s.lead_email || s.user_id || s.token || s.id).toLowerCase();
+        if (seenSynthetic.has(dedupeKey)) continue;
+        seenSynthetic.add(dedupeKey);
+        syntheticProfiles.push({
+          id: s.user_id || s.token || s.id,
+          email: s.lead_email ?? null,
+          full_name: s.lead_name ?? s.lead_email ?? "Cliente Portal",
+          company_name: s.lead_company ?? null,
+          phone: s.lead_whatsapp ?? null,
+          whatsapp: s.lead_whatsapp ?? null,
+          created_at: s.submitted_at ?? s.created_at ?? null,
+          metadata: { source_table: "quiz_submissions", quiz_submission_id: s.id, token: s.token },
+          plan_name: s.recommended_plan ?? null,
+          segment: null,
+        });
+      }
+      profiles = syntheticProfiles;
     }
     stats.profiles_found = profiles.length;
 
