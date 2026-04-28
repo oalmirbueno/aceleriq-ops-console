@@ -4,7 +4,7 @@
  * Melhorias v3:
  *  - Endpoints arrastáveis visíveis ao selecionar (indica que pode reconectar)
  *  - Linha mais grossa e colorida ao hover/select
- *  - Área clicável mais larga (20px) para facilitar seleção
+ *  - Área clicável precisa para não bloquear edges sobrepostas
  *  - Tooltip "Arraste as pontas para reconectar"
  *  - Comparador customizado mantido para performance
  */
@@ -87,13 +87,13 @@ function DeletableEdgeComp(props: EdgeProps) {
       />
 
       {/* Área clicável estreita — permite selecionar edges sobrepostas individualmente.
-          Usamos stroke fino (8px) para que cada linha tenha sua própria zona de hit
+          Usamos stroke fino (6px) para que cada linha tenha sua própria zona de hit
           e não bloqueie cliques nas edges de trás. */}
       <path
         d={edgePath}
         fill="none"
         stroke="transparent"
-        strokeWidth={8}
+        strokeWidth={6}
         strokeLinecap="round"
         vectorEffect="non-scaling-stroke"
         className="react-flow__edge-interaction"
