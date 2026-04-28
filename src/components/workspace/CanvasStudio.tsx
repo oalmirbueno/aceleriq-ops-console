@@ -101,6 +101,43 @@ const MULTI_SELECTION_KEY_CODE = ["Meta", "Control"];
 const CONNECTION_LINE_STYLE = { stroke: "hsl(var(--primary))", strokeWidth: 2.5, strokeDasharray: "8 4", opacity: 0.85 };
 const PRO_OPTIONS = { hideAttribution: true };
 
+const HANDLE_BY_SIDE = {
+  left: "l2",
+  right: "r2",
+  top: "t2",
+  bottom: "b2",
+} as const;
+
+function inferNodeSize(node: CanvasNodeRow) {
+  const data = (node.data as Record<string, unknown> | null) ?? {};
+  if (node.node_type === "ai_orb" || data.kind === "ai_orb") return { width: 118, height: 118 };
+  if (data.kind === "chat_node") {
+    const size = (data.size as string | undefined) ?? "M";
+    const widths: Record<string, number> = { S: 320, M: 420, L: 560, XL: 720 };
+    return { width: widths[size] ?? 420, height: 220 };
+  }
+  return { width: nodeKindOf(node) === "engine" ? 400 : 280, height: 112 };
+}
+
+function inferEdgeHandles(source: CanvasNodeRow, target: CanvasNodeRow) {
+  const sourceSize = inferNodeSize(source);
+  const targetSize = inferNodeSize(target);
+  const sourceCenter = {
+    x: Number(source.pos_x ?? 0) + sourceSize.width / 2,
+    y: Number(source.pos_y ?? CONTENT_TOP) + sourceSize.height / 2,
+  };
+  const targetCenter = {
+    x: Number(target.pos_x ?? 0) + targetSize.width / 2,
+    y: Number(target.pos_y ?? CONTENT_TOP) + targetSize.height / 2,
+  };
+  const dx = targetCenter.x - sourceCenter.x;
+  const dy = targetCenter.y - sourceCenter.y;
+  const horizontal = Math.abs(dx) >= Math.abs(dy);
+  const sourceSide = horizontal ? (dx >= 0 ? "right" : "left") : (dy >= 0 ? "bottom" : "top");
+  const targetSide = horizontal ? (dx >= 0 ? "left" : "right") : (dy >= 0 ? "top" : "bottom");
+  return { sourceHandle: HANDLE_BY_SIDE[sourceSide], targetHandle: HANDLE_BY_SIDE[targetSide] };
+}
+
 export function getCanvasInteractionConfig(activeTool: "select" | "hand") {
   return {
     // Hand tool: qualquer botão arrasta/pan
