@@ -279,11 +279,17 @@
 
 .canvas-flow.acelera-ops-flow .react-flow__edge-path {
   /* Cor visível sobre fundo escuro — antes usava --border (quase invisível: 15% de luminância sobre 5%). */
-  stroke: hsl(var(--foreground) / 0.72) !important;
-  stroke-width: 2.4px !important;
+  stroke: hsl(var(--foreground) / 0.82) !important;
+  stroke-width: 3.2px !important;
   opacity: 1 !important;
   visibility: visible !important;
-  filter: drop-shadow(0 0 5px hsl(var(--background) / 0.95));
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 4px hsl(var(--background) / 0.95));
+}
+.canvas-flow.acelera-ops-flow .canvas-edge-path,
+.canvas-flow.acelera-ops-flow .react-flow__edge-visibility-halo {
+  vector-effect: non-scaling-stroke;
+  paint-order: stroke;
 }
 .canvas-flow.acelera-ops-flow .react-flow__edge {
   outline: none;
