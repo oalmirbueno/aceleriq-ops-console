@@ -366,6 +366,7 @@ function CanvasStudioInner({
   const [openDockGroup, setOpenDockGroup] = useState<string | null>(null);
   const dbNodesRef = useRef<CanvasNodeRow[]>([]);
   const dbEdgesRef = useRef<CanvasEdgeRecord[]>([]);
+  const clientLogosRef = useRef<Record<string, string | null>>({});
 
   // Active client folder (null = "Todos")
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
@@ -375,14 +376,25 @@ function CanvasStudioInner({
 
   useEffect(() => { dbNodesRef.current = dbNodes; }, [dbNodes]);
   useEffect(() => { dbEdgesRef.current = dbEdges; }, [dbEdges]);
+  useEffect(() => { clientLogosRef.current = clientLogos; }, [clientLogos]);
+
+  const setDbNodesImmediate = useCallback((updater: CanvasNodeRow[] | ((prev: CanvasNodeRow[]) => CanvasNodeRow[])) => {
+    setDbNodes((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      dbNodesRef.current = next;
+      cacheRef.current.set(workspaceId, { nodes: next, edges: dbEdgesRef.current, logos: clientLogosRef.current });
+      return next;
+    });
+  }, [workspaceId]);
 
   const setDbEdgesImmediate = useCallback((updater: CanvasEdgeRecord[] | ((prev: CanvasEdgeRecord[]) => CanvasEdgeRecord[])) => {
     setDbEdges((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       dbEdgesRef.current = next;
+      cacheRef.current.set(workspaceId, { nodes: dbNodesRef.current, edges: next, logos: clientLogosRef.current });
       return next;
     });
-  }, []);
+  }, [workspaceId]);
 
   // Load client plan_name + project_type for ApplyPlaybookButton
   useEffect(() => {
@@ -428,6 +440,8 @@ function CanvasStudioInner({
     ]);
     const nodes = (nodesData ?? []) as CanvasNodeRow[];
     const edges = (edgesData ?? []) as CanvasEdgeRecord[];
+    dbNodesRef.current = nodes;
+    dbEdgesRef.current = edges;
     setDbNodes(nodes);
     setDbEdges(edges);
 
@@ -449,10 +463,12 @@ function CanvasStudioInner({
         (logos as Array<{ id: string; logo_url: string | null }>).forEach((c) => {
           map[c.id] = c.logo_url ?? null;
         });
+        clientLogosRef.current = map;
         setClientLogos(map);
         cacheRef.current.set(workspaceId, { nodes, edges, logos: map });
       }
     } else {
+      clientLogosRef.current = {};
       setClientLogos({});
       cacheRef.current.set(workspaceId, { nodes, edges, logos: {} });
     }
@@ -888,20 +904,32 @@ function CanvasStudioInner({
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setRfNodes((nds) => applyNodeChanges(changes, nds));
+    let shouldFlushPositions = false;
     for (const c of changes) {
+      if (c.type === "remove") {
+        positionUpdateQueueRef.current.delete(c.id);
+        draggingNodesRef.current.delete(c.id);
+        void handleDeleteNodeRef.current?.(c.id);
+        continue;
+      }
       if (c.type === "position") {
         if (c.dragging === true) {
           draggingNodesRef.current.add(c.id);
         } else if (c.dragging === false && c.position) {
           draggingNodesRef.current.delete(c.id);
+            const nextPosition = { x: c.position.x, y: c.position.y };
+            setDbNodesImmediate((prev) => prev.map((node) => (
+              node.id === c.id ? { ...node, pos_x: nextPosition.x, pos_y: nextPosition.y } : node
+            )));
           // Enqueue instead of firing DB call immediately
-          positionUpdateQueueRef.current.set(c.id, { x: c.position.x, y: c.position.y });
+            positionUpdateQueueRef.current.set(c.id, nextPosition);
           if (positionFlushTimerRef.current) window.clearTimeout(positionFlushTimerRef.current);
-          positionFlushTimerRef.current = window.setTimeout(flushPositionUpdates, 400);
+            shouldFlushPositions = true;
         }
       }
     }
-  }, [flushPositionUpdates]);
+      if (shouldFlushPositions) flushPositionUpdates();
+  }, [flushPositionUpdates, setDbNodesImmediate]);
 
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
     setRfEdges((eds) => applyEdgeChanges(changes, eds));
@@ -2131,7 +2159,16 @@ function CanvasStudioInner({
   };
 
   const handleDeleteNode = async (id: string) => {
-    const node = dbNodes.find((n) => n.id === id);
+    const previousNodes = dbNodesRef.current;
+    const previousEdges = dbEdgesRef.current;
+    const node = previousNodes.find((n) => n.id === id);
+    if (!node) return;
+
+    setSelectedNode((current) => (current?.id === id ? null : current));
+    setAiOrbConfigNode((current) => (current?.id === id ? null : current));
+    setDbNodesImmediate((prev) => prev.filter((n) => n.id !== id && n.parent_node_id !== id));
+    setDbEdgesImmediate((prev) => prev.filter((e) => e.source_node_id !== id && e.target_node_id !== id));
+
     if (node?.node_type === "client") {
       await supabase.from("canvas_nodes").update({ parent_node_id: null }).eq("parent_node_id", id);
     }
@@ -2139,12 +2176,10 @@ function CanvasStudioInner({
     const { error } = await supabase.from("canvas_nodes").delete().eq("id", id);
     if (error) {
       toast({ title: "Erro ao remover", description: error.message, variant: "destructive" });
+      setDbNodesImmediate(previousNodes);
+      setDbEdgesImmediate(previousEdges);
     } else {
       toast({ title: "Node removido" });
-      setSelectedNode(null);
-      // Update otimista — apenas remove do state local sem refetch
-      setDbNodes((prev) => prev.filter((n) => n.id !== id && n.parent_node_id !== id));
-      setDbEdges((prev) => prev.filter((e) => e.source_node_id !== id && e.target_node_id !== id));
     }
   };
 
