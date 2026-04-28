@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Plus, Search, ExternalLink, FolderPlus, KeyRound, FileText, Sparkles, Archive, ArchiveRestore } from "lucide-react";
+import { Users, Plus, Search, ExternalLink, FolderPlus, KeyRound, FileText, Sparkles, Archive, ArchiveRestore, RefreshCw } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import EmptyState from "@/components/EmptyState";
 import LoadingState from "@/components/LoadingState";
@@ -89,6 +89,7 @@ export default function ClientsPage() {
   const [briefingClient, setBriefingClient] = useState<Client | null>(null);
   const [quizClient, setQuizClient] = useState<Client | null>(null);
   const [importLeadsOpen, setImportLeadsOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [typeEditorClient, setTypeEditorClient] = useState<Client | null>(null);
 
   const fetchClients = async () => {
@@ -201,7 +202,40 @@ export default function ClientsPage() {
             </SelectContent>
           </Select>
           <Button onClick={() => setImportLeadsOpen(true)} size="sm" variant="outline" className="h-9 gap-1.5">
-            <Sparkles className="h-3.5 w-3.5" /> Importar do portal
+            <Sparkles className="h-3.5 w-3.5" /> Importar leads
+          </Button>
+          <Button
+            onClick={async () => {
+              setSyncing(true);
+              try {
+                const { data, error } = await supabase.functions.invoke("backfill-from-portal");
+                if (error) throw error;
+                if (data?.stats) {
+                  const s = data.stats;
+                  toast({
+                    title: "Sincronização concluída",
+                    description: `${s.profiles_found} perfis | ${s.clients_created} criados | ${s.clients_updated} atualizados | ${s.workspaces_created} workspaces criados${s.errors?.length ? ` | ${s.errors.length} erros` : ""}`,
+                  });
+                  fetchClients();
+                }
+              } catch (err) {
+                toast({
+                  title: "Erro na sincronização",
+                  description: err instanceof Error ? err.message : "Verifique os logs",
+                  variant: "destructive",
+                });
+              } finally {
+                setSyncing(false);
+              }
+            }}
+            size="sm"
+            variant="outline"
+            className="h-9 gap-1.5"
+            disabled={syncing}
+            title="Sincronizar todos os clientes do portal com contexto completo"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Sincronizando..." : "Sync portal"}
           </Button>
           <Button onClick={() => setDialogOpen(true)} size="sm" className="h-9 gap-1.5">
             <Plus className="h-3.5 w-3.5" /> Novo cliente
