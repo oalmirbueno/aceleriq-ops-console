@@ -904,6 +904,7 @@ function CanvasStudioInner({
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setRfNodes((nds) => applyNodeChanges(changes, nds));
+    let shouldFlushPositions = false;
     for (const c of changes) {
       if (c.type === "remove") {
         positionUpdateQueueRef.current.delete(c.id);
@@ -923,10 +924,11 @@ function CanvasStudioInner({
           // Enqueue instead of firing DB call immediately
             positionUpdateQueueRef.current.set(c.id, nextPosition);
           if (positionFlushTimerRef.current) window.clearTimeout(positionFlushTimerRef.current);
-          positionFlushTimerRef.current = window.setTimeout(flushPositionUpdates, 400);
+            shouldFlushPositions = true;
         }
       }
     }
+      if (shouldFlushPositions) flushPositionUpdates();
   }, [flushPositionUpdates, setDbNodesImmediate]);
 
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
