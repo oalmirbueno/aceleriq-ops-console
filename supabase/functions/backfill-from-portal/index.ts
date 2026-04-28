@@ -121,7 +121,7 @@ serve(async (req) => {
     // ─── 3. Busca quiz_submissions (briefing do quiz) ──────────────
     let submissions: any[] = [];
     try {
-      submissions = await portalFetch("quiz_submissions?select=id,user_id,created_at,positioning,differential,icp,main_pains,goals_12m,success_metric,revenue_range,team_size,maturity_digital,ai_readiness,recommended_plan&order=created_at.desc");
+      submissions = await portalFetch("quiz_submissions?select=*&order=created_at.desc");
     } catch {
       // quiz_submissions pode não existir ou ter nome diferente — ok
     }
