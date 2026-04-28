@@ -324,18 +324,30 @@
   fill: hsl(var(--foreground) / 0.82) !important;
   stroke: hsl(var(--foreground) / 0.82) !important;
 }
-/* Endpoints visíveis quando selecionado — para reconectar */
+/* Endpoints arrastáveis nativos do React Flow — bolinhas verdes nas pontas
+   da edge selecionada. São <circle> SVG renderizados pelo próprio React Flow
+   e já vêm com handlers de drag/reconnect ligados. Só precisamos torná-los
+   visíveis e com hit-area generosa. */
 .react-flow__edgeupdater {
   fill: hsl(var(--primary));
   stroke: hsl(var(--background));
-  stroke-width: 2px;
-  r: 5;
+  stroke-width: 2.5px;
+  r: 7;
   opacity: 0;
-  transition: none;
+  cursor: grab;
+  pointer-events: all;
+  transition: opacity 0.12s ease;
 }
 .react-flow__edge.selected .react-flow__edgeupdater,
 .react-flow__edge:hover .react-flow__edgeupdater {
   opacity: 1;
+}
+.react-flow__edgeupdater:hover {
+  r: 9;
+  filter: drop-shadow(0 0 6px hsl(var(--primary) / 0.6));
+}
+.react-flow__edgeupdater:active {
+  cursor: grabbing;
 }
 /* Sem drop-shadow / animação em edges — caro durante zoom/pan.
    Mantém apenas variações de dasharray (renderização SVG nativa, leve). */
