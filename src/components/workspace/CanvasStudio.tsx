@@ -292,12 +292,12 @@ export function validateCanvasConnection(source: CanvasNodeRow, target: CanvasNo
 function edgeIntent(edge: CanvasEdgeRecord, nodesById: Map<string, CanvasNodeRow>) {
   const sourceKind = edge.source_node_id && nodesById.get(edge.source_node_id) ? nodeKindOf(nodesById.get(edge.source_node_id)!) : "";
   const targetKind = edge.target_node_id && nodesById.get(edge.target_node_id) ? nodeKindOf(nodesById.get(edge.target_node_id)!) : "";
-  if (sourceKind === "ai_orb" || targetKind === "ai_orb") return { label: edge.label ?? "IA", stroke: "hsl(var(--node-tech))", animated: false, className: "edge-ai", strokeWidth: 2.4 };
+  if (sourceKind === "ai_orb" || targetKind === "ai_orb") return { label: edge.label ?? "IA", stroke: "hsl(var(--node-tech))", animated: false, className: "edge-ai", strokeWidth: 2.6 };
   if (PROOF_KINDS.has(targetKind) || PROOF_KINDS.has(sourceKind)) return { label: edge.label ?? "prova", stroke: "hsl(var(--node-proof))", animated: false, className: "edge-proof", strokeWidth: 2.8 };
-  if (targetKind === "engine") return { label: edge.label ?? "input", stroke: "hsl(var(--node-tech))", animated: false, className: "edge-input", strokeWidth: 2.6 };
+  if (targetKind === "engine") return { label: edge.label ?? "input", stroke: "hsl(var(--node-tech))", animated: false, className: "edge-input", strokeWidth: 2.7 };
   if (sourceKind === "engine") return { label: edge.label ?? "gera", stroke: "hsl(var(--node-build))", animated: false, className: "edge-engine", strokeWidth: 3 };
-  if (targetKind === "decisao" || sourceKind === "decisao") return { label: edge.label ?? "aprova", stroke: "hsl(var(--node-growth))", animated: false, className: "edge-decision", strokeWidth: 2.5 };
-  return { label: edge.label ?? undefined, stroke: "hsl(var(--primary))", animated: false, className: "edge-flow", strokeWidth: 2.3 };
+  if (targetKind === "decisao" || sourceKind === "decisao") return { label: edge.label ?? "aprova", stroke: "hsl(var(--node-growth))", animated: false, className: "edge-decision", strokeWidth: 2.7 };
+  return { label: edge.label ?? undefined, stroke: "hsl(var(--primary))", animated: false, className: "edge-flow", strokeWidth: 2.8 };
 }
 
 const EMPTY_OPERATIONAL_META = {} as CanvasOperationalMeta;

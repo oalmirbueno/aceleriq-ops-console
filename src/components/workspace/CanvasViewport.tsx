@@ -48,7 +48,7 @@ const PRO_OPTIONS = { hideAttribution: true };
 const DEFAULT_EDGE_OPTIONS = {
   type: "deletable",
   markerEnd: { type: MarkerType.ArrowClosed, color: "hsl(var(--foreground) / 0.82)", width: 18, height: 18 },
-  style: { stroke: "hsl(var(--foreground) / 0.82)", strokeWidth: 3.2 },
+  style: { stroke: "hsl(var(--foreground) / 0.82)", strokeWidth: 2.8 },
 };
 const CONNECTION_LINE_STYLE = { stroke: "hsl(var(--primary))", strokeWidth: 3, opacity: 1 };
 

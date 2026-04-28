@@ -8,7 +8,7 @@
  *  - Tooltip "Arraste as pontas para reconectar"
  *  - Comparador customizado mantido para performance
  */
-import { memo, useState, useMemo, useCallback } from "react";
+import { memo, useMemo, useCallback } from "react";
 import {
   EdgeLabelRenderer, getBezierPath, type EdgeProps,
 } from "@xyflow/react";
@@ -25,8 +25,6 @@ function DeletableEdgeComp(props: EdgeProps) {
     sourcePosition, targetPosition, style, markerEnd,
     label, selected, data,
   } = props;
-  const [hover, setHover] = useState(false);
-
   if (![sourceX, sourceY, targetX, targetY].every(Number.isFinite)) return null;
 
   const [edgePath, labelX, labelY] = useMemo(
@@ -34,7 +32,7 @@ function DeletableEdgeComp(props: EdgeProps) {
     [sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition]
   );
 
-  const show = hover || selected;
+  const show = selected;
   const edgeData = (data ?? {}) as DeletableEdgeData;
 
   const handleDelete = useCallback((e: React.MouseEvent) => {
@@ -50,28 +48,25 @@ function DeletableEdgeComp(props: EdgeProps) {
     edgeData.onEditLabel?.(id, next.trim() || null);
   }, [id, label, edgeData]);
 
-  const onEnter = useCallback(() => setHover(true), []);
-  const onLeave = useCallback(() => setHover(false), []);
-
   const edgeStyle = useMemo(() => {
     const baseStroke = typeof style?.stroke === "string" ? style.stroke : "hsl(var(--foreground) / 0.82)";
-    const parsedWidth = Number.parseFloat(String(style?.strokeWidth ?? 3.2));
-    const baseWidth = Number.isFinite(parsedWidth) ? parsedWidth : 3.2;
+    const parsedWidth = Number.parseFloat(String(style?.strokeWidth ?? 2.8));
+    const baseWidth = Number.isFinite(parsedWidth) ? parsedWidth : 2.8;
     return {
-      stroke: selected ? "hsl(var(--primary))" : hover ? "hsl(var(--foreground))" : baseStroke,
-      strokeWidth: selected ? Math.max(baseWidth + 1.2, 4.4) : hover ? Math.max(baseWidth + 0.7, 3.8) : Math.max(baseWidth, 3.2),
+      stroke: selected ? "hsl(var(--primary))" : baseStroke,
+      strokeWidth: selected ? Math.max(baseWidth + 0.8, 3.6) : Math.max(baseWidth, 2.8),
     };
-  }, [style, hover, selected]);
+  }, [style, selected]);
 
   return (
     <>
-      <g onMouseEnter={onEnter} onMouseLeave={onLeave} className="canvas-edge-layer">
-       {/* Halo + linha visual acima do grid e sem capturar drag dos nodes. */}
+      <g className="canvas-edge-layer">
+       {/* Halo leve + linha visual acima do grid e sem capturar drag dos nodes. */}
       <path
         d={edgePath}
         fill="none"
-        stroke="hsl(var(--background) / 0.96)"
-        strokeWidth={edgeStyle.strokeWidth + 7}
+        stroke="hsl(var(--background) / 0.82)"
+        strokeWidth={edgeStyle.strokeWidth + 4}
         strokeLinecap="round"
         strokeLinejoin="round"
         vectorEffect="non-scaling-stroke"
@@ -96,7 +91,7 @@ function DeletableEdgeComp(props: EdgeProps) {
         d={edgePath}
         fill="none"
         stroke="transparent"
-        strokeWidth={20}
+        strokeWidth={18}
         strokeLinecap="round"
         vectorEffect="non-scaling-stroke"
         className="react-flow__edge-interaction"
