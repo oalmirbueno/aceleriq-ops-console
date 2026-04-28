@@ -905,6 +905,12 @@ function CanvasStudioInner({
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setRfNodes((nds) => applyNodeChanges(changes, nds));
     for (const c of changes) {
+      if (c.type === "remove") {
+        positionUpdateQueueRef.current.delete(c.id);
+        draggingNodesRef.current.delete(c.id);
+        void handleDeleteNodeRef.current?.(c.id);
+        continue;
+      }
       if (c.type === "position") {
         if (c.dragging === true) {
           draggingNodesRef.current.add(c.id);
