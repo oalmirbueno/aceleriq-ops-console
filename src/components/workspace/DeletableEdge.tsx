@@ -27,6 +27,8 @@ function DeletableEdgeComp(props: EdgeProps) {
   } = props;
   const [hover, setHover] = useState(false);
 
+  if (![sourceX, sourceY, targetX, targetY].every(Number.isFinite)) return null;
+
   const [edgePath, labelX, labelY] = useMemo(
     () => getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition }),
     [sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition]
@@ -64,16 +66,17 @@ function DeletableEdgeComp(props: EdgeProps) {
   return (
     <>
       <g onMouseEnter={onEnter} onMouseLeave={onLeave} className="canvas-edge-layer">
-      {/* Halo + linha visual com stroke não escalável: continua visível mesmo com zoom distante. */}
+       {/* Halo + linha visual acima do grid e sem capturar drag dos nodes. */}
       <path
         d={edgePath}
         fill="none"
-        stroke="hsl(var(--background))"
-        strokeWidth={edgeStyle.strokeWidth + 5}
+        stroke="hsl(var(--background) / 0.96)"
+        strokeWidth={edgeStyle.strokeWidth + 7}
         strokeLinecap="round"
         strokeLinejoin="round"
         vectorEffect="non-scaling-stroke"
         className="react-flow__edge-visibility-halo"
+        pointerEvents="none"
       />
       <path
         d={edgePath}
@@ -85,6 +88,7 @@ function DeletableEdgeComp(props: EdgeProps) {
         markerEnd={markerEnd}
         vectorEffect="non-scaling-stroke"
         className="react-flow__edge-path canvas-edge-path"
+        pointerEvents="none"
       />
 
       {/* Área clicável mais larga (20px) — muito mais fácil de selecionar */}
