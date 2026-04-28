@@ -808,6 +808,10 @@ function CanvasStudioInner({
 
   const stableOnDelete = useCallback((edgeId: string) => deleteEdgeByIdRef.current(edgeId), []);
   const stableOnEditLabel = useCallback((edgeId: string, label: string | null) => editEdgeLabelRef.current(edgeId, label), []);
+  const stableOnSelectEdge = useCallback((edgeId: string) => {
+    setRfEdges((edges) => edges.map((edge) => ({ ...edge, selected: edge.id === edgeId })));
+    setRfNodes((nodes) => nodes.map((node) => ({ ...node, selected: false })));
+  }, []);
 
   const reactFlowEdges = useMemo(() => {
     const visibleIds = new Set(visibleCanvasNodes.map((n) => n.id));
@@ -840,10 +844,11 @@ function CanvasStudioInner({
           data: {
             onDelete: stableOnDelete,
             onEditLabel: stableOnEditLabel,
+            onSelect: stableOnSelectEdge,
           },
         };
       });
-  }, [dbEdges, visibleCanvasNodes, stableOnDelete, stableOnEditLabel]);
+  }, [dbEdges, visibleCanvasNodes, stableOnDelete, stableOnEditLabel, stableOnSelectEdge]);
 
   /* DB → ReactFlow — preserva posição LOCAL quando o node já existe no canvas.
    * Motivo: sem isso, ao adicionar/editar qualquer node TODOS os outros voltam
