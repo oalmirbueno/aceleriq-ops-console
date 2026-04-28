@@ -10,7 +10,7 @@
  */
 import { memo, useState, useMemo, useCallback } from "react";
 import {
-  BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps,
+  EdgeLabelRenderer, getBezierPath, type EdgeProps,
 } from "@xyflow/react";
 import { X, Pencil, MoveHorizontal } from "lucide-react";
 
@@ -51,18 +51,41 @@ function DeletableEdgeComp(props: EdgeProps) {
   const onEnter = useCallback(() => setHover(true), []);
   const onLeave = useCallback(() => setHover(false), []);
 
-  const edgeStyle = useMemo(() => ({
-    ...style,
-    stroke: selected ? "#00FF88" : hover ? "#E5E5E5" : "#A3A3A3",
-    strokeWidth: selected ? 2.6 : hover ? 2.2 : 1.8,
-    transition: "stroke 0.15s, stroke-width 0.15s",
-  }), [style, hover, selected]);
+  const edgeStyle = useMemo(() => {
+    const baseStroke = typeof style?.stroke === "string" ? style.stroke : "hsl(var(--foreground) / 0.82)";
+    const parsedWidth = Number.parseFloat(String(style?.strokeWidth ?? 3.2));
+    const baseWidth = Number.isFinite(parsedWidth) ? parsedWidth : 3.2;
+    return {
+      stroke: selected ? "hsl(var(--primary))" : hover ? "hsl(var(--foreground))" : baseStroke,
+      strokeWidth: selected ? Math.max(baseWidth + 1.2, 4.4) : hover ? Math.max(baseWidth + 0.7, 3.8) : Math.max(baseWidth, 3.2),
+    };
+  }, [style, hover, selected]);
 
   return (
     <>
-      <g onMouseEnter={onEnter} onMouseLeave={onLeave}>
-      {/* Linha visual */}
-      <BaseEdge path={edgePath} markerEnd={markerEnd} style={edgeStyle} />
+      <g onMouseEnter={onEnter} onMouseLeave={onLeave} className="canvas-edge-layer">
+      {/* Halo + linha visual com stroke não escalável: continua visível mesmo com zoom distante. */}
+      <path
+        d={edgePath}
+        fill="none"
+        stroke="hsl(var(--background))"
+        strokeWidth={edgeStyle.strokeWidth + 5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+        className="react-flow__edge-visibility-halo"
+      />
+      <path
+        d={edgePath}
+        fill="none"
+        stroke={edgeStyle.stroke}
+        strokeWidth={edgeStyle.strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        markerEnd={markerEnd}
+        vectorEffect="non-scaling-stroke"
+        className="react-flow__edge-path canvas-edge-path"
+      />
 
       {/* Área clicável mais larga (20px) — muito mais fácil de selecionar */}
       <path
@@ -71,6 +94,8 @@ function DeletableEdgeComp(props: EdgeProps) {
         stroke="transparent"
         strokeWidth={20}
         strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+        className="react-flow__edge-interaction"
         style={{ cursor: "pointer" }}
       />
       </g>
