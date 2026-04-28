@@ -189,6 +189,18 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
       <Handle type="source" position={Position.Top} id="t2" className="flex-handle" style={{ left: "50%", background: accent }} />
       <Handle type="target" position={Position.Top} id="t3" className="flex-handle" style={{ left: "75%", background: accent }} />
       <Handle type="source" position={Position.Top} id="t3" className="flex-handle" style={{ left: "75%", background: accent }} />
+      <Handle type="target" position={Position.Right} id="r1" className="flex-handle" style={{ top: "25%", background: accent }} />
+      <Handle type="source" position={Position.Right} id="r1" className="flex-handle" style={{ top: "25%", background: accent }} />
+      <Handle type="target" position={Position.Right} id="r2" className="flex-handle" style={{ top: "50%", background: accent }} />
+      <Handle type="source" position={Position.Right} id="r2" className="flex-handle" style={{ top: "50%", background: accent }} />
+      <Handle type="target" position={Position.Right} id="r3" className="flex-handle" style={{ top: "75%", background: accent }} />
+      <Handle type="source" position={Position.Right} id="r3" className="flex-handle" style={{ top: "75%", background: accent }} />
+      <Handle type="target" position={Position.Bottom} id="b1" className="flex-handle" style={{ left: "25%", background: accent }} />
+      <Handle type="source" position={Position.Bottom} id="b1" className="flex-handle" style={{ left: "25%", background: accent }} />
+      <Handle type="target" position={Position.Bottom} id="b2" className="flex-handle" style={{ left: "50%", background: accent }} />
+      <Handle type="source" position={Position.Bottom} id="b2" className="flex-handle" style={{ left: "50%", background: accent }} />
+      <Handle type="target" position={Position.Bottom} id="b3" className="flex-handle" style={{ left: "75%", background: accent }} />
+      <Handle type="source" position={Position.Bottom} id="b3" className="flex-handle" style={{ left: "75%", background: accent }} />
 
       {/* ═══ THE CARD ═══════════════════════════════════════════ */}
       <div
