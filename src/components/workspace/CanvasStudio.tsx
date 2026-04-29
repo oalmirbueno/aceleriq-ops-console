@@ -510,6 +510,48 @@ function CanvasStudioInner({
   // Mantém refs estáveis sincronizados
   useEffect(() => { fetchDataRef.current = fetchData; }, [fetchData]);
 
+  // Auto-cria o node "client" quando o canvas vem de um workspace e ainda não tem pasta
+  useEffect(() => {
+    if (loading || !workspaceId || !clientId || !clientName) return;
+    const hasClientNode = dbNodes.some((n) => n.node_type === "client");
+    if (hasClientNode) return;
+
+    let cancelled = false;
+    (async () => {
+      const { data: clientData } = await supabase
+        .from("clients")
+        .select("id, name, company_name, portal_client_id, metadata")
+        .eq("id", clientId)
+        .single();
+      if (cancelled || !clientData) return;
+
+      const { data: newNode, error } = await supabase
+        .from("canvas_nodes")
+        .insert({
+          workspace_id: workspaceId,
+          client_id: clientId,
+          node_type: "client",
+          title: clientData.name,
+          description: clientData.company_name || null,
+          status: "active",
+          pos_x: 60,
+          pos_y: 0,
+          data: {
+            kind: "client",
+            linked_entity_id: clientData.id,
+            company_name: clientData.company_name,
+            portal_client_id: clientData.portal_client_id,
+          },
+        })
+        .select("*")
+        .single();
+      if (!cancelled && !error && newNode) {
+        await fetchData();
+      }
+    })().catch(() => {});
+    return () => { cancelled = true; };
+  }, [loading, dbNodes, workspaceId, clientId, clientName, fetchData]);
+
   /* Derive groups (clients) and per-stage lanes */
   const clientGroups = useMemo(
     () => dbNodes
@@ -527,13 +569,21 @@ function CanvasStudioInner({
   useEffect(() => {
     if (loading) return;
     if (activeClientId === null && clientGroups.length > 0) {
-      setActiveClientId(clientGroups[0].id);
+      // Prefere o cliente do workspace atual quando existir
+      const match = clientId
+        ? clientGroups.find(
+            (g) =>
+              (g.data as Record<string, unknown> | null)?.linked_entity_id === clientId ||
+              g.client_id === clientId,
+          )
+        : null;
+      setActiveClientId((match ?? clientGroups[0]).id);
     }
     // If active client was removed, fall back
     if (activeClientId && !clientGroups.find((c) => c.id === activeClientId)) {
       setActiveClientId(clientGroups[0]?.id ?? null);
     }
-  }, [loading, clientGroups, activeClientId]);
+  }, [loading, clientGroups, activeClientId, clientId]);
 
   /* Tabs metadata */
   const clientTabs: CanvasClientTab[] = useMemo(
