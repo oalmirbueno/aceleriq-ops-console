@@ -80,20 +80,11 @@ serve(async (req) => {
 
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
     const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) return json({ error: "GEMINI_API_KEY não configurada" }, 500);
 
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "Missing Authorization" }, 401);
-
-    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user }, error: authErr } = await userClient.auth.getUser();
-    if (authErr || !user) return json({ error: "Unauthorized" }, 401);
-
+    // Auth é opcional — verify_jwt está OFF. Usamos o service role direto.
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
     const body = (await req.json()) as ReqBody;
