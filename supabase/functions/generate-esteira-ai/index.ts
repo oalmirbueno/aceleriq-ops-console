@@ -66,6 +66,7 @@ interface ReqBody {
   workspaceId: string;
   hint?: string;
   focus?: string[];
+  deliveryType?: string;
 }
 
 function json(body: unknown, status = 200) {
@@ -152,7 +153,7 @@ serve(async (req) => {
     };
 
     // ─── 2. Monta prompt ──────────────────────────────────────────────
-    const contextBlob = JSON.stringify({
+    const contextPayload = {
       cliente: {
         nome: client.name,
         empresa: client.company_name,
@@ -176,7 +177,7 @@ serve(async (req) => {
       })),
       pista_usuario: body.hint ?? null,
       areas_foco: body.focus ?? [],
-    }, null, 2);
+    };
 
     const systemPrompt = `Você é o arquiteto operacional da Aceleriq. Gere uma esteira de produção ACELERA sob medida para este cliente.
 
@@ -206,7 +207,7 @@ Formato do JSON:
   ]
 }`;
 
-    const userPrompt = `Contexto do cliente "${client.name}":\n\n${contextBlob}\n\nProjete a esteira ideal agora.`;
+    const userPrompt = `CONTEXTO DO CLIENTE:\n${JSON.stringify(contextPayload).slice(0, 20000)}\n\n${body.hint ? `INSTRUÇÃO ADICIONAL: ${body.hint}` : ""}\n\n${body.deliveryType ? `TIPO DE ENTREGA: ${body.deliveryType}` : ""}`;
 
     // ─── 3. Call Gemini ──────────────────────────────────────────────
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
@@ -221,18 +222,29 @@ Formato do JSON:
       },
     };
 
-    const aiRes = await fetch(geminiUrl, {
+    let aiRes = await fetch(geminiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(geminiPayload),
     });
 
-    if (aiRes.status === 429) return json({ error: "Limite de requisições da IA atingido. Tente em alguns segundos." }, 429);
-    if (aiRes.status === 402) return json({ error: "Créditos da IA esgotados. Adicione créditos no workspace." }, 402);
     if (!aiRes.ok) {
-      const txt = await aiRes.text();
-      console.error("Gemini API error:", aiRes.status, txt);
-      return json({ error: "Falha na IA: " + txt.slice(0, 200) }, 500);
+      const primaryError = await aiRes.text();
+      console.error("Gemini API error:", aiRes.status, primaryError);
+
+      const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
+      const fallbackRes = await fetch(fallbackUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(geminiPayload),
+      });
+
+      if (!fallbackRes.ok) {
+        const errText = await fallbackRes.text();
+        return json({ error: `Gemini falhou: ${fallbackRes.status}`, detail: errText.slice(0, 300) }, 502);
+      }
+
+      aiRes = fallbackRes;
     }
 
     const aiData = await aiRes.json();
