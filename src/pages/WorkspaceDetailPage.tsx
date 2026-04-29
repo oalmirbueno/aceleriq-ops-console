@@ -530,6 +530,7 @@ export default function WorkspaceDetailPage() {
                 clientMetadata={ws.clients?.metadata as Record<string, unknown> | null}
                 currentPlan={planName}
                 variant="full"
+                clientId={ws.client_id}
               />
             )}
           </div>

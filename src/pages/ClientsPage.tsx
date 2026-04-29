@@ -309,7 +309,7 @@ export default function ClientsPage() {
                         <HealthScoreCard clientId={c.id} clientMetadata={c.metadata} currentStage={stage} variant="compact" />
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
-                        <ICPFitScoreCard clientMetadata={c.metadata} currentPlan={c.plan_name as any} variant="compact" />
+                        <ICPFitScoreCard clientMetadata={c.metadata} currentPlan={c.plan_name as any} variant="compact" clientId={c.id} />
                       </TableCell>
                       <TableCell className="text-muted-foreground">{stage ? getStagePremiumLabel(stage) : "—"}</TableCell>
                       <TableCell className="text-muted-foreground capitalize">{c.plan_name ?? "—"}</TableCell>
