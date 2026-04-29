@@ -1,5 +1,5 @@
 /**
- * backfill-from-portal v2 — importa TODOS os clientes do portal para o Ops
+ * backfill-from-portal v3 — importa TODOS os clientes do portal para o Ops
  * com contexto completo: profiles + projetos + briefings + milestones.
  *
  * Usa as queries corretas do portal:
@@ -7,6 +7,7 @@
  *  - profiles → dados do cliente
  *  - projects → workspaces
  *  - briefings (submitted=true) → essential_briefing
+ *  - quiz_submissions → fallback de leads/clientes quando user_roles vem vazio por RLS
  *  - milestones + updates → timeline_events
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -81,11 +82,29 @@ serve(async (req) => {
     let clientIds = clientRoles.map((r: any) => r.user_id).filter(Boolean);
 
     // Fallback operacional: em produção, a anon key pode não enxergar user_roles
-    // por RLS. Quando isso acontecer, usa briefings submitted como fonte de
-    // client_id, que é a tabela real com dados do portal.
+    // por RLS. Quando isso acontecer, usa briefings submitted + quiz_submissions
+    // como fontes visíveis do portal. Quiz é deduplicado por email, mantendo o
+    // envio mais recente para não criar duplicatas sintéticas do mesmo lead.
+    const quizByClient = new Map<string, any>();
     if (clientIds.length === 0) {
       const briefingClientRows = await portalGet("briefings?select=client_id&submitted=eq.true");
-      clientIds = Array.from(new Set(briefingClientRows.map((r: any) => r.client_id).filter(Boolean)));
+      const briefingIds = briefingClientRows.map((r: any) => r.client_id).filter(Boolean);
+
+      const quizRows = await portalGet("quiz_submissions?select=*&status=eq.submitted&order=submitted_at.desc");
+      const latestQuizByEmail = new Map<string, any>();
+      for (const q of quizRows) {
+        const email = String(q.lead_email ?? "").trim().toLowerCase();
+        const key = email || String(q.token ?? q.id ?? "");
+        if (!key || latestQuizByEmail.has(key)) continue;
+        latestQuizByEmail.set(key, q);
+      }
+      for (const q of latestQuizByEmail.values()) {
+        const syntheticClientId = q.token || q.id;
+        if (!syntheticClientId) continue;
+        quizByClient.set(syntheticClientId, q);
+      }
+
+      clientIds = Array.from(new Set([...briefingIds, ...quizByClient.keys()]));
     }
 
     stats.clients_found = clientIds.length;
@@ -93,7 +112,7 @@ serve(async (req) => {
     if (clientIds.length === 0) {
       return new Response(JSON.stringify({
         ok: true, stats,
-        summary: "Nenhum cliente encontrado no portal. Verifique user_roles/briefings e as policies de leitura da PORTAL_ANON_KEY.",
+        summary: "Nenhum cliente encontrado no portal. Verifique user_roles/briefings/quiz_submissions e as policies de leitura da PORTAL_ANON_KEY.",
       }), { headers: { ...cors, "Content-Type": "application/json" } });
     }
 
@@ -146,6 +165,7 @@ serve(async (req) => {
       try {
         const profile = profileById.get(portalClientId);
         const briefingData = briefingByClient.get(portalClientId);
+        const quizData = quizByClient.get(portalClientId);
         const clientProjects = projectsByClient.get(portalClientId) ?? [];
 
         // Monta essential_briefing com tudo disponível
@@ -155,6 +175,22 @@ serve(async (req) => {
         if (profile?.full_name)    eb.client_name    = profile.full_name;
         if (profile?.company_name) eb.company         = profile.company_name;
         if (profile?.phone)        eb.phone           = profile.phone;
+
+        // Campos do quiz_submissions (fallback de lead quando profiles/user_roles não aparecem)
+        if (quizData) {
+          if (quizData.lead_name)     eb.client_name = eb.client_name || quizData.lead_name;
+          if (quizData.lead_company)  eb.company     = eb.company || quizData.lead_company;
+          if (quizData.lead_whatsapp) eb.phone       = eb.phone || quizData.lead_whatsapp;
+          for (const key of [
+            "positioning", "differential", "icp", "main_pains", "goals_12m",
+            "success_metric", "revenue_range", "team_size", "maturity_digital",
+            "ai_readiness", "icp_fit_score", "recommended_plan", "origin",
+          ]) {
+            if (quizData[key] !== undefined && quizData[key] !== null && quizData[key] !== "") {
+              eb[key] = quizData[key];
+            }
+          }
+        }
 
         // Campos do briefing (responses é JSONB com todas as respostas)
         if (briefingData?.responses && typeof briefingData.responses === "object") {
@@ -171,7 +207,7 @@ serve(async (req) => {
           }
         }
 
-        const planName = inferPlanName(profile?.plan_name ?? null);
+        const planName = inferPlanName(profile?.plan_name ?? quizData?.recommended_plan ?? null);
         const projectType = clientProjects.length > 0
           ? inferOpsType(clientProjects[0].project_type)
           : "ai_first";
@@ -197,8 +233,8 @@ serve(async (req) => {
             metadata: {
               ...currentMeta,
               essential_briefing: mergedEb,
-              lead_email:  currentMeta.lead_email  || profile?.email || null,
-              lead_phone:  currentMeta.lead_phone  || profile?.phone || null,
+              lead_email:  currentMeta.lead_email  || profile?.email || quizData?.lead_email || null,
+              lead_phone:  currentMeta.lead_phone  || profile?.phone || quizData?.lead_whatsapp || null,
               portal_sync_at: new Date().toISOString(),
             },
             updated_at: new Date().toISOString(),
@@ -208,8 +244,8 @@ serve(async (req) => {
           stats.clients_updated++;
         } else {
           // Cria cliente novo
-          const name = profile?.full_name || profile?.email || eb.companyName || eb.company || eb.client_name || `Cliente ${portalClientId.slice(0, 8)}`;
-          const companyName = profile?.company_name || eb.companyName || eb.company || null;
+          const name = profile?.full_name || profile?.email || quizData?.lead_name || eb.companyName || eb.company || eb.client_name || `Cliente ${portalClientId.slice(0, 8)}`;
+          const companyName = profile?.company_name || quizData?.lead_company || eb.companyName || eb.company || null;
           const { data: newClient, error } = await ops.from("clients").insert({
             name,
             company_name:  companyName,
@@ -219,8 +255,8 @@ serve(async (req) => {
             portal_client_id: portalClientId,
             metadata: {
               essential_briefing: eb,
-              lead_email:  profile?.email || null,
-              lead_phone:  profile?.phone || null,
+              lead_email:  profile?.email || quizData?.lead_email || null,
+              lead_phone:  profile?.phone || quizData?.lead_whatsapp || null,
               source:      "backfill_from_portal",
               portal_sync_at: new Date().toISOString(),
             },
@@ -240,7 +276,7 @@ serve(async (req) => {
             .select("id").eq("client_id", opsClientId).limit(1).maybeSingle();
 
           if (!existingWs) {
-            const name = profile?.full_name || eb.companyName || eb.company || eb.client_name || "Cliente Portal";
+            const name = profile?.full_name || quizData?.lead_name || eb.companyName || eb.company || eb.client_name || "Cliente Portal";
             const { data: ws } = await ops.from("workspaces").insert({
               client_id:     opsClientId,
               name:          `${name} — Workspace`,
