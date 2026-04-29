@@ -103,27 +103,28 @@ serve(async (req) => {
 
     // ─── 1. Coleta contexto ────────────────────────────────────────────
     // Schema real:
-    //  - clients: name, company_name, segment, plan_name, website, instagram, notes
-    //  - context_entries: context_type, title, content, source_label, metadata, tags
+    //  - clients: name, company_name, segment, plan_name, project_type, custom_monthly_value, logo_url, notes, metadata
+    //  - context_entries: context_type, title, content, metadata, tags, created_at
     //  - briefing consolidado vive em context_entries (context_type=briefing) em metadata.consolidated_briefing
-    //  - metric_snapshots: metric_name, value, unit, captured_at, notes
-    //  - fronts: name, status, description, priority (workspace-scope)
+    //  - metric_snapshots: metric_key, metric_label, metric_value, metric_unit, notes, captured_at
+    //  - operational_fronts: name, objective, expected_outcome, scope_classification, priority, bucket_status, execution_status, blocked_reason
     //  - assets: title, asset_type, validation_status, external_url (workspace-scope)
     const [clientRes, contextRes, metricsRes, frontsRes, assetsRes] = await Promise.all([
       admin.from("clients")
-        .select("id,name,company_name,segment,plan_name,website,instagram,notes")
+        .select("id,name,company_name,segment,plan_name,project_type,custom_monthly_value,logo_url,portal_client_id,notes,metadata,executive_summary")
         .eq("id", body.clientId).maybeSingle(),
       admin.from("context_entries")
         .select("context_type,title,content,metadata,tags,created_at")
         .eq("client_id", body.clientId)
         .order("created_at", { ascending: false }).limit(25),
       admin.from("metric_snapshots")
-        .select("metric_name,value,unit,notes,captured_at")
-        .eq("client_id", body.clientId)
+        .select("metric_key,metric_label,metric_value,metric_unit,notes,captured_at")
+        .eq("workspace_id", body.workspaceId)
         .order("captured_at", { ascending: false }).limit(15),
-      admin.from("fronts")
-        .select("name,status,description,priority")
-        .eq("client_id", body.clientId).limit(10),
+      admin.from("operational_fronts")
+        .select("id,name,objective,expected_outcome,scope_classification,priority,bucket_status,execution_status,owner_id,blocked_reason,metadata,created_at,updated_at")
+        .eq("workspace_id", body.workspaceId)
+        .order("created_at", { ascending: true }).limit(10),
       admin.from("assets")
         .select("title,asset_type,validation_status,external_url")
         .eq("workspace_id", body.workspaceId).limit(20),
@@ -159,9 +160,13 @@ serve(async (req) => {
         empresa: client.company_name,
         plano: client.plan_name,
         segmento: client.segment,
-        site: client.website,
-        instagram: client.instagram,
+        tipo_projeto: client.project_type,
+        valor_mensal: client.custom_monthly_value,
+        logo_url: client.logo_url,
+        portal_client_id: client.portal_client_id,
         notas: client.notes,
+        resumo_executivo: client.executive_summary,
+        metadata: client.metadata,
       },
       briefing_consolidado: briefingConsolidated,
       contexto_recente: otherContext.map((e) => ({
@@ -170,8 +175,24 @@ serve(async (req) => {
         resumo: typeof e.content === "string" ? e.content.slice(0, 500) : null,
         tags: e.tags ?? [],
       })),
-      metricas: metricsRes.data ?? [],
-      fronts_ativos: frontsRes.data ?? [],
+      metricas: (metricsRes.data ?? []).map((m: Record<string, unknown>) => ({
+        key: m.metric_key,
+        label: m.metric_label,
+        value: m.metric_value,
+        unit: m.metric_unit,
+        notes: m.notes,
+        captured_at: m.captured_at,
+      })),
+      fronts_ativos: (frontsRes.data ?? []).map((f: Record<string, unknown>) => ({
+        nome: f.name,
+        objetivo: f.objective,
+        resultado_esperado: f.expected_outcome,
+        classificacao: f.scope_classification,
+        prioridade: f.priority,
+        bucket_status: f.bucket_status,
+        execution_status: f.execution_status,
+        bloqueio: f.blocked_reason,
+      })),
       assets_disponiveis: (assetsRes.data ?? []).map((a: Record<string, unknown>) => ({
         nome: a.title, tipo: a.asset_type, status: a.validation_status,
       })),
