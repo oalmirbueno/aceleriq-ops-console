@@ -1985,6 +1985,18 @@ function CanvasStudioInner({
           .single();
 
         if (error) {
+          // FK violation no parent_node_id é fatal — aborta o lote inteiro
+          // pra não mostrar "Esteira criada (0 nodes)" sem feedback útil.
+          const isFkError = /foreign key/i.test(error.message)
+            || /violates foreign key constraint/i.test(error.message);
+          if (isFkError && newRows.length === 0) {
+            toast({
+              title: "Erro ao gerar esteira",
+              description: "Pasta do cliente inválida ou removida. Recarregue a página e tente de novo.",
+              variant: "destructive",
+            });
+            return;
+          }
           toast({ title: `Falha ao criar "${tn.title}"`, description: error.message, variant: "destructive" });
           continue;
         }
