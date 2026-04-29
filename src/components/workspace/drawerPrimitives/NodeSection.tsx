@@ -83,17 +83,17 @@ export default function NodeSection({
         )}
       </div>
       <div className="space-y-3">
-        {section.fields.map((field) => (
+        {(section.fields ?? []).map((field) => (
           <div key={field.id}>
             <FieldEditor
               field={field}
-              value={content?.fields[field.id]}
+              value={content?.fields?.[field.id]}
               onChange={(next) => onFieldChange(field.id, next)}
               disabled={disabled}
               workspaceId={workspaceId}
               nodeId={nodeId}
             />
-            {renderFieldExtra?.(section.id, field.id, content?.fields[field.id])}
+            {renderFieldExtra?.(section.id, field.id, content?.fields?.[field.id])}
           </div>
         ))}
       </div>
