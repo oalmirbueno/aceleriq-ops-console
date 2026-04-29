@@ -525,11 +525,35 @@ serve(async (req) => {
       }
     }
 
-    const flatFields = flattenPrefillSections(parsed.sections ?? {});
+    const normalizedSections: Record<string, { fields: Record<string, { value: unknown; origin: string; citation?: string }>; ai_notes?: string }> = {};
+    for (const section of blueprint.sections) {
+      const sectionResult: { fields: Record<string, { value: unknown; origin: string; citation?: string }>; ai_notes?: string } = { fields: {} };
+      const aiFields = section.fields.filter((f) => f.type !== "attachments");
+      for (const field of aiFields) {
+        const rawField = parsed.sections?.[section.id]?.fields?.[field.id] ?? parsed.fields?.[field.id];
+        if (rawField && typeof rawField === "object" && "value" in (rawField as Record<string, unknown>) && "origin" in (rawField as Record<string, unknown>)) {
+          sectionResult.fields[field.id] = rawField as { value: unknown; origin: string; citation?: string };
+        } else if (rawField !== undefined) {
+          sectionResult.fields[field.id] = { value: rawField, origin: "auto" };
+        } else {
+          sectionResult.fields[field.id] = { value: null, origin: "empty" };
+        }
+      }
+      const notes = parsed.sections?.[section.id]?.ai_notes;
+      if (typeof notes === "string" && notes.trim()) sectionResult.ai_notes = notes;
+      normalizedSections[section.id] = sectionResult;
+    }
+
+    const flatFields: Record<string, unknown> = {};
+    for (const section of Object.values(normalizedSections)) {
+      for (const [fieldId, field] of Object.entries(section.fields)) {
+        flatFields[fieldId] = field.value;
+      }
+    }
 
     const payload = {
       blueprint_kind: blueprint.kind,
-      sections: parsed.sections,
+      sections: normalizedSections,
       method_state: cached && typeof cached === "object" ? (cached as Record<string, unknown>).method_state : {},
       sources_used: sourcesUsed,
       generated_at: new Date().toISOString(),
