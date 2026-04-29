@@ -1900,6 +1900,21 @@ function CanvasStudioInner({
     try {
       // 1) Garante o cliente (folder)
       let clientNodeId: string | null = activeClientId ?? (clientGroups[0]?.id ?? null);
+
+      // Valida que o clientNodeId realmente existe na DB. Se for stale (apontando
+      // para um node removido ou nunca persistido), força recriar pra evitar FK
+      // violation no parent_node_id ao inserir os nodes filhos.
+      if (clientNodeId) {
+        const { data: exists } = await supabase
+          .from("canvas_nodes")
+          .select("id")
+          .eq("id", clientNodeId)
+          .maybeSingle();
+        if (!exists) {
+          clientNodeId = null;
+        }
+      }
+
       if (!clientNodeId) {
         const { data: clientNode, error: cErr } = await supabase
           .from("canvas_nodes")
@@ -1970,6 +1985,18 @@ function CanvasStudioInner({
           .single();
 
         if (error) {
+          // FK violation no parent_node_id é fatal — aborta o lote inteiro
+          // pra não mostrar "Esteira criada (0 nodes)" sem feedback útil.
+          const isFkError = /foreign key/i.test(error.message)
+            || /violates foreign key constraint/i.test(error.message);
+          if (isFkError && newRows.length === 0) {
+            toast({
+              title: "Erro ao gerar esteira",
+              description: "Pasta do cliente inválida ou removida. Recarregue a página e tente de novo.",
+              variant: "destructive",
+            });
+            return;
+          }
           toast({ title: `Falha ao criar "${tn.title}"`, description: error.message, variant: "destructive" });
           continue;
         }
