@@ -270,7 +270,11 @@ Formato do JSON:
 
     const aiData = await aiRes.json();
     const rawText = aiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
-    const clean = rawText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const clean = rawText
+      .replace(/```json\n?/g, "")
+      .replace(/```\n?/g, "")
+      .replace(/^\s*\n/, "")
+      .trim();
 
     let parsed: {
       label?: string;
@@ -281,8 +285,16 @@ Formato do JSON:
     };
     try {
       parsed = JSON.parse(clean);
-    } catch (e) {
-      return json({ error: "Falha ao parsear resposta da IA: " + String(e) }, 500);
+    } catch {
+      const jsonMatch = clean.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return json({ error: "Gemini retornou texto não-JSON", detail: clean.slice(0, 200) }, 500);
+      }
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch (e) {
+        return json({ error: "Falha ao parsear resposta da IA: " + String(e), detail: clean.slice(0, 200) }, 500);
+      }
     }
 
     // ─── 5. Validação / saneamento ────────────────────────────────────
