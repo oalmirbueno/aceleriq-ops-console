@@ -30,6 +30,7 @@ import { toast } from "@/hooks/use-toast";
 import { syncNodeCompletedWhenDone } from "./syncToPortalEvents";
 import { getProjectTypeMeta, resolveProjectNodeKind, type ProjectNodeKind } from "./canvasProjectTypes";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
+import { getNodeIntelligence } from "@/lib/nodeIntelligence";
 
 interface Props {
   node: CanvasNodeRecord & { parent_node_id?: string | null };
@@ -970,35 +971,65 @@ export default function OperationalNodeDrawer({
   const prefillWithAI = useCallback(async () => {
     setPrefilling(true);
     try {
+      void getNodeIntelligence(kind);
+      const blueprint = {
+        kind: kind ?? "documento",
+        purpose: config.context ?? config.title,
+        sections: config.sections.map((s) => ({
+          id: s.id,
+          title: s.title,
+          description: s.description ?? "",
+          fields: s.fields.map((f) => ({
+            id: f.id,
+            label: f.label,
+            type: f.type === "textarea" ? "textarea" : "text",
+            hint: f.placeholder ?? f.hint ?? "",
+          })),
+        })),
+        sources: [
+          "client", "briefing", "context", "metrics", "fronts",
+          "siblings", "assets", "dossier", "tasks", "timeline", "workspace_assets",
+        ],
+        prefillPrompt: `Você é o especialista operacional da Aceleriq preenchendo o node "${title}" do tipo "${kind}" para o cliente "${clientName ?? ""}".
+Use TODOS os dados do contexto para preencher cada campo com profundidade.
+- description: mínimo 3 parágrafos detalhados, específico pro cliente
+- execution_plan: mínimo 5 passos numerados com ferramentas e saídas
+- acceptance_criteria: mínimo 3 critérios claros
+- ai_prompt: prompt PRONTO pra copiar e colar no ChatGPT/Gemini/Claude
+- openclaw_prompt: instrução operacional pro OpenClaw executar
+- responsible: sugira quem executa (Estratégia, Design, Tráfego, Automação, Conteúdo, Dev, IA/OpenClaw)
+- notes: observações relevantes do contexto do cliente
+- Checklists: mínimo 5 itens ESPECÍFICOS pro tipo ${kind}
+Cada campo deve ser ÚNICO e relevante. Node de automação fala de automação. Node de tráfego fala de tráfego.`,
+      };
+
       const { data, error } = await supabase.functions.invoke("prefill-node", {
-        body: {
-          nodeId: node.id,
-          workspaceId,
-          clientId,
-          kind,
-          nodeType: kind,
-          currentTitle: title,
-          currentData: values,
-        },
+        body: { nodeId: node.id, workspaceId, clientId, blueprint, force: true },
       });
+
       if (error) throw error;
       if (data?.error) throw new Error(data.error + (data.detail ? ` — ${data.detail}` : ""));
-      if (data?.fields) {
+
+      if (data?.fields && typeof data.fields === "object") {
         const merged: Record<string, string> = { ...values };
-        Object.entries(data.fields as Record<string, string>).forEach(([k, v]) => {
-          if (v && typeof v === "string") merged[k] = v;
+        Object.entries(data.fields as Record<string, unknown>).forEach(([k, v]) => {
+          if (v && typeof v === "string" && v.length > 0) merged[k] = v;
+          else if (v && typeof v === "object") merged[k] = JSON.stringify(v);
         });
         setValues(merged);
-        toast({ title: "Preenchido com IA ✦", description: "Revise os campos e salve quando estiver bom." });
+        toast({ title: "Preenchido com IA ✦", description: "Revise os campos e salve." });
+      } else {
+        toast({ title: "IA não retornou campos", description: "Tente novamente.", variant: "destructive" });
       }
     } catch (err) {
+      console.error("[prefillWithAI]", err);
       toast({
         title: "Falha no preenchimento",
         description: err instanceof Error ? err.message : "Tente novamente",
         variant: "destructive",
       });
     } finally { setPrefilling(false); }
-  }, [node.id, workspaceId, clientId, kind, title, values]);
+  }, [node.id, workspaceId, clientId, clientName, kind, title, values, config]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
