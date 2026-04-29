@@ -2580,6 +2580,17 @@ function CanvasStudioInner({
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : clientGroups.length === 0 ? (
+            clientId && clientName ? (
+            <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center relative">
+              <Loader2 className="h-10 w-10 text-muted-foreground animate-spin" />
+              <div>
+                <p className="text-base font-semibold text-foreground mb-1">Preparando esteira de {clientName}...</p>
+                <p className="text-xs text-muted-foreground max-w-md">
+                  Criando a pasta do cliente automaticamente.
+                </p>
+              </div>
+            </div>
+            ) : (
             <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center">
               <Building2 className="h-10 w-10 text-muted-foreground" />
               <div>
@@ -2598,6 +2609,7 @@ function CanvasStudioInner({
                 </Button>
               </div>
             </div>
+            )
           ) : scopedProjectNodes.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center relative">
               <Sparkles className="h-10 w-10 text-muted-foreground" />
