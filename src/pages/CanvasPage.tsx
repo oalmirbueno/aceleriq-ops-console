@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { FolderKanban, Search, Layout, Trash2, ArrowRight, ChevronDown, Folder, FolderOpen, Plus, Archive, ArchiveRestore, Eye, EyeOff } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -53,6 +53,29 @@ function progressFromStage(stage: AceleraStageKey): number {
 
 export default function CanvasPage() {
   const navigate = useNavigate();
+  // Se veio com workspaceId na URL, abre direto no canvas fullscreen
+  const [searchParams] = useSearchParams();
+  const directWsId = searchParams.get("workspaceId");
+
+  useEffect(() => {
+    if (!directWsId) return;
+    supabase
+      .from("workspaces")
+      .select("id, client_id, clients(name)")
+      .eq("id", directWsId)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          const params = new URLSearchParams({
+            workspaceId: data.id,
+            clientId: data.client_id,
+            clientName: ((data.clients as any)?.name) ?? "Canvas",
+          });
+          navigate(`/ops/canvas/open?${params.toString()}`, { replace: true });
+        }
+      });
+  }, [directWsId, navigate]);
+
   const [loading, setLoading] = useState(true);
   const [workspaces, setWorkspaces] = useState<WorkspaceOption[]>([]);
   const [derivedStages, setDerivedStages] = useState<Record<string, AceleraStageKey>>({});

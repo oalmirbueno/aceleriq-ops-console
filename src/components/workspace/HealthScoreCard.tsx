@@ -98,7 +98,19 @@ export default function HealthScoreCard({ clientId, workspaceId, clientMetadata,
       };
 
       if (!cancelled) {
-        setScore(calculateHealthScore(signals));
+        const calculated = calculateHealthScore(signals);
+        setScore(calculated);
+        // Persiste fire-and-forget — não bloqueia a UI
+        if (calculated && clientId) {
+          (async () => {
+            const { data: current } = await supabase
+              .from("clients").select("metadata").eq("id", clientId).single();
+            const meta = (current?.metadata as Record<string, any>) ?? {};
+            await supabase.from("clients").update({
+              metadata: { ...meta, health_score: calculated, health_score_at: new Date().toISOString() },
+            }).eq("id", clientId);
+          })().catch(() => {});
+        }
         setLoading(false);
       }
     })();

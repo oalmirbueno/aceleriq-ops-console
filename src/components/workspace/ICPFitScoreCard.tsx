@@ -7,9 +7,10 @@
  *  - "compact": badge de crachá para listas
  *  - "full": card com dimensões, insights, red flags e recomendação de plano
  */
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Target, AlertTriangle, CheckCircle2, ArrowUp, ArrowDown, Shield } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
 import {
   calculateICPFitScore, getICPLevelColor, getICPLevelLabel, getPlanDisplayName,
   type ICPFitScore, type ICPSignals,
@@ -21,9 +22,10 @@ interface Props {
   clientMetadata: Record<string, unknown> | null | undefined;
   currentPlan?: PlanKey | string | null;
   variant?: "full" | "compact";
+  clientId?: string;
 }
 
-export default function ICPFitScoreCard({ clientMetadata, currentPlan, variant = "full" }: Props) {
+export default function ICPFitScoreCard({ clientMetadata, currentPlan, variant = "full", clientId }: Props) {
   const score: ICPFitScore = useMemo(() => {
     const eb = (clientMetadata?.essential_briefing as Record<string, unknown> | undefined) ?? {};
     const signals: ICPSignals = {
@@ -41,6 +43,19 @@ export default function ICPFitScoreCard({ clientMetadata, currentPlan, variant =
     };
     return calculateICPFitScore(signals);
   }, [clientMetadata, currentPlan]);
+
+  // Persiste fire-and-forget no clients.metadata quando clientId disponível
+  useEffect(() => {
+    if (!clientId || score.level === "no_data") return;
+    (async () => {
+      const { data: current } = await supabase
+        .from("clients").select("metadata").eq("id", clientId).single();
+      const meta = (current?.metadata as Record<string, any>) ?? {};
+      await supabase.from("clients").update({
+        metadata: { ...meta, icp_fit_score: score, icp_fit_score_at: new Date().toISOString() },
+      }).eq("id", clientId);
+    })().catch(() => {});
+  }, [clientId, score]);
 
   if (variant === "compact") return <Compact score={score} />;
   return <Full score={score} />;

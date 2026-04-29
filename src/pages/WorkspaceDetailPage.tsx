@@ -171,7 +171,13 @@ export default function WorkspaceDetailPage() {
       .select("id, name, status, current_stage, primary_owner_id, client_id, summary, created_at, portal_project_id, metadata, clients(id, name, company_name, segment, plan_name, project_type, custom_monthly_value, logo_url, portal_client_id, metadata), profiles:primary_owner_id(full_name, email)")
       .eq("id", workspaceId)
       .single();
-    if (data) setWs(data as unknown as Workspace);
+    if (data) {
+      setWs(data as unknown as Workspace);
+      // Consolida briefing automaticamente na primeira abertura — silencioso
+      supabase.functions.invoke("consolidate-briefing", {
+        body: { workspaceId: (data as any).id, force: false },
+      }).catch(() => {});
+    }
     const events = await fetchTimeline(workspaceId);
     setTimeline(events);
     const { data: nd } = await supabase.from("canvas_nodes").select("id, status").eq("workspace_id", workspaceId);
@@ -524,6 +530,7 @@ export default function WorkspaceDetailPage() {
                 clientMetadata={ws.clients?.metadata as Record<string, unknown> | null}
                 currentPlan={planName}
                 variant="full"
+                clientId={ws.client_id}
               />
             )}
           </div>
