@@ -186,3 +186,20 @@ export function getEsteiraTemplateForPlan(plan: string | null | undefined): Este
 export function getEsteiraTemplate(key: PlanKey | "custom"): EsteiraTemplate {
   return ESTEIRA_TEMPLATES.find((t) => t.key === key) ?? GROWTH;
 }
+
+/**
+ * Escolhe o template mais relevante a partir do `project_type` do cliente.
+ * Mapeia tipos do domínio Aceleriq para a chave de template mais próxima.
+ */
+export function getEsteiraTemplateForType(projectType: string | null | undefined): EsteiraTemplate {
+  const typeMap: Record<string, PlanKey | "custom"> = {
+    one_shot_site: "starter",
+    one_shot_automation: "growth",
+    one_shot_agent: "growth",
+    marketing_service: "growth",
+    ai_first: "enterprise",
+    legacy_marketing: "growth",
+  };
+  const key = typeMap[projectType ?? ""] ?? "growth";
+  return ESTEIRA_TEMPLATES.find((t) => t.key === key) ?? GROWTH;
+}
