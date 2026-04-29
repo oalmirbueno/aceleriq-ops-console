@@ -919,8 +919,24 @@ export default function OperationalNodeDrawer({
 
   useEffect(() => {
     const data = (node.data as Record<string, unknown> | null) ?? {};
-    const existing = (data.fields as Record<string, string> | undefined) ?? {};
-    setValues(existing);
+    const saved = (data.fields as Record<string, string> | undefined) ?? {};
+
+    // Fallbacks: usa dados existentes do node quando data.fields está vazio
+    const fallbacks: Record<string, string> = {};
+
+    // Descrição do banco como fallback
+    if (!saved.description && node.description) {
+      fallbacks.description = node.description;
+    }
+
+    // Checklist como texto se não tem em fields
+    if (!saved.checklist && Array.isArray(data.checklist) && (data.checklist as unknown[]).length > 0) {
+      fallbacks.checklist = (data.checklist as Array<{ done?: boolean; text?: string }>)
+        .map((c) => `${c.done ? "✓" : "☐"} ${c.text ?? ""}`)
+        .join("\n");
+    }
+
+    setValues({ ...fallbacks, ...saved });
     setTitle(node.title);
     setStatus(node.status ?? "active");
   }, [node]);
@@ -1017,7 +1033,17 @@ Cada campo deve ser ÚNICO e relevante. Node de automação fala de automação.
           else if (v && typeof v === "object") merged[k] = JSON.stringify(v);
         });
         setValues(merged);
-        toast({ title: "Preenchido com IA ✦", description: "Revise os campos e salve." });
+
+        // Auto-save dos campos preenchidos pela IA
+        const currentData = (node.data as Record<string, unknown> | null) ?? {};
+        await supabase.from("canvas_nodes").update({
+          description: merged.description || node.description,
+          data: { ...currentData, fields: merged, lastEditedAt: new Date().toISOString() },
+          updated_at: new Date().toISOString(),
+        }).eq("id", node.id);
+
+        toast({ title: "Preenchido e salvo com IA ✦", description: "Campos preenchidos e salvos automaticamente." });
+        await onUpdated?.();
       } else {
         toast({ title: "IA não retornou campos", description: "Tente novamente.", variant: "destructive" });
       }
@@ -1060,10 +1086,25 @@ Cada campo deve ser ÚNICO e relevante. Node de automação fala de automação.
           </div>
 
           <div className="flex items-center gap-2 mt-3">
-            <Button onClick={prefillWithAI} disabled={prefilling} size="sm" className="h-7 gap-1.5 text-[11px] font-medium" style={{ background: `${config.accent}18`, color: config.accent, border: `1px solid ${config.accent}40` }}>
-              {prefilling ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-              Gerar com IA
-            </Button>
+            {(() => {
+              const fieldsEmpty = Object.keys(values).filter((k) => values[k] && String(values[k]).length > 0).length < 3;
+              return (
+                <Button
+                  onClick={prefillWithAI}
+                  disabled={prefilling}
+                  size="sm"
+                  className={`h-7 gap-1.5 text-[11px] font-medium ${fieldsEmpty ? "animate-pulse" : ""}`}
+                  style={{
+                    background: fieldsEmpty ? config.accent : `${config.accent}18`,
+                    color: fieldsEmpty ? "#09110A" : config.accent,
+                    border: `1px solid ${config.accent}40`,
+                  }}
+                >
+                  {prefilling ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                  {fieldsEmpty ? "Preencher com IA" : "Gerar com IA"}
+                </Button>
+              );
+            })()}
             {onOpenChat && (
               <Button onClick={() => { onOpenChange(false); onOpenChat(node.id); }} size="sm" variant="outline" className="h-7 gap-1.5 text-[11px]">
                 <MessageCircle className="h-3 w-3" />
