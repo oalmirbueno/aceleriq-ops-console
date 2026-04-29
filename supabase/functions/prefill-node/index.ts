@@ -158,14 +158,31 @@ function buildUniversalFallbacks(kind: string, title: string, ctx: Record<string
   };
 }
 
+function unwrapPrefillValue(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const obj = raw as Record<string, unknown>;
+  if ("value" in obj) return unwrapPrefillValue(obj.value);
+  return raw;
+}
+
+function coercePrefillValue(raw: unknown, fieldType: FieldType): unknown {
+  const value = unwrapPrefillValue(raw);
+  if (fieldType === "textarea" || fieldType === "text") {
+    if (Array.isArray(value)) {
+      return value.map((item) => (typeof item === "string" ? item : JSON.stringify(item))).join("\n");
+    }
+    if (value && typeof value === "object") return JSON.stringify(value, null, 2);
+    if (value === null || value === undefined) return "";
+    return String(value);
+  }
+  return value;
+}
+
 function extractFieldValue(parsed: Record<string, any>, sectionId: string, fieldId: string) {
   return (
-    parsed?.sections?.[sectionId]?.fields?.[fieldId]?.value ??
-    parsed?.sections?.[sectionId]?.[fieldId]?.value ??
+    parsed?.sections?.[sectionId]?.fields?.[fieldId] ??
     parsed?.sections?.[sectionId]?.[fieldId] ??
-    parsed?.fields?.[fieldId]?.value ??
     parsed?.fields?.[fieldId] ??
-    parsed?.[sectionId]?.fields?.[fieldId]?.value ??
     parsed?.[sectionId]?.fields?.[fieldId] ??
     parsed?.[sectionId]?.[fieldId] ??
     parsed?.[fieldId]
@@ -609,7 +626,8 @@ serve(async (req) => {
       for (const field of aiFields) {
         const rawField = extractFieldValue(parsed, section.id, field.id);
         const fallbackValue = (fallback as Record<string, unknown>)[field.id];
-        const value = rawField === undefined || rawField === null || rawField === "" ? fallbackValue : rawField;
+        const chosenValue = rawField === undefined || rawField === null || rawField === "" ? fallbackValue : rawField;
+        const value = coercePrefillValue(chosenValue, field.type);
         const origin = rawField === undefined || rawField === null || rawField === "" ? "auto" : "auto";
         sectionResult.fields[field.id] = { value, origin };
       }
@@ -619,9 +637,12 @@ serve(async (req) => {
     }
 
     const flatFields: Record<string, unknown> = {};
-    for (const section of Object.values(normalizedSections)) {
-      for (const [fieldId, field] of Object.entries(section.fields)) {
-        flatFields[fieldId] = field.value;
+    for (const section of Object.entries(normalizedSections)) {
+      const sectionId = section[0];
+      const sectionData = section[1];
+      for (const [fieldId, field] of Object.entries(sectionData.fields)) {
+        const fieldType = blueprint.sections.find((s) => s.id === sectionId)?.fields.find((f) => f.id === fieldId)?.type ?? "text";
+        flatFields[fieldId] = coercePrefillValue(field.value, fieldType);
       }
     }
 
