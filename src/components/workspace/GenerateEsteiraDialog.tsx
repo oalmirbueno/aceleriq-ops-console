@@ -4,8 +4,16 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, Loader2, Check, Brain, RefreshCw, AlertTriangle } from "lucide-react";
-import { ESTEIRA_TEMPLATES, type EsteiraTemplate, getEsteiraTemplateForPlan, getEsteiraTemplateForType } from "./esteiraTemplates";
+import { Sparkles, Loader2, Check, Brain, RefreshCw, AlertTriangle, ChevronDown } from "lucide-react";
+import {
+  ESTEIRA_TEMPLATES,
+  type EsteiraTemplate,
+  getEsteiraTemplateForPlan,
+  getEsteiraTemplateForType,
+  DELIVERY_TYPES,
+  type DeliveryType,
+  inferDeliveryTypeFromProjectType,
+} from "./esteiraTemplates";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import EsteiraTemplatePreview from "./EsteiraTemplatePreview";
@@ -42,6 +50,9 @@ export default function GenerateEsteiraDialog({
 }: Props) {
   const [planName, setPlanName] = useState<string | null>(null);
   const [selectedKey, setSelectedKey] = useState<string>("growth");
+  const [deliveryType, setDeliveryType] = useState<DeliveryType>("custom_project");
+  const [showClassic, setShowClassic] = useState(false);
+  const [contextHint, setContextHint] = useState<string | null>(null);
 
   // ─── Modo Inteligente (IA) ──────────────────────────────────────────
   const [aiResult, setAiResult] = useState<AiResult | null>(null);
@@ -69,6 +80,18 @@ export default function GenerateEsteiraDialog({
         ? getEsteiraTemplateForType(projectType)
         : getEsteiraTemplateForPlan(plan);
       setSelectedKey(recommended.key);
+
+      // Pré-seleciona delivery type a partir do project_type / briefing
+      setDeliveryType(inferDeliveryTypeFromProjectType(projectType));
+
+      // Contexto detectado pra mostrar acima do textarea
+      const ctxParts = [
+        data?.company_name || data?.name,
+        data?.segment,
+        eb.positioning,
+        eb.scope,
+      ].filter(Boolean) as string[];
+      setContextHint(ctxParts.length ? ctxParts.join(" · ") : null);
 
       // Auto-preenche hint com contexto do briefing se ainda estiver vazio
       setAiHint((current) => {
@@ -104,7 +127,7 @@ export default function GenerateEsteiraDialog({
     setAiError(null);
     try {
       const { data, error } = await supabase.functions.invoke("generate-esteira-ai", {
-        body: { clientId, workspaceId, hint: aiHint.trim() || undefined },
+        body: { clientId, workspaceId, hint: aiHint.trim() || undefined, deliveryType },
       });
       if (error || data?.error) {
         const msg = (data?.error ?? error?.message) as string | undefined;
@@ -272,14 +295,65 @@ export default function GenerateEsteiraDialog({
               )}
             </button>
 
-            {/* Separador */}
-            <div className="flex items-center gap-3 px-1">
-              <div className="h-px flex-1 bg-border" />
-              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">ou use um template fixo</span>
-              <div className="h-px flex-1 bg-border" />
+            {/* ─── Tipo de entrega ─── */}
+            <div className="space-y-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground px-1">
+                Tipo de entrega
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {DELIVERY_TYPES.map((dt) => {
+                  const active = dt.key === deliveryType;
+                  return (
+                    <button
+                      key={dt.key}
+                      type="button"
+                      onClick={() => setDeliveryType(dt.key)}
+                      disabled={generating || aiLoading}
+                      className={cn(
+                        "text-left rounded-lg border-2 p-2.5 transition-all",
+                        active
+                          ? "border-primary bg-primary/10 shadow-md"
+                          : "border-border bg-card/40 hover:border-primary/40 hover:bg-muted/30",
+                        (generating || aiLoading) && "opacity-60 cursor-not-allowed",
+                      )}
+                    >
+                      <div className="flex items-start gap-2">
+                        <span className="text-lg leading-none mt-0.5">{dt.icon}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold text-foreground truncate">{dt.label}</p>
+                          <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">{dt.tagline}</p>
+                        </div>
+                        {active && (
+                          <div className="h-4 w-4 rounded-full bg-primary flex items-center justify-center shrink-0">
+                            <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {contextHint && (
+                <p className="text-[10px] text-muted-foreground px-1 pt-1">
+                  <span className="text-foreground/80">Contexto detectado:</span> {contextHint}
+                </p>
+              )}
             </div>
 
-            {/* ─── Templates fixos ─── */}
+            {/* Separador + classic toggle */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setShowClassic((v) => !v)}
+                className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ChevronDown className={cn("h-3 w-3 transition-transform", showClassic && "rotate-180")} />
+                Modelos clássicos {showClassic ? "(ocultar)" : "(opcional)"}
+              </button>
+            </div>
+
+            {/* ─── Templates fixos (colapsado) ─── */}
+            {showClassic && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {ESTEIRA_TEMPLATES.map((tpl) => {
                 const active = tpl.key === selectedKey;
@@ -331,6 +405,7 @@ export default function GenerateEsteiraDialog({
                 );
               })}
             </div>
+            )}
           </div>
         </ScrollArea>
 
