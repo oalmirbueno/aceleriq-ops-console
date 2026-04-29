@@ -81,18 +81,19 @@ export default function NodePrefillStatus({ status, prefill, errorMessage, onGen
 
   // status === "ready"
   if (!prefill) return null;
-  const when = new Date(prefill.generated_at);
-  const sources = prefill.sources_used.map((s) => SOURCE_LABELS[s] ?? s).join(", ");
+  const when = prefill.generated_at ? new Date(prefill.generated_at) : null;
+  const sources = (prefill.sources_used ?? []).map((s) => SOURCE_LABELS[s] ?? s).join(", ");
+  const modelLabel = (prefill.ai_model ?? "").split("/").pop() || "ia";
   return (
     <div className="rounded-md border border-border bg-muted/10 px-3 py-1.5 flex items-center justify-between gap-2">
       <div className="flex items-center gap-2 min-w-0 flex-1">
         <CheckCircle2 className="h-3 w-3 text-muted-foreground shrink-0" />
         <p className="text-[11px] text-muted-foreground truncate">
-          Pré-preenchido <span className="text-foreground/80">{when.toLocaleString("pt-BR")}</span>
+          Pré-preenchido {when && <span className="text-foreground/80">{when.toLocaleString("pt-BR")}</span>}
           {sources && <span className="opacity-70"> · fontes: {sources}</span>}
         </p>
         <Badge variant="outline" className="text-[9px] border-border text-muted-foreground shrink-0">
-          {prefill.ai_model.split("/").pop()}
+          {modelLabel}
         </Badge>
       </div>
       <Button size="sm" variant="ghost" onClick={onRegenerate} className="h-6 text-[10px] gap-1 shrink-0">
