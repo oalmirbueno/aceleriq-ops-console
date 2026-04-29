@@ -2612,25 +2612,36 @@ function CanvasStudioInner({
             )
           ) : scopedProjectNodes.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center relative">
-              <Sparkles className="h-10 w-10 text-muted-foreground" />
+              <div className="h-12 w-12 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center">
+                <Sparkles className="h-6 w-6 text-primary" />
+              </div>
               <div>
                 <p className="text-base font-semibold text-foreground mb-1">
-                  Esteira de {clientGroups.find((c) => c.id === activeClientId)?.title ?? "todos os clientes"} vazia
+                  Esteira de {clientGroups.find((c) => c.id === activeClientId)?.title ?? "cliente"} pronta pra começar
                 </p>
                 <p className="text-xs text-muted-foreground max-w-md">
-                  Use a paleta lateral ou o botão abaixo para começar a esteira deste cliente.
-                  Cada etapa ACELERA tem seus próprios tipos de node.
+                  Gere uma esteira com IA baseada no contexto do cliente, aplique um playbook por tipo de projeto,
+                  ou adicione nodes manualmente.
                 </p>
               </div>
               <div className="flex gap-2 mt-2 flex-wrap justify-center">
-                <Button size="sm" onClick={() => setAdvancedOpen(true)}>
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar primeiro node
+                <Button size="sm" onClick={() => setGenerateDialogOpen(true)} disabled={busyAction === "base"}>
+                  <Sparkles className="h-3.5 w-3.5 mr-1" /> Gerar esteira com IA
                 </Button>
-                <Button size="sm" variant="secondary" onClick={applyOpsFlowBlueprint} disabled={busyAction === "ops-flow"}>
-                  <Workflow className="h-3.5 w-3.5 mr-1" /> Criar fluxo Ops
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => setGenerateDialogOpen(true)} disabled={busyAction === "base"}>
-                  <Sparkles className="h-3.5 w-3.5 mr-1" /> Gerar esteira do plano
+                {activeClientId && clientPlanName && (
+                  <ApplyPlaybookButton
+                    workspaceId={workspaceId}
+                    clientId={clientId}
+                    clientName={clientGroups.find((c) => c.id === activeClientId)?.title ?? clientName}
+                    planName={clientPlanName}
+                    projectType={clientProjectType}
+                    parentNodeId={activeClientId}
+                    currentNodeCount={scopedProjectNodes.length}
+                    onApplied={fetchData}
+                  />
+                )}
+                <Button size="sm" variant="outline" onClick={() => setAdvancedOpen(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar manualmente
                 </Button>
               </div>
             </div>

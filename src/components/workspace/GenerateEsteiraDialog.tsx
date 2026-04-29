@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Sparkles, Loader2, Check, Brain, RefreshCw, AlertTriangle } from "lucide-react";
-import { ESTEIRA_TEMPLATES, type EsteiraTemplate, getEsteiraTemplateForPlan } from "./esteiraTemplates";
+import { ESTEIRA_TEMPLATES, type EsteiraTemplate, getEsteiraTemplateForPlan, getEsteiraTemplateForType } from "./esteiraTemplates";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import EsteiraTemplatePreview from "./EsteiraTemplatePreview";
@@ -55,14 +55,33 @@ export default function GenerateEsteiraDialog({
     (async () => {
       const { data } = await supabase
         .from("clients")
-        .select("plan_name")
+        .select("plan_name, project_type, name, company_name, metadata, segment")
         .eq("id", clientId)
         .maybeSingle();
       if (!alive) return;
       const plan = (data?.plan_name as string | null) ?? null;
+      const projectType = (data?.project_type as string | null) ?? null;
+      const meta = ((data?.metadata as Record<string, any> | null) ?? {}) as Record<string, any>;
+      const eb = ((meta.essential_briefing as Record<string, any> | null) ?? {}) as Record<string, any>;
+
       setPlanName(plan);
-      const recommended = getEsteiraTemplateForPlan(plan);
+      const recommended = projectType
+        ? getEsteiraTemplateForType(projectType)
+        : getEsteiraTemplateForPlan(plan);
       setSelectedKey(recommended.key);
+
+      // Auto-preenche hint com contexto do briefing se ainda estiver vazio
+      setAiHint((current) => {
+        if (current && current.trim().length > 0) return current;
+        const parts = [
+          eb.positioning && `Posicionamento: ${eb.positioning}`,
+          eb.icp && `ICP: ${eb.icp}`,
+          eb.goals_12m && `Objetivo 12m: ${eb.goals_12m}`,
+          eb.scope && `Escopo: ${eb.scope}`,
+          eb.objectives && `Objetivos: ${eb.objectives}`,
+        ].filter(Boolean);
+        return parts.length > 0 ? parts.join(". ") : current;
+      });
     })();
     return () => { alive = false; };
   }, [open, clientId]);
