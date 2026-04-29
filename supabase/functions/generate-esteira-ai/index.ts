@@ -1,6 +1,6 @@
 /**
  * generate-esteira-ai — gera uma esteira ACELERA sob medida pra um cliente
- * usando Lovable AI Gateway.
+ * usando Gemini direto.
  *
  * Input:
  *   { clientId, workspaceId, hint?: string, focus?: string[] }
@@ -14,7 +14,7 @@
  *        - metric_snapshots recentes
  *        - fronts ativos
  *        - assets/anexos vinculados
- *   3. Chama Lovable AI com tool-calling forçando JSON no schema EsteiraTemplate
+ *   3. Chama Gemini direto forçando JSON no schema EsteiraTemplate
  *   4. Valida cada node contra o catálogo PROJECT_TYPES (kinds permitidos)
  *      e cada stage contra ACELERA_STAGES; corrige inválidos
  *   5. Retorna { template: EsteiraTemplate, rationale: string, sources: {...} }
@@ -32,8 +32,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const AI_MODEL = "google/gemini-2.5-flash";
+const GEMINI_MODEL = "gemini-2.5-flash";
 
 // Manter sincronizado com src/components/workspace/canvasProjectTypes.ts
 const VALID_KINDS = [
@@ -82,8 +81,8 @@ serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
     const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) return json({ error: "LOVABLE_API_KEY não configurada" }, 500);
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) return json({ error: "GEMINI_API_KEY não configurada" }, 500);
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Missing Authorization" }, 401);
@@ -179,113 +178,76 @@ serve(async (req) => {
       areas_foco: body.focus ?? [],
     }, null, 2);
 
-    const systemPrompt = `Você é um arquiteto sênior de operações digitais da Aceleriq.
-Sua tarefa: desenhar uma ESTEIRA OPERACIONAL sob medida pra este cliente, no método ACELERA
-(8 etapas: entrada → diagnostico → estrutura_base → planejamento → producao → ativacao → otimizacao → expansao).
+    const systemPrompt = `Você é o arquiteto operacional da Aceleriq. Gere uma esteira de produção ACELERA sob medida para este cliente.
 
-REGRAS DURAS:
-1. Sempre comece com 1 node "briefing" na etapa "entrada". Se o cliente já tem briefing consolidado, mantenha pra fixar a entrada.
-2. Use APENAS estes kinds de node: ${VALID_KINDS.join(", ")}.
-3. Use APENAS estas stages: ${VALID_STAGES.join(", ")}.
-4. Cada node tem: ref (id local único, slug curto), kind, stage, title (curto, em PT-BR, específico ao cliente), description (1 frase justificando POR QUE esse node existe pra ESTE cliente).
-5. Edges devem formar um fluxo lógico (sem ciclos) ligando nodes pela ordem de execução real.
-6. Adapte o tamanho da esteira ao porte:
-   - Cliente pequeno/básico: 6–10 nodes
-   - Cliente médio (growth): 10–16 nodes
-   - Cliente enterprise/complexo: 16–24 nodes
-7. Priorize o que aparece no briefing/contexto/métricas. Se métricas mostram problema em conversão, inclua "metrica" e "trafego". Se há automações no contexto, inclua "automacao"/"ia". Se há produto digital mencionado, inclua "funil"+"landing_page".
-8. SEMPRE inclua pelo menos: 1 documento de diagnóstico, 1 objetivo, 1 entregável de produção, 1 ativação, 1 métrica.
-9. Se o cliente menciona acessos/credenciais ou usa muitas plataformas, adicione node "acessos" na entrada.
-10. NÃO invente dados — use SÓ o que está no contexto.
+REGRAS:
+- Retorne APENAS JSON válido (sem markdown, sem texto extra)
+- Use SOMENTE kinds permitidos: ${VALID_KINDS.join(", ")}
+- Use SOMENTE stages permitidos: ${VALID_STAGES.join(", ")}
+- Cada node deve ter: ref (string curto), kind, stage, title, description (detalhada, 2-3 frases)
+- Edges conectam nodes por ref usando fromRef e toRef
+- Mínimo 5 nodes, máximo 25
+- Descrição de cada node deve ser ESPECÍFICA pro contexto do cliente, não genérica
+- Sempre comece com 1 node "briefing" na etapa "entrada"
+- Sempre inclua pelo menos: 1 documento de diagnóstico, 1 objetivo, 1 entregável de produção, 1 ativação, 1 métrica
+- Se o cliente menciona acessos/credenciais ou usa muitas plataformas, adicione node "acessos" na entrada
+- NÃO invente dados — use SOMENTE o que está no contexto
 
-Saída: chame a tool "build_esteira" com o template completo.`;
+Formato do JSON:
+{
+  "label": "Nome da esteira",
+  "tagline": "Resumo em 1 frase",
+  "rationale": "Por que essa esteira faz sentido",
+  "nodes": [
+    { "ref": "...", "kind": "...", "stage": "...", "title": "...", "description": "..." }
+  ],
+  "edges": [
+    { "fromRef": "...", "toRef": "...", "label": "..." }
+  ]
+}`;
 
     const userPrompt = `Contexto do cliente "${client.name}":\n\n${contextBlob}\n\nProjete a esteira ideal agora.`;
 
-    // ─── 3. Tool schema ───────────────────────────────────────────────
-    const tools = [{
-      type: "function",
-      function: {
-        name: "build_esteira",
-        description: "Retorna a esteira ACELERA sob medida pro cliente",
-        parameters: {
-          type: "object",
-          properties: {
-            rationale: {
-              type: "string",
-              description: "1-2 frases explicando a lógica geral da esteira proposta (referenciando dados do cliente)",
-            },
-            nodes: {
-              type: "array",
-              minItems: 5,
-              items: {
-                type: "object",
-                properties: {
-                  ref: { type: "string", description: "slug curto único, ex: 'brief', 'lp_oferta', 'crm'" },
-                  kind: { type: "string", enum: [...VALID_KINDS] },
-                  stage: { type: "string", enum: [...VALID_STAGES] },
-                  title: { type: "string", description: "Título do node, específico ao cliente" },
-                  description: { type: "string", description: "Por que esse node existe pra ESTE cliente" },
-                },
-                required: ["ref","kind","stage","title","description"],
-                additionalProperties: false,
-              },
-            },
-            edges: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  fromRef: { type: "string" },
-                  toRef: { type: "string" },
-                  label: { type: "string" },
-                },
-                required: ["fromRef","toRef"],
-                additionalProperties: false,
-              },
-            },
-          },
-          required: ["rationale","nodes","edges"],
-          additionalProperties: false,
-        },
-      },
-    }];
+    // ─── 3. Call Gemini ──────────────────────────────────────────────
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
-    // ─── 4. Call AI ───────────────────────────────────────────────────
-    const aiRes = await fetch(AI_GATEWAY_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
+    const geminiPayload = {
+      contents: [
+        { role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] },
+      ],
+      generationConfig: {
+        temperature: 0.4,
+        responseMimeType: "application/json",
       },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        tools,
-        tool_choice: { type: "function", function: { name: "build_esteira" } },
-      }),
+    };
+
+    const aiRes = await fetch(geminiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(geminiPayload),
     });
 
     if (aiRes.status === 429) return json({ error: "Limite de requisições da IA atingido. Tente em alguns segundos." }, 429);
     if (aiRes.status === 402) return json({ error: "Créditos da IA esgotados. Adicione créditos no workspace." }, 402);
     if (!aiRes.ok) {
       const txt = await aiRes.text();
-      console.error("AI gateway error:", aiRes.status, txt);
+      console.error("Gemini API error:", aiRes.status, txt);
       return json({ error: "Falha na IA: " + txt.slice(0, 200) }, 500);
     }
 
     const aiData = await aiRes.json();
-    const toolCall = aiData?.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall?.function?.arguments) {
-      return json({ error: "IA não retornou esteira estruturada" }, 500);
-    }
+    const rawText = aiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+    const clean = rawText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
 
-    let parsed: { rationale: string; nodes: Array<Record<string, string>>; edges: Array<Record<string, string>> };
+    let parsed: {
+      label?: string;
+      tagline?: string;
+      rationale?: string;
+      nodes: Array<Record<string, string>>;
+      edges: Array<Record<string, string>>;
+    };
     try {
-      parsed = JSON.parse(toolCall.function.arguments);
+      parsed = JSON.parse(clean);
     } catch (e) {
       return json({ error: "Falha ao parsear resposta da IA: " + String(e) }, 500);
     }
@@ -327,8 +289,8 @@ Saída: chame a tool "build_esteira" com o template completo.`;
 
     const template = {
       key: "ai_smart" as const,
-      label: "Inteligente — Sob medida",
-      tagline: parsed.rationale?.slice(0, 140) ?? "Esteira gerada pela IA com base no contexto do cliente.",
+      label: parsed.label?.slice(0, 80) ?? "Inteligente — Sob medida",
+      tagline: parsed.tagline?.slice(0, 140) ?? parsed.rationale?.slice(0, 140) ?? "Esteira gerada pela IA com base no contexto do cliente.",
       accent: "border-primary/50 text-primary bg-primary/10",
       nodes: cleanNodes,
       edges: cleanEdges,
