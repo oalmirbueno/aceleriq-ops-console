@@ -24,7 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Save, Trash2, Sparkles, MessageCircle, Loader2, CheckCircle2, Circle, Workflow } from "lucide-react";
+import { Save, Trash2, Sparkles, MessageCircle, Loader2, CheckCircle2, Circle, Workflow, KeyRound, ExternalLink, History } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { syncNodeCompletedWhenDone } from "./syncToPortalEvents";
@@ -814,8 +814,73 @@ const UNIVERSAL_POST_SECTION: SectionDef = {
   ],
 };
 
-function withUniversalSections(cfg: KindConfig): KindConfig {
-  return { ...cfg, sections: [UNIVERSAL_PRE_SECTION, ...cfg.sections, UNIVERSAL_POST_SECTION] };
+const UNIVERSAL_NOTES_SECTION: SectionDef = {
+  id: "notas",
+  title: "Notas",
+  fields: [
+    {
+      id: "notes",
+      label: "Notas e observações",
+      type: "textarea",
+      rows: 4,
+      placeholder: "Notas internas, bloqueios, decisões, observações da execução...",
+    },
+    {
+      id: "blockers",
+      label: "Bloqueios",
+      type: "textarea",
+      rows: 2,
+      placeholder: "O que está impedindo este node de avançar...",
+    },
+  ],
+};
+
+const UNIVERSAL_RESOURCES_SECTION: SectionDef = {
+  id: "resources",
+  title: "Links e Recursos",
+  fields: [
+    {
+      id: "links",
+      label: "Links úteis",
+      type: "textarea",
+      rows: 3,
+      placeholder: "Um link por linha: URL — descrição\nhttps://... — Briefing do site\nhttps://... — Pasta do Drive",
+    },
+    {
+      id: "reference_docs",
+      label: "Documentos de referência",
+      type: "textarea",
+      rows: 2,
+      placeholder: "Nomes dos documentos relevantes para este node...",
+    },
+  ],
+};
+
+const METRICS_SECTION: SectionDef = {
+  id: "metrics",
+  title: "Métricas",
+  fields: [
+    { id: "metric_target", label: "Meta / KPI alvo", type: "text", placeholder: "Ex: CTR > 2%, CPA < R$30, 100 leads/mês" },
+    { id: "metric_current", label: "Valor atual", type: "text", placeholder: "Ex: CTR 1.2%, CPA R$45, 32 leads" },
+    { id: "metric_notes", label: "Observações de performance", type: "textarea", rows: 2, placeholder: "Tendências, comparações, insights..." },
+  ],
+};
+
+const VAULT_KINDS = new Set<string>([
+  "acessos", "automacao", "ia", "integracao", "site", "landing_page",
+  "trafego", "crm", "email_mkt", "social",
+]);
+
+const METRICS_KINDS = new Set<string>([
+  "metrica", "trafego", "landing_page", "site", "conteudo",
+  "email_mkt", "social", "automacao", "crm", "funil",
+]);
+
+function withUniversalSections(cfg: KindConfig, kind: string | null): KindConfig {
+  const sections: SectionDef[] = [UNIVERSAL_PRE_SECTION, ...cfg.sections, UNIVERSAL_POST_SECTION];
+  if (kind && METRICS_KINDS.has(kind)) sections.push(METRICS_SECTION);
+  sections.push(UNIVERSAL_NOTES_SECTION, UNIVERSAL_RESOURCES_SECTION);
+  return { ...cfg, sections };
 }
 
 // ─── Main Component ──────────────────────────────────────────
@@ -826,14 +891,30 @@ export default function OperationalNodeDrawer({
 }: Props) {
   const kind = resolveProjectNodeKind({ nodeType: node.node_type, data: node.data }) as ProjectNodeKind | null;
   const baseConfig = (kind && KIND_CONFIGS[kind]) || DEFAULT_CONFIG;
-  const config = withUniversalSections(baseConfig);
+  const config = withUniversalSections(baseConfig, kind);
   const meta = kind ? getProjectTypeMeta(kind) : null;
+  const needsVault = !!kind && VAULT_KINDS.has(kind);
 
   const [title, setTitle] = useState(node.title);
   const [status, setStatus] = useState(node.status ?? "active");
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [prefilling, setPrefilling] = useState(false);
+  const [vaultItems, setVaultItems] = useState<Array<{ id: string; service_name: string; label: string | null; category: string; login_url: string | null }>>([]);
+
+  useEffect(() => {
+    if (!needsVault || !clientId) { setVaultItems([]); return; }
+    let cancelled = false;
+    supabase
+      .from("client_credentials")
+      .select("id, service_name, label, category, login_url")
+      .eq("client_id", clientId)
+      .order("service_name")
+      .then(({ data }) => {
+        if (!cancelled && data) setVaultItems(data as typeof vaultItems);
+      });
+    return () => { cancelled = true; };
+  }, [needsVault, clientId]);
 
   useEffect(() => {
     const data = (node.data as Record<string, unknown> | null) ?? {};
@@ -1000,6 +1081,64 @@ export default function OperationalNodeDrawer({
                 </div>
               </section>
             ))}
+
+            {/* Cofre de Acessos — somente para kinds relevantes */}
+            {needsVault && (
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="h-px flex-1" style={{ background: `${config.accent}20` }} />
+                  <h3 className="text-[10px] font-semibold uppercase tracking-wider shrink-0 flex items-center gap-1.5" style={{ color: config.accent }}>
+                    <KeyRound className="h-3 w-3" />
+                    Cofre de Acessos
+                  </h3>
+                  <div className="h-px flex-1" style={{ background: `${config.accent}20` }} />
+                </div>
+                {vaultItems.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {vaultItems.map((v) => (
+                      <div key={v.id} className="flex items-center gap-2 px-3 py-2 rounded-md border border-border/40 bg-background/40 text-xs">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium truncate">{v.service_name}</div>
+                          {v.label && <div className="text-[10px] text-muted-foreground truncate">{v.label}</div>}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted/30 shrink-0">{v.category}</span>
+                        {v.login_url && (
+                          <a href={v.login_url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-primary hover:underline inline-flex items-center gap-0.5 shrink-0">
+                            Abrir <ExternalLink className="h-2.5 w-2.5" />
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground italic">Nenhum acesso cadastrado no cofre deste cliente.</p>
+                )}
+              </section>
+            )}
+
+            {/* Histórico */}
+            <section>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="h-px flex-1" style={{ background: `${config.accent}20` }} />
+                <h3 className="text-[10px] font-semibold uppercase tracking-wider shrink-0 flex items-center gap-1.5" style={{ color: config.accent }}>
+                  <History className="h-3 w-3" />
+                  Histórico
+                </h3>
+                <div className="h-px flex-1" style={{ background: `${config.accent}20` }} />
+              </div>
+              <div className="space-y-1 text-[11px] text-muted-foreground">
+                <p>Criado em {new Date(node.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })}</p>
+                {node.updated_at && node.updated_at !== node.created_at && (
+                  <p>
+                    Última edição:{" "}
+                    {new Date(node.updated_at).toLocaleDateString("pt-BR", {
+                      day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+                    })}
+                  </p>
+                )}
+                {values.responsible && <p>Responsável: {values.responsible}</p>}
+              </div>
+            </section>
           </div>
         </div>
 
