@@ -289,32 +289,32 @@ serve(async (req) => {
             for (const ms of (milestonesByProject.get(proj.id) ?? [])) {
               const { data: ex } = await ops.from("timeline_events")
                 .select("id").eq("workspace_id", wsId)
-                .eq("metadata->>portal_milestone_id", ms.id).maybeSingle();
+                .eq("payload->>portal_milestone_id", ms.id).maybeSingle();
               if (!ex) {
                 await ops.from("timeline_events").insert({
                   workspace_id: wsId, client_id: opsClientId,
-                  event_type: "portal_milestone",
-                  title: ms.title, description: ms.description || null,
+                  event_type: "manual_note",
+                  title: `[Portal milestone] ${ms.title}`, description: ms.description || null,
                   happened_at: ms.target_date || ms.created_at || new Date().toISOString(),
-                  metadata: { source: "backfill", portal_milestone_id: ms.id, status: ms.status },
+                  payload: { source: "backfill", portal_milestone_id: ms.id, status: ms.status, kind: "portal_milestone" },
                 });
                 stats.milestones_synced++;
               }
             }
 
-            // ── Sync tasks concluídas → timeline_events ──
+            // ── Sync tasks → timeline_events ──
             for (const task of (tasksByProject.get(proj.id) ?? [])) {
-              if (!["completed", "done"].includes((task.status ?? "").toLowerCase())) continue;
+              const status = (task.status ?? "").toLowerCase();
               const { data: ex } = await ops.from("timeline_events")
                 .select("id").eq("workspace_id", wsId)
-                .eq("metadata->>portal_task_id", task.id).maybeSingle();
+                .eq("payload->>portal_task_id", task.id).maybeSingle();
               if (!ex) {
                 await ops.from("timeline_events").insert({
                   workspace_id: wsId, client_id: opsClientId,
-                  event_type: "portal_milestone",
-                  title: `✓ ${task.title}`, description: task.description || null,
+                  event_type: ["completed", "done"].includes(status) ? "task_completed" : "task_created",
+                  title: `[Portal task] ${task.title}`, description: task.description || null,
                   happened_at: task.created_at || new Date().toISOString(),
-                  metadata: { source: "backfill", portal_task_id: task.id, priority: task.priority },
+                  payload: { source: "backfill", portal_task_id: task.id, priority: task.priority, status: task.status, kind: "portal_task" },
                 });
                 stats.tasks_synced++;
               }
@@ -324,14 +324,14 @@ serve(async (req) => {
             for (const upd of (updatesByProject.get(proj.id) ?? [])) {
               const { data: ex } = await ops.from("timeline_events")
                 .select("id").eq("workspace_id", wsId)
-                .eq("metadata->>portal_update_id", upd.id).maybeSingle();
+                .eq("payload->>portal_update_id", upd.id).maybeSingle();
               if (!ex) {
                 await ops.from("timeline_events").insert({
                   workspace_id: wsId, client_id: opsClientId,
-                  event_type: "portal_update",
-                  title: (upd.message ?? "Update do portal").slice(0, 200),
+                  event_type: "manual_note",
+                  title: `[Portal update] ${(upd.message ?? "Update do portal").slice(0, 180)}`,
                   happened_at: upd.created_at || new Date().toISOString(),
-                  metadata: { source: "backfill", portal_update_id: upd.id, update_type: upd.update_type },
+                  payload: { source: "backfill", portal_update_id: upd.id, update_type: upd.update_type, kind: "portal_update" },
                 });
                 stats.updates_synced++;
               }
