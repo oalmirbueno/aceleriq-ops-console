@@ -30,6 +30,7 @@ import { toast } from "@/hooks/use-toast";
 import { syncNodeCompletedWhenDone } from "./syncToPortalEvents";
 import { getProjectTypeMeta, resolveProjectNodeKind, type ProjectNodeKind } from "./canvasProjectTypes";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
+import { getNodeIntelligence } from "@/lib/nodeIntelligence";
 
 interface Props {
   node: CanvasNodeRecord & { parent_node_id?: string | null };
