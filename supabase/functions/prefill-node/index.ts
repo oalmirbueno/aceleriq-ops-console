@@ -391,23 +391,38 @@ serve(async (req) => {
       "Preencha CADA seção e CADA campo do tool schema 'fill_node_draft'.",
     ].join("\n");
 
-    const aiResp = await fetch(AI_GATEWAY_URL, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-        tools: [toolSchema],
-        tool_choice: { type: "function", function: { name: "fill_node_draft" } },
-      }),
-    });
-
-    if (aiResp.status === 429) return jsonResponse({ error: "Limite de IA atingido. Tente em 1 minuto." }, 429);
-    if (aiResp.status === 402) return jsonResponse({ error: "Créditos de IA esgotados. Adicione em Settings > Workspace > Usage." }, 402);
-    if (!aiResp.ok) {
-      const t = await aiResp.text();
-      console.error("AI error:", aiResp.status, t);
-      return jsonResponse({ error: `AI gateway error ${aiResp.status}` }, 500);
+    const modelsToTry = [AI_MODEL, ...AI_MODEL_FALLBACKS];
+    let aiResp: Response | null = null;
+    let lastErrText = "";
+    let usedModel = AI_MODEL;
+    for (const m of modelsToTry) {
+      const r = await fetch(AI_GATEWAY_URL, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: m,
+          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+          tools: [toolSchema],
+          tool_choice: { type: "function", function: { name: "fill_node_draft" } },
+        }),
+      });
+      if (r.status === 429) return jsonResponse({ error: "Limite de IA atingido. Tente em 1 minuto." }, 429);
+      if (r.status === 402) return jsonResponse({ error: "Créditos de IA esgotados. Adicione em Settings > Workspace > Usage." }, 402);
+      if (r.ok) { aiResp = r; usedModel = m; break; }
+      lastErrText = await r.text().catch(() => "");
+      console.error(`AI error model=${m} status=${r.status}:`, lastErrText);
+      // Retry on upstream unavailability (503) or rate-limited upstream (500 wrapping 503)
+      const isUpstreamUnavailable = r.status === 503 || lastErrText.includes("UNAVAILABLE") || lastErrText.includes("high demand");
+      if (!isUpstreamUnavailable) break;
+    }
+    if (!aiResp) {
+      // Graceful fallback: avoid crashing the drawer — return null prefill so UI stays usable.
+      return jsonResponse({
+        prefill: null,
+        cached: false,
+        fallback: true,
+        error: "Modelo de IA temporariamente indisponível. Tente novamente em alguns instantes.",
+      }, 200);
     }
 
     const aiData = await aiResp.json();
@@ -429,7 +444,7 @@ serve(async (req) => {
       method_state: cached && typeof cached === "object" ? (cached as Record<string, unknown>).method_state : {},
       sources_used: sourcesUsed,
       generated_at: new Date().toISOString(),
-      ai_model: AI_MODEL,
+      ai_model: usedModel,
       generated_by: user.id,
       schema_version: 1,
     };
