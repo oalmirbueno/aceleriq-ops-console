@@ -78,13 +78,22 @@ serve(async (req) => {
 
     // ─── 1. Pega IDs de todos os clientes (user_roles) ───────────
     const clientRoles = await portalGet("user_roles?select=user_id&role=eq.client");
-    const clientIds = clientRoles.map((r: any) => r.user_id).filter(Boolean);
+    let clientIds = clientRoles.map((r: any) => r.user_id).filter(Boolean);
+
+    // Fallback operacional: em produção, a anon key pode não enxergar user_roles
+    // por RLS. Quando isso acontecer, usa briefings submitted como fonte de
+    // client_id, que é a tabela real com dados do portal.
+    if (clientIds.length === 0) {
+      const briefingClientRows = await portalGet("briefings?select=client_id&submitted=eq.true");
+      clientIds = Array.from(new Set(briefingClientRows.map((r: any) => r.client_id).filter(Boolean)));
+    }
+
     stats.clients_found = clientIds.length;
 
     if (clientIds.length === 0) {
       return new Response(JSON.stringify({
         ok: true, stats,
-        summary: "Nenhum cliente encontrado no portal. Verifique a tabela user_roles.",
+        summary: "Nenhum cliente encontrado no portal. Verifique user_roles/briefings e as policies de leitura da PORTAL_ANON_KEY.",
       }), { headers: { ...cors, "Content-Type": "application/json" } });
     }
 
@@ -199,10 +208,11 @@ serve(async (req) => {
           stats.clients_updated++;
         } else {
           // Cria cliente novo
-          const name = profile?.full_name || profile?.email || `Cliente ${portalClientId.slice(0, 8)}`;
+          const name = profile?.full_name || profile?.email || eb.companyName || eb.company || eb.client_name || `Cliente ${portalClientId.slice(0, 8)}`;
+          const companyName = profile?.company_name || eb.companyName || eb.company || null;
           const { data: newClient, error } = await ops.from("clients").insert({
             name,
-            company_name:  profile?.company_name || null,
+            company_name:  companyName,
             status:        "onboarding",
             plan_name:     planName,
             project_type:  projectType,
@@ -230,7 +240,7 @@ serve(async (req) => {
             .select("id").eq("client_id", opsClientId).limit(1).maybeSingle();
 
           if (!existingWs) {
-            const name = profile?.full_name || "Cliente Portal";
+            const name = profile?.full_name || eb.companyName || eb.company || eb.client_name || "Cliente Portal";
             const { data: ws } = await ops.from("workspaces").insert({
               client_id:     opsClientId,
               name:          `${name} — Workspace`,
