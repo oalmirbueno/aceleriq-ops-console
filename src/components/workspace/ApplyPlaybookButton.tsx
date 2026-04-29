@@ -132,6 +132,22 @@ export default function ApplyPlaybookButton({
     try {
       const pb = selected.playbook;
 
+      // Valida que parentNodeId existe na DB antes de inserir os filhos.
+      // Evita FK violation no parent_node_id quando o id local está stale.
+      const { data: parentExists } = await supabase
+        .from("canvas_nodes")
+        .select("id")
+        .eq("id", parentNodeId)
+        .maybeSingle();
+      if (!parentExists) {
+        toast({
+          title: "Pasta do cliente inválida",
+          description: "Recarregue a página e tente de novo.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // ═══ AUTO-LAYOUT inteligente ═══
       // Calcula posições usando algoritmo barycenter que minimiza cruzamentos
       const layoutInput = pb.nodes.map((n) => ({
