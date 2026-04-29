@@ -35,10 +35,11 @@ interface Props {
 }
 
 export default function NodeQuickActions({ actions, handlers, loading = {}, disabled }: Props) {
-  if (actions.length === 0) return null;
+  const safeActions = actions ?? [];
+  if (safeActions.length === 0) return null;
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      {actions.map((action) => {
+      {safeActions.map((action) => {
         const Icon = ACTION_ICONS[action.id] ?? Sparkles;
         const handler = handlers[action.id];
         const isLoading = !!loading[action.id];
