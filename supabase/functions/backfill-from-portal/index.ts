@@ -1,11 +1,7 @@
 /**
- * backfill-from-portal v4 — usa ops-clients-list do portal (service role, sem RLS).
- *
- * A estratégia anterior falhava porque user_roles/profiles retornam vazio
- * com anon key por RLS. A v4 chama a edge function ops-clients-list do portal
- * que usa service role e retorna TODOS os clientes.
- *
- * Depois busca briefings e projetos por client_id.
+ * backfill-from-portal v5 — usa ops-full-export do portal.
+ * Puxa TUDO: profiles, projects, briefings, milestones, tasks, updates.
+ * Cria clientes, workspaces, timeline events, essential_briefing completo.
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
@@ -15,24 +11,19 @@ const cors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const PORTAL_BASE   = "https://gicbrgagstyvbaaumprj.supabase.co";
-const PORTAL_FN_URL = `${PORTAL_BASE}/functions/v1`;
-const PORTAL_REST   = `${PORTAL_BASE}/rest/v1`;
-
 function inferOpsType(t: string | null): string {
   const s = (t ?? "").toLowerCase();
-  if (s.includes("site") || s.includes("website")) return "one_shot_site";
+  if (s.includes("site")) return "one_shot_site";
   if (s.includes("auto")) return "one_shot_automation";
   if (s.includes("agent") || s.includes("bot") || s.includes("chatbot")) return "one_shot_agent";
   if (s.includes("market") || s.includes("trafego") || s.includes("ads")) return "marketing_service";
   return "ai_first";
 }
 
-function inferPlanName(p: string | null): string {
+function inferPlan(p: string | null): string {
   const s = (p ?? "").toLowerCase();
   if (s.includes("enterprise") || s.includes("escala")) return "enterprise";
   if (s.includes("growth") || s.includes("aceler")) return "growth";
-  if (s.includes("marketing")) return "marketing";
   return "starter";
 }
 
@@ -40,250 +31,322 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   try {
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-    const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const PORTAL_KEY   = Deno.env.get("PORTAL_ANON_KEY") ?? "";
-    const OPS_SECRET   = Deno.env.get("PORTAL_WEBHOOK_SECRET") ?? "";
+    const ops = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const SECRET = Deno.env.get("PORTAL_WEBHOOK_SECRET") ?? "";
 
-    const ops = createClient(SUPABASE_URL, SERVICE_KEY);
+    // ─── 1. Chama ops-full-export do portal ───────────────────────
+    const exportRes = await fetch(
+      "https://gicbrgagstyvbaaumprj.supabase.co/functions/v1/ops-full-export",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-webhook-secret": SECRET,
+          "apikey": Deno.env.get("PORTAL_ANON_KEY") ?? "",
+          "Authorization": `Bearer ${Deno.env.get("PORTAL_ANON_KEY") ?? ""}`,
+        },
+      }
+    );
 
-    const portalHeaders = {
-      "Content-Type": "application/json",
-      "apikey": PORTAL_KEY,
-      "Authorization": `Bearer ${PORTAL_KEY}`,
-      "x-webhook-secret": OPS_SECRET,
-    };
-
-    // Helper REST do portal (anon key)
-    async function portalGet(path: string): Promise<any[]> {
-      const res = await fetch(`${PORTAL_REST}/${path}`, {
-        headers: { "apikey": PORTAL_KEY, "Authorization": `Bearer ${PORTAL_KEY}`, "Accept": "application/json" },
-      });
-      if (!res.ok) return [];
-      const data = await res.json();
-      return Array.isArray(data) ? data : [];
+    if (!exportRes.ok) {
+      const txt = await exportRes.text();
+      return new Response(JSON.stringify({ error: `ops-full-export falhou: ${exportRes.status}`, detail: txt.slice(0, 300) }),
+        { status: 502, headers: { ...cors, "Content-Type": "application/json" } });
     }
 
+    const portal = await exportRes.json();
+    const profiles:   any[] = portal.profiles   ?? [];
+    const projects:   any[] = portal.projects   ?? [];
+    const briefings:  any[] = portal.briefings  ?? [];
+    const milestones: any[] = portal.milestones ?? [];
+    const tasks:      any[] = portal.tasks      ?? [];
+    const updates:    any[] = portal.updates    ?? [];
+
     const stats = {
-      clients_found: 0,
-      clients_created: 0,
-      clients_updated: 0,
-      workspaces_created: 0,
-      workspaces_updated: 0,
-      briefings_merged: 0,
+      portal_counts: portal._meta?.counts ?? {},
+      clients_created: 0, clients_updated: 0,
+      workspaces_created: 0, workspaces_updated: 0,
+      briefings_merged: 0, milestones_synced: 0, tasks_synced: 0, updates_synced: 0,
       errors: [] as string[],
     };
 
-    // ─── 1. Chama ops-clients-list (service role, retorna TODOS) ───
-    let portalClients: Array<{ id: string; full_name: string; company_name: string | null; email: string | null; active_projects: number }> = [];
-
-    try {
-      const res = await fetch(`${PORTAL_FN_URL}/ops-clients-list`, {
-        method: "POST",
-        headers: portalHeaders,
-      });
-      if (res.ok) {
-        const data = await res.json();
-        portalClients = data.clients ?? [];
-      }
-    } catch (err) {
-      stats.errors.push(`ops-clients-list falhou: ${err}`);
-    }
-
-    // Fallback: se ops-clients-list falhar, tenta briefings
-    if (portalClients.length === 0) {
-      const briefings = await portalGet("briefings?select=client_id&submitted=eq.true");
-      const quizzes = await portalGet("quiz_submissions?select=user_id,lead_name,lead_email");
-      
-      const seenIds = new Set<string>();
-      for (const b of briefings) {
-        if (b.client_id && !seenIds.has(b.client_id)) {
-          seenIds.add(b.client_id);
-          portalClients.push({ id: b.client_id, full_name: "", company_name: null, email: null, active_projects: 0 });
-        }
-      }
-      for (const q of quizzes) {
-        if (q.user_id && !seenIds.has(q.user_id)) {
-          seenIds.add(q.user_id);
-          portalClients.push({ id: q.user_id, full_name: q.lead_name ?? "", company_name: null, email: q.lead_email ?? null, active_projects: 0 });
-        }
-      }
-    }
-
-    stats.clients_found = portalClients.length;
-
-    if (portalClients.length === 0) {
-      return new Response(JSON.stringify({
-        ok: true, stats,
-        summary: "Nenhum cliente encontrado no portal.",
-      }), { headers: { ...cors, "Content-Type": "application/json" } });
-    }
-
-    // ─── 2. Busca briefings submetidos ────────────────────────────
-    const briefings = await portalGet("briefings?select=*&submitted=eq.true");
-    const briefingByClient = new Map<string, any>();
-    briefings.forEach((b: any) => {
-      if (b.client_id) briefingByClient.set(b.client_id, b);
-    });
-
-    // ─── 3. Busca projetos ────────────────────────────────────────
-    const projects = await portalGet("projects?select=*&order=created_at.asc");
+    // ─── Indexar dados do portal ──────────────────────────────────
     const projectsByClient = new Map<string, any[]>();
-    projects.forEach((p: any) => {
-      const list = projectsByClient.get(p.client_id) ?? [];
-      list.push(p);
-      projectsByClient.set(p.client_id, list);
+    projects.forEach(p => {
+      const l = projectsByClient.get(p.client_id) ?? [];
+      l.push(p);
+      projectsByClient.set(p.client_id, l);
     });
 
-    // ─── 4. Processa cada cliente ─────────────────────────────────
-    for (const pc of portalClients) {
-      try {
-        const portalClientId = pc.id;
-        const briefing = briefingByClient.get(portalClientId);
-        const clientProjects = projectsByClient.get(portalClientId) ?? [];
+    const briefingByClient = new Map<string, any>();
+    const briefingByProject = new Map<string, any>();
+    briefings.forEach(b => {
+      if (b.client_id && !briefingByClient.has(b.client_id)) briefingByClient.set(b.client_id, b);
+      if (b.project_id && !briefingByProject.has(b.project_id)) briefingByProject.set(b.project_id, b);
+    });
 
-        // Monta essential_briefing
+    const milestonesByProject = new Map<string, any[]>();
+    milestones.forEach(m => {
+      const l = milestonesByProject.get(m.project_id) ?? [];
+      l.push(m);
+      milestonesByProject.set(m.project_id, l);
+    });
+
+    const tasksByProject = new Map<string, any[]>();
+    tasks.forEach(t => {
+      const l = tasksByProject.get(t.project_id) ?? [];
+      l.push(t);
+      tasksByProject.set(t.project_id, l);
+    });
+
+    const updatesByProject = new Map<string, any[]>();
+    updates.forEach(u => {
+      const l = updatesByProject.get(u.project_id) ?? [];
+      l.push(u);
+      updatesByProject.set(u.project_id, l);
+    });
+
+    // ─── 2. Processa cada profile ─────────────────────────────────
+    for (const profile of profiles) {
+      try {
+        const pid = profile.id;
+        const clientProjects = projectsByClient.get(pid) ?? [];
+        const briefing = briefingByClient.get(pid);
+
+        // Monta essential_briefing completo
         const eb: Record<string, any> = {};
-        if (pc.full_name)    eb.client_name = pc.full_name;
-        if (pc.company_name) eb.company     = pc.company_name;
+        if (profile.full_name)    eb.client_name = profile.full_name;
+        if (profile.company_name) eb.company     = profile.company_name;
+        if (profile.phone)        eb.phone       = profile.phone;
+        if (profile.email)        eb.email       = profile.email;
+
+        // Briefing responses (15+ keys)
         if (briefing?.responses && typeof briefing.responses === "object") {
           Object.assign(eb, briefing.responses);
         }
+
+        // Dados do projeto principal
         if (clientProjects.length > 0) {
           const main = clientProjects[0];
-          if (main.scope)       eb.scope       = main.scope;
-          if (main.objectives)  eb.objectives  = main.objectives;
-          if (main.description) eb.positioning  = eb.positioning || main.description;
+          if (main.scope)       eb.scope       = eb.scope       || main.scope;
+          if (main.objectives)  eb.objectives  = eb.objectives  || main.objectives;
+          if (main.description) eb.positioning = eb.positioning || main.description;
+          if (main.project_type) eb.project_type = main.project_type;
         }
 
-        const planName = inferPlanName(null);
-        const projectType = clientProjects.length > 0
-          ? inferOpsType(clientProjects[0].project_type)
-          : "ai_first";
+        const plan = inferPlan(profile.plan_name);
+        const pType = clientProjects.length > 0 ? inferOpsType(clientProjects[0].project_type) : "ai_first";
 
-        // ── Upsert cliente ──
+        // ── Upsert cliente ──────────────────────────────────────
         const { data: existing } = await ops.from("clients")
           .select("id, metadata, plan_name, project_type")
-          .eq("portal_client_id", portalClientId)
-          .maybeSingle();
+          .eq("portal_client_id", pid).maybeSingle();
 
         let opsClientId: string;
 
         if (existing) {
-          const currentMeta = (existing.metadata as Record<string, any>) ?? {};
-          const currentEb   = (currentMeta.essential_briefing as Record<string, any>) ?? {};
-          const mergedEb    = { ...eb, ...currentEb };
+          const cm = (existing.metadata as Record<string, any>) ?? {};
+          const ce = (cm.essential_briefing as Record<string, any>) ?? {};
+          const merged = { ...eb, ...ce }; // Ops manual tem prioridade
 
           await ops.from("clients").update({
-            plan_name:    existing.plan_name    || planName,
-            project_type: existing.project_type || projectType,
+            plan_name:    existing.plan_name    || plan,
+            project_type: existing.project_type || pType,
+            company_name: (existing as any).company_name || profile.company_name || null,
             metadata: {
-              ...currentMeta,
-              essential_briefing: mergedEb,
-              lead_email:  currentMeta.lead_email  || pc.email || null,
+              ...cm,
+              essential_briefing: merged,
+              lead_email:    cm.lead_email    || profile.email  || null,
+              lead_phone:    cm.lead_phone    || profile.phone  || null,
               portal_sync_at: new Date().toISOString(),
             },
             updated_at: new Date().toISOString(),
           }).eq("id", existing.id);
-
           opsClientId = existing.id;
           stats.clients_updated++;
         } else {
-          // Tenta vincular por email antes de criar
-          let foundByEmail: string | null = null;
-          if (pc.email) {
+          // Tenta vincular por email
+          let found: string | null = null;
+          if (profile.email) {
             const { data: byEmail } = await ops.from("clients")
-              .select("id").eq("metadata->>lead_email", pc.email).maybeSingle();
+              .select("id, metadata").eq("metadata->>lead_email", profile.email).maybeSingle();
             if (byEmail) {
+              const cm = (byEmail.metadata as Record<string, any>) ?? {};
+              const ce = (cm.essential_briefing as Record<string, any>) ?? {};
               await ops.from("clients").update({
-                portal_client_id: portalClientId,
-                metadata: { ...((await ops.from("clients").select("metadata").eq("id", byEmail.id).single()).data?.metadata as any ?? {}), essential_briefing: eb, portal_sync_at: new Date().toISOString() },
+                portal_client_id: pid,
+                company_name: (byEmail as any).company_name || profile.company_name || null,
+                metadata: { ...cm, essential_briefing: { ...eb, ...ce }, portal_sync_at: new Date().toISOString() },
               }).eq("id", byEmail.id);
-              foundByEmail = byEmail.id;
+              found = byEmail.id;
               stats.clients_updated++;
             }
           }
 
-          if (foundByEmail) {
-            opsClientId = foundByEmail;
+          if (found) {
+            opsClientId = found;
           } else {
-            const name = pc.full_name || pc.email || `Cliente ${portalClientId.slice(0, 8)}`;
-            const { data: newClient, error } = await ops.from("clients").insert({
+            const name = profile.full_name || profile.email || `Cliente ${pid.slice(0, 8)}`;
+            const { data: nc, error } = await ops.from("clients").insert({
               name,
-              company_name:    pc.company_name || null,
-              status:          "onboarding",
-              plan_name:       planName,
-              project_type:    projectType,
-              portal_client_id: portalClientId,
+              company_name: profile.company_name || null,
+              status: "onboarding",
+              plan_name: plan,
+              project_type: pType,
+              portal_client_id: pid,
               metadata: {
                 essential_briefing: eb,
-                lead_email:  pc.email || null,
-                source:      "backfill_from_portal",
+                lead_email: profile.email || null,
+                lead_phone: profile.phone || null,
+                source: "backfill_from_portal",
                 portal_sync_at: new Date().toISOString(),
               },
             }).select("id").single();
-            if (error) throw new Error(`criar: ${error.message}`);
-            opsClientId = newClient!.id;
+            if (error) throw new Error(error.message);
+            opsClientId = nc!.id;
             stats.clients_created++;
           }
         }
 
-        if (Object.keys(eb).length > 0) stats.briefings_merged++;
+        if (Object.keys(eb).length > 2) stats.briefings_merged++;
 
-        // ── Garante workspace ──
+        // ── Sync projetos → workspaces ──────────────────────────
         if (clientProjects.length === 0) {
+          // Garante workspace básico
           const { data: ws } = await ops.from("workspaces")
             .select("id").eq("client_id", opsClientId).limit(1).maybeSingle();
           if (!ws) {
-            const name = pc.full_name || "Cliente Portal";
             await ops.from("workspaces").insert({
               client_id: opsClientId,
-              name: `${name} — Workspace`,
-              status: "setup",
-              current_stage: "entrada",
-              project_type: projectType,
+              name: `${profile.full_name || "Cliente"} — Workspace`,
+              status: "setup", current_stage: "entrada", project_type: pType,
               metadata: { portal_sync: { auto_created: true } },
             });
             stats.workspaces_created++;
           }
         } else {
           for (const proj of clientProjects) {
-            const { data: ws } = await ops.from("workspaces")
+            const projBriefing = briefingByProject.get(proj.id);
+            const projEb = { ...eb };
+            if (projBriefing?.responses) Object.assign(projEb, projBriefing.responses);
+            if (proj.scope)      projEb.scope      = proj.scope;
+            if (proj.objectives) projEb.objectives  = proj.objectives;
+
+            const { data: existWs } = await ops.from("workspaces")
               .select("id").eq("portal_project_id", proj.id).maybeSingle();
-            if (ws) {
+
+            let wsId: string;
+
+            if (existWs) {
               await ops.from("workspaces").update({
                 name: proj.name,
                 summary: proj.description || null,
+                status: proj.status === "completed" ? "completed" : proj.status === "active" ? "active" : "setup",
+                project_type: inferOpsType(proj.project_type),
+                metadata: {
+                  essential_briefing: projEb,
+                  portal_sync: {
+                    portal_project_id: proj.id,
+                    portal_project_type: proj.project_type,
+                    portal_progress: proj.progress,
+                    portal_scope: proj.scope,
+                    portal_objectives: proj.objectives,
+                    portal_start_date: proj.start_date,
+                    portal_deadline: proj.deadline,
+                    last_synced_at: new Date().toISOString(),
+                  },
+                },
                 updated_at: new Date().toISOString(),
-              }).eq("id", ws.id);
+              }).eq("id", existWs.id);
+              wsId = existWs.id;
               stats.workspaces_updated++;
             } else {
-              await ops.from("workspaces").insert({
+              const { data: nw, error } = await ops.from("workspaces").insert({
                 client_id: opsClientId,
                 name: proj.name,
-                status: "setup",
-                current_stage: "entrada",
+                status: "setup", current_stage: "entrada",
                 portal_project_id: proj.id,
                 project_type: inferOpsType(proj.project_type),
                 summary: proj.description || null,
-                metadata: { portal_sync: { portal_project_id: proj.id, source: "backfill" } },
-              });
+                metadata: {
+                  essential_briefing: projEb,
+                  portal_sync: {
+                    portal_project_id: proj.id,
+                    portal_project_type: proj.project_type,
+                    portal_progress: proj.progress,
+                    portal_scope: proj.scope,
+                    portal_objectives: proj.objectives,
+                    source: "backfill",
+                  },
+                },
+              }).select("id").single();
+              if (error) throw new Error(error.message);
+              wsId = nw!.id;
               stats.workspaces_created++;
+            }
+
+            // ── Sync milestones → timeline_events ──
+            for (const ms of (milestonesByProject.get(proj.id) ?? [])) {
+              const { data: ex } = await ops.from("timeline_events")
+                .select("id").eq("workspace_id", wsId)
+                .eq("metadata->>portal_milestone_id", ms.id).maybeSingle();
+              if (!ex) {
+                await ops.from("timeline_events").insert({
+                  workspace_id: wsId, client_id: opsClientId,
+                  event_type: "portal_milestone",
+                  title: ms.title, description: ms.description || null,
+                  happened_at: ms.target_date || ms.created_at || new Date().toISOString(),
+                  metadata: { source: "backfill", portal_milestone_id: ms.id, status: ms.status },
+                });
+                stats.milestones_synced++;
+              }
+            }
+
+            // ── Sync tasks concluídas → timeline_events ──
+            for (const task of (tasksByProject.get(proj.id) ?? [])) {
+              if (!["completed", "done"].includes((task.status ?? "").toLowerCase())) continue;
+              const { data: ex } = await ops.from("timeline_events")
+                .select("id").eq("workspace_id", wsId)
+                .eq("metadata->>portal_task_id", task.id).maybeSingle();
+              if (!ex) {
+                await ops.from("timeline_events").insert({
+                  workspace_id: wsId, client_id: opsClientId,
+                  event_type: "portal_milestone",
+                  title: `✓ ${task.title}`, description: task.description || null,
+                  happened_at: task.created_at || new Date().toISOString(),
+                  metadata: { source: "backfill", portal_task_id: task.id, priority: task.priority },
+                });
+                stats.tasks_synced++;
+              }
+            }
+
+            // ── Sync updates → timeline_events ──
+            for (const upd of (updatesByProject.get(proj.id) ?? [])) {
+              const { data: ex } = await ops.from("timeline_events")
+                .select("id").eq("workspace_id", wsId)
+                .eq("metadata->>portal_update_id", upd.id).maybeSingle();
+              if (!ex) {
+                await ops.from("timeline_events").insert({
+                  workspace_id: wsId, client_id: opsClientId,
+                  event_type: "portal_update",
+                  title: (upd.message ?? "Update do portal").slice(0, 200),
+                  happened_at: upd.created_at || new Date().toISOString(),
+                  metadata: { source: "backfill", portal_update_id: upd.id, update_type: upd.update_type },
+                });
+                stats.updates_synced++;
+              }
             }
           }
         }
-
       } catch (err) {
-        stats.errors.push(`${pc.full_name || pc.id}: ${(err as Error).message?.slice(0, 100)}`);
+        stats.errors.push(`${profile.full_name || profile.id}: ${(err as Error).message?.slice(0, 100)}`);
       }
     }
 
     const summary = [
-      `${stats.clients_found} no portal`,
-      `${stats.clients_created} criados`,
-      `${stats.clients_updated} atualizados`,
-      `${stats.workspaces_created} workspaces criados`,
-      `${stats.briefings_merged} briefings`,
+      `Portal: ${profiles.length} clientes, ${projects.length} projetos, ${briefings.length} briefings, ${milestones.length} milestones, ${tasks.length} tasks, ${updates.length} updates`,
+      `Ops: ${stats.clients_created} criados, ${stats.clients_updated} atualizados, ${stats.workspaces_created} ws criados, ${stats.workspaces_updated} ws atualizados`,
+      `${stats.briefings_merged} briefings, ${stats.milestones_synced} milestones, ${stats.tasks_synced} tasks, ${stats.updates_synced} updates sincronizados`,
       stats.errors.length > 0 ? `${stats.errors.length} erros` : "zero erros",
     ].join(" | ");
 
@@ -291,8 +354,7 @@ serve(async (req) => {
       { headers: { ...cors, "Content-Type": "application/json" } });
 
   } catch (err) {
-    return new Response(JSON.stringify({
-      error: err instanceof Error ? err.message : "Erro desconhecido",
-    }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error: (err as Error).message }),
+      { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
   }
 });
