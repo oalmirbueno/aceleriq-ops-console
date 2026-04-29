@@ -1,19 +1,10 @@
 /**
- * receive-portal-sync — recebe projects + briefings + milestones + files + updates
- * do portal aceleriq.online e cria/atualiza no Ops automaticamente.
+ * receive-portal-sync v2 — recebe TODOS os dados do portal em tempo real.
  *
- * Fluxo:
- *   1. Portal chama esta função com payload contendo { type, data }
- *   2. Ops cria/atualiza registros locais usando upsert
- *   3. Ops liga com client correspondente via portal_client_id
- *
- * Tipos suportados:
- *   - "project" → cria workspace no Ops
- *   - "briefing" → atualiza essential_briefing do cliente
- *   - "milestone" → cria/atualiza timeline_event
- *   - "file" → registra como file metadata
- *   - "update" → cria timeline_event
- *   - "task" → (futuro) cria canvas_node do tipo task
+ * Aceita:
+ * - Webhooks manuais (type: "project", "briefing", etc)
+ * - Triggers automáticos do banco (type: "profiles", "projects", "briefings", "tasks", etc)
+ * - Context enriquecido com dados do cliente
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
@@ -23,15 +14,201 @@ const cors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-webhook-secret",
 };
 
-// Mapeamento de project_type do portal -> project_type do Ops
-function inferOpsType(portalType: string | null): string {
+function json(payload: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...cors, "Content-Type": "application/json" },
+  });
+}
+
+function inferOpsType(portalType: string | null | undefined): string {
   const t = (portalType ?? "").toLowerCase();
   if (t.includes("site") || t.includes("website")) return "one_shot_site";
   if (t.includes("auto")) return "one_shot_automation";
-  if (t.includes("agent") || t.includes("bot") || t.includes("ia") || t.includes("chatbot")) return "one_shot_agent";
-  if (t.includes("market") || t.includes("trafego") || t.includes("ads") || t.includes("social")) return "marketing_service";
+  if (t.includes("agent") || t.includes("bot") || t.includes("ia") || t.includes("chatbot") || t.includes("agente")) return "one_shot_agent";
+  if (t.includes("market") || t.includes("trafego") || t.includes("tráfego") || t.includes("ads") || t.includes("social")) return "marketing_service";
   if (t.includes("legacy") || t.includes("legado")) return "legacy_marketing";
   return "ai_first";
+}
+
+function inferPlanName(plan: string | null | undefined): string {
+  const p = (plan ?? "").toLowerCase();
+  if (p.includes("enterprise") || p.includes("escala")) return "enterprise";
+  if (p.includes("growth") || p.includes("aceler")) return "growth";
+  if (p.includes("marketing")) return "marketing";
+  return "starter";
+}
+
+// Normaliza tipo — trigger do banco usa nome da tabela, webhook manual usa tipo semântico.
+function normalizeType(type: string): string {
+  const map: Record<string, string> = {
+    profiles: "profile",
+    profile: "profile",
+    client: "profile",
+    clients: "profile",
+    quiz_submissions: "briefing",
+    quiz_submission: "briefing",
+    projects: "project",
+    project: "project",
+    briefings: "briefing",
+    briefing: "briefing",
+    milestones: "milestone",
+    milestone: "milestone",
+    updates: "update",
+    update: "update",
+    tasks: "task",
+    task: "task",
+    files: "file",
+    file: "file",
+  };
+  return map[type.toLowerCase()] ?? type.toLowerCase();
+}
+
+function firstString(...values: unknown[]): string | null {
+  for (const v of values) {
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return null;
+}
+
+function briefingFromRecord(data: Record<string, unknown>): Record<string, unknown> {
+  const keys = [
+    "positioning",
+    "differential",
+    "icp",
+    "main_pains",
+    "goals_12m",
+    "success_metric",
+    "revenue_range",
+    "team_size",
+    "maturity_digital",
+    "ai_readiness",
+    "recommended_plan",
+  ];
+  const out: Record<string, unknown> = {};
+  for (const k of keys) {
+    if (data[k] !== undefined && data[k] !== null && data[k] !== "") out[k] = data[k];
+  }
+  const responses = data.responses;
+  if (responses && typeof responses === "object" && !Array.isArray(responses)) {
+    Object.assign(out, responses as Record<string, unknown>);
+  }
+  return out;
+}
+
+async function findClientByEmail(supabase: any, email: string) {
+  // Primeiro por metadata, depois por coluna email se existir.
+  const { data: byMeta } = await supabase
+    .from("clients")
+    .select("id")
+    .eq("metadata->>lead_email", email)
+    .maybeSingle();
+  if (byMeta) return byMeta;
+
+  const { data: byEmail, error } = await supabase
+    .from("clients")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
+  if (!error && byEmail) return byEmail;
+  return null;
+}
+
+// Resolve client_id do Ops a partir de portal_client_id, context, ou pelo email.
+async function resolveOpsClientId(
+  supabase: any,
+  portalClientId: string | null,
+  context: Record<string, unknown>,
+  autoCreate = true,
+): Promise<string | null> {
+  if (portalClientId) {
+    const { data: byPortalId } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("portal_client_id", portalClientId)
+      .maybeSingle();
+    if (byPortalId) return byPortalId.id;
+  }
+
+  const email = firstString(context.client_email, context.lead_email, context.email);
+  if (email) {
+    const byEmail = await findClientByEmail(supabase, email);
+    if (byEmail) {
+      if (portalClientId) await supabase.from("clients").update({ portal_client_id: portalClientId }).eq("id", byEmail.id);
+      return byEmail.id;
+    }
+  }
+
+  if (!autoCreate || !portalClientId) return null;
+
+  const name = firstString(context.client_full_name, context.full_name, context.name) || email || `Cliente ${portalClientId.slice(0, 8)}`;
+  const insertPayload: Record<string, unknown> = {
+    name,
+    company_name: firstString(context.client_company, context.company_name),
+    status: "onboarding",
+    plan_name: inferPlanName(firstString(context.client_plan, context.plan_name)),
+    portal_client_id: portalClientId,
+    metadata: {
+      lead_email: email,
+      lead_phone: firstString(context.client_phone, context.phone, context.whatsapp),
+      source: "portal_sync",
+      auto_created_from_trigger: true,
+    },
+  };
+  if (email) insertPayload.email = email;
+
+  let { data: newClient, error } = await supabase.from("clients").insert(insertPayload).select("id").single();
+  if (error && String(error.message ?? "").includes("email")) {
+    // Algumas instalações têm índice único de email; tenta sem coluna email mantendo metadata.
+    delete insertPayload.email;
+    const retry = await supabase.from("clients").insert(insertPayload).select("id").single();
+    newClient = retry.data;
+    error = retry.error;
+  }
+  if (error) throw error;
+  return newClient?.id ?? null;
+}
+
+async function ensureWorkspace(supabase: any, opsClientId: string, clientName: string, portalClientId: string | null, projectType = "ai_first") {
+  const { data: existingWs } = await supabase
+    .from("workspaces")
+    .select("id")
+    .eq("client_id", opsClientId)
+    .limit(1)
+    .maybeSingle();
+  if (existingWs) return { workspaceId: existingWs.id, created: false };
+
+  const { data: ws, error: wsErr } = await supabase
+    .from("workspaces")
+    .insert({
+      client_id: opsClientId,
+      name: `${clientName} — Workspace`,
+      status: "setup",
+      current_stage: "entrada",
+      project_type: projectType,
+      metadata: {
+        portal_sync: {
+          auto_created: true,
+          portal_client_id: portalClientId,
+          source: "portal_sync",
+          created_at: new Date().toISOString(),
+        },
+      },
+    })
+    .select("id")
+    .single();
+  if (wsErr) throw wsErr;
+
+  await supabase.from("timeline_events").insert({
+    workspace_id: ws!.id,
+    client_id: opsClientId,
+    event_type: "workspace_created",
+    title: "Workspace criado automaticamente via portal",
+    happened_at: new Date().toISOString(),
+    metadata: { source: "portal_sync", portal_client_id: portalClientId },
+  });
+
+  return { workspaceId: ws!.id, created: true };
 }
 
 serve(async (req) => {
@@ -40,180 +217,246 @@ serve(async (req) => {
   const SECRET = Deno.env.get("PORTAL_WEBHOOK_SECRET") ?? "";
   const received = req.headers.get("x-webhook-secret");
   if (!SECRET || received !== SECRET) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }),
-      { status: 401, headers: { ...cors, "Content-Type": "application/json" } });
+    return json({ error: "Unauthorized" }, 401);
   }
 
   try {
     const body = await req.json();
-    const { type, data } = body as { type: string; data: Record<string, unknown> };
+    const rawType = String(body.type ?? "");
+    const type = normalizeType(rawType);
+    const data = (body.data ?? {}) as Record<string, unknown>;
+    const context = (body.context ?? {}) as Record<string, unknown>;
+    const event = String(body.event ?? "");
 
-    if (!type || !data) {
-      return new Response(JSON.stringify({ error: "type e data são obrigatórios" }),
-        { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
+    if (!rawType || !data || typeof data !== "object") {
+      return json({ error: "type e data são obrigatórios" }, 400);
+    }
+
+    if (event === "DELETE") {
+      return json({ ok: true, action: "delete_ignored", type_received: rawType });
     }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // ─── PROJECT ──────────────────────────────────────────────
-    if (type === "project") {
-      const portalProjectId = data.id as string;
-      const portalClientId = data.client_id as string;
+    // ─── PROFILE / CLIENT ─────────────────────────────────────
+    if (type === "profile") {
+      const portalClientId = firstString(data.id, data.client_id, data.user_id);
+      if (!portalClientId) return json({ error: "profile.id/client_id/user_id obrigatório" }, 400);
 
-      // Busca cliente no Ops via portal_client_id
-      const { data: client } = await supabase
+      const email = firstString(data.email, data.lead_email, context.client_email);
+      const name = firstString(data.full_name, data.name, data.lead_name, context.client_full_name) || email || "Cliente do Portal";
+      const phone = firstString(data.phone, data.whatsapp, data.lead_whatsapp, context.client_phone);
+      const company = firstString(data.company_name, data.lead_company, context.client_company);
+      const planName = inferPlanName(firstString(data.plan_name, context.client_plan));
+
+      const { data: existingClient } = await supabase
         .from("clients")
-        .select("id")
+        .select("id, metadata, plan_name, project_type")
         .eq("portal_client_id", portalClientId)
         .maybeSingle();
 
-      if (!client) {
-        return new Response(JSON.stringify({
-          error: "Cliente não vinculado",
-          hint: `O profile ${portalClientId} no portal não está vinculado a nenhum cliente no Ops. Vincule primeiro.`,
-        }), { status: 404, headers: { ...cors, "Content-Type": "application/json" } });
+      let opsClientId: string;
+      let action = "updated";
+
+      if (existingClient) {
+        const currentMeta = (existingClient.metadata as Record<string, unknown>) ?? {};
+        const { error } = await supabase.from("clients").update({
+          name,
+          company_name: company ?? null,
+          plan_name: existingClient.plan_name || planName,
+          metadata: {
+            ...currentMeta,
+            lead_email: (currentMeta.lead_email as string) || email,
+            lead_phone: (currentMeta.lead_phone as string) || phone,
+            source: currentMeta.source || "portal_sync",
+            portal_sync_at: new Date().toISOString(),
+          },
+          updated_at: new Date().toISOString(),
+        }).eq("id", existingClient.id);
+        if (error) throw error;
+        opsClientId = existingClient.id;
+      } else {
+        const byEmail = email ? await findClientByEmail(supabase, email) : null;
+        if (byEmail) {
+          const { error } = await supabase.from("clients").update({ portal_client_id: portalClientId, updated_at: new Date().toISOString() }).eq("id", byEmail.id);
+          if (error) throw error;
+          opsClientId = byEmail.id;
+          action = "linked_by_email";
+        } else {
+          const insertPayload: Record<string, unknown> = {
+            name,
+            company_name: company ?? null,
+            status: "onboarding",
+            segment: (data.segment as string) ?? null,
+            plan_name: planName,
+            portal_client_id: portalClientId,
+            metadata: {
+              lead_email: email,
+              lead_phone: phone,
+              source: "portal_sync",
+              created_from_portal: true,
+              essential_briefing: data.briefing ?? {},
+              portal_sync_at: new Date().toISOString(),
+            },
+          };
+          if (email) insertPayload.email = email;
+
+          let { data: newClient, error } = await supabase.from("clients").insert(insertPayload).select("id").single();
+          if (error && String(error.message ?? "").includes("email")) {
+            delete insertPayload.email;
+            const retry = await supabase.from("clients").insert(insertPayload).select("id").single();
+            newClient = retry.data;
+            error = retry.error;
+          }
+          if (error) throw error;
+          opsClientId = newClient!.id;
+          action = "created";
+        }
       }
 
-      const opsType = inferOpsType(data.project_type as string | null);
+      const ws = await ensureWorkspace(supabase, opsClientId, name, portalClientId);
+      return json({ ok: true, action: ws.created ? `${action}_with_workspace` : action, client_id: opsClientId, workspace_id: ws.workspaceId, workspace_created: ws.created });
+    }
 
-      // Upsert por portal_project_id
+    // ─── PROJECT ──────────────────────────────────────────────
+    if (type === "project") {
+      const portalProjectId = firstString(data.id);
+      if (!portalProjectId) return json({ error: "project.id obrigatório" }, 400);
+      const portalClientId = firstString(data.client_id, data.user_id);
+      const opsClientId = await resolveOpsClientId(supabase, portalClientId, context, true);
+      if (!opsClientId) return json({ error: "Não foi possível resolver ou criar cliente", portal_client_id: portalClientId }, 404);
+
+      const opsType = inferOpsType(data.project_type as string | null);
       const { data: existing } = await supabase
         .from("workspaces")
         .select("id")
         .eq("portal_project_id", portalProjectId)
         .maybeSingle();
 
-      if (existing) {
-        // Update existente
-        const { error } = await supabase.from("workspaces")
-          .update({
-            name: data.name as string,
-            status: (data.status as string) ?? "setup",
-            summary: (data.description as string) ?? null,
-            updated_at: new Date().toISOString(),
-            metadata: {
-              portal_sync: {
-                portal_project_id: portalProjectId,
-                portal_project_type: data.project_type,
-                portal_progress: data.progress,
-                portal_scope: data.scope,
-                portal_objectives: data.objectives,
-                portal_start_date: data.start_date,
-                portal_deadline: data.deadline,
-                last_synced_at: new Date().toISOString(),
-              },
-            },
-          })
-          .eq("id", existing.id);
-        if (error) throw error;
-        return new Response(JSON.stringify({ ok: true, action: "updated", workspace_id: existing.id }),
-          { headers: { ...cors, "Content-Type": "application/json" } });
-      } else {
-        // Insert novo
-        const { data: ws, error } = await supabase.from("workspaces")
-          .insert({
-            client_id: client.id,
-            name: data.name as string,
-            status: (data.status as string) ?? "setup",
-            current_stage: "entrada",
-            summary: (data.description as string) ?? null,
+      const payload = {
+        name: (data.name as string) || "Projeto do Portal",
+        status: (data.status as string) ?? "setup",
+        summary: (data.description as string) ?? null,
+        updated_at: new Date().toISOString(),
+        metadata: {
+          portal_sync: {
             portal_project_id: portalProjectId,
-            project_type: opsType,
-            metadata: {
-              portal_sync: {
-                portal_project_id: portalProjectId,
-                portal_project_type: data.project_type,
-                portal_progress: data.progress,
-                portal_scope: data.scope,
-                portal_objectives: data.objectives,
-                portal_start_date: data.start_date,
-                portal_deadline: data.deadline,
-                last_synced_at: new Date().toISOString(),
-              },
-            },
-          })
-          .select("id")
-          .single();
+            portal_project_type: data.project_type,
+            portal_progress: data.progress,
+            portal_scope: data.scope,
+            portal_objectives: data.objectives,
+            portal_start_date: data.start_date,
+            portal_deadline: data.deadline,
+            last_synced_at: new Date().toISOString(),
+          },
+        },
+      };
+
+      if (existing) {
+        const { error } = await supabase.from("workspaces").update(payload).eq("id", existing.id);
         if (error) throw error;
-        return new Response(JSON.stringify({ ok: true, action: "created", workspace_id: ws?.id }),
-          { headers: { ...cors, "Content-Type": "application/json" } });
+        return json({ ok: true, action: "updated", workspace_id: existing.id });
       }
+
+      const { data: ws, error } = await supabase.from("workspaces")
+        .insert({
+          client_id: opsClientId,
+          ...payload,
+          current_stage: "entrada",
+          portal_project_id: portalProjectId,
+          project_type: opsType,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      return json({ ok: true, action: "created", workspace_id: ws?.id });
     }
 
-    // ─── BRIEFING ─────────────────────────────────────────────
+    // ─── BRIEFING / QUIZ_SUBMISSIONS ──────────────────────────
     if (type === "briefing") {
-      const portalClientId = data.client_id as string;
-      const responses = data.responses as Record<string, unknown>;
+      const portalClientId = firstString(data.client_id, data.user_id, data.profile_id, data.token, data.id);
+      const enrichedContext = {
+        ...context,
+        client_email: context.client_email ?? data.lead_email,
+        client_full_name: context.client_full_name ?? data.lead_name,
+        client_company: context.client_company ?? data.lead_company,
+        client_phone: context.client_phone ?? data.lead_whatsapp,
+        client_plan: context.client_plan ?? data.recommended_plan,
+      };
+      const opsClientId = await resolveOpsClientId(supabase, portalClientId, enrichedContext, true);
+      if (!opsClientId) return json({ error: "Cliente não encontrado" }, 404);
 
       const { data: client } = await supabase
         .from("clients")
         .select("id, metadata")
-        .eq("portal_client_id", portalClientId)
+        .eq("id", opsClientId)
         .maybeSingle();
-
-      if (!client) {
-        return new Response(JSON.stringify({ error: "Cliente não vinculado" }),
-          { status: 404, headers: { ...cors, "Content-Type": "application/json" } });
-      }
+      if (!client) return json({ error: "Cliente não encontrado" }, 404);
 
       const currentMeta = (client.metadata as Record<string, unknown>) ?? {};
       const currentEb = (currentMeta.essential_briefing as Record<string, unknown>) ?? {};
-
-      // Merge respostas do briefing no essential_briefing (sem sobrescrever campos já preenchidos manualmente)
-      const merged = { ...responses, ...currentEb, last_portal_briefing_sync: new Date().toISOString() };
+      const incoming = briefingFromRecord(data);
+      const merged = { ...incoming, ...currentEb, last_portal_briefing_sync: new Date().toISOString() };
 
       const { error } = await supabase.from("clients")
-        .update({ metadata: { ...currentMeta, essential_briefing: merged } })
-        .eq("id", client.id);
+        .update({ metadata: { ...currentMeta, essential_briefing: merged, portal_sync_at: new Date().toISOString() } })
+        .eq("id", opsClientId);
       if (error) throw error;
 
-      return new Response(JSON.stringify({ ok: true, action: "merged" }),
-        { headers: { ...cors, "Content-Type": "application/json" } });
+      const clientName = firstString(enrichedContext.client_full_name, data.lead_name, data.email) || "Cliente do Portal";
+      const ws = await ensureWorkspace(supabase, opsClientId, clientName, portalClientId);
+      return json({ ok: true, action: "briefing_merged", client_id: opsClientId, workspace_id: ws.workspaceId, workspace_created: ws.created });
     }
 
-    // ─── MILESTONE → TIMELINE ─────────────────────────────────
-    if (type === "milestone" || type === "update") {
-      const portalProjectId = data.project_id as string;
-
-      const { data: ws } = await supabase
-        .from("workspaces")
-        .select("id, client_id")
-        .eq("portal_project_id", portalProjectId)
-        .maybeSingle();
-
-      if (!ws) {
-        return new Response(JSON.stringify({ error: "Workspace não encontrado pro project_id do portal" }),
-          { status: 404, headers: { ...cors, "Content-Type": "application/json" } });
+    // ─── MILESTONE / UPDATE / TASK / FILE → TIMELINE ──────────
+    if (["milestone", "update", "task", "file"].includes(type)) {
+      const portalProjectId = firstString(data.project_id, data.workspace_id);
+      let ws: { id: string; client_id: string } | null = null;
+      if (portalProjectId) {
+        const { data: foundWs } = await supabase
+          .from("workspaces")
+          .select("id, client_id")
+          .eq("portal_project_id", portalProjectId)
+          .maybeSingle();
+        ws = foundWs;
       }
 
-      const title = type === "milestone" ? (data.title as string) : "Update do portal";
-      const description = (data.description as string) ?? (data.message as string) ?? null;
-      const happenedAt = (data.target_date as string) ?? (data.created_at as string) ?? new Date().toISOString();
+      let opsClientId = ws?.client_id ?? null;
+      if (!opsClientId) {
+        opsClientId = await resolveOpsClientId(supabase, firstString(data.client_id, data.user_id), context, true);
+      }
+      if (!opsClientId) return json({ ok: true, action: "ignored_no_client", type_received: rawType });
+
+      if (!ws) {
+        const clientName = firstString(context.client_full_name, data.client_name) || "Cliente do Portal";
+        const ensured = await ensureWorkspace(supabase, opsClientId, clientName, firstString(data.client_id, data.user_id));
+        ws = { id: ensured.workspaceId, client_id: opsClientId };
+      }
+
+      const title = firstString(data.title, data.name, data.message) || (type === "update" ? "Update do portal" : `${type} do portal`);
+      const description = firstString(data.description, data.message, data.content);
+      const happenedAt = firstString(data.target_date, data.created_at, data.updated_at) || new Date().toISOString();
 
       const { error } = await supabase.from("timeline_events").insert({
         workspace_id: ws.id,
         client_id: ws.client_id,
-        event_type: type === "milestone" ? "portal_milestone" : "portal_update",
+        event_type: `portal_${type}`,
         title,
         description,
         happened_at: happenedAt,
-        metadata: { source: "portal_sync", portal_id: data.id },
+        metadata: { source: "portal_sync", portal_id: data.id, raw_type: rawType, event },
       });
       if (error) throw error;
 
-      return new Response(JSON.stringify({ ok: true, action: "timeline_event_created" }),
-        { headers: { ...cors, "Content-Type": "application/json" } });
+      return json({ ok: true, action: "timeline_event_created", type });
     }
 
-    // ─── Tipo desconhecido ────────────────────────────────────
-    return new Response(JSON.stringify({ error: `Tipo "${type}" não suportado` }),
-      { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
+    // Tipo desconhecido — aceita silenciosamente.
+    return json({ ok: true, action: "ignored", type_received: rawType });
   } catch (err) {
-    return new Response(JSON.stringify({
-      error: err instanceof Error ? err.message : "Erro desconhecido",
-    }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
+    return json({ error: err instanceof Error ? err.message : "Erro desconhecido" }, 500);
   }
 });
