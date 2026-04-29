@@ -24,9 +24,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const AI_MODEL = "google/gemini-2.5-flash";
-const AI_MODEL_FALLBACKS = ["google/gemini-2.5-flash-lite", "google/gemini-3-flash-preview"];
+const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"] as const;
 
 type FieldType = "text" | "textarea" | "list" | "kv" | "checklist" | "attachments";
 type PrefillSource =
@@ -45,10 +43,12 @@ interface BlueprintPayload {
 }
 
 interface ReqBody {
-  nodeId: string;
+  nodeId?: string;
   workspaceId: string;
   clientId: string;
-  blueprint: BlueprintPayload;
+  blueprint?: BlueprintPayload;
+  kind?: string;
+  currentTitle?: string;
   force?: boolean;
   cacheOnly?: boolean;
 }
@@ -57,43 +57,102 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 
+function buildFallbackBlueprint(kind: string, currentTitle: string): BlueprintPayload {
+  const purpose = `Rascunho aprofundado para o node "${currentTitle}" do tipo ${kind}.`;
+  return {
+    kind,
+    purpose,
+    sources: ["briefing", "context", "metrics", "fronts", "client", "assets", "siblings", "dossier", "tasks", "timeline", "workspace_assets"],
+    prefillPrompt: [
+      `Você é especialista em preencher um node do tipo ${kind}.`,
+      `Título do node: ${currentTitle}`,
+      "Gere um rascunho profundo, específico e pronto para execução.",
+    ].join("\n"),
+    sections: [
+      {
+        id: "main",
+        title: "Rascunho principal",
+        description: "Preenchimento completo do node com foco em execução e clareza operacional.",
+        fields: [
+          { id: "description", label: "Descrição completa", type: "textarea" },
+          { id: "responsible", label: "Responsável", type: "text" },
+          { id: "execution_plan", label: "Plano de execução", type: "textarea" },
+          { id: "acceptance_criteria", label: "Critérios de aprovação", type: "textarea" },
+          { id: "ai_prompt", label: "Prompt IA", type: "textarea" },
+          { id: "openclaw_prompt", label: "Prompt OpenClaw", type: "textarea" },
+          { id: "checklist", label: "Checklist", type: "checklist" },
+          { id: "howTo", label: "Como fazer", type: "textarea" },
+          { id: "notes", label: "Notas", type: "textarea" },
+        ],
+      },
+    ],
+  };
+}
+
+function flattenPrefillSections(sections: Record<string, { fields: Record<string, { value: unknown }> }>) {
+  const flat: Record<string, unknown> = {};
+  for (const section of Object.values(sections ?? {})) {
+    for (const [fieldId, field] of Object.entries(section.fields ?? {})) {
+      flat[fieldId] = field?.value;
+    }
+  }
+  return flat;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) return jsonResponse({ error: "GEMINI_API_KEY não configurada" }, 500);
 
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return jsonResponse({ error: "Missing Authorization header" }, 401);
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    const { data: { user }, error: authErr } = await supabase.auth.getUser();
-    if (authErr || !user) return jsonResponse({ error: "Unauthorized" }, 401);
+    // Auth é opcional — verify_jwt está OFF. Usamos o service role direto.
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
     const body = (await req.json()) as ReqBody;
-    if (!body.nodeId || !body.workspaceId || !body.clientId || !body.blueprint) {
+    if (!body.workspaceId || !body.clientId) {
       return jsonResponse({ error: "Missing required fields" }, 400);
     }
-    const { nodeId, workspaceId, clientId, blueprint, force = false, cacheOnly = false } = body;
+
+    const { nodeId = null, workspaceId, clientId, force = false, cacheOnly = false } = body;
+    const blueprint = body.blueprint ?? buildFallbackBlueprint(body.kind ?? "default", body.currentTitle ?? "Node sem título");
 
     // ── 1. Carrega o node alvo + checa cache
-    const { data: node, error: nodeErr } = await supabase
-      .from("canvas_nodes")
-      .select("id, title, node_type, metadata, parent_node_id")
-      .eq("id", nodeId)
-      .maybeSingle();
-    if (nodeErr || !node) return jsonResponse({ error: "Node not found" }, 404);
+    const node = nodeId
+      ? await (async () => {
+          const { data, error } = await supabase
+            .from("canvas_nodes")
+            .select("id, title, node_type, metadata, parent_node_id")
+            .eq("id", nodeId)
+            .maybeSingle();
+          if (error || !data) return null;
+          return data;
+        })()
+      : { id: "draft", title: body.currentTitle ?? blueprint.kind, node_type: blueprint.kind, metadata: null, parent_node_id: null };
 
-    const cached = (node.metadata as Record<string, unknown> | null)?.prefill ?? null;
-    if (cacheOnly) return jsonResponse({ prefill: cached, cached: !!cached });
-    if (cached && !force) return jsonResponse({ prefill: cached, cached: true });
+    if (nodeId && !node) return jsonResponse({ error: "Node not found" }, 404);
 
-    if (!LOVABLE_API_KEY) return jsonResponse({ error: "AI not configured" }, 500);
+    const cached = (node?.metadata as Record<string, unknown> | null)?.prefill ?? null;
+    if (cacheOnly) {
+      return jsonResponse({
+        prefill: cached,
+        cached: !!cached,
+        fields: cached && typeof cached === "object" ? flattenPrefillSections((cached as any).sections ?? {}) : null,
+        agent_id: "prefill-node",
+        model_used: (cached as any)?.ai_model ?? null,
+      });
+    }
+    if (cached && !force) {
+      return jsonResponse({
+        prefill: cached,
+        cached: true,
+        fields: cached && typeof cached === "object" ? flattenPrefillSections((cached as any).sections ?? {}) : null,
+        agent_id: "prefill-node",
+        model_used: (cached as any)?.ai_model ?? null,
+      });
+    }
 
     // ── 2. Coleta fontes habilitadas
     const ctx: Record<string, unknown> = {};
@@ -101,7 +160,7 @@ serve(async (req) => {
 
     if (blueprint.sources.includes("client")) {
       const { data: client } = await supabase.from("clients")
-        .select("name, segment, plan_name, website_url, notes")
+        .select("name, segment, plan_name, project_type, custom_monthly_value, logo_url, metadata, notes, executive_summary")
         .eq("id", clientId).maybeSingle();
       if (client) { ctx.client = client; sourcesUsed.push("client"); }
     }
@@ -141,8 +200,8 @@ serve(async (req) => {
 
     if (blueprint.sources.includes("metrics")) {
       const { data: metrics } = await supabase.from("metric_snapshots")
-        .select("metric_name, value, unit, captured_at, notes")
-        .eq("client_id", clientId)
+        .select("metric_key, metric_label, metric_value, metric_unit, notes, captured_at")
+        .or(`workspace_id.eq.${workspaceId},client_id.eq.${clientId}`)
         .order("captured_at", { ascending: false })
         .limit(20);
       if (metrics && metrics.length > 0) { ctx.metrics = metrics; sourcesUsed.push("metrics"); }
@@ -264,18 +323,18 @@ serve(async (req) => {
       // timeline_events do workspace (atividade operacional recente)
       const { data: events, error: tlErr } = await supabase
         .from("timeline_events")
-        .select("event_type, title, description, occurred_at, actor_label, metadata")
+        .select("event_type, title, description, happened_at, actor_id, metadata")
         .eq("workspace_id", workspaceId)
-        .order("occurred_at", { ascending: false, nullsFirst: false })
+        .order("happened_at", { ascending: false, nullsFirst: false })
         .limit(20);
       if (tlErr) console.warn("timeline source failed:", tlErr.message);
       if (events && events.length > 0) {
         ctx.timeline = events.map((e) => ({
-          when: e.occurred_at,
+          when: e.happened_at,
           type: e.event_type,
           title: e.title,
           description: (e.description ?? "").slice(0, 500),
-          actor: e.actor_label,
+          actor_id: e.actor_id,
         }));
         sourcesUsed.push("timeline");
       }
@@ -285,18 +344,18 @@ serve(async (req) => {
       // Assets cadastrados no workspace (independente do node atual)
       const { data: wsAssets, error: aErr } = await supabase
         .from("assets")
-        .select("name, asset_type, status, version, url, tags, updated_at")
+        .select("title, asset_type, status, validation_status, external_url, url, tags, version, updated_at")
         .eq("workspace_id", workspaceId)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(25);
       if (aErr) console.warn("workspace_assets source failed:", aErr.message);
       if (wsAssets && wsAssets.length > 0) {
         ctx.workspace_assets = wsAssets.map((a) => ({
-          name: a.name,
+          name: a.title,
           type: a.asset_type,
-          status: a.status,
+          status: a.status ?? a.validation_status,
           version: a.version,
-          url: a.url,
+          url: a.external_url ?? a.url,
           tags: a.tags ?? [],
         }));
         sourcesUsed.push("workspace_assets");
@@ -371,13 +430,24 @@ serve(async (req) => {
       "",
       "REGRAS UNIVERSAIS:",
       "- Use APENAS o contexto fornecido. Nunca invente fatos sobre orçamento, prazo, datas ou nomes próprios.",
-      "- origin='client' = a info vem literal do cliente (form preenchido). origin='auto' = você inferiu do contexto. origin='empty' = falta info.",
-      "- Para campos marcados [DECISÃO HUMANA], use origin='empty' a menos que o cliente tenha declarado explicitamente.",
-      "- SEMPRE cite a fonte em 'citation' quando origin='auto' ou 'client'. Use rótulos curtos:",
-      "  briefing §<n>, contexto:<título>, dossier:<título>, métrica:<nome>, task:<título>, timeline:<título>, asset:<nome>, sibling:<título>.",
-      "- AUTO-CONTEXTO: você recebeu também dossier (decisões-chave), tasks (carga atual), timeline (eventos recentes) e workspace_assets. Use-os pra calibrar tom e prioridade — mas só cite quando realmente influenciar o campo.",
-      "- Seja conciso. Tom profissional, direto, sem floreio.",
-      "- Para listas, prefira 3-5 itens de qualidade vs 10 itens vagos.",
+      "- origin='client' = info literal do cliente. origin='auto' = inferido. origin='empty' = falta info.",
+      "- Para campos [DECISÃO HUMANA], use origin='empty'.",
+      "- Cite fontes em 'citation' quando origin='auto' ou 'client'.",
+      "- AUTO-CONTEXTO: use dossier, tasks, timeline e workspace_assets para calibrar.",
+      "- Seja conciso. Tom profissional, direto.",
+      "",
+      "CAMPOS OBRIGATÓRIOS DE PROFUNDIDADE:",
+      "- 'description' ou 'fullDescription': descrição COMPLETA do que este node faz, por que existe, e como se encaixa no projeto. Mínimo 3 parágrafos.",
+      "- 'execution_plan': plano de ação DETALHADO com passos numerados. O que fazer, como fazer, ferramentas, dados necessários, saída esperada. Mínimo 5 passos.",
+      "- 'acceptance_criteria': critérios claros para marcar como concluído. Mínimo 3 critérios.",
+      "- 'ai_prompt': prompt PRONTO pra copiar e colar no ChatGPT/Gemini/Claude. Específico pro contexto do cliente. Não genérico.",
+      "- 'openclaw_prompt': instrução OPERACIONAL para o OpenClaw executar dentro do sistema. Referencia nodeId, workspaceId, arquivos e acessos.",
+      "- 'responsible': quem deve executar (Estratégia, Design, Tráfego, Automação, Conteúdo, Dev, IA/OpenClaw, Cliente).",
+      "- Checklists: mínimo 5 itens ESPECÍFICOS pro tipo de node e contexto do cliente. Nunca genérico.",
+      "",
+      "DIFERENCIAÇÃO POR TIPO:",
+      "- Cada node é ESPECIALISTA no seu tipo. Node de automação fala de automação. Node de tráfego fala de tráfego.",
+      "- NÃO gere nodes todos iguais. Cada um precisa ter conteúdo único e relevante pro seu papel na esteira.",
     ].join("\n");
 
     const userPrompt = [
@@ -388,55 +458,74 @@ serve(async (req) => {
       "CONTEXTO DISPONÍVEL:",
       JSON.stringify(ctx, null, 2),
       "",
-      "Preencha CADA seção e CADA campo do tool schema 'fill_node_draft'.",
+      "Retorne APENAS o JSON do tool fill_node_draft com todos os campos preenchidos.",
     ].join("\n");
 
-    const modelsToTry = [AI_MODEL, ...AI_MODEL_FALLBACKS];
     let aiResp: Response | null = null;
+    let usedModel = GEMINI_MODELS[0];
     let lastErrText = "";
-    let usedModel = AI_MODEL;
-    for (const m of modelsToTry) {
-      const r = await fetch(AI_GATEWAY_URL, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: m,
-          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-          tools: [toolSchema],
-          tool_choice: { type: "function", function: { name: "fill_node_draft" } },
-        }),
-      });
-      if (r.status === 429) return jsonResponse({ error: "Limite de IA atingido. Tente em 1 minuto." }, 429);
-      if (r.status === 402) return jsonResponse({ error: "Créditos de IA esgotados. Adicione em Settings > Workspace > Usage." }, 402);
-      if (r.ok) { aiResp = r; usedModel = m; break; }
-      lastErrText = await r.text().catch(() => "");
-      console.error(`AI error model=${m} status=${r.status}:`, lastErrText);
-      // Retry on upstream unavailability (503) or rate-limited upstream (500 wrapping 503)
-      const isUpstreamUnavailable = r.status === 503 || lastErrText.includes("UNAVAILABLE") || lastErrText.includes("high demand");
-      if (!isUpstreamUnavailable) break;
+
+    for (const model of GEMINI_MODELS) {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+      const geminiPayload = {
+        contents: [
+          { role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] },
+        ],
+        generationConfig: {
+          temperature: 0.35,
+          responseMimeType: "application/json",
+        },
+      };
+
+      try {
+        const r = await fetch(geminiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(geminiPayload),
+        });
+
+        if (r.ok) {
+          aiResp = r;
+          usedModel = model;
+          break;
+        }
+
+        if (r.status === 503 || r.status === 429) {
+          lastErrText = await r.text();
+          console.warn(`[prefill-node] ${model} retornou ${r.status}, tentando próximo`);
+          await new Promise((res) => setTimeout(res, 2000));
+          continue;
+        }
+
+        lastErrText = await r.text();
+      } catch (err) {
+        lastErrText = (err as Error).message;
+        console.error(`[prefill-node] ${model} erro:`, lastErrText);
+      }
     }
+
     if (!aiResp) {
-      // Graceful fallback: avoid crashing the drawer — return null prefill so UI stays usable.
-      return jsonResponse({
-        prefill: null,
-        cached: false,
-        fallback: true,
-        error: "Modelo de IA temporariamente indisponível. Tente novamente em alguns instantes.",
-      }, 200);
+      return jsonResponse({ error: "IA falhou após tentar todos os modelos", detail: lastErrText.slice(0, 200) }, 502);
     }
 
-    const aiData = await aiResp.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall?.function?.arguments) {
-      return jsonResponse({ error: "IA não retornou estrutura esperada" }, 500);
-    }
+    const aiJson = await aiResp.json();
+    const rawText = aiJson.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    const clean = rawText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
 
-    let parsed: { sections: Record<string, { fields: Record<string, unknown>; ai_notes?: string }> };
+    let parsed: Record<string, any>;
     try {
-      parsed = JSON.parse(toolCall.function.arguments);
-    } catch (e) {
-      return jsonResponse({ error: "JSON inválido da IA: " + (e as Error).message }, 500);
+      parsed = JSON.parse(clean);
+    } catch {
+      const jsonMatch = clean.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try { parsed = JSON.parse(jsonMatch[0]); }
+        catch { return jsonResponse({ error: "IA retornou JSON inválido", detail: clean.slice(0, 300) }, 502); }
+      } else {
+        return jsonResponse({ error: "IA não retornou JSON", detail: clean.slice(0, 300) }, 502);
+      }
     }
+
+    const flatFields = flattenPrefillSections(parsed.sections ?? {});
 
     const payload = {
       blueprint_kind: blueprint.kind,
@@ -445,22 +534,29 @@ serve(async (req) => {
       sources_used: sourcesUsed,
       generated_at: new Date().toISOString(),
       ai_model: usedModel,
-      generated_by: user.id,
+      generated_by: "system",
       schema_version: 1,
     };
 
-    // ── 5. Persiste no node
-    const newMetadata = { ...(node.metadata as Record<string, unknown> | null ?? {}), prefill: payload };
-    const { error: updErr } = await supabase
-      .from("canvas_nodes")
-      .update({ metadata: newMetadata, updated_at: new Date().toISOString() })
-      .eq("id", nodeId);
-    if (updErr) {
-      console.error("update error:", updErr);
-      // Não falha — devolve o payload mesmo assim
+    if (nodeId) {
+      const newMetadata = { ...((node?.metadata as Record<string, unknown> | null) ?? {}), prefill: payload };
+      const { error: updErr } = await supabase
+        .from("canvas_nodes")
+        .update({ metadata: newMetadata, updated_at: new Date().toISOString() })
+        .eq("id", nodeId);
+      if (updErr) console.error("update error:", updErr);
     }
 
-    return jsonResponse({ prefill: payload, cached: false });
+    const response = {
+      prefill: payload,
+      cached: false,
+      fields: flatFields,
+      agent_id: "prefill-node",
+      model_used: usedModel,
+      sources_used: sourcesUsed,
+    };
+
+    return jsonResponse(response);
   } catch (e) {
     console.error("prefill-node error:", e);
     return jsonResponse({ error: e instanceof Error ? e.message : "Erro inesperado" }, 500);
