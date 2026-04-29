@@ -334,8 +334,22 @@ export const NODE_INTELLIGENCE: Record<string, NodeIntelligence> = {
 
 export function getNodeIntelligence(nodeType: string | null | undefined): NodeIntelligence {
   const key = (nodeType ?? "default").toLowerCase();
-  return NODE_INTELLIGENCE[key] ?? NODE_INTELLIGENCE.default;
+  const base = NODE_INTELLIGENCE[key] ?? NODE_INTELLIGENCE.default;
+  return { ...base, fields: [...base.fields, ...UNIVERSAL_FIELDS] };
 }
+
+/**
+ * Campos universais — aplicados a todo node além dos específicos do blueprint.
+ * Garantem que o prefill IA gere atribuição, plano de execução, critérios e
+ * prompts (IA + OpenClaw) para qualquer tipo.
+ */
+const UNIVERSAL_FIELDS: NodeField[] = [
+  { key: "responsible", label: "Responsável", hint: "Quem deve executar (Estratégia, Design, Tráfego, Automação, Conteúdo, Dev, IA/OpenClaw, Cliente)", maxLength: 80 },
+  { key: "execution_plan", label: "Plano de execução", hint: "Passos práticos para executar esta etapa: o que fazer, como fazer, ferramentas, saída esperada", minLength: 150, maxLength: 1500 },
+  { key: "acceptance_criteria", label: "Critérios de aprovação", hint: "Quando este node pode ser marcado como concluído (com números/marcos verificáveis)", minLength: 60, maxLength: 600 },
+  { key: "ai_prompt", label: "Prompt IA", hint: "Prompt pronto pra copiar e usar em ChatGPT/Gemini/Claude para executar esta etapa", minLength: 80, maxLength: 1500 },
+  { key: "openclaw_prompt", label: "Prompt OpenClaw", hint: "Instrução para o OpenClaw executar esta etapa dentro do sistema", minLength: 80, maxLength: 1500 },
+];
 
 /** Constrói prompt estruturado para a IA preencher o node */
 export function buildNodePrompt(intelligence: NodeIntelligence, nodeTitle: string): string {

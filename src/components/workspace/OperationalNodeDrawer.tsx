@@ -755,6 +755,69 @@ const DEFAULT_CONFIG: KindConfig = {
   ],
 };
 
+// ─── Universal sections ─────────────────────────────────────
+// Aplicadas a todo node (prepended para "Atribuição" e appended para "Operação").
+// Persistem em data.fields como qualquer outro campo.
+const UNIVERSAL_PRE_SECTION: SectionDef = {
+  id: "atribuicao",
+  title: "Atribuição",
+  fields: [
+    {
+      id: "responsible",
+      label: "Responsável",
+      type: "select",
+      options: ["Estratégia", "Design", "Tráfego", "Automação", "Conteúdo", "Dev", "IA/OpenClaw", "Cliente"],
+    },
+    {
+      id: "priority",
+      label: "Prioridade",
+      type: "select",
+      options: ["Crítica", "Alta", "Média", "Baixa"],
+    },
+    { id: "due_date", label: "Prazo", type: "text", placeholder: "Ex: 05/05/2026" },
+  ],
+};
+
+const UNIVERSAL_POST_SECTION: SectionDef = {
+  id: "operacao",
+  title: "Plano de execução",
+  description: "Como executar, validar e operar este node.",
+  fields: [
+    {
+      id: "execution_plan",
+      label: "Plano de execução",
+      type: "textarea",
+      rows: 4,
+      placeholder: "O que fazer, como fazer, ferramentas necessárias, saída esperada...",
+    },
+    {
+      id: "acceptance_criteria",
+      label: "Critérios de aprovação",
+      type: "textarea",
+      rows: 2,
+      placeholder: "Quando este node pode ser marcado como concluído?",
+    },
+    {
+      id: "ai_prompt",
+      label: "Prompt recomendado (IA)",
+      type: "textarea",
+      rows: 3,
+      placeholder: "Prompt para usar com ChatGPT, Gemini ou Claude...",
+    },
+    {
+      id: "openclaw_prompt",
+      label: "Prompt para OpenClaw",
+      type: "textarea",
+      rows: 3,
+      placeholder: "Instrução para o OpenClaw executar esta etapa...",
+    },
+  ],
+};
+
+function withUniversalSections(cfg: KindConfig): KindConfig {
+  return { ...cfg, sections: [UNIVERSAL_PRE_SECTION, ...cfg.sections, UNIVERSAL_POST_SECTION] };
+}
+
 // ─── Main Component ──────────────────────────────────────────
 
 export default function OperationalNodeDrawer({
@@ -762,7 +825,8 @@ export default function OperationalNodeDrawer({
   onDelete, onUpdated, onOpenChat,
 }: Props) {
   const kind = resolveProjectNodeKind({ nodeType: node.node_type, data: node.data }) as ProjectNodeKind | null;
-  const config = (kind && KIND_CONFIGS[kind]) || DEFAULT_CONFIG;
+  const baseConfig = (kind && KIND_CONFIGS[kind]) || DEFAULT_CONFIG;
+  const config = withUniversalSections(baseConfig);
   const meta = kind ? getProjectTypeMeta(kind) : null;
 
   const [title, setTitle] = useState(node.title);
@@ -786,10 +850,23 @@ export default function OperationalNodeDrawer({
   const save = useCallback(async () => {
     setSaving(true);
     const currentData = (node.data as Record<string, unknown> | null) ?? {};
+    // Persiste também description na coluna canvas_nodes.description
+    // priorizando o campo "description" do form, com fallback para fullDescription
+    // ou o valor antigo do node (não sobrescreve com null).
+    const nextDescription =
+      (typeof values.description === "string" && values.description.trim().length > 0
+        ? values.description
+        : null) ??
+      (typeof values.fullDescription === "string" && values.fullDescription.trim().length > 0
+        ? values.fullDescription
+        : null) ??
+      node.description ??
+      null;
     const { error } = await supabase
       .from("canvas_nodes")
       .update({
         title,
+        description: nextDescription,
         status,
         data: { ...currentData, fields: values, lastEditedAt: new Date().toISOString() },
         updated_at: new Date().toISOString(),
@@ -807,7 +884,7 @@ export default function OperationalNodeDrawer({
     });
     toast({ title: "Salvo", description: `${config.title} atualizado.` });
     await onUpdated?.();
-  }, [node.id, node.data, node.status, workspaceId, clientId, title, status, values, config.title, onUpdated]);
+  }, [node.id, node.data, node.status, node.description, workspaceId, clientId, title, status, values, config.title, onUpdated]);
 
   const prefillWithAI = useCallback(async () => {
     setPrefilling(true);
