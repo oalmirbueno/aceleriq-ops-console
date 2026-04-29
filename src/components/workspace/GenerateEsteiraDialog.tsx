@@ -4,8 +4,16 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, Loader2, Check, Brain, RefreshCw, AlertTriangle } from "lucide-react";
-import { ESTEIRA_TEMPLATES, type EsteiraTemplate, getEsteiraTemplateForPlan, getEsteiraTemplateForType } from "./esteiraTemplates";
+import { Sparkles, Loader2, Check, Brain, RefreshCw, AlertTriangle, ChevronDown } from "lucide-react";
+import {
+  ESTEIRA_TEMPLATES,
+  type EsteiraTemplate,
+  getEsteiraTemplateForPlan,
+  getEsteiraTemplateForType,
+  DELIVERY_TYPES,
+  type DeliveryType,
+  inferDeliveryTypeFromProjectType,
+} from "./esteiraTemplates";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import EsteiraTemplatePreview from "./EsteiraTemplatePreview";
@@ -42,6 +50,9 @@ export default function GenerateEsteiraDialog({
 }: Props) {
   const [planName, setPlanName] = useState<string | null>(null);
   const [selectedKey, setSelectedKey] = useState<string>("growth");
+  const [deliveryType, setDeliveryType] = useState<DeliveryType>("custom_project");
+  const [showClassic, setShowClassic] = useState(false);
+  const [contextHint, setContextHint] = useState<string | null>(null);
 
   // ─── Modo Inteligente (IA) ──────────────────────────────────────────
   const [aiResult, setAiResult] = useState<AiResult | null>(null);
@@ -69,6 +80,18 @@ export default function GenerateEsteiraDialog({
         ? getEsteiraTemplateForType(projectType)
         : getEsteiraTemplateForPlan(plan);
       setSelectedKey(recommended.key);
+
+      // Pré-seleciona delivery type a partir do project_type / briefing
+      setDeliveryType(inferDeliveryTypeFromProjectType(projectType));
+
+      // Contexto detectado pra mostrar acima do textarea
+      const ctxParts = [
+        data?.company_name || data?.name,
+        data?.segment,
+        eb.positioning,
+        eb.scope,
+      ].filter(Boolean) as string[];
+      setContextHint(ctxParts.length ? ctxParts.join(" · ") : null);
 
       // Auto-preenche hint com contexto do briefing se ainda estiver vazio
       setAiHint((current) => {
@@ -104,7 +127,7 @@ export default function GenerateEsteiraDialog({
     setAiError(null);
     try {
       const { data, error } = await supabase.functions.invoke("generate-esteira-ai", {
-        body: { clientId, workspaceId, hint: aiHint.trim() || undefined },
+        body: { clientId, workspaceId, hint: aiHint.trim() || undefined, deliveryType },
       });
       if (error || data?.error) {
         const msg = (data?.error ?? error?.message) as string | undefined;
