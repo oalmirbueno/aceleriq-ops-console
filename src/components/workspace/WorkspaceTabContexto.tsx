@@ -32,6 +32,7 @@ import { CONTEXT_TYPES, getContextLabel, type ContextType } from "./contextTypes
 import { type BriefingKind } from "@/lib/briefingToken";
 import { exportBriefingPdf, exportBriefingMarkdown, type ConsolidatedBriefing } from "@/lib/briefingExport";
 import { cn } from "@/lib/utils";
+import { syncBriefingUpdatedForClient } from "./syncToPortalEvents";
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -469,6 +470,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
       tags: normalizeTags(form.tags), is_key_decision: form.is_key_decision,
     });
     if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); throw error; }
+    if (form.context_type === "briefing") syncBriefingUpdatedForClient(clientId);
     if (form.is_key_decision || form.context_type === "decisao") {
       await supabase.from("timeline_events").insert({
         workspace_id: workspaceId, client_id: clientId, event_type: "context_added",
@@ -490,6 +492,7 @@ export default function WorkspaceTabContexto({ workspaceId, clientId, clientName
       is_key_decision: form.is_key_decision,
     }).eq("id", editEntry.id);
     if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); throw error; }
+    if (form.context_type === "briefing" || editEntry.context_type === "briefing") syncBriefingUpdatedForClient(clientId);
     toast({ title: "Atualizado" });
     setEditEntry(null);
     await fetchEntries();

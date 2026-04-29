@@ -18,24 +18,26 @@ import {
   type NodeForScore,
 } from "@/lib/aiFirstScore";
 import { cn } from "@/lib/utils";
+import { syncScoresUpdated } from "./syncToPortalEvents";
 
 interface Props {
   clientId: string;
   planName: string | null;
   variant?: "full" | "compact";
+  workspaceId?: string | null;
   /** Pass pre-fetched nodes to avoid duplicate query */
   preloadedNodes?: NodeForScore[];
 }
 
-export default function AIFirstScoreCard({ clientId, planName, variant = "full", preloadedNodes }: Props) {
+export default function AIFirstScoreCard({ clientId, planName, variant = "full", workspaceId, preloadedNodes }: Props) {
   const [score, setScore] = useState<AIFirstScore | null>(null);
   const [loading, setLoading] = useState(!preloadedNodes);
 
   useEffect(() => {
     if (preloadedNodes) {
-      const s = calculateAIFirstScore(preloadedNodes, planName);
-      setScore(s);
-      persistScore(clientId, s);
+      const calculated = calculateAIFirstScore(preloadedNodes, planName);
+      setScore(calculated);
+      persistScore(clientId, calculated, workspaceId);
       setLoading(false);
       return;
     }
@@ -47,14 +49,14 @@ export default function AIFirstScoreCard({ clientId, planName, variant = "full",
         .select("node_type, data")
         .eq("client_id", clientId);
       if (!cancelled) {
-        const s = calculateAIFirstScore((data ?? []) as NodeForScore[], planName);
-        setScore(s);
-        persistScore(clientId, s);
+        const calculated = calculateAIFirstScore((data ?? []) as NodeForScore[], planName);
+        setScore(calculated);
+        persistScore(clientId, calculated, workspaceId);
         setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [clientId, planName, preloadedNodes]);
+  }, [clientId, planName, workspaceId, preloadedNodes]);
 
   if (variant === "compact") {
     return <CompactBadge score={score} loading={loading} />;
@@ -63,7 +65,7 @@ export default function AIFirstScoreCard({ clientId, planName, variant = "full",
 }
 
 // Persiste o AI-First Score em clients.metadata — fire-and-forget
-function persistScore(clientId: string, score: AIFirstScore | null) {
+function persistScore(clientId: string, score: AIFirstScore | null, workspaceId?: string | null) {
   if (!score || !clientId) return;
   (async () => {
     const { data: current } = await supabase
@@ -72,6 +74,7 @@ function persistScore(clientId: string, score: AIFirstScore | null) {
     await supabase.from("clients").update({
       metadata: { ...meta, ai_first_score: score, ai_first_score_at: new Date().toISOString() },
     }).eq("id", clientId);
+    syncScoresUpdated({ workspaceId, clientId, aiFirstScore: score.score });
   })().catch(() => {});
 }
 

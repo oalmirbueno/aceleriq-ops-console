@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { ACELERA_STAGES, getProjectTypeMeta, getStageMeta, type AceleraStageKey, type ProjectNodeKind } from "./canvasProjectTypes";
 import { ESTEIRA_STATUSES, getEsteiraStatus, mapLegacyStatus, premiumStatusToDb } from "./canvasEsteiraStatus";
+import { syncNodeCompletedWhenDone } from "./syncToPortalEvents";
 import AttachmentUploader, { type AttachmentItem } from "./AttachmentUploader";
 import ClientAvatar from "./ClientAvatar";
 import BriefingConsolidatedView from "./BriefingConsolidatedView";
@@ -126,11 +127,12 @@ export default function ProjectNodeDrawer({
       attachments,
       metrics,
     };
+    const nextStatus = premiumStatusToDb(statusPremium);
     const { error } = await supabase
       .from("canvas_nodes")
       .update({
         title: title.trim() || node.title,
-        status: premiumStatusToDb(statusPremium),
+        status: nextStatus,
         description: description.trim() || null,
         data: newData,
         updated_at: new Date().toISOString(),
@@ -140,6 +142,14 @@ export default function ProjectNodeDrawer({
     if (error) {
       toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
     } else {
+      syncNodeCompletedWhenDone({
+        previousStatus: node.status,
+        nextStatus,
+        workspaceId,
+        clientId,
+        nodeId: node.id,
+        nodeTitle: title.trim() || node.title,
+      });
       toast({ title: "Salvo", description: meta?.label ?? "Node atualizado" });
       await onUpdated();
     }

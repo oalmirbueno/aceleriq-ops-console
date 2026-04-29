@@ -26,6 +26,7 @@ import {
 import { calculateICPFitScore, getICPLevelColor, getICPLevelLabel, getPlanDisplayName } from "@/lib/icpFitScore";
 import { getPlanConfig, type PlanKey } from "@/lib/planConfig";
 import { cn } from "@/lib/utils";
+import { syncBriefingUpdatedForClient } from "./syncToPortalEvents";
 
 interface Props {
   open: boolean;
@@ -118,6 +119,7 @@ export default function DiagnosticQuizDialog({ open, onOpenChange, clientId, cli
         .update({ metadata: nextMeta, updated_at: new Date().toISOString() })
         .eq("id", clientId);
       if (error) throw error;
+      syncBriefingUpdatedForClient(clientId);
       toast({ title: "Diagnóstico salvo", description: `${answeredCount} respostas salvas no briefing essencial` });
       onCompleted?.();
       onOpenChange(false);

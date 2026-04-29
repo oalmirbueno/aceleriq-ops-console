@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
 import { CONTEXT_TYPES, type ContextType, getContextLabel } from "./contextTypes";
+import { syncBriefingUpdatedForClient } from "./syncToPortalEvents";
 
 interface ParsedEntry {
   context_type: ContextType;
@@ -262,6 +263,7 @@ export default function ImportContextDialog({ open, onOpenChange, workspaceId, c
 
     const { error } = await supabase.from("context_entries").insert(rows);
     if (error) { toast({ title: "Erro ao importar", description: error.message, variant: "destructive" }); throw error; }
+    if (rows.some((r) => r.context_type === "briefing")) syncBriefingUpdatedForClient(clientId);
 
     const important = rows.filter((r) => r.context_type === "decisao");
     if (important.length > 0) {

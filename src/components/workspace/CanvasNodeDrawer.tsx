@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ExternalLink, Link2, ListPlus, Trash2, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { syncNodeCompletedWhenDone } from "./syncToPortalEvents";
 import {
   CANVAS_STATUS_OPTIONS, getCanvasTypeConfig, getCanvasStatusConfig,
   LINKABLE_TYPES, ENTITY_TAB_HINT,
@@ -20,6 +21,7 @@ import { CANVAS_TIMELINE_EVENT_TYPE, buildCanvasTitle, buildCanvasDescription } 
 export interface CanvasNodeRecord {
   id: string;
   workspace_id: string;
+  client_id?: string | null;
   node_type: string;
   title: string;
   status: string;
@@ -131,6 +133,14 @@ export default function CanvasNodeDrawer({
     if (error) {
       toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
     } else {
+      syncNodeCompletedWhenDone({
+        previousStatus: node.status,
+        nextStatus: status,
+        workspaceId,
+        clientId,
+        nodeId: node.id,
+        nodeTitle: title.trim() || node.title,
+      });
       toast({ title: "Node atualizado" });
       await onUpdated();
     }

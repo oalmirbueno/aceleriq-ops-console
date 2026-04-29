@@ -514,7 +514,7 @@ export default function WorkspaceDetailPage() {
         return (
           <div className={`grid gap-3 px-6 py-3 ${gridCols}`}>
             {typeMeta.showAiFirstScore && (
-              <AIFirstScoreCard clientId={ws.client_id} planName={planName} variant="full" />
+              <AIFirstScoreCard clientId={ws.client_id} workspaceId={ws.id} planName={planName} variant="full" />
             )}
             {typeMeta.showHealthScore && (
               <HealthScoreCard

@@ -17,6 +17,7 @@ import {
   type HealthScore, type HealthSignals,
 } from "@/lib/healthScore";
 import { cn } from "@/lib/utils";
+import { syncScoresUpdated } from "./syncToPortalEvents";
 
 interface Props {
   clientId: string;
@@ -109,6 +110,7 @@ export default function HealthScoreCard({ clientId, workspaceId, clientMetadata,
             await supabase.from("clients").update({
               metadata: { ...meta, health_score: calculated, health_score_at: new Date().toISOString() },
             }).eq("id", clientId);
+            syncScoresUpdated({ workspaceId, clientId, healthScore: calculated.score });
           })().catch(() => {});
         }
         setLoading(false);

@@ -17,6 +17,7 @@ import {
   ENTERPRISE_DOC_SIGNALS,
   type EnterpriseBlock,
 } from "./enterpriseStructuringBlocks";
+import { syncBriefingUpdatedForClient } from "./syncToPortalEvents";
 
 interface Props {
   open: boolean;
@@ -145,6 +146,8 @@ export default function EnterpriseStructuringDialog({ open, onOpenChange, worksp
         setSaving(false);
         return;
       }
+
+      syncBriefingUpdatedForClient(clientId);
 
       await supabase.from("timeline_events").insert({
         workspace_id: workspaceId,

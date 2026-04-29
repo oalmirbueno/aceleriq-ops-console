@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { BriefingType } from "./aceleraConstants";
 import { extractStructuredSignals } from "./briefingSignals";
+import { syncBriefingUpdatedForClient } from "./syncToPortalEvents";
 
 /* ─── PDF text extraction ─── */
 
@@ -144,6 +145,8 @@ export default function ImportBriefingDialog({ open, onOpenChange, workspaceId, 
         setSaving(false);
         return;
       }
+
+      syncBriefingUpdatedForClient(clientId);
 
       await supabase.from("timeline_events").insert({
         workspace_id: workspaceId,

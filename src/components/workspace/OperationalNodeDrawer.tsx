@@ -27,6 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Save, Trash2, Sparkles, MessageCircle, Loader2, CheckCircle2, Circle, Workflow } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { syncNodeCompletedWhenDone } from "./syncToPortalEvents";
 import { getProjectTypeMeta, resolveProjectNodeKind, type ProjectNodeKind } from "./canvasProjectTypes";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 
@@ -796,9 +797,17 @@ export default function OperationalNodeDrawer({
       .eq("id", node.id);
     setSaving(false);
     if (error) { toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }); return; }
+    syncNodeCompletedWhenDone({
+      previousStatus: node.status,
+      nextStatus: status,
+      workspaceId,
+      clientId,
+      nodeId: node.id,
+      nodeTitle: title,
+    });
     toast({ title: "Salvo", description: `${config.title} atualizado.` });
     await onUpdated?.();
-  }, [node.id, node.data, title, status, values, config.title, onUpdated]);
+  }, [node.id, node.data, node.status, workspaceId, clientId, title, status, values, config.title, onUpdated]);
 
   const prefillWithAI = useCallback(async () => {
     setPrefilling(true);

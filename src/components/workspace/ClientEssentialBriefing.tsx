@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { syncBriefingUpdatedForClient } from "./syncToPortalEvents";
 
 interface EssentialBriefing {
   positioning: string;
@@ -110,6 +111,7 @@ export default function ClientEssentialBriefing({ clientId, initialMetadata, onS
         .update({ metadata: nextMeta, updated_at: new Date().toISOString() })
         .eq("id", clientId);
       if (error) throw error;
+      syncBriefingUpdatedForClient(clientId);
       toast({ title: "Briefing salvo", description: "Todos os workspaces deste cliente usam este contexto." });
       setDirty(false);
       onSaved?.();

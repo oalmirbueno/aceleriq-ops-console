@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
+import { syncNodeCompletedWhenDone } from "./syncToPortalEvents";
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -62,10 +63,18 @@ export function useSaveNode(node: CanvasNodeRecord, workspaceId: string, onUpdat
     }).eq("id", node.id);
     setSaving(false);
     if (error) { toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }); return false; }
+    syncNodeCompletedWhenDone({
+      previousStatus: node.status,
+      nextStatus: status,
+      workspaceId,
+      clientId: node.client_id,
+      nodeId: node.id,
+      nodeTitle: title.trim() || node.title,
+    });
     toast({ title: "Salvo" });
     await onUpdated?.();
     return true;
-  }, [title, status, node, onUpdated]);
+  }, [title, status, node, workspaceId, onUpdated]);
 
   return { title, setTitle, status, setStatus, saving, save };
 }
