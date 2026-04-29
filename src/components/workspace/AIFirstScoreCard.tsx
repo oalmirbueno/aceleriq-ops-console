@@ -33,7 +33,9 @@ export default function AIFirstScoreCard({ clientId, planName, variant = "full",
 
   useEffect(() => {
     if (preloadedNodes) {
-      setScore(calculateAIFirstScore(preloadedNodes, planName));
+      const s = calculateAIFirstScore(preloadedNodes, planName);
+      setScore(s);
+      persistScore(clientId, s);
       setLoading(false);
       return;
     }
@@ -45,7 +47,9 @@ export default function AIFirstScoreCard({ clientId, planName, variant = "full",
         .select("node_type, data")
         .eq("client_id", clientId);
       if (!cancelled) {
-        setScore(calculateAIFirstScore((data ?? []) as NodeForScore[], planName));
+        const s = calculateAIFirstScore((data ?? []) as NodeForScore[], planName);
+        setScore(s);
+        persistScore(clientId, s);
         setLoading(false);
       }
     })();
@@ -56,6 +60,19 @@ export default function AIFirstScoreCard({ clientId, planName, variant = "full",
     return <CompactBadge score={score} loading={loading} />;
   }
   return <FullCard score={score} loading={loading} />;
+}
+
+// Persiste o AI-First Score em clients.metadata — fire-and-forget
+function persistScore(clientId: string, score: AIFirstScore | null) {
+  if (!score || !clientId) return;
+  (async () => {
+    const { data: current } = await supabase
+      .from("clients").select("metadata").eq("id", clientId).single();
+    const meta = (current?.metadata as Record<string, any>) ?? {};
+    await supabase.from("clients").update({
+      metadata: { ...meta, ai_first_score: score, ai_first_score_at: new Date().toISOString() },
+    }).eq("id", clientId);
+  })().catch(() => {});
 }
 
 // ═══ Compact badge ═══════════════════════════════════════════
