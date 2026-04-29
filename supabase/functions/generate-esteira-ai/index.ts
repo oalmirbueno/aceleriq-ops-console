@@ -75,6 +75,32 @@ function json(body: unknown, status = 200) {
   });
 }
 
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok) return res;
+
+      if (res.status === 503 || res.status === 429) {
+        const wait = attempt * 2000;
+        console.warn(`[generate-esteira-ai] Gemini ${res.status}, retry ${attempt}/${maxRetries} em ${wait}ms`);
+        await new Promise((r) => setTimeout(r, wait));
+        continue;
+      }
+
+      return res;
+    } catch (err) {
+      lastError = err as Error;
+      console.error(`[generate-esteira-ai] Fetch erro tentativa ${attempt}:`, lastError.message);
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, attempt * 2000));
+      }
+    }
+  }
+  throw lastError ?? new Error("Gemini falhou após 3 tentativas");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -234,33 +260,31 @@ Formato do JSON:
       },
     };
 
-    let aiRes = await fetch(geminiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(geminiPayload),
-    });
-
-    if (!aiRes.ok) {
-      const primaryError = await aiRes.text();
-      console.error("Gemini API error:", aiRes.status, primaryError);
-
-      const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
-      const fallbackRes = await fetch(fallbackUrl, {
+    let aiRes: Response;
+    try {
+      aiRes = await fetchWithRetry(geminiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(geminiPayload),
       });
+    } catch (err) {
+      console.warn("[generate-esteira-ai] Flash falhou, tentando flash-lite", err instanceof Error ? err.message : String(err));
+      const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
+      aiRes = await fetchWithRetry(fallbackUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(geminiPayload),
+      });
+    }
 
-      if (!fallbackRes.ok) {
-        const errText = await fallbackRes.text();
-        return json({ error: `Gemini falhou: ${fallbackRes.status}`, detail: errText.slice(0, 300) }, 502);
-      }
-
-      aiRes = fallbackRes;
+    if (!aiRes.ok) {
+      const errText = await aiRes.text();
+      console.error("[generate-esteira-ai] Gemini final error:", aiRes.status, errText);
+      return json({ error: `Gemini falhou: ${aiRes.status}`, detail: errText.slice(0, 300) }, 502);
     }
 
     const aiData = await aiRes.json();
-    const rawText = aiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+    const rawText = aiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     const clean = rawText
       .replace(/```json\n?/g, "")
       .replace(/```\n?/g, "")
@@ -279,12 +303,12 @@ Formato do JSON:
     } catch {
       const jsonMatch = clean.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        return json({ error: "Gemini retornou texto não-JSON", detail: clean.slice(0, 200) }, 500);
+        return json({ error: "IA não retornou JSON.", detail: clean.slice(0, 300) }, 502);
       }
       try {
         parsed = JSON.parse(jsonMatch[0]);
       } catch (e) {
-        return json({ error: "Falha ao parsear resposta da IA: " + String(e), detail: clean.slice(0, 200) }, 500);
+        return json({ error: "IA retornou formato inválido.", detail: clean.slice(0, 300) }, 502);
       }
     }
 
