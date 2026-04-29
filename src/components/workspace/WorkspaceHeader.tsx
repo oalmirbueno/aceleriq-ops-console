@@ -29,21 +29,17 @@ export default function WorkspaceHeader({
   return (
     <div className="space-y-5 rounded-lg border border-border bg-card p-5 shadow-sm">
       <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-        <div className="min-w-0">
-          <p className="label-sm mb-2 inline-flex items-center gap-1.5">
-            Workspace em execução
+        <div className="min-w-0 flex-1">
+          <p className="label-sm mb-3 flex items-center gap-1.5">
+            <span>Workspace em execução</span>
             <span className="text-muted-foreground/60">·</span>
-            <span className="text-muted-foreground">{clientName}</span>
+            <span className="text-muted-foreground truncate">{clientName}</span>
           </p>
-          <h1 className="truncate text-3xl font-semibold tracking-tight text-foreground inline-flex items-center gap-2">
-            {showProject ? (
-              <>
-                <FolderKanban className="h-6 w-6 text-primary/70 shrink-0" />
-                <span className="truncate">{projectName}</span>
-              </>
-            ) : (
-              <span className="truncate">{clientName}</span>
+          <h1 className="flex items-center gap-3 text-3xl font-semibold leading-tight tracking-tight text-foreground min-w-0">
+            {showProject && (
+              <FolderKanban className="h-7 w-7 text-primary/70 shrink-0" />
             )}
+            <span className="truncate">{showProject ? projectName : clientName}</span>
           </h1>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <Badge variant="outline" className="h-7 px-3 text-xs">{status}</Badge>
