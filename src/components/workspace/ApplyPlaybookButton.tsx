@@ -201,9 +201,52 @@ export default function ApplyPlaybookButton({
         happened_at: new Date().toISOString(),
       });
 
+      // ═══ Prefill automático em background ═══
+      // Para cada node criado, dispara prefill-node em fire-and-forget pra que a IA
+      // preencha descrição/campos com o contexto real do cliente.
+      const insertedNodes = (created as Array<{ id: string; title: string | null; description: string | null; data: any }> | null) ?? [];
+      const skipKinds = new Set(["client", "chat_node", "ai_orb"]);
+      let prefillCount = 0;
+      insertedNodes.forEach((node) => {
+        const kind = (node.data as Record<string, any> | null)?.kind as string | undefined;
+        if (!kind || skipKinds.has(kind)) return;
+        prefillCount++;
+        supabase.functions
+          .invoke("prefill-node", {
+            body: {
+              workspaceId,
+              clientId,
+              nodeId: node.id,
+              nodeKind: kind,
+              kind,
+              currentTitle: node.title,
+            },
+          })
+          .then(({ data }) => {
+            const fields = (data as any)?.fields;
+            if (!fields) return;
+            const currentData = (node.data as Record<string, any> | null) ?? {};
+            void supabase
+              .from("canvas_nodes")
+              .update({
+                description: fields.description ?? node.description,
+                data: {
+                  ...currentData,
+                  ...fields,
+                  prefilled: true,
+                  prefilled_at: new Date().toISOString(),
+                },
+              })
+              .eq("id", node.id);
+          })
+          .catch(() => { /* silencioso — prefill é best-effort */ });
+      });
+
       toast({
         title: "Playbook aplicado ✓",
-        description: `${pb.nodes.length} nodes · ${pb.edges.length} conexões criados`,
+        description: prefillCount > 0
+          ? `${pb.nodes.length} nodes · ${pb.edges.length} conexões. IA preenchendo ${prefillCount} nodes em background…`
+          : `${pb.nodes.length} nodes · ${pb.edges.length} conexões criados`,
       });
       setOpen(false);
       await onApplied?.();
