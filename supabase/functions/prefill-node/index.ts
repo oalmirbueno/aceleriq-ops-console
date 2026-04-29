@@ -99,6 +99,79 @@ function flattenPrefillSections(sections: Record<string, { fields: Record<string
   return flat;
 }
 
+function roleForKind(kind: string) {
+  const k = kind.toLowerCase();
+  if (k.includes("traf")) return "Tráfego";
+  if (k.includes("conte")) return "Conteúdo";
+  if (k.includes("design")) return "Design";
+  if (k.includes("estrat")) return "Estratégia";
+  if (k.includes("dev") || k.includes("tech") || k.includes("tecn")) return "Dev";
+  if (k.includes("cliente")) return "Cliente";
+  if (k.includes("auto") || k.includes("automat")) return "Automação";
+  return "IA/OpenClaw";
+}
+
+function buildUniversalFallbacks(kind: string, title: string, ctx: Record<string, unknown>, sourcesUsed: string[]) {
+  const client = (ctx.client ?? {}) as Record<string, unknown>;
+  const clientName = typeof client.name === "string" && client.name.trim() ? client.name : "o cliente";
+  const segment = typeof client.segment === "string" && client.segment.trim() ? ` Segmento: ${client.segment}.` : "";
+  const planName = typeof client.plan_name === "string" && client.plan_name.trim() ? ` Plano: ${client.plan_name}.` : "";
+  const summaryBits = [segment, planName, sourcesUsed.length ? `Fontes usadas: ${sourcesUsed.join(", ")}.` : ""].filter(Boolean);
+  const summary = summaryBits.length ? ` ${summaryBits.join(" ")}` : "";
+  const role = roleForKind(kind);
+
+  return {
+    description:
+      `Este node de ${kind} estrutura a iniciativa "${title}" como uma etapa operacional clara, com foco em resultado, responsabilidade e próxima ação. Ele existe para transformar o contexto do projeto em trabalho executável, reduzindo ambiguidade e deixando explícito o que precisa ser feito, por quem e em que sequência. O objetivo é conectar intenção estratégica, contexto do cliente e execução prática dentro da esteira do workspace.${summary}\n\n` +
+      `Na prática, o node ajuda a organizar o raciocínio em torno de ${clientName}, preservando o que já foi levantado em briefing, context entries, tarefas, timeline e assets do workspace. Em vez de um rascunho genérico, ele deve refletir a realidade operacional do cliente e o tipo do node, priorizando o que é mais útil para avançar o projeto agora.\n\n` +
+      `Como entregável, ele serve tanto para orientar a equipe humana quanto para orientar automações e agentes de IA/OpenClaw. A leitura final precisa deixar evidente o propósito do node, o valor esperado, a dependência de outras etapas e o padrão mínimo de qualidade para seguir adiante.`,
+    responsible: role,
+    execution_plan:
+      `1. Ler o contexto do cliente e do workspace, confirmando o que está explícito em briefing, context entries, tasks, timeline e assets.\n` +
+      `2. Traduzir o objetivo de "${title}" em uma sequência objetiva de trabalho, separando diagnóstico, definição, produção e validação.\n` +
+      `3. Identificar dependências, entradas necessárias e pontos de decisão humana para evitar retrabalho ou suposições.\n` +
+      `4. Executar a tarefa principal do node com linguagem e critérios adequados ao tipo ${kind}, mantendo foco em entrega prática e aplicável.\n` +
+      `5. Validar se a saída gerada cobre o contexto do cliente, se está consistente com as fontes disponíveis e se pode ser acionada imediatamente pela equipe ou pelo OpenClaw.\n` +
+      `6. Registrar próximos passos, pendências e critérios de aceite para que o node se conecte bem à próxima etapa da esteira.`,
+    acceptance_criteria: [
+      `O conteúdo do node descreve claramente o que será feito em ${title}.`,
+      `Há sequência operacional suficiente para orientar execução humana ou automatizada.`,
+      `Os pontos de decisão humana estão explícitos e não foram inferidos sem base.`,
+      `O texto está específico para o tipo ${kind} e não soa genérico.`,
+    ],
+    ai_prompt:
+      `Você é um especialista em ${kind}. Contexto: ${title}. O cliente é ${clientName}.${summary}\n\n` +
+      `Produza um rascunho aprofundado, operacional e específico. Não seja genérico. Considere briefing, tarefas, timeline e assets do workspace. Entregue descrição, plano de execução, critérios de aceite, checklist e recomendações com foco na realidade do projeto.`,
+    openclaw_prompt:
+      `OpenClaw: execute o node ${title} do tipo ${kind} usando o workspace disponível, conciliando as fontes já carregadas no contexto. Verifique nodeId/workspaceId antes de atuar, respeite decisões humanas em aberto e priorize a próxima ação com maior impacto operacional. Gere uma saída pronta para revisão e continuidade pela equipe ${role}.`,
+    checklist: [
+      `Validar contexto do cliente antes de iniciar.`,
+      `Confirmar se a saída está alinhada ao tipo ${kind}.`,
+      `Checar dependências e decisões humanas pendentes.`,
+      `Garantir que o texto não está genérico nem repetitivo.`,
+      `Revisar se há caminho claro para execução imediata.`,
+    ],
+    howTo:
+      `1. Ler contexto. 2. Estruturar a lógica do node. 3. Detalhar execução. 4. Validar aceite. 5. Preparar handoff.`,
+    notes:
+      `Fallback gerado automaticamente quando a IA não retorna estrutura útil suficiente.`,
+  };
+}
+
+function extractFieldValue(parsed: Record<string, any>, sectionId: string, fieldId: string) {
+  return (
+    parsed?.sections?.[sectionId]?.fields?.[fieldId]?.value ??
+    parsed?.sections?.[sectionId]?.[fieldId]?.value ??
+    parsed?.sections?.[sectionId]?.[fieldId] ??
+    parsed?.fields?.[fieldId]?.value ??
+    parsed?.fields?.[fieldId] ??
+    parsed?.[sectionId]?.fields?.[fieldId]?.value ??
+    parsed?.[sectionId]?.fields?.[fieldId] ??
+    parsed?.[sectionId]?.[fieldId] ??
+    parsed?.[fieldId]
+  );
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -468,8 +541,11 @@ serve(async (req) => {
     for (const model of GEMINI_MODELS) {
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
       const geminiPayload = {
+        systemInstruction: {
+          parts: [{ text: systemPrompt }],
+        },
         contents: [
-          { role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] },
+          { role: "user", parts: [{ text: `${userPrompt}\n\nRetorne APENAS o JSON do tool fill_node_draft com todos os campos preenchidos.` }] },
         ],
         generationConfig: {
           temperature: 0.35,
@@ -525,21 +601,19 @@ serve(async (req) => {
       }
     }
 
+    const fallback = buildUniversalFallbacks(blueprint.kind, node.title, ctx, sourcesUsed);
     const normalizedSections: Record<string, { fields: Record<string, { value: unknown; origin: string; citation?: string }>; ai_notes?: string }> = {};
     for (const section of blueprint.sections) {
       const sectionResult: { fields: Record<string, { value: unknown; origin: string; citation?: string }>; ai_notes?: string } = { fields: {} };
       const aiFields = section.fields.filter((f) => f.type !== "attachments");
       for (const field of aiFields) {
-        const rawField = parsed.sections?.[section.id]?.fields?.[field.id] ?? parsed.fields?.[field.id];
-        if (rawField && typeof rawField === "object" && "value" in (rawField as Record<string, unknown>) && "origin" in (rawField as Record<string, unknown>)) {
-          sectionResult.fields[field.id] = rawField as { value: unknown; origin: string; citation?: string };
-        } else if (rawField !== undefined) {
-          sectionResult.fields[field.id] = { value: rawField, origin: "auto" };
-        } else {
-          sectionResult.fields[field.id] = { value: null, origin: "empty" };
-        }
+        const rawField = extractFieldValue(parsed, section.id, field.id);
+        const fallbackValue = (fallback as Record<string, unknown>)[field.id];
+        const value = rawField === undefined || rawField === null || rawField === "" ? fallbackValue : rawField;
+        const origin = rawField === undefined || rawField === null || rawField === "" ? "auto" : "auto";
+        sectionResult.fields[field.id] = { value, origin };
       }
-      const notes = parsed.sections?.[section.id]?.ai_notes;
+      const notes = parsed.sections?.[section.id]?.ai_notes ?? parsed[section.id]?.ai_notes;
       if (typeof notes === "string" && notes.trim()) sectionResult.ai_notes = notes;
       normalizedSections[section.id] = sectionResult;
     }
@@ -548,6 +622,12 @@ serve(async (req) => {
     for (const section of Object.values(normalizedSections)) {
       for (const [fieldId, field] of Object.entries(section.fields)) {
         flatFields[fieldId] = field.value;
+      }
+    }
+
+    for (const [fieldId, value] of Object.entries(fallback)) {
+      if (flatFields[fieldId] === undefined || flatFields[fieldId] === null || flatFields[fieldId] === "") {
+        flatFields[fieldId] = value;
       }
     }
 
