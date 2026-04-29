@@ -174,6 +174,42 @@ const CUSTOM: EsteiraTemplate = {
 
 export const ESTEIRA_TEMPLATES: EsteiraTemplate[] = [STARTER, GROWTH, ENTERPRISE, CUSTOM];
 
+/* ─── Delivery types ───
+ * Substituem os templates fixos como opção principal de geração.
+ * O usuário escolhe o tipo de entrega; a IA gera a esteira sob medida.
+ */
+export const DELIVERY_TYPES = [
+  { key: "website", label: "Website completo", icon: "🌐", tagline: "Site institucional ou e-commerce" },
+  { key: "landing_page", label: "Landing Page individual", icon: "📄", tagline: "LP focada em conversão" },
+  { key: "simple_automation", label: "Automação simples", icon: "⚡", tagline: "WhatsApp, CRM, follow-up" },
+  { key: "advanced_automation", label: "Automação avançada", icon: "🔧", tagline: "Multi-canal, integrações complexas" },
+  { key: "marketing_full", label: "Marketing completo", icon: "📊", tagline: "Tráfego + conteúdo + CRM + funil" },
+  { key: "paid_traffic", label: "Tráfego pago", icon: "🎯", tagline: "Meta Ads, Google Ads, campanhas" },
+  { key: "social_media", label: "Social media", icon: "📱", tagline: "Conteúdo orgânico + calendário" },
+  { key: "sales_funnel", label: "Funil de vendas", icon: "🔄", tagline: "Captura → qualificação → conversão" },
+  { key: "local_campaign", label: "Campanha local", icon: "📍", tagline: "Negócio local, tráfego regional" },
+  { key: "ai_support", label: "IA para atendimento", icon: "🤖", tagline: "Chatbot, agente IA, automação" },
+  { key: "ai_internal", label: "IA para operação interna", icon: "🧠", tagline: "Processos internos com IA" },
+  { key: "custom_project", label: "Projeto personalizado", icon: "✨", tagline: "Combinar com IA baseado no contexto" },
+] as const;
+
+export type DeliveryType = typeof DELIVERY_TYPES[number]["key"];
+
+/** Infere o delivery type a partir do project_type do cliente. */
+export function inferDeliveryTypeFromProjectType(
+  projectType: string | null | undefined,
+): DeliveryType {
+  switch (projectType) {
+    case "one_shot_site":       return "website";
+    case "one_shot_automation": return "simple_automation";
+    case "one_shot_agent":      return "ai_support";
+    case "marketing_service":   return "marketing_full";
+    case "ai_first":            return "ai_internal";
+    case "legacy_marketing":    return "marketing_full";
+    default:                    return "custom_project";
+  }
+}
+
 export function getEsteiraTemplateForPlan(plan: string | null | undefined): EsteiraTemplate {
   switch (plan) {
     case "starter":    return STARTER;
