@@ -56,6 +56,71 @@ const CONFIDENCE_CLS: Record<BriefingAnswer["confidence"], string> = {
   low:    "text-muted-foreground",
 };
 
+const BRIEFING_PREFILL_BLUEPRINT = {
+  kind: "briefing_consolidado",
+  purpose: "Consolidar o briefing do cliente com base em todo o contexto disponível no workspace.",
+  sources: ["briefing", "context", "metrics", "fronts", "client", "assets", "siblings", "dossier", "tasks", "timeline", "workspace_assets"],
+  prefillPrompt: [
+    "Você é o assistente de briefings da Aceleriq.",
+    "Consolide todas as informações disponíveis em um briefing profissional, claro e acionável.",
+    "Não invente fatos; quando faltar dado, sinalize lacunas e próximas perguntas.",
+  ].join("\n"),
+  sections: [
+    { id: "summary", title: "Resumo executivo", fields: [{ id: "client_summary", label: "Resumo do cliente", type: "textarea" }] },
+    { id: "business", title: "Negócio e posicionamento", fields: [{ id: "business_context", label: "Contexto do negócio", type: "textarea" }] },
+    { id: "audience", title: "Público e dores", fields: [{ id: "audience_context", label: "Público, ICP e dores", type: "textarea" }] },
+    { id: "goals", title: "Objetivos e oportunidades", fields: [{ id: "goals_context", label: "Objetivos, oportunidades e métricas", type: "textarea" }] },
+    { id: "next", title: "Próximas ações", fields: [{ id: "next_actions", label: "Próximas ações", type: "list" }] },
+  ],
+} as const;
+
+function asList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((v) => (typeof v === "string" ? v : JSON.stringify(v))).filter(Boolean);
+  if (typeof value === "string") return value.split(/\n+/).map((v) => v.replace(/^[-•\d.)\s]+/, "").trim()).filter(Boolean);
+  return [];
+}
+
+function prefillToConsolidated(data: any, clientName: string): ConsolidatedBriefing | null {
+  const fields = (data?.fields ?? {}) as Record<string, unknown>;
+  if (!Object.keys(fields).length) return null;
+
+  const makeAnswer = (question: string, answer: unknown): BriefingAnswer => ({
+    question,
+    answer: typeof answer === "string" ? answer : JSON.stringify(answer ?? "—", null, 2),
+    source: "ai_inferred",
+    confidence: "medium",
+  });
+
+  return {
+    client_summary: String(fields.client_summary ?? `Briefing consolidado para ${clientName}.`),
+    generated_at: new Date().toISOString(),
+    ai_model: String(data?.model_used ?? "prefill-node"),
+    sections: [
+      {
+        title: "Resumo executivo",
+        description: "Síntese operacional do contexto disponível.",
+        answers: [makeAnswer("Resumo do cliente", fields.client_summary)],
+      },
+      {
+        title: "Negócio e posicionamento",
+        description: "Leitura do negócio, oferta e diferenciais.",
+        answers: [makeAnswer("Contexto do negócio", fields.business_context)],
+      },
+      {
+        title: "Público e dores",
+        description: "Perfil de público, dores e sinais relevantes.",
+        answers: [makeAnswer("Público, ICP e dores", fields.audience_context)],
+      },
+      {
+        title: "Objetivos e oportunidades",
+        description: "Objetivos, métricas e oportunidades de ação.",
+        answers: [makeAnswer("Objetivos, oportunidades e métricas", fields.goals_context)],
+      },
+    ],
+    next_actions: asList(fields.next_actions).slice(0, 8),
+  };
+}
+
 export default function BriefingConsolidatedView({ workspaceId, clientId, clientName, compact = false }: Props) {
   const [briefing, setBriefing] = useState<ConsolidatedBriefing | null>(null);
   const [loading, setLoading] = useState(true);
