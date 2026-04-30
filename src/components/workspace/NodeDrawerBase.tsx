@@ -14,6 +14,7 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 import { syncNodeCompletedWhenDone } from "./syncToPortalEvents";
+import NodeUniversalSections from "./NodeUniversalSections";
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -154,6 +155,13 @@ export function NodeDrawerShell({ node, open, onOpenChange, workspaceId, config,
   actions?: React.ReactNode;
   onSave?: () => Promise<boolean>;
   extraData?: Record<string, unknown>;
+  /** Identificadores universais — quando presentes, ativam o NodeUniversalSections (IA/Acessos/Prompts/Notas/Histórico). */
+  clientId?: string;
+  clientName?: string;
+  /** Kind do node usado pra prefill-node (ex: "landing_page", "crm"). Sem isso, "Preencher com IA" fica oculto. */
+  kind?: string;
+  /** Callback chamado quando "Preencher com IA" universal traz dados — drawer pai mescla nos próprios fields. */
+  onPrefillResult?: (sections: Record<string, unknown>) => void;
 }) {
   const { title, setTitle, status, setStatus, saving, save } = useSaveNode(node, workspaceId, onUpdated);
   const Icon = config.icon;
@@ -220,6 +228,19 @@ export function NodeDrawerShell({ node, open, onOpenChange, workspaceId, config,
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <div className="px-5 py-5 space-y-6">
             {children}
+            {/* ─── Seções universais (IA prefill, Acessos, Prompts, Notas operacionais, Histórico) ─── */}
+            {clientId && kind && (
+              <NodeUniversalSections
+                node={node as CanvasNodeRecord & { parent_node_id?: string | null }}
+                workspaceId={workspaceId}
+                clientId={clientId}
+                clientName={clientName}
+                kind={kind}
+                accent={accent}
+                onPrefillResult={onPrefillResult}
+                onUpdated={onUpdated}
+              />
+            )}
           </div>
         </div>
 
