@@ -3,6 +3,8 @@
  * using all available context: client form responses, imported contexts, attachments
  * (extracted text from metadata), client record, metrics snapshots and fronts.
  *
+ * Redeploy trigger: 2026-04-30 (function was missing on edge runtime).
+ *
  * Flow:
  *  1. Auth: validate JWT and access to workspace.
  *  2. Collect all signals from DB.
