@@ -135,12 +135,20 @@ export default function BriefingConsolidatedView({ workspaceId, clientId, client
       let lastErr: unknown = null;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-          const { data, error } = await supabase.functions.invoke("consolidate-briefing", {
-            body: { workspaceId, clientId, force, cacheOnly },
+          const { data, error } = await supabase.functions.invoke("prefill-node", {
+            body: {
+              workspaceId,
+              clientId,
+              force,
+              cacheOnly,
+              kind: BRIEFING_PREFILL_BLUEPRINT.kind,
+              currentTitle: `Briefing consolidado — ${clientName}`,
+              blueprint: BRIEFING_PREFILL_BLUEPRINT,
+            },
           });
           if (error) throw new Error(error.message);
           if (data?.error) throw new Error(data.error);
-          return data as { consolidated: ConsolidatedBriefing | null; cached: boolean };
+          return { consolidated: prefillToConsolidated(data, clientName), cached: !!data?.cached };
         } catch (e) {
           lastErr = e;
           const msg = e instanceof Error ? e.message : String(e);
@@ -152,7 +160,7 @@ export default function BriefingConsolidatedView({ workspaceId, clientId, client
       }
       throw lastErr instanceof Error ? lastErr : new Error("Falha desconhecida");
     },
-    [workspaceId, clientId],
+    [workspaceId, clientId, clientName],
   );
 
   // Try cache on mount
