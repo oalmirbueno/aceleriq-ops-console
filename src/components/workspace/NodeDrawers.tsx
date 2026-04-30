@@ -217,7 +217,7 @@ export function LandingPageDrawer(props: NodeDrawerProps) {
 
   return (
     <NodeDrawerShell
-      {...props} config={{ title: "Landing Page", subtitle: "Construção de LP de conversão para o cliente", accent: ACCENT, icon: LayoutDashboard }}
+      {...props} config={{ title: "Landing Page", subtitle: "Construção de LP de conversão para o cliente", accent: ACCENT, icon: LayoutDashboard }} kind="landing_page" onPrefillResult={(sec) => patch(mergeAiSections(sec, vals as Record<string, unknown>) as any)}
       actions={<>
         <NodeAction label={prefilling ? "Gerando..." : "Rascunhar com IA"} icon={prefilling ? Loader2 : Sparkles} onClick={prefill} accent={ACCENT} disabled={prefilling} />
         {vals.deploy_url && <a href={vals.deploy_url as string} target="_blank" rel="noreferrer"><NodeAction label="Ver entregue" icon={ExternalLink} onClick={() => {}} /></a>}
@@ -298,7 +298,7 @@ export function CRMDrawer(props: NodeDrawerProps) {
 
   return (
     <NodeDrawerShell
-      {...props} config={{ title: "CRM / Pipeline", subtitle: "Estruturar o CRM interno do cliente do zero", accent: ACCENT, icon: FolderKanban }}
+      {...props} config={{ title: "CRM / Pipeline", subtitle: "Estruturar o CRM interno do cliente do zero", accent: ACCENT, icon: FolderKanban }} kind="crm" onPrefillResult={(sec) => patch(mergeAiSections(sec, vals as Record<string, unknown>) as any)}
       actions={<>
         <NodeAction label="Copiar pipeline" icon={Copy} onClick={() => {
           navigator.clipboard.writeText((vals.pipeline_stages as string[]).join(" → "));
@@ -402,7 +402,7 @@ export function AutomacaoDrawer(props: NodeDrawerProps) {
 
   return (
     <NodeDrawerShell
-      {...props} config={{ title: "Automação", subtitle: "Desenvolver automação para o processo do cliente", accent: ACCENT, icon: Workflow }}
+      {...props} config={{ title: "Automação", subtitle: "Desenvolver automação para o processo do cliente", accent: ACCENT, icon: Workflow }} kind="automacao" onPrefillResult={(sec) => patch(mergeAiSections(sec, vals as Record<string, unknown>) as any)}
       actions={<>
         {vals.deployed_url && <a href={vals.deployed_url as string} target="_blank" rel="noreferrer"><NodeAction label="Ver entregue" icon={ExternalLink} onClick={() => {}} accent={ACCENT} /></a>}
         <NodeAction label={vals.tested ? "Testado ✓" : "Marcar testado"} icon={Check} onClick={() => patch({ tested: !vals.tested })} accent={vals.tested ? "#10B981" : undefined} />
@@ -498,7 +498,7 @@ export function ConteudoDrawer(props: NodeDrawerProps) {
 
   return (
     <NodeDrawerShell
-      {...props} config={{ title: "Conteúdo", subtitle: "Produção de conteúdo para o cliente", accent: ACCENT, icon: PenTool }}
+      {...props} config={{ title: "Conteúdo", subtitle: "Produção de conteúdo para o cliente", accent: ACCENT, icon: PenTool }} kind="conteudo" onPrefillResult={(sec) => patch(mergeAiSections(sec, vals as Record<string, unknown>) as any)}
       actions={<>
         <NodeAction label={prefilling ? "Criando..." : "Criar copy IA"} icon={prefilling ? Loader2 : Sparkles} onClick={prefill} accent={ACCENT} disabled={prefilling} />
         <NodeAction label="Copiar copy final" icon={Copy}
@@ -596,7 +596,7 @@ export function TrafegoPagoDrawer(props: NodeDrawerProps) {
 
   return (
     <NodeDrawerShell
-      {...props} config={{ title: "Tráfego Pago", subtitle: "Estruturar e lançar campanha para o cliente", accent: ACCENT, icon: Megaphone }}
+      {...props} config={{ title: "Tráfego Pago", subtitle: "Estruturar e lançar campanha para o cliente", accent: ACCENT, icon: Megaphone }} kind="trafego" onPrefillResult={(sec) => patch(mergeAiSections(sec, vals as Record<string, unknown>) as any)}
       actions={<>
         {vals.account_url && <a href={vals.account_url as string} target="_blank" rel="noreferrer"><NodeAction label="Conta de ads" icon={ExternalLink} onClick={() => {}} accent={ACCENT} /></a>}
       </>}
@@ -717,7 +717,7 @@ export function IAAgentDrawer(props: NodeDrawerProps) {
 
   return (
     <NodeDrawerShell
-      {...props} config={{ title: "Agente IA", subtitle: "Construir agente via ChatGPT com contexto do cliente", accent: ACCENT, icon: Bot }}
+      {...props} config={{ title: "Agente IA", subtitle: "Construir agente via ChatGPT com contexto do cliente", accent: ACCENT, icon: Bot }} kind="ia" onPrefillResult={(sec) => patch(mergeAiSections(sec, vals as Record<string, unknown>) as any)}
       actions={<>
         <NodeAction label={prefilling ? "Gerando..." : "Rascunhar prompt IA"} icon={prefilling ? Loader2 : Sparkles} onClick={prefill} accent={ACCENT} disabled={prefilling} />
         <NodeAction label="Exportar pra ChatGPT" icon={Copy} onClick={exportForChatGPT} />
@@ -829,7 +829,7 @@ export function MetricaDrawerV2(props: NodeDrawerProps) {
 
   return (
     <NodeDrawerShell
-      {...props} config={{ title: "Métrica", subtitle: "Estruturar medição e dashboard do cliente", accent: ACCENT, icon: BarChart3 }}
+      {...props} config={{ title: "Métrica", subtitle: "Estruturar medição e dashboard do cliente", accent: ACCENT, icon: BarChart3 }} kind="metrica" onPrefillResult={(sec) => patch(mergeAiSections(sec, vals as Record<string, unknown>) as any)}
       actions={<>
         <NodeAction label="Salvar snapshot" icon={BarChart3} onClick={saveSnapshot} accent={ACCENT} />
         {vals.dashboard_url && <a href={vals.dashboard_url as string} target="_blank" rel="noreferrer"><NodeAction label="Dashboard" icon={ExternalLink} onClick={() => {}} /></a>}
@@ -911,7 +911,7 @@ export function ObjetivoDrawer(props: NodeDrawerProps) {
 
   return (
     <NodeDrawerShell
-      {...props} config={{ title: "Objetivo", subtitle: "Meta estratégica da jornada com o cliente", accent: ACCENT, icon: Target }}
+      {...props} config={{ title: "Objetivo", subtitle: "Meta estratégica da jornada com o cliente", accent: ACCENT, icon: Target }} kind="objetivo" onPrefillResult={(sec) => patch(mergeAiSections(sec, vals as Record<string, unknown>) as any)}
       onSave={async () => { await save(vals); return true; }}
     >
       <NodeSection title="Objetivo SMART" accent={ACCENT}>
@@ -975,7 +975,7 @@ export function CaseDrawer(props: NodeDrawerProps) {
 
   return (
     <NodeDrawerShell
-      {...props} config={{ title: "Case", subtitle: "Narrativa do que foi construído e entregue", accent: ACCENT, icon: Trophy }}
+      {...props} config={{ title: "Case", subtitle: "Narrativa do que foi construído e entregue", accent: ACCENT, icon: Trophy }} kind="case" onPrefillResult={(sec) => patch(mergeAiSections(sec, vals as Record<string, unknown>) as any)}
       actions={<>
         <NodeAction label={prefilling ? "Estruturando..." : "Estruturar com IA"} icon={prefilling ? Loader2 : Sparkles} onClick={prefill} accent={ACCENT} disabled={prefilling} />
         <NodeAction label="Exportar Markdown" icon={Copy} onClick={exportCase} />
@@ -1012,7 +1012,7 @@ export function DecisaoDrawer(props: NodeDrawerProps) {
 
   return (
     <NodeDrawerShell
-      {...props} config={{ title: "Decisão", subtitle: "Registro de decisão no processo de construção", accent: ACCENT, icon: Scale }}
+      {...props} config={{ title: "Decisão", subtitle: "Registro de decisão no processo de construção", accent: ACCENT, icon: Scale }} kind="decisao" onPrefillResult={(sec) => patch(mergeAiSections(sec, vals as Record<string, unknown>) as any)}
       onSave={async () => { await save(vals); return true; }}
     >
       <NodeSection title="Contexto da decisão" accent={ACCENT}>
