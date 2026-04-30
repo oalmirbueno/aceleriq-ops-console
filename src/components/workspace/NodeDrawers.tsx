@@ -817,14 +817,23 @@ export function MetricaDrawerV2(props: NodeDrawerProps) {
 
   const saveSnapshot = async () => {
     if (!vals.current_value) return;
-    await supabase.from("metric_snapshots").insert({
-      workspace_id: props.workspaceId, client_id: props.clientId,
-      metric_name: vals.metric_name as string || props.node.title,
-      value: parseFloat(vals.current_value as string),
-      unit: vals.unit as string,
+    const { error } = await supabase.from("metric_snapshots").insert({
+      workspace_id: props.workspaceId,
+      client_id: props.clientId,
+      metric_key: (vals.metric_key as string) || "other",
+      metric_label: (vals.metric_name as string) || props.node.title,
+      metric_value: parseFloat(vals.current_value as string),
+      metric_unit: (vals.unit as string) || null,
+      period_label: (vals.period_label as string) || null,
       captured_at: new Date().toISOString(),
+      source_type: "manual",
+      notes: (vals.notes as string) || null,
     });
-    toast({ title: "Snapshot salvo" });
+    if (error) {
+      toast({ title: "Erro ao salvar snapshot", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Snapshot salvo ✓" });
+    }
   };
 
   return (
