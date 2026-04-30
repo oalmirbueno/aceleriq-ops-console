@@ -13,7 +13,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.prefill-node]
-verify_jwt = true
+verify_jwt = false
 
 [functions.public-briefing]
 verify_jwt = false
