@@ -141,7 +141,7 @@ export function NodeAction({ label, icon: Icon, onClick, accent, disabled }: {
 
 // ─── NodeDrawerShell ──────────────────────────────────────────
 
-export function NodeDrawerShell({ node, open, onOpenChange, workspaceId, config, onDelete, onUpdated, onOpenChat, statusOptions = DEFAULT_STATUS_OPTIONS, children, actions, onSave, extraData }: {
+export function NodeDrawerShell({ node, open, onOpenChange, workspaceId, config, onDelete, onUpdated, onOpenChat, statusOptions = DEFAULT_STATUS_OPTIONS, children, actions, onSave, extraData, clientId, clientName, kind, onPrefillResult }: {
   node: CanvasNodeRecord;
   open: boolean;
   onOpenChange: (v: boolean) => void;
