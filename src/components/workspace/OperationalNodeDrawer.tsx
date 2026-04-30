@@ -17,7 +17,7 @@
  *  - metrica:      instrumentar a medição (fórmula, fonte, baseline)
  *  - conteudo:     produzir o conteúdo do cliente (roteiro, produção, publicação)
  */
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -917,7 +917,15 @@ export default function OperationalNodeDrawer({
     return () => { cancelled = true; };
   }, [needsVault, clientId]);
 
+  const skipNextNodeSync = useRef(false);
+
   useEffect(() => {
+    // Pula o reset se acabou de fazer prefill/save (evita race condition com onUpdated→fetchData)
+    if (skipNextNodeSync.current) {
+      skipNextNodeSync.current = false;
+      return;
+    }
+
     const data = (node.data as Record<string, unknown> | null) ?? {};
     const saved = (data.fields as Record<string, string> | undefined) ?? {};
 
@@ -981,6 +989,7 @@ export default function OperationalNodeDrawer({
       nodeTitle: title,
     });
     toast({ title: "Salvo", description: `${config.title} atualizado.` });
+    skipNextNodeSync.current = true;
     await onUpdated?.();
   }, [node.id, node.data, node.status, node.description, workspaceId, clientId, title, status, values, config.title, onUpdated]);
 
@@ -1043,6 +1052,7 @@ Cada campo deve ser ÚNICO e relevante. Node de automação fala de automação.
         }).eq("id", node.id);
 
         toast({ title: "Preenchido e salvo com IA ✦", description: "Campos preenchidos e salvos automaticamente." });
+        skipNextNodeSync.current = true;
         await onUpdated?.();
       } else {
         toast({ title: "IA não retornou campos", description: "Tente novamente.", variant: "destructive" });
