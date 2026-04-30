@@ -65,12 +65,27 @@ export default function BriefingConsolidatedView({ workspaceId, clientId, client
 
   const callConsolidate = useCallback(
     async (force: boolean, cacheOnly: boolean) => {
-      const { data, error } = await supabase.functions.invoke("consolidate-briefing", {
-        body: { workspaceId, clientId, force, cacheOnly },
-      });
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.error);
-      return data as { consolidated: ConsolidatedBriefing | null; cached: boolean };
+      // Retry com backoff pra lidar com cold-start / falhas transitórias de rede
+      const maxAttempts = 3;
+      let lastErr: unknown = null;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const { data, error } = await supabase.functions.invoke("consolidate-briefing", {
+            body: { workspaceId, clientId, force, cacheOnly },
+          });
+          if (error) throw new Error(error.message);
+          if (data?.error) throw new Error(data.error);
+          return data as { consolidated: ConsolidatedBriefing | null; cached: boolean };
+        } catch (e) {
+          lastErr = e;
+          const msg = e instanceof Error ? e.message : String(e);
+          // Só retenta erros de rede/cold-start, não erros de negócio
+          const isNetwork = /failed to (fetch|send)|network|timeout|load failed/i.test(msg);
+          if (!isNetwork || attempt === maxAttempts) throw e;
+          await new Promise((r) => setTimeout(r, 600 * attempt));
+        }
+      }
+      throw lastErr instanceof Error ? lastErr : new Error("Falha desconhecida");
     },
     [workspaceId, clientId],
   );
