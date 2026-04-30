@@ -86,13 +86,15 @@ function prefillToConsolidated(data: any, clientName: string): ConsolidatedBrief
 
   const makeAnswer = (question: string, answer: unknown): BriefingAnswer => ({
     question,
-    answer: typeof answer === "string" ? answer : JSON.stringify(answer ?? "—", null, 2),
+    answer: typeof answer === "string" && answer.trim() ? answer : answer == null || answer === "" ? "—" : JSON.stringify(answer, null, 2),
     source: "ai_inferred",
     confidence: "medium",
   });
 
+  const fallbackSummary = `Briefing consolidado para ${clientName}, gerado a partir dos dados disponíveis no workspace.`;
+
   return {
-    client_summary: String(fields.client_summary ?? `Briefing consolidado para ${clientName}.`),
+    client_summary: typeof fields.client_summary === "string" && fields.client_summary.trim() ? fields.client_summary : fallbackSummary,
     generated_at: new Date().toISOString(),
     ai_model: String(data?.model_used ?? "prefill-node"),
     sections: [
