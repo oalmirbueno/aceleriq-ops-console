@@ -32,6 +32,27 @@ import {
   type NodeDrawerProps,
 } from "./NodeDrawerBase";
 
+/**
+ * mergeAiSections — flatten genérico do payload do prefill-node.
+ * Pega todas as section.field e mescla apenas os campos que JÁ existem
+ * no estado local do drawer (vals). Evita poluir vals com campos desconhecidos.
+ */
+function mergeAiSections(
+  sections: Record<string, unknown> | null | undefined,
+  vals: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!sections) return {};
+  const flat: Record<string, unknown> = {};
+  for (const sectionVal of Object.values(sections)) {
+    if (sectionVal && typeof sectionVal === "object") {
+      for (const [k, v] of Object.entries(sectionVal as Record<string, unknown>)) {
+        if (k in vals && (typeof v === "string" || Array.isArray(v))) flat[k] = v;
+      }
+    }
+  }
+  return flat;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────
 
 function useNodeData<T extends Record<string, unknown>>(
