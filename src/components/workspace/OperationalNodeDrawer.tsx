@@ -917,6 +917,8 @@ export default function OperationalNodeDrawer({
     return () => { cancelled = true; };
   }, [needsVault, clientId]);
 
+  const skipNextNodeSync = useRef(false);
+
   useEffect(() => {
     // Pula o reset se acabou de fazer prefill/save (evita race condition com onUpdated→fetchData)
     if (skipNextNodeSync.current) {
