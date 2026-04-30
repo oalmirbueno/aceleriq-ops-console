@@ -989,6 +989,7 @@ export default function OperationalNodeDrawer({
       nodeTitle: title,
     });
     toast({ title: "Salvo", description: `${config.title} atualizado.` });
+    skipNextNodeSync.current = true;
     await onUpdated?.();
   }, [node.id, node.data, node.status, node.description, workspaceId, clientId, title, status, values, config.title, onUpdated]);
 
@@ -1051,6 +1052,7 @@ Cada campo deve ser ÚNICO e relevante. Node de automação fala de automação.
         }).eq("id", node.id);
 
         toast({ title: "Preenchido e salvo com IA ✦", description: "Campos preenchidos e salvos automaticamente." });
+        skipNextNodeSync.current = true;
         await onUpdated?.();
       } else {
         toast({ title: "IA não retornou campos", description: "Tente novamente.", variant: "destructive" });
