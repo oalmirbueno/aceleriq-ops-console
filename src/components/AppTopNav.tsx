@@ -78,7 +78,7 @@ export default function AppTopNav() {
   return (
     <>
       <nav
-        className="fixed top-0 left-0 right-0 z-50 h-[52px] flex items-center px-4 sm:px-6 gap-4 text-foreground border-b border-border/50"
+        className="fixed top-0 left-0 right-0 z-50 h-[64px] flex items-center px-4 sm:px-6 gap-4 text-foreground border-b border-border/50"
         style={{
           background: "hsl(var(--card) / 0.92)",
           backdropFilter: "blur(24px)",
@@ -88,7 +88,7 @@ export default function AppTopNav() {
       >
         {/* Logo */}
         <div className="flex items-center shrink-0">
-          <img src={logo} alt="Aceleriq" className="h-7 w-auto" />
+          <img src={logo} alt="Aceleriq" className="h-10 w-auto" />
         </div>
 
         {/* Desktop nav */}
