@@ -88,7 +88,7 @@ export default function AppTopNav() {
       >
         {/* Logo */}
         <div className="flex items-center shrink-0">
-          <img src={logo} alt="Aceleriq" className="h-14 w-auto" />
+          <img src={logo} alt="Aceleriq" className="h-24 w-auto -my-4" />
         </div>
 
         {/* Desktop nav */}
