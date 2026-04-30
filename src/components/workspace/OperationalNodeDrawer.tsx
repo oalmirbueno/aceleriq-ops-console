@@ -17,7 +17,7 @@
  *  - metrica:      instrumentar a medição (fórmula, fonte, baseline)
  *  - conteudo:     produzir o conteúdo do cliente (roteiro, produção, publicação)
  */
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -918,6 +918,12 @@ export default function OperationalNodeDrawer({
   }, [needsVault, clientId]);
 
   useEffect(() => {
+    // Pula o reset se acabou de fazer prefill/save (evita race condition com onUpdated→fetchData)
+    if (skipNextNodeSync.current) {
+      skipNextNodeSync.current = false;
+      return;
+    }
+
     const data = (node.data as Record<string, unknown> | null) ?? {};
     const saved = (data.fields as Record<string, string> | undefined) ?? {};
 
