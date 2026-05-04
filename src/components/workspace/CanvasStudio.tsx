@@ -815,6 +815,7 @@ function CanvasStudioInner({
           canExpandHub: nodeKindOf(n) === "engine",
             onExpandHub: stableOnExpandHub,
           typeData: dataObj,
+          pulse: !!dataObj.from_portal && !dataObj.touched_at,
         } satisfies ProjectNodeData,
       };
     });
