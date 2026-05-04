@@ -14,6 +14,7 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 import { syncNodeCompletedWhenDone } from "./syncToPortalEvents";
+import { syncNodeUpdated } from "./syncToPortalEvents";
 import NodeUniversalSections from "./NodeUniversalSections";
 
 // ─── Types ───────────────────────────────────────────────────
@@ -56,6 +57,9 @@ export function useSaveNode(node: CanvasNodeRecord, workspaceId: string, onUpdat
 
   const save = useCallback(async (extraData?: Record<string, unknown>) => {
     setSaving(true);
+    const mergedData = extraData
+      ? { ...(node.data as Record<string, unknown> ?? {}), ...extraData }
+      : (node.data as Record<string, unknown> ?? {});
     const { error } = await supabase.from("canvas_nodes").update({
       title: title.trim() || node.title,
       status,
@@ -71,6 +75,17 @@ export function useSaveNode(node: CanvasNodeRecord, workspaceId: string, onUpdat
       clientId: node.client_id,
       nodeId: node.id,
       nodeTitle: title.trim() || node.title,
+    });
+    // Sync incremental: cada update vira evento no portal (status + progresso)
+    syncNodeUpdated({
+      workspaceId,
+      clientId: node.client_id,
+      nodeId: node.id,
+      nodeTitle: title.trim() || node.title,
+      nodeType: (node as { node_type?: string }).node_type,
+      status,
+      previousStatus: node.status,
+      data: mergedData,
     });
     toast({ title: "Salvo" });
     await onUpdated?.();
