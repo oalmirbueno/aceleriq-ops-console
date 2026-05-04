@@ -44,6 +44,7 @@ export interface NodeDrawerConfig {
 export const DEFAULT_STATUS_OPTIONS: Array<[string, string]> = [
   ["draft",   "Rascunho"],
   ["active",  "Em produção"],
+  ["in_review", "Em revisão"],
   ["blocked", "Bloqueado"],
   ["done",    "Concluído"],
 ];
