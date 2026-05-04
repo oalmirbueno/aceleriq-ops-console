@@ -30,7 +30,7 @@ import CanvasTemplatesDialog, { type CanvasTemplate, type NodeSnapshot, type Edg
 import ApplyPlaybookButton from "./ApplyPlaybookButton";
 import DeletableEdge from "./DeletableEdge";
 import type { EsteiraTemplate } from "./esteiraTemplates";
-import { syncNodeDeleted } from "./syncToPortalEvents";
+import { syncNodeCreated, syncNodeDeleted } from "./syncToPortalEvents";
 import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalMeta } from "./canvasOperationalMeta";
 import {
   ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH,
