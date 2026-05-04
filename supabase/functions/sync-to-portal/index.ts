@@ -33,6 +33,7 @@ async function sendToPortal(
   secret: string | undefined,
   event: string,
   data: Record<string, unknown>,
+  source?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (secret) headers["x-webhook-secret"] = secret;
@@ -41,7 +42,7 @@ async function sendToPortal(
     const res = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify({ event, data }),
+      body: JSON.stringify({ event, data, source: source ?? "ops" }),
     });
     if (!res.ok) {
       const text = await res.text();
@@ -78,6 +79,8 @@ serve(async (req) => {
       status?: string;
       previousStatus?: string;
       progress?: number;
+      portalTaskId?: string;
+      source?: string;
     };
 
     // ── Busca IDs do portal vinculados ao workspace/client ──────────────
@@ -184,6 +187,8 @@ serve(async (req) => {
         node_id:    body.nodeId,
         node_title: body.nodeTitle ?? "node",
         node_type:  body.nodeType ?? null,
+        portal_task_id: body.portalTaskId ?? null,
+        status:     body.status ?? null,
         message:    `Nova tarefa criada: ${body.nodeTitle ?? "node"}`,
         update_type: "task_created",
       };
@@ -232,7 +237,7 @@ serve(async (req) => {
     }
 
     // ── Envia ────────────────────────────────────────────────────────────
-    const result = await sendToPortal(PORTAL_URL, PORTAL_SECRET, event, data);
+    const result = await sendToPortal(PORTAL_URL, PORTAL_SECRET, event, data, body.source ?? "ops");
 
     if (!result.ok) {
       console.error("[sync-to-portal] Portal error:", result.error);

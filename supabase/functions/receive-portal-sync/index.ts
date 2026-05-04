@@ -216,8 +216,15 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   const SECRET = Deno.env.get("PORTAL_WEBHOOK_SECRET") ?? "";
+  const BEARER_SECRET = Deno.env.get("PORTAL_TO_OPS_SECRET") ?? "";
   const received = req.headers.get("x-webhook-secret");
-  if (!SECRET || received !== SECRET) {
+  const authHeader = req.headers.get("authorization") ?? "";
+  const bearer = authHeader.toLowerCase().startsWith("bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
+  const okWebhook = SECRET && received === SECRET;
+  const okBearer = BEARER_SECRET && bearer === BEARER_SECRET;
+  if (!okWebhook && !okBearer) {
     return json({ error: "Unauthorized" }, 401);
   }
 
@@ -228,6 +235,12 @@ serve(async (req) => {
     const data = (body.data ?? {}) as Record<string, unknown>;
     const context = (body.context ?? {}) as Record<string, unknown>;
     const event = String(body.event ?? "");
+    const source = String(body.source ?? "").toLowerCase();
+
+    // Anti-loop: ignora eventos que vieram do próprio Ops (ricocheteados pelo portal).
+    if (source === "ops") {
+      return json({ ok: true, action: "ignored_self_origin" });
+    }
 
     if (!rawType || !data || typeof data !== "object") {
       return json({ error: "type e data são obrigatórios" }, 400);
@@ -494,7 +507,7 @@ serve(async (req) => {
               .select("id", { count: "exact", head: true })
               .eq("workspace_id", ws.id);
             const idx = count ?? 0;
-            await supabase.from("canvas_nodes").insert({
+            const { data: created } = await supabase.from("canvas_nodes").insert({
               workspace_id: ws.id,
               client_id: ws.client_id,
               parent_node_id: null,
@@ -505,7 +518,29 @@ serve(async (req) => {
               pos_x: 80 + (idx % 6) * 320,
               pos_y: 800 + Math.floor(idx / 6) * 220,
               data: { from_portal: true, portal_task_id: portalTaskId, touched_at: null },
-            });
+            }).select("id").single();
+
+            // Callback de pareamento: avisa o portal que o node foi criado, com portal_task_id.
+            // Portal usa isso pra setar tasks.ops_node_id e fechar o vínculo.
+            if (created?.id) {
+              try {
+                await supabase.functions.invoke("sync-to-portal", {
+                  body: {
+                    event: "node_created",
+                    workspaceId: ws.id,
+                    clientId: ws.client_id,
+                    nodeId: created.id,
+                    nodeTitle: title,
+                    nodeType: "checklist",
+                    status: opsStatus,
+                    portalTaskId,
+                    source: "ops",
+                  },
+                });
+              } catch (e) {
+                console.error("[receive-portal-sync] pairing callback failed:", e);
+              }
+            }
           }
         }
       }
