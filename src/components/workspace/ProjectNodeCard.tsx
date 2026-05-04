@@ -213,10 +213,13 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
           "border bg-[#0F1B11]",
           selected && "ring-2 ring-offset-2 ring-offset-[#0B0F0C]",
           hover && "shadow-lg",
+          d.pulse && "animate-pulse-border",
         )}
         style={{
           borderColor: selected ? accent : `${accent}30`,
-          boxShadow: hover ? `0 8px 24px -8px ${accent}50` : undefined,
+          boxShadow: d.pulse
+            ? `0 0 0 2px ${accent}, 0 0 24px -2px ${accent}99`
+            : hover ? `0 8px 24px -8px ${accent}50` : undefined,
           ['--tw-ring-color' as string]: accent,
         }}
       >
