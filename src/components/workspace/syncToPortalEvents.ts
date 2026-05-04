@@ -77,6 +77,52 @@ export function syncNodeUpdated({
   }).catch(() => {});
 }
 
+/**
+ * Cria uma task no portal a partir de um node recém-criado no Ops.
+ * Cada node = card no kanban do projeto.
+ */
+export function syncNodeCreated({
+  workspaceId,
+  clientId,
+  nodeId,
+  nodeTitle,
+  nodeType,
+}: {
+  workspaceId: string;
+  clientId?: string | null;
+  nodeId: string;
+  nodeTitle?: string | null;
+  nodeType?: string | null;
+}) {
+  if (!clientId) return;
+  void supabase.functions.invoke("sync-to-portal", {
+    body: {
+      event: "node_created",
+      workspaceId,
+      clientId,
+      nodeId,
+      nodeTitle: nodeTitle ?? undefined,
+      nodeType: nodeType ?? undefined,
+    },
+  }).catch(() => {});
+}
+
+/** Remove a task correspondente do portal quando o node é deletado. */
+export function syncNodeDeleted({
+  workspaceId,
+  clientId,
+  nodeId,
+}: {
+  workspaceId: string;
+  clientId?: string | null;
+  nodeId: string;
+}) {
+  if (!clientId) return;
+  void supabase.functions.invoke("sync-to-portal", {
+    body: { event: "node_deleted", workspaceId, clientId, nodeId },
+  }).catch(() => {});
+}
+
 export function syncNodeCompletedWhenDone({
   previousStatus,
   nextStatus,
