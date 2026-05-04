@@ -86,6 +86,8 @@ export interface ProjectNodeData extends Record<string, unknown> {
   onExpandHub?: (nodeId: string) => void;
   /** Preview/action data per kind */
   typeData?: Record<string, unknown>;
+  /** Pisca quando o node foi criado pelo portal e ainda não foi tocado pelo operador. */
+  pulse?: boolean;
 }
 
 // ─── Status icon ──────────────────────────────────────────────
