@@ -2446,6 +2446,20 @@ function CanvasStudioInner({
             />
           )}
           <div className="h-5 w-px bg-border mx-1" />
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs"
+            onClick={async () => {
+              const r = await supabase.functions.invoke("backfill-nodes-to-portal", { body: { workspaceId } });
+              const res = (r.data as { sent?: number; total?: number } | null) ?? null;
+              toast({ title: "Sync com portal", description: res ? `Enviados ${res.sent ?? 0}/${res.total ?? 0} cards` : "Disparado" });
+            }}
+            title="Sincronizar todos os nodes existentes com o kanban do portal"
+          >
+            <RefreshCw className="h-3.5 w-3.5 mr-1" />
+            Sync portal
+          </Button>
           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onToggleFullscreen} aria-label="Alternar tela cheia">
             {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
