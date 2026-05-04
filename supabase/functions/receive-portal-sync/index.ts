@@ -452,6 +452,64 @@ serve(async (req) => {
       });
       if (error) throw error;
 
+      // ── TASK: cria/atualiza/remove node correspondente no canvas ────
+      if (type === "task") {
+        const portalTaskId = firstString(data.id, data.task_id);
+        const portalStatus = (firstString(data.status, data.kanban_status) ?? "draft").toLowerCase();
+        // mapeia status do kanban → ops
+        const statusMap: Record<string, string> = {
+          todo: "draft", "to-do": "draft", "to_do": "draft", backlog: "draft",
+          doing: "active", "in-progress": "active", "in_progress": "active", andamento: "active",
+          review: "in_review", revisao: "in_review", "em-revisao": "in_review",
+          blocked: "blocked", bloqueada: "blocked", bloqueado: "blocked",
+          done: "done", concluida: "done", concluido: "done", finalizada: "done",
+        };
+        const opsStatus = statusMap[portalStatus] ?? portalStatus;
+
+        const isDeleted = event === "task_deleted" || data.deleted === true;
+        if (isDeleted && portalTaskId) {
+          await supabase.from("canvas_nodes").delete()
+            .eq("workspace_id", ws.id)
+            .contains("data", { portal_task_id: portalTaskId });
+        } else if (portalTaskId) {
+          // procura node existente por portal_task_id em data
+          const { data: existing } = await supabase
+            .from("canvas_nodes")
+            .select("id, data")
+            .eq("workspace_id", ws.id)
+            .contains("data", { portal_task_id: portalTaskId })
+            .maybeSingle();
+
+          if (existing) {
+            await supabase.from("canvas_nodes").update({
+              title,
+              status: opsStatus,
+              updated_at: new Date().toISOString(),
+              data: { ...((existing.data as Record<string, unknown>) ?? {}), portal_task_id: portalTaskId, from_portal: true },
+            }).eq("id", existing.id);
+          } else {
+            // posição: empilha verticalmente abaixo do canvas (operador arrasta depois)
+            const { count } = await supabase
+              .from("canvas_nodes")
+              .select("id", { count: "exact", head: true })
+              .eq("workspace_id", ws.id);
+            const idx = count ?? 0;
+            await supabase.from("canvas_nodes").insert({
+              workspace_id: ws.id,
+              client_id: ws.client_id,
+              parent_node_id: null,
+              node_type: "checklist",
+              title,
+              description,
+              status: opsStatus,
+              pos_x: 80 + (idx % 6) * 320,
+              pos_y: 800 + Math.floor(idx / 6) * 220,
+              data: { from_portal: true, portal_task_id: portalTaskId, touched_at: null },
+            });
+          }
+        }
+      }
+
       return json({ ok: true, action: "timeline_event_created", type });
     }
 

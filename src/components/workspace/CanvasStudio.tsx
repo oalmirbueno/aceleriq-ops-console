@@ -7,7 +7,7 @@ import {
   type ReactFlowInstance, type Viewport, SelectionMode, MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow, MousePointer2, Hand, Lock, Grid3X3, Camera, Type, Image, FileStack, Bot, Megaphone, Trophy, MessageCircle, Focus, Eye, LayoutTemplate } from "lucide-react";
+import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow, MousePointer2, Hand, Lock, Grid3X3, Camera, Type, Image, FileStack, Bot, Megaphone, Trophy, MessageCircle, Focus, Eye, LayoutTemplate, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -511,6 +511,16 @@ function CanvasStudioInner({
   // Mantém refs estáveis sincronizados
   useEffect(() => { fetchDataRef.current = fetchData; }, [fetchData]);
 
+  // Backfill: ao abrir o canvas, sincroniza nodes existentes com o portal (1x por sessão por workspace).
+  useEffect(() => {
+    if (!workspaceId || loading) return;
+    const sessionKey = `ops:backfill-portal:${workspaceId}`;
+    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) return;
+    void supabase.functions.invoke("backfill-nodes-to-portal", { body: { workspaceId } })
+      .then(() => { try { sessionStorage.setItem(sessionKey, "1"); } catch {} })
+      .catch(() => {});
+  }, [workspaceId, loading]);
+
   // Auto-cria o node "client" quando o canvas vem de um workspace e ainda não tem pasta
   useEffect(() => {
     if (loading || !workspaceId || !clientId || !clientName) return;
@@ -815,6 +825,7 @@ function CanvasStudioInner({
           canExpandHub: nodeKindOf(n) === "engine",
             onExpandHub: stableOnExpandHub,
           typeData: dataObj,
+          pulse: !!dataObj.from_portal && !dataObj.touched_at,
         } satisfies ProjectNodeData,
       };
     });
@@ -2435,6 +2446,20 @@ function CanvasStudioInner({
             />
           )}
           <div className="h-5 w-px bg-border mx-1" />
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs"
+            onClick={async () => {
+              const r = await supabase.functions.invoke("backfill-nodes-to-portal", { body: { workspaceId } });
+              const res = (r.data as { sent?: number; total?: number } | null) ?? null;
+              toast({ title: "Sync com portal", description: res ? `Enviados ${res.sent ?? 0}/${res.total ?? 0} cards` : "Disparado" });
+            }}
+            title="Sincronizar todos os nodes existentes com o kanban do portal"
+          >
+            <RefreshCw className="h-3.5 w-3.5 mr-1" />
+            Sync portal
+          </Button>
           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onToggleFullscreen} aria-label="Alternar tela cheia">
             {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>

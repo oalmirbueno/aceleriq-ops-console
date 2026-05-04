@@ -58,13 +58,17 @@ export function useSaveNode(node: CanvasNodeRecord, workspaceId: string, onUpdat
 
   const save = useCallback(async (extraData?: Record<string, unknown>) => {
     setSaving(true);
+    const baseData = (node.data as Record<string, unknown> | null) ?? {};
+    const touchPatch = baseData.from_portal && !baseData.touched_at
+      ? { touched_at: new Date().toISOString() }
+      : {};
     const mergedData = extraData
-      ? { ...(node.data as Record<string, unknown> ?? {}), ...extraData }
-      : (node.data as Record<string, unknown> ?? {});
+      ? { ...baseData, ...extraData, ...touchPatch }
+      : { ...baseData, ...touchPatch };
     const { error } = await supabase.from("canvas_nodes").update({
       title: title.trim() || node.title,
       status,
-      ...(extraData ? { data: { ...(node.data as Record<string, unknown> ?? {}), ...extraData } } : {}),
+      ...(extraData || Object.keys(touchPatch).length > 0 ? { data: mergedData } : {}),
       updated_at: new Date().toISOString(),
     }).eq("id", node.id);
     setSaving(false);
