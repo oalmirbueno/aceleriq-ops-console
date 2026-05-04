@@ -164,10 +164,40 @@ serve(async (req) => {
         author_id:   PORTAL_ADMIN_ID || portalClientId,
         message,
         update_type: "task_progress",
+        // campos para o ops-webhook v2 fazer upsert na tabela tasks
+        node_id:     body.nodeId,
+        node_title:  title,
+        node_type:   body.nodeType ?? null,
+        status:      body.status ?? null,
+        previous_status: body.previousStatus ?? null,
+        progress,
       };
-      // Portal atual (ops-webhook) só conhece node_completed/file_approved/stage_advanced.
-      // Reaproveitamos node_completed para a tabela updates do portal.
-      event = "node_completed";
+      // mantém event="node_updated" — quando portal atualizar o webhook, fará upsert em tasks.
+      // Se portal ainda não suporta, ele simplesmente ignora.
+    }
+
+    else if (event === "node_created" && body.nodeId) {
+      if (!portalProjectId) return json({ skipped: true, reason: "portal_project_id not set on workspace" });
+      data = {
+        project_id: portalProjectId,
+        author_id:  PORTAL_ADMIN_ID || portalClientId,
+        node_id:    body.nodeId,
+        node_title: body.nodeTitle ?? "node",
+        node_type:  body.nodeType ?? null,
+        message:    `Nova tarefa criada: ${body.nodeTitle ?? "node"}`,
+        update_type: "task_created",
+      };
+    }
+
+    else if (event === "node_deleted" && body.nodeId) {
+      if (!portalProjectId) return json({ skipped: true, reason: "portal_project_id not set on workspace" });
+      data = {
+        project_id: portalProjectId,
+        author_id:  PORTAL_ADMIN_ID || portalClientId,
+        node_id:    body.nodeId,
+        message:    `Tarefa removida do canvas`,
+        update_type: "task_deleted",
+      };
     }
 
     else if (event === "stage_advanced") {
