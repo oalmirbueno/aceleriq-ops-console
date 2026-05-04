@@ -216,8 +216,15 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   const SECRET = Deno.env.get("PORTAL_WEBHOOK_SECRET") ?? "";
+  const BEARER_SECRET = Deno.env.get("PORTAL_TO_OPS_SECRET") ?? "";
   const received = req.headers.get("x-webhook-secret");
-  if (!SECRET || received !== SECRET) {
+  const authHeader = req.headers.get("authorization") ?? "";
+  const bearer = authHeader.toLowerCase().startsWith("bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
+  const okWebhook = SECRET && received === SECRET;
+  const okBearer = BEARER_SECRET && bearer === BEARER_SECRET;
+  if (!okWebhook && !okBearer) {
     return json({ error: "Unauthorized" }, 401);
   }
 
