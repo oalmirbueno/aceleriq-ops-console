@@ -1410,6 +1410,7 @@ function CanvasStudioInner({
     if (data) {
       const newRow = data as CanvasNodeRow;
       setDbNodes((prev) => [...prev, newRow]);
+      syncNodeCreated({ workspaceId, clientId, nodeId: newRow.id, nodeTitle: newRow.title, nodeType: newRow.node_type });
 
       // Auto connect from source if requested
       if (opts.sourceId) {
