@@ -164,12 +164,10 @@ serve(async (req) => {
         author_id:   PORTAL_ADMIN_ID || portalClientId,
         message,
         update_type: "task_progress",
-        node_id:     body.nodeId,
-        node_type:   body.nodeType ?? null,
-        status:      body.status ?? null,
-        previous_status: body.previousStatus ?? null,
-        progress,
       };
+      // Portal atual (ops-webhook) só conhece node_completed/file_approved/stage_advanced.
+      // Reaproveitamos node_completed para a tabela updates do portal.
+      event = "node_completed";
     }
 
     else if (event === "stage_advanced") {
