@@ -73,6 +73,11 @@ serve(async (req) => {
       nodeId?: string;
       stage?: string;
       message?: string;
+      nodeTitle?: string;
+      nodeType?: string;
+      status?: string;
+      previousStatus?: string;
+      progress?: number;
     };
 
     // ── Busca IDs do portal vinculados ao workspace/client ──────────────
@@ -131,6 +136,39 @@ serve(async (req) => {
         author_id:   PORTAL_ADMIN_ID || portalClientId,
         message:     `Entregável concluído: ${node?.title ?? "node"}`,
         update_type: "task",
+      };
+    }
+
+    else if (event === "node_updated" && body.nodeId) {
+      if (!portalProjectId) return json({ skipped: true, reason: "portal_project_id not set on workspace" });
+
+      const statusLabels: Record<string, string> = {
+        draft: "Não iniciada",
+        not_started: "Não iniciada",
+        active: "Em andamento",
+        in_progress: "Em andamento",
+        in_review: "Em revisão",
+        blocked: "Bloqueada",
+        done: "Concluída",
+        completed: "Concluída",
+      };
+      const statusLabel = statusLabels[(body.status ?? "").toLowerCase()] ?? body.status ?? "atualizada";
+      const progress = typeof body.progress === "number" ? body.progress : null;
+      const title = body.nodeTitle ?? "node";
+      const message = progress !== null
+        ? `Tarefa "${title}" — ${statusLabel} (${progress}%)`
+        : `Tarefa "${title}" — ${statusLabel}`;
+
+      data = {
+        project_id:  portalProjectId,
+        author_id:   PORTAL_ADMIN_ID || portalClientId,
+        message,
+        update_type: "task_progress",
+        node_id:     body.nodeId,
+        node_type:   body.nodeType ?? null,
+        status:      body.status ?? null,
+        previous_status: body.previousStatus ?? null,
+        progress,
       };
     }
 
