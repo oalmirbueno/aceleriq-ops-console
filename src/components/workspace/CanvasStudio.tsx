@@ -511,6 +511,16 @@ function CanvasStudioInner({
   // Mantém refs estáveis sincronizados
   useEffect(() => { fetchDataRef.current = fetchData; }, [fetchData]);
 
+  // Backfill: ao abrir o canvas, sincroniza nodes existentes com o portal (1x por sessão por workspace).
+  useEffect(() => {
+    if (!workspaceId || loading) return;
+    const sessionKey = `ops:backfill-portal:${workspaceId}`;
+    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) return;
+    void supabase.functions.invoke("backfill-nodes-to-portal", { body: { workspaceId } })
+      .then(() => { try { sessionStorage.setItem(sessionKey, "1"); } catch {} })
+      .catch(() => {});
+  }, [workspaceId, loading]);
+
   // Auto-cria o node "client" quando o canvas vem de um workspace e ainda não tem pasta
   useEffect(() => {
     if (loading || !workspaceId || !clientId || !clientName) return;
