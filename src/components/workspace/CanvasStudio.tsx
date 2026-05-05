@@ -2457,11 +2457,18 @@ function CanvasStudioInner({
       const milestoneNode = selectedMilestoneId
         ? scopedProjectNodes.find((node) => node.id === selectedMilestoneId)
         : null;
+      const portalProjectNode = portalProjectIdProp
+        ? scopedProjectNodes.find((node) => {
+          const d = (node.data as Record<string, unknown> | null) ?? {};
+          return String(d.kind ?? "").toLowerCase() === "project_group" && d.portal_project_id === portalProjectIdProp;
+        })
+        : null;
       const milestoneData = (milestoneNode?.data as Record<string, unknown> | null) ?? null;
-      const parent = milestoneNode?.id ?? aiOrbConfigNode.parent_node_id ?? ensureActiveClient();
+      const projectData = (portalProjectNode?.data as Record<string, unknown> | null) ?? null;
+      const parent = milestoneNode?.id ?? aiOrbConfigNode.parent_node_id ?? portalProjectNode?.id ?? ensureActiveClient();
       if (!parent) return;
       const portalMeta: Record<string, unknown> = {};
-      if (milestoneData?.portal_project_id) portalMeta.portal_project_id = milestoneData.portal_project_id;
+      if (milestoneData?.portal_project_id || projectData?.portal_project_id) portalMeta.portal_project_id = milestoneData?.portal_project_id ?? projectData?.portal_project_id;
       if (milestoneData?.portal_milestone_id) portalMeta.portal_milestone_id = milestoneData.portal_milestone_id;
       if (milestoneData?.milestone_key) portalMeta.milestone_key = milestoneData.milestone_key;
       if (milestoneData?.portal_folder_id) portalMeta.portal_folder_id = milestoneData.portal_folder_id;
