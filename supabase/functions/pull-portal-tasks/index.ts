@@ -532,7 +532,7 @@ serve(async (req) => {
                 project_id: taskProjectId,
                 node_id: newNode.id,
                 node_title: title,
-                node_type: "checklist",
+                node_type: inferKind,
                 status: opsStatus,
                 portal_task_id: portalTaskId,
                 portal_milestone_id: portalMilestoneId ?? undefined,
