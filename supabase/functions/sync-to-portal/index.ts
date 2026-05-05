@@ -29,6 +29,26 @@ function json(body: unknown, status = 200) {
   });
 }
 
+const COMPLETED = new Set(["done", "completed", "concluido"]);
+function computeNodeProgress(status?: string | null, data?: Record<string, unknown> | null): number {
+  const s = (status ?? "").toLowerCase();
+  if (COMPLETED.has(s)) return 100;
+  const ignore = new Set(["operationalMeta", "operational_meta", "_meta", "history"]);
+  const entries = Object.entries(data ?? {}).filter(([k]) => !ignore.has(k));
+  const total = entries.length || 1;
+  const filled = entries.filter(([, v]) => {
+    if (v == null) return false;
+    if (typeof v === "string") return v.trim().length > 0;
+    if (Array.isArray(v)) return v.length > 0;
+    if (typeof v === "object") return Object.keys(v as object).length > 0;
+    return true;
+  }).length;
+  const ratio = Math.min(filled / total, 1);
+  if (s === "draft" || s === "" || s === "not_started") return Math.round(ratio * 33);
+  if (s === "blocked" || s === "bloqueado") return Math.round(33 + ratio * 33);
+  return Math.round(33 + ratio * 33);
+}
+
 async function sendToPortal(
   url: string,
   secret: string | undefined,
@@ -256,7 +276,7 @@ serve(async (req) => {
       await db.from("assets").update({ metadata: { ...m, synced_to_portal: true } }).eq("id", body.assetId);
     }
 
-    return json({ ok: true, event, portal_project_id: portalProjectId, portal_client_id: portalClientId });
+    return json({ ok: true, event, portal_project_id: portalProjectId, portal_client_id: portalClientId, portal_response: result.body });
 
   } catch (err) {
     return json({ error: err instanceof Error ? err.message : "internal error" }, 500);
