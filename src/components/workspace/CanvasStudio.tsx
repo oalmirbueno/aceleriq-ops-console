@@ -427,6 +427,19 @@ function CanvasStudioInner({
   const [lockedNodes, setLockedNodes] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [openDockGroup, setOpenDockGroup] = useState<string | null>(null);
+  const milestoneOverlayKey = `canvas:milestone-overlay-dismissed:${workspaceId}:${portalProjectIdProp ?? "all"}`;
+  const [milestoneOverlayDismissed, setMilestoneOverlayDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem(milestoneOverlayKey) === "1";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setMilestoneOverlayDismissed(sessionStorage.getItem(milestoneOverlayKey) === "1");
+  }, [milestoneOverlayKey]);
+  const dismissMilestoneOverlay = useCallback(() => {
+    if (typeof window !== "undefined") sessionStorage.setItem(milestoneOverlayKey, "1");
+    setMilestoneOverlayDismissed(true);
+  }, [milestoneOverlayKey]);
   const dbNodesRef = useRef<CanvasNodeRow[]>([]);
   const dbEdgesRef = useRef<CanvasEdgeRecord[]>([]);
   const clientLogosRef = useRef<Record<string, string | null>>({});
