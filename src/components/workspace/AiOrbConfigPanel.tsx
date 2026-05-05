@@ -154,8 +154,8 @@ export default function AiOrbConfigPanel({ open, onOpenChange, data, onDataChang
           {/* ═══ QUANTIDADE DE NODES ═══ */}
           <div>
             <Label className="text-xs font-semibold mb-2">Quantos nodes gerar?</Label>
-            <div className="flex items-center gap-2">
-              {[5, 10, 15, 20].map((n) => (
+            <div className="flex flex-wrap items-center gap-2">
+              {[10, 20, 30, 50].map((n) => (
                 <button
                   key={n}
                   type="button"
@@ -172,6 +172,16 @@ export default function AiOrbConfigPanel({ open, onOpenChange, data, onDataChang
                   {n} nodes
                 </button>
               ))}
+              <Input
+                type="number"
+                min={1}
+                max={200}
+                value={targetNodes}
+                onChange={(e) => setTargetNodes(Math.max(1, Math.min(200, Number(e.target.value) || 1)))}
+                disabled={generating}
+                className="h-8 w-20 text-xs"
+                aria-label="Quantidade livre de nodes"
+              />
             </div>
           </div>
 
