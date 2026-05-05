@@ -351,6 +351,54 @@ serve(async (req) => {
       stats.errors.length > 0 ? `${stats.errors.length} erros` : "zero erros",
     ].join(" | ");
 
+    // ─── Reconciliação de deleções ──────────────────────────────
+    // Qualquer cliente/workspace do Ops com portal_client_id ou
+    // portal_project_id que não existe mais no portal é removido.
+    const portalProfileIds = new Set(profiles.map((p: any) => String(p.id)).filter(Boolean));
+    const portalProjectIds = new Set(projects.map((p: any) => String(p.id)).filter(Boolean));
+
+    const reconcile = { clients_deleted: 0, workspaces_deleted: 0, errors: [] as string[] };
+
+    try {
+      const { data: opsClients } = await ops
+        .from("clients")
+        .select("id, portal_client_id")
+        .not("portal_client_id", "is", null);
+      const orphanClientIds = (opsClients ?? [])
+        .filter((c: any) => c.portal_client_id && !portalProfileIds.has(String(c.portal_client_id)))
+        .map((c: any) => c.id);
+      if (orphanClientIds.length) {
+        const { data: wss } = await ops.from("workspaces").select("id").in("client_id", orphanClientIds);
+        const wsIds = (wss ?? []).map((w: any) => w.id);
+        if (wsIds.length) {
+          await ops.from("canvas_edges").delete().in("workspace_id", wsIds);
+          await ops.from("canvas_nodes").delete().in("workspace_id", wsIds);
+          await ops.from("timeline_events").delete().in("workspace_id", wsIds);
+          await ops.from("workspaces").delete().in("id", wsIds);
+          reconcile.workspaces_deleted += wsIds.length;
+        }
+        await ops.from("clients").delete().in("id", orphanClientIds);
+        reconcile.clients_deleted += orphanClientIds.length;
+      }
+
+      const { data: opsWs } = await ops
+        .from("workspaces")
+        .select("id, portal_project_id")
+        .not("portal_project_id", "is", null);
+      const orphanWsIds = (opsWs ?? [])
+        .filter((w: any) => w.portal_project_id && !portalProjectIds.has(String(w.portal_project_id)))
+        .map((w: any) => w.id);
+      if (orphanWsIds.length) {
+        await ops.from("canvas_edges").delete().in("workspace_id", orphanWsIds);
+        await ops.from("canvas_nodes").delete().in("workspace_id", orphanWsIds);
+        await ops.from("timeline_events").delete().in("workspace_id", orphanWsIds);
+        await ops.from("workspaces").delete().in("id", orphanWsIds);
+        reconcile.workspaces_deleted += orphanWsIds.length;
+      }
+    } catch (err) {
+      reconcile.errors.push((err as Error).message?.slice(0, 200) ?? "reconcile error");
+    }
+
     return new Response(JSON.stringify({ ok: true, stats, summary }),
       { headers: { ...cors, "Content-Type": "application/json" } });
 
