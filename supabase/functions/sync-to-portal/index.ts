@@ -73,6 +73,15 @@ async function sendToPortal(
   }
 }
 
+const PORTAL_BASE = "https://gicbrgagstyvbaaumprj.supabase.co/functions/v1";
+const TASK_STATUS_TO_OPS: Record<string, string> = {
+  todo: "draft", backlog: "draft",
+  doing: "active", in_progress: "active",
+  review: "in_review",
+  blocked: "blocked",
+  done: "done",
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
