@@ -422,6 +422,9 @@ function CanvasStudioInner({
   // organizadas por estágio (todo → doing → review → done).
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
 
+  // Reset milestone selecionado quando o cliente muda
+  useEffect(() => { setSelectedMilestoneId(null); }, [activeClientId]);
+
   useEffect(() => { dbNodesRef.current = dbNodes; }, [dbNodes]);
   useEffect(() => { dbEdgesRef.current = dbEdges; }, [dbEdges]);
   useEffect(() => { clientLogosRef.current = clientLogos; }, [clientLogos]);
