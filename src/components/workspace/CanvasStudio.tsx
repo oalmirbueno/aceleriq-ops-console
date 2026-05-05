@@ -884,17 +884,34 @@ function CanvasStudioInner({
   const fetchData = useCallback(async () => {
     // Só ativa skeleton se não tem nada em tela ainda
     setLoading((prev) => prev && dbNodesRef.current.length === 0);
+    const t0 = performance.now();
+    dbg("fetch", "start", { workspaceId, clientId });
     // ── Fase 1: payload leve para renderizar nodes na tela rapidamente.
     // (data jsonb e description podem ser grandes — buscamos depois em paralelo)
     const lightSel = "id, node_type, title, status, pos_x, pos_y, parent_node_id, linked_entity_id, linked_entity_type, workspace_id, client_id, created_at, updated_at";
-    const [{ data: lightNodes }, { data: edgesData }] = await Promise.all([
+    const [nodesRes, edgesRes] = await Promise.all([
       supabase.from("canvas_nodes").select(lightSel).eq("workspace_id", workspaceId).order("created_at"),
       supabase.from("canvas_edges")
         .select("id, source_node_id, target_node_id, source_handle, target_handle, edge_type, label, workspace_id")
         .eq("workspace_id", workspaceId),
     ]);
-    const lightNodesArr = (lightNodes ?? []) as CanvasNodeRow[];
-    const edges = (edgesData ?? []) as CanvasEdgeRecord[];
+    if (nodesRes.error) {
+      dbgWarn("fetch", "nodes error", nodesRes.error);
+      setLastFetchError(nodesRes.error.message);
+    } else if (edgesRes.error) {
+      dbgWarn("fetch", "edges error", edgesRes.error);
+      setLastFetchError(edgesRes.error.message);
+    } else {
+      setLastFetchError(null);
+    }
+    const lightNodesArr = (nodesRes.data ?? []) as CanvasNodeRow[];
+    const edges = (edgesRes.data ?? []) as CanvasEdgeRecord[];
+    dbg("fetch", "done", {
+      ms: Math.round(performance.now() - t0),
+      nodes: lightNodesArr.length,
+      edges: edges.length,
+    });
+    setLastFetchAt(Date.now());
 
     // Mescla com `data`/`description` já em memória (cache) para não regredir cards
     const prevById = new Map(dbNodesRef.current.map((n) => [n.id, n] as const));
