@@ -66,7 +66,8 @@ export type ProjectNodeKind =
   | "crm" | "checklist" | "asset" | "metrica"
   | "before_after" | "case" | "video" | "imagem"
   | "contato" | "objetivo" | "lancamento"
-  | "ai_orb" | "chat_node";
+  | "ai_orb" | "chat_node"
+  | "project_group" | "milestone_group";
 
 export type NodeFamily =
   | "entry" | "structure" | "plan" | "build"
@@ -90,6 +91,9 @@ export interface ProjectNodeTypeMeta {
 }
 
 export const PROJECT_TYPES: ProjectNodeTypeMeta[] = [
+  // Pastas vindas do portal (projeto e milestone) — exibem progresso real done/total
+  { kind: "project_group",   label: "Projeto",   shortLabel: "Projeto",   icon: FolderKanban, color: "border-border text-foreground/60", bg: "bg-transparent", defaultStage: "producao", sections: ["overview","notes"], titleTemplate: "Projeto" },
+  { kind: "milestone_group", label: "Milestone", shortLabel: "Milestone", icon: ListChecks,   color: "border-border text-foreground/60", bg: "bg-transparent", defaultStage: "producao", sections: ["overview","notes"], titleTemplate: "Milestone" },
   // Gramática operacional do Canvas — contexto → instrução → engine → resultado → decisão
   { kind: "contexto_ops", label: "Contexto operacional", shortLabel: "Contexto", icon: Paperclip,       color: "border-border text-foreground/60", bg: "bg-transparent", defaultStage: "entrada",        sections: ["overview","links","attachments","notes"],           titleTemplate: "Contexto" },
   { kind: "instrucao",    label: "Instrução / SOP",       shortLabel: "Instrução", icon: ClipboardCheck, color: "border-border text-foreground/60", bg: "bg-transparent", defaultStage: "planejamento",   sections: ["overview","copy","checklist","notes"],              titleTemplate: "Instrução" },
@@ -154,6 +158,7 @@ const KIND_TO_FAMILY: Record<ProjectNodeKind, NodeFamily> = {
   crm: "growth", metrica: "proof",
   before_after: "proof", case: "proof",
   ai_orb: "tech", chat_node: "tech",
+  project_group: "structure", milestone_group: "structure",
 };
 
 export function getNodeFamily(kind: string): NodeFamily {

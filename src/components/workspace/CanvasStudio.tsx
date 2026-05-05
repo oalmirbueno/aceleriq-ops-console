@@ -1213,6 +1213,46 @@ function CanvasStudioInner({
         style: { width: 316, height: Math.max(520, (stageCounts.get(stage.key) ?? 0) * FORDISMO_ROW_H + 112), zIndex: -1 },
       } satisfies Node;
     }) : [];
+    // Progresso real por pasta (project_group / milestone_group): conta tarefas filhas
+    // (diretas ou matched por portal_milestone_id/milestone_key) e quantas estão done.
+    const groupProgressById = new Map<string, { total: number; done: number }>();
+    {
+      const COMPLETED = new Set(["done", "completed", "concluido", "concluída", "concluida"]);
+      const isTaskish = (node: CanvasNodeRow) => {
+        const t = (node.node_type ?? "").toLowerCase();
+        const k = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
+        return !["client", "ai_orb", "chat_node"].includes(t) && !["project_group", "milestone_group", "chat_node"].includes(k);
+      };
+      const milestoneNodes = visibleCanvasNodes.filter((node) => String((node.data as Record<string, unknown> | null)?.kind ?? "") === "milestone_group");
+      const projectNodes = visibleCanvasNodes.filter((node) => String((node.data as Record<string, unknown> | null)?.kind ?? "") === "project_group");
+      for (const m of milestoneNodes) {
+        const md = (m.data as Record<string, unknown> | null) ?? {};
+        const mPid = md.portal_milestone_id as string | undefined;
+        const mKey = md.milestone_key as string | undefined;
+        const mProj = md.portal_project_id as string | undefined;
+        const tasks = visibleCanvasNodes.filter((n) => {
+          if (!isTaskish(n)) return false;
+          if (n.parent_node_id === m.id) return true;
+          const d = (n.data as Record<string, unknown> | null) ?? {};
+          if (mPid && d.portal_milestone_id === mPid) return true;
+          if (mKey && d.milestone_key === mKey && d.portal_project_id === mProj) return true;
+          return false;
+        });
+        const done = tasks.filter((t) => COMPLETED.has((t.status ?? "").toLowerCase())).length;
+        groupProgressById.set(m.id, { total: tasks.length, done });
+      }
+      for (const p of projectNodes) {
+        const pd = (p.data as Record<string, unknown> | null) ?? {};
+        const pPid = pd.portal_project_id as string | undefined;
+        const tasks = visibleCanvasNodes.filter((n) => {
+          if (!isTaskish(n)) return false;
+          const d = (n.data as Record<string, unknown> | null) ?? {};
+          return !!pPid && d.portal_project_id === pPid;
+        });
+        const done = tasks.filter((t) => COMPLETED.has((t.status ?? "").toLowerCase())).length;
+        groupProgressById.set(p.id, { total: tasks.length, done });
+      }
+    }
     const cardNodes = visibleCanvasNodes.map((n): Node => {
       const owner = n.parent_node_id ? groupMeta[n.parent_node_id] : null;
       const dataObj = (n.data as Record<string, unknown> | null) ?? {};
@@ -1258,8 +1298,16 @@ function CanvasStudioInner({
           hasLinkedEntity: !!n.linked_entity_id,
           links: (dataObj.links as unknown[] | undefined)?.length ?? 0,
           attachments: attachmentList.length,
-          checklistTotal: (dataObj.checklist as Array<{ done?: boolean }> | undefined)?.length ?? 0,
-          checklistDone: (dataObj.checklist as Array<{ done?: boolean }> | undefined)?.filter((c) => c.done).length ?? 0,
+          checklistTotal: (() => {
+            const k = String(dataObj.kind ?? "").toLowerCase();
+            if (k === "milestone_group" || k === "project_group") return groupProgressById.get(n.id)?.total ?? 0;
+            return (dataObj.checklist as Array<{ done?: boolean }> | undefined)?.length ?? 0;
+          })(),
+          checklistDone: (() => {
+            const k = String(dataObj.kind ?? "").toLowerCase();
+            if (k === "milestone_group" || k === "project_group") return groupProgressById.get(n.id)?.done ?? 0;
+            return (dataObj.checklist as Array<{ done?: boolean }> | undefined)?.filter((c) => c.done).length ?? 0;
+          })(),
           clientName: owner?.name ?? null,
           clientSeed: owner?.seed ?? null,
           clientLogoUrl: owner?.logoUrl ?? null,
