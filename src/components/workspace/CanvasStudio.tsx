@@ -760,6 +760,12 @@ function CanvasStudioInner({
     }
 
     await fetchDataRef.current?.();
+    setSyncStatus((s) => ({
+      ...s,
+      portalBusy: false,
+      portalPushAt: shouldPush && sent > 0 ? Date.now() : s.portalPushAt,
+      portalError: failed > 0 || pullFailed ? `${failed} push falhos${pullFailed ? " · pull falhou" : ""}` : null,
+    }));
     return { total: syncableNodes.length, sent, failed, pulled, pullFailed };
   }, [clientId, workspaceId]);
 
