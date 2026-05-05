@@ -20,7 +20,7 @@ const STATUS_MAP: Record<string, string> = {
   doing: "active", in_progress: "active",
   review: "in_review",
   blocked: "blocked",
-  done: "done",
+  done: "done", completed: "done", concluido: "done", concluída: "done", concluida: "done",
 };
 
 serve(async (req) => {
@@ -60,10 +60,83 @@ serve(async (req) => {
       portalHeaders.Authorization = `Bearer ${PORTAL_ANON}`;
     }
 
+    // Carrega lista de projetos do portal para sabermos os nomes/títulos
+    let portalProjects: Record<string, any>[] = [];
+    try {
+      const projRes = await fetch(`${PORTAL_BASE}/ops-projects-list`, {
+        method: "POST", headers: portalHeaders, body: JSON.stringify({}),
+      });
+      if (projRes.ok) {
+        const pj = await projRes.json().catch(() => ({}));
+        portalProjects = Array.isArray(pj?.projects) ? pj.projects : Array.isArray(pj) ? pj : [];
+      }
+    } catch { /* fallback silencioso */ }
+
+    // Localiza node "client" (folder) deste cliente no workspace
+    const { data: clientNode } = await db
+      .from("canvas_nodes")
+      .select("id, pos_x, pos_y")
+      .eq("workspace_id", workspaceId)
+      .eq("node_type", "client")
+      .or(`linked_entity_id.eq.${ws.client_id},client_id.eq.${ws.client_id}`)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    const clientNodeId = clientNode?.id ?? null;
+
+    // Garante 1 node "projeto" por portal_project_id presente nas tasks
+    // (e também para o portal_project_id do workspace).
+    async function ensureProjectGroupNode(portalProjectId: string): Promise<string | null> {
+      // 1) Busca por marcador em data
+      const { data: existing } = await db
+        .from("canvas_nodes")
+        .select("id")
+        .eq("workspace_id", workspaceId)
+        .contains("data", { kind: "project_group", portal_project_id: portalProjectId })
+        .maybeSingle();
+      if (existing?.id) return existing.id;
+
+      const projMeta = portalProjects.find((p) => String(p?.id ?? "") === portalProjectId);
+      const projTitle = String(projMeta?.name ?? projMeta?.title ?? "Projeto do portal");
+      const projStatus = String(projMeta?.status ?? "active");
+
+      // posiciona ao lado/abaixo do client node
+      const baseX = (clientNode?.pos_x ?? 80);
+      const baseY = (clientNode?.pos_y ?? 80) + 220;
+
+      // descobre quantos project_groups ja existem para deslocar X
+      const { count: groupCount } = await db
+        .from("canvas_nodes")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId)
+        .contains("data", { kind: "project_group" });
+      const idx = groupCount ?? 0;
+
+      const { data: created } = await db.from("canvas_nodes").insert({
+        workspace_id: workspaceId,
+        client_id: ws.client_id,
+        parent_node_id: clientNodeId,
+        node_type: "front",
+        title: projTitle,
+        status: projStatus === "completed" ? "done" : "active",
+        pos_x: baseX + idx * 360,
+        pos_y: baseY,
+        data: {
+          kind: "project_group",
+          from_portal: true,
+          portal_project_id: portalProjectId,
+          portal_status: projStatus,
+          stage: "producao",
+        },
+      }).select("id").single();
+      return created?.id ?? null;
+    }
+
     const res = await fetch(`${PORTAL_BASE}/ops-tasks-list`, {
       method: "POST",
       headers: portalHeaders,
-      body: JSON.stringify({ project_id: ws.portal_project_id, limit: 500 }),
+      // sem project_id → portal devolve TODAS as tasks (filtramos por client localmente)
+      body: JSON.stringify({ limit: 500 }),
     });
     const text = await res.text();
     if (!res.ok) {
@@ -74,9 +147,29 @@ serve(async (req) => {
     }
     let body: any = {};
     try { body = JSON.parse(text); } catch { return json({ error: "invalid portal json" }, 502); }
-    const tasks: Array<Record<string, unknown>> = Array.isArray(body?.tasks) ? body.tasks : Array.isArray(body) ? body : [];
+    const allTasks: Array<Record<string, any>> = Array.isArray(body?.tasks) ? body.tasks : Array.isArray(body) ? body : [];
+
+    // Mantém só tasks dos projetos deste cliente (ou do projeto principal vinculado).
+    const clientPortalProjectIds = new Set<string>([String(ws.portal_project_id)]);
+    for (const p of portalProjects) {
+      const pid = String(p?.id ?? "");
+      const pclient = String(p?.client_id ?? p?.profile_id ?? p?.customer_id ?? "");
+      // se projeto pertence ao mesmo cliente do projeto vinculado, inclui
+      const linkedProject = portalProjects.find((x) => String(x?.id ?? "") === String(ws.portal_project_id));
+      const linkedClient = String(linkedProject?.client_id ?? linkedProject?.profile_id ?? linkedProject?.customer_id ?? "");
+      if (pid && pclient && linkedClient && pclient === linkedClient) {
+        clientPortalProjectIds.add(pid);
+      }
+    }
+
+    const tasks = allTasks.filter((t) => {
+      const pid = String(t.project_id ?? t.portal_project_id ?? "");
+      return pid ? clientPortalProjectIds.has(pid) : true;
+    });
 
     let created = 0, updated = 0, linked = 0;
+    const projectGroupCache = new Map<string, string | null>();
+    const taskCounters = new Map<string, number>();
 
     for (const t of tasks) {
       const portalTaskId = String(t.id ?? t.task_id ?? "");
@@ -85,11 +178,30 @@ serve(async (req) => {
       const title = (t.title as string) ?? (t.name as string) ?? "Tarefa do portal";
       const portalStatus = String(t.status ?? "todo").toLowerCase();
       const opsStatus = STATUS_MAP[portalStatus] ?? "draft";
+      const taskProjectId = String(t.project_id ?? t.portal_project_id ?? ws.portal_project_id);
+
+      // garante node de projeto
+      let projectNodeId = projectGroupCache.get(taskProjectId) ?? null;
+      if (!projectGroupCache.has(taskProjectId)) {
+        projectNodeId = await ensureProjectGroupNode(taskProjectId);
+        projectGroupCache.set(taskProjectId, projectNodeId);
+      }
+
+      const description = (t.description ?? t.notes ?? null) as string | null;
+      const priority    = (t.priority ?? null) as string | null;
+      const dueDate     = (t.due_date ?? t.dueDate ?? null) as string | null;
+      const checklist   = Array.isArray(t.checklist) ? t.checklist : [];
+      const labels      = Array.isArray(t.labels) ? t.labels : [];
 
       if (opsNodeId) {
         const { data: existing } = await db.from("canvas_nodes").select("id").eq("id", opsNodeId).maybeSingle();
         if (existing) {
-          await db.from("canvas_nodes").update({ title, status: opsStatus, updated_at: new Date().toISOString() }).eq("id", opsNodeId);
+          await db.from("canvas_nodes").update({
+            title, status: opsStatus,
+            parent_node_id: projectNodeId,
+            description,
+            updated_at: new Date().toISOString(),
+          }).eq("id", opsNodeId);
           updated++;
           continue;
         }
@@ -104,26 +216,55 @@ serve(async (req) => {
         .maybeSingle();
 
       if (existingByTask) {
+        const cur = (existingByTask.data as Record<string, unknown>) ?? {};
         await db.from("canvas_nodes").update({
-          title, status: opsStatus, updated_at: new Date().toISOString(),
-          data: { ...((existingByTask.data as Record<string, unknown>) ?? {}), portal_task_id: portalTaskId, from_portal: true },
+          title, status: opsStatus,
+          parent_node_id: projectNodeId,
+          description,
+          updated_at: new Date().toISOString(),
+          data: {
+            ...cur,
+            portal_task_id: portalTaskId,
+            portal_project_id: taskProjectId,
+            from_portal: true,
+            portal_status: portalStatus,
+            priority, due_date: dueDate, labels,
+            checklist: checklist.length > 0 ? checklist : (cur.checklist ?? []),
+          },
         }).eq("id", existingByTask.id);
         updated++;
         continue;
       }
 
-      const { count } = await db.from("canvas_nodes").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId);
-      const idx = count ?? 0;
+      const counterKey = taskProjectId;
+      const idx = taskCounters.get(counterKey) ?? 0;
+      taskCounters.set(counterKey, idx + 1);
+
+      // posicionamento empilhado abaixo do project group
+      const baseX = (clientNode?.pos_x ?? 80);
+      const groupIdx = Array.from(projectGroupCache.keys()).indexOf(taskProjectId);
+      const colX = baseX + Math.max(0, groupIdx) * 360;
+
       const { data: newNode } = await db.from("canvas_nodes").insert({
         workspace_id: workspaceId,
         client_id: ws.client_id,
-        parent_node_id: null,
-        node_type: "checklist",
+        parent_node_id: projectNodeId,
+        node_type: "task",
         title,
         status: opsStatus,
-        pos_x: 80 + (idx % 6) * 320,
-        pos_y: 800 + Math.floor(idx / 6) * 220,
-        data: { from_portal: true, portal_task_id: portalTaskId, kind: "checklist", checklist: [] },
+        description,
+        pos_x: colX,
+        pos_y: ((clientNode?.pos_y ?? 80) + 360) + idx * 150,
+        data: {
+          from_portal: true,
+          portal_task_id: portalTaskId,
+          portal_project_id: taskProjectId,
+          portal_status: portalStatus,
+          kind: "checklist",
+          checklist,
+          priority, due_date: dueDate, labels,
+          stage: "producao",
+        },
       }).select("id").single();
       created++;
 
