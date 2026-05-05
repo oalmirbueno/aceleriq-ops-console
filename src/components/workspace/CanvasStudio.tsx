@@ -575,7 +575,6 @@ function CanvasStudioInner({
       .eq("workspace_id", workspaceId);
     const allNodes = ((freshNodes ?? dbNodesRef.current) as CanvasNodeRow[]);
     const clientRoot = allNodes.find((node) => node.node_type === "client" && (node.client_id === clientId || node.linked_entity_id === clientId));
-    const baseX = Number(clientRoot?.pos_x ?? 60);
 
     const portalOrder = (node: CanvasNodeRow) => {
       const value = Number((node.data as Record<string, unknown> | null)?.portal_position ?? 9999);
@@ -593,10 +592,9 @@ function CanvasStudioInner({
       const kind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
       return !["client", "ai_orb", "chat_node"].includes(type) && !["project_group", "milestone_group", "chat_node"].includes(kind);
     };
-    projectGroups.forEach((project, projectIndex) => {
+    projectGroups.forEach((project) => {
       const projectData = (project.data as Record<string, unknown> | null) ?? {};
       const portalProjectId = typeof projectData.portal_project_id === "string" ? projectData.portal_project_id : null;
-      const projectX = baseX + projectIndex * 1760;
       if (!project.parent_node_id && clientRoot?.id) {
         relationshipUpdates.push({ id: project.id, parent_node_id: clientRoot.id });
       }
