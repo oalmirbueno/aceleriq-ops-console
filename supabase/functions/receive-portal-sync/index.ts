@@ -484,6 +484,72 @@ serve(async (req) => {
       const description = firstString(data.description, data.message, data.content);
       const happenedAt = firstString(data.target_date, data.created_at, data.updated_at) || new Date().toISOString();
 
+      // ── MILESTONE: cria/atualiza/remove a pasta milestone_group correspondente ──
+      if (type === "milestone") {
+        const portalMilestoneId = firstString(data.id, data.milestone_id);
+        const isDeleted = event === "milestone_deleted" || event === "DELETE" || data.deleted === true;
+        if (isDeleted && portalMilestoneId) {
+          await supabase.from("canvas_nodes").delete()
+            .eq("workspace_id", ws.id)
+            .contains("data", { kind: "milestone_group", portal_milestone_id: portalMilestoneId });
+        } else if (portalMilestoneId) {
+          // Garante o project_group pai
+          let projectGroupId: string | null = null;
+          if (portalProjectId) {
+            const { data: pg } = await supabase
+              .from("canvas_nodes")
+              .select("id")
+              .eq("workspace_id", ws.id)
+              .contains("data", { kind: "project_group", portal_project_id: portalProjectId })
+              .maybeSingle();
+            projectGroupId = pg?.id ?? null;
+            if (!projectGroupId) {
+              const { data: clientNode } = await supabase
+                .from("canvas_nodes").select("id, pos_x, pos_y").eq("workspace_id", ws.id).eq("node_type", "client").eq("client_id", ws.client_id).order("created_at", { ascending: true }).limit(1).maybeSingle();
+              const { data: createdPg } = await supabase.from("canvas_nodes").insert({
+                workspace_id: ws.id, client_id: ws.client_id,
+                parent_node_id: clientNode?.id ?? null, node_type: "front",
+                title: firstString(data.project_title, data.project_name) ?? "Projeto do portal",
+                status: "active",
+                pos_x: Number(clientNode?.pos_x ?? 80), pos_y: Number(clientNode?.pos_y ?? 0) + 190,
+                data: { kind: "project_group", from_portal: true, portal_project_id: portalProjectId, stage: "producao" },
+              }).select("id").single();
+              projectGroupId = createdPg?.id ?? null;
+            }
+          }
+          const portalStatus = (firstString(data.status, "active") ?? "active").toLowerCase();
+          const opsStatus = portalStatus === "completed" || portalStatus === "done" ? "done" : "active";
+          const position = Number(data.position ?? data.order ?? data.sort_order ?? 0);
+          const { data: existingMs } = await supabase
+            .from("canvas_nodes").select("id, data").eq("workspace_id", ws.id)
+            .contains("data", { kind: "milestone_group", portal_milestone_id: portalMilestoneId })
+            .maybeSingle();
+          const msPayload = compactRecord({
+            kind: "milestone_group", from_portal: true,
+            portal_project_id: portalProjectId ?? undefined,
+            portal_milestone_id: portalMilestoneId,
+            milestone_key: portalMilestoneId,
+            portal_position: Number.isFinite(position) ? position : 0,
+            portal_status: portalStatus, stage: "producao",
+          });
+          if (existingMs?.id) {
+            await supabase.from("canvas_nodes").update({
+              title, status: opsStatus, parent_node_id: projectGroupId,
+              updated_at: new Date().toISOString(),
+              data: { ...((existingMs.data as Record<string, unknown>) ?? {}), ...msPayload },
+            }).eq("id", existingMs.id);
+          } else {
+            await supabase.from("canvas_nodes").insert({
+              workspace_id: ws.id, client_id: ws.client_id,
+              parent_node_id: projectGroupId, node_type: "front",
+              title, status: opsStatus,
+              pos_x: 112, pos_y: 360,
+              data: msPayload,
+            });
+          }
+        }
+      }
+
       // ── TASK: cria/atualiza/remove node correspondente no canvas ────
       if (type === "task") {
         const portalTaskId = firstString(data.id, data.task_id);
