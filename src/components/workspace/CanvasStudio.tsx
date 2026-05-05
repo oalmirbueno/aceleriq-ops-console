@@ -426,6 +426,52 @@ function CanvasStudioInner({
     });
   }, [workspaceId]);
 
+  const syncPortalNow = useCallback(async () => {
+    const syncableNodes = dbNodesRef.current.filter((node) => {
+      const type = (node.node_type ?? "").toLowerCase();
+      const kind = ((node.data as Record<string, unknown> | null)?.kind as string | undefined ?? "").toLowerCase();
+      return !["client", "ai_orb", "chat_node"].includes(type) && kind !== "chat_node";
+    });
+
+    let sent = 0;
+    let failed = 0;
+    for (const node of syncableNodes) {
+      const { data, error } = await supabase.functions.invoke("sync-to-portal", {
+        body: {
+          event: "node_created",
+          workspaceId,
+          clientId: node.client_id ?? clientId,
+          nodeId: node.id,
+          nodeTitle: node.title,
+          nodeType: node.node_type,
+          status: node.status ?? "draft",
+        },
+      });
+      if (error || (data as any)?.ok === false || (data as any)?.skipped) failed++;
+      else sent++;
+    }
+
+    let pulled = 0;
+    let pullFailed = false;
+    try {
+      const response = await fetch("https://gicbrgagstyvbaaumprj.supabase.co/functions/v1/backfill-tasks-to-ops", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: "ops_canvas_manual_sync" }),
+      });
+      const text = await response.text();
+      const parsed = text ? JSON.parse(text) : {};
+      pulled = Number(parsed.sent ?? 0);
+      pullFailed = !response.ok || Number(parsed.failed ?? 0) > 0;
+    } catch (error) {
+      console.error("[CanvasStudio] portal backfill-tasks-to-ops failed", error);
+      pullFailed = true;
+    }
+
+    await fetchDataRef.current?.();
+    return { total: syncableNodes.length, sent, failed, pulled, pullFailed };
+  }, [clientId, workspaceId]);
+
   // Load client plan_name + project_type for ApplyPlaybookButton
   useEffect(() => {
     if (!clientId) { setClientPlanName(null); setClientProjectType(null); return; }
