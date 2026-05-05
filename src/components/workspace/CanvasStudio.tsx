@@ -417,6 +417,9 @@ function CanvasStudioInner({
   // Plan name of the currently displayed client (fetched from clients table)
   const [clientPlanName, setClientPlanName] = useState<string | null>(null);
   const [clientProjectType, setClientProjectType] = useState<string | null>(null);
+  // Milestone "fordismo" — quando setado, a esteira mostra só as tarefas desse milestone
+  // organizadas por estágio (todo → doing → review → done).
+  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
 
   useEffect(() => { dbNodesRef.current = dbNodes; }, [dbNodes]);
   useEffect(() => { dbEdgesRef.current = dbEdges; }, [dbEdges]);
