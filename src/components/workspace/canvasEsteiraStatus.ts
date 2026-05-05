@@ -44,3 +44,17 @@ export function premiumStatusToDb(s: string): string {
     default: return "draft";
   }
 }
+
+/** Progresso (%) inferido a partir do status premium — usado para barra de avanço no node. */
+export function statusProgressPct(s: string): number {
+  switch (s) {
+    case "ideia":       return 5;
+    case "planejado":   return 20;
+    case "em_producao": return 45;
+    case "revisao":     return 70;
+    case "ativo":       return 85;
+    case "bloqueado":   return 50;
+    case "concluido":   return 100;
+    default: return 0;
+  }
+}
