@@ -1092,7 +1092,45 @@ function CanvasStudioInner({
 
   /* Project nodes visible based on active tab */
   const scopedProjectNodes = useMemo(() => {
-    if (activeClientId === null) return projectNodes;
+    // 1) Quando o canvas foi aberto para 1 projeto específico do Portal,
+    //    restringe a árvore: project_group com aquele portal_project_id +
+    //    todos os descendentes + a pasta do cliente (se houver). Nada mais.
+    let baseNodes = projectNodes;
+    if (portalProjectIdProp) {
+      const projectGroup = projectNodes.find((n) => {
+        const d = (n.data as Record<string, unknown> | null) ?? {};
+        return String(d.kind ?? "").toLowerCase() === "project_group" && d.portal_project_id === portalProjectIdProp;
+      });
+      if (!projectGroup) {
+        // Sem grupo do projeto ainda — mantém só a pasta do cliente para o
+        // canvas não ficar vazio e o usuário poder linkar.
+        baseNodes = projectNodes.filter((n) => (n.node_type ?? "").toLowerCase() === "client");
+      } else {
+        const allowedProj = new Set<string>([projectGroup.id]);
+        let changedP = true;
+        while (changedP) {
+          changedP = false;
+          for (const n of projectNodes) {
+            if (!allowedProj.has(n.id) && n.parent_node_id && allowedProj.has(n.parent_node_id)) {
+              allowedProj.add(n.id);
+              changedP = true;
+            }
+          }
+        }
+        // Também aceita tasks/milestones que carreguem o portal_project_id
+        // mas tenham perdido parent_node_id por alguma reorganização.
+        for (const n of projectNodes) {
+          const d = (n.data as Record<string, unknown> | null) ?? {};
+          if (d.portal_project_id === portalProjectIdProp) allowedProj.add(n.id);
+        }
+        // Inclui a pasta do cliente como "raiz" visual.
+        const clientRoot = projectNodes.find((n) => (n.node_type ?? "").toLowerCase() === "client" && (n.client_id === clientId || n.linked_entity_id === clientId));
+        if (clientRoot) allowedProj.add(clientRoot.id);
+        baseNodes = projectNodes.filter((n) => allowedProj.has(n.id));
+      }
+    }
+
+    if (activeClientId === null) return baseNodes;
     const activeGroup = clientGroups.find((group) => group.id === activeClientId);
     const linkedClientId = activeGroup?.linked_entity_id ?? activeGroup?.client_id ?? null;
     // Inclui descendentes (project_group → tasks → ...) recursivamente.
@@ -1100,19 +1138,19 @@ function CanvasStudioInner({
     let changed = true;
     while (changed) {
       changed = false;
-      for (const n of projectNodes) {
+      for (const n of baseNodes) {
         if (!allowed.has(n.id) && n.parent_node_id && allowed.has(n.parent_node_id)) {
           allowed.add(n.id);
           changed = true;
         }
       }
     }
-    return projectNodes.filter(
+    return baseNodes.filter(
       (n) =>
         allowed.has(n.id) ||
         (!n.parent_node_id && linkedClientId && n.client_id === linkedClientId),
     );
-  }, [projectNodes, activeClientId, clientGroups]);
+  }, [projectNodes, activeClientId, clientGroups, portalProjectIdProp, clientId]);
 
   type QuickAddState = { open: boolean; sourceId: string | null; dir: "right" | "bottom" | null };
   const [quickAddState, setQuickAddState] = useState<QuickAddState>({ open: false, sourceId: null, dir: null });
