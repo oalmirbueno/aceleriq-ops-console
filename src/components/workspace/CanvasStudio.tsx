@@ -3390,6 +3390,7 @@ function CanvasStudioInner({
           nodes={scopedProjectNodes}
           selectedMilestoneId={selectedMilestoneId}
           onSelectMilestone={(id) => setSelectedMilestoneId(id)}
+          syncStatus={syncStatus}
         />
       )}
 
