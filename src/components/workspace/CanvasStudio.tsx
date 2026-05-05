@@ -562,34 +562,28 @@ function CanvasStudioInner({
     if (!workspaceId || loading) return;
     const sessionKey = `ops:backfill-portal:v2:${workspaceId}`;
     if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) return;
-    void supabase.functions.invoke("backfill-nodes-to-portal", { body: { workspaceId } })
-      .then(({ data, error }) => {
-        if (error || (data as any)?.ok === false) {
-          console.error("[CanvasStudio] backfill-nodes-to-portal failed", error ?? data);
-          return;
-        }
-        try { sessionStorage.setItem(sessionKey, "1"); } catch {}
-      })
-      .catch((error) => console.error("[CanvasStudio] backfill-nodes-to-portal failed", error));
-  }, [workspaceId, loading]);
+    void syncPortalNow()
+      .then(() => { try { sessionStorage.setItem(sessionKey, "1"); } catch {} })
+      .catch((error) => console.error("[CanvasStudio] syncPortalNow failed", error));
+  }, [workspaceId, loading, syncPortalNow]);
 
   // Pull ativo: traz tarefas existentes do portal e cria nodes locais (idempotente).
   useEffect(() => {
     if (!workspaceId || loading) return;
     const sessionKey = `ops:pull-tasks:v2:${workspaceId}`;
     if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) return;
-    void supabase.functions.invoke("pull-portal-tasks", { body: { workspaceId } })
-      .then(({ data, error }) => {
-        if (error || (data as any)?.ok === false) {
-          console.error("[CanvasStudio] pull-portal-tasks failed", error ?? data);
-          return;
-        }
+    void fetch("https://gicbrgagstyvbaaumprj.supabase.co/functions/v1/backfill-tasks-to-ops", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source: "ops_canvas_auto_pull" }),
+    })
+      .then(async (response) => {
+        const text = await response.text();
+        if (!response.ok) throw new Error(text || `Portal backfill ${response.status}`);
         try { sessionStorage.setItem(sessionKey, "1"); } catch {}
-        if (data && ((data as any).created > 0 || (data as any).updated > 0)) {
-          fetchDataRef.current?.();
-        }
+        fetchDataRef.current?.();
       })
-      .catch((error) => console.error("[CanvasStudio] pull-portal-tasks failed", error));
+      .catch((error) => console.error("[CanvasStudio] portal backfill-tasks-to-ops failed", error));
   }, [workspaceId, loading]);
 
   // Realtime: novos nodes (criados pelo portal ou outra sessão) aparecem ao vivo.
