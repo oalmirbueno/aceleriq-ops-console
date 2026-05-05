@@ -148,6 +148,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   try {
+    const requestBody = (await req.json().catch(() => ({}))) as { workspaceId?: string; portalProjectId?: string };
+    const requestedWorkspaceId = firstString(requestBody.workspaceId);
+    const requestedPortalProjectId = firstString(requestBody.portalProjectId);
     const ops = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const SECRET = Deno.env.get("PORTAL_WEBHOOK_SECRET") ?? "";
 
@@ -348,6 +351,7 @@ serve(async (req) => {
           }
         } else {
           for (const proj of clientProjects) {
+            if (requestedPortalProjectId && firstString(proj.id, proj.project_id, proj.uuid) !== requestedPortalProjectId) continue;
             const projBriefing = briefingByProject.get(proj.id);
             const projEb = { ...eb };
             if (projBriefing?.responses) Object.assign(projEb, projBriefing.responses);
@@ -360,6 +364,7 @@ serve(async (req) => {
             let wsId: string;
 
             if (existWs) {
+              if (requestedWorkspaceId && existWs.id !== requestedWorkspaceId) continue;
               await ops.from("workspaces").update({
                 name: proj.name,
                 summary: proj.description || null,
