@@ -48,6 +48,10 @@ export default function CanvasFullscreenPage() {
         navigate(`/ops/projects/${list[0].portalProjectId}`, { replace: true });
         return;
       }
+      if (list.length === 0) {
+        navigate(`/ops/workspaces/${workspaceId}?tab=canvas`, { replace: true });
+        return;
+      }
       setProjects(list);
       setRedirecting(false);
     })();

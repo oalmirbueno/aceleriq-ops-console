@@ -245,8 +245,11 @@ export default function WorkspaceDetailPage() {
   const portalClientId  = ws.clients?.portal_client_id ?? null;
 
   const openCanvas = () => {
-    const p = new URLSearchParams({ workspaceId: ws.id, clientId: ws.client_id, clientName });
-    navigate(`/ops/canvas/open?${p.toString()}`);
+    setActiveTab("canvas");
+    // mantém URL em sincronia para deep-link
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", "canvas");
+    window.history.replaceState(null, "", url.toString());
   };
 
   // Group tabs for rendering

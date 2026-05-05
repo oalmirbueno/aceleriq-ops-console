@@ -427,6 +427,19 @@ function CanvasStudioInner({
   const [lockedNodes, setLockedNodes] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [openDockGroup, setOpenDockGroup] = useState<string | null>(null);
+  const milestoneOverlayKey = `canvas:milestone-overlay-dismissed:${workspaceId}:${portalProjectIdProp ?? "all"}`;
+  const [milestoneOverlayDismissed, setMilestoneOverlayDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem(milestoneOverlayKey) === "1";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setMilestoneOverlayDismissed(sessionStorage.getItem(milestoneOverlayKey) === "1");
+  }, [milestoneOverlayKey]);
+  const dismissMilestoneOverlay = useCallback(() => {
+    if (typeof window !== "undefined") sessionStorage.setItem(milestoneOverlayKey, "1");
+    setMilestoneOverlayDismissed(true);
+  }, [milestoneOverlayKey]);
   const dbNodesRef = useRef<CanvasNodeRow[]>([]);
   const dbEdgesRef = useRef<CanvasEdgeRecord[]>([]);
   const clientLogosRef = useRef<Record<string, string | null>>({});
@@ -3615,6 +3628,93 @@ function CanvasStudioInner({
             </div>
             )
           ) : (
+            <>
+            {portalProjectIdProp && !selectedMilestoneId && !milestoneOverlayDismissed && (() => {
+              const milestones = scopedProjectNodes
+                .filter((n) => String((n.data as Record<string, unknown> | null)?.kind ?? "") === "milestone_group")
+                .sort((a, b) => {
+                  const ap = Number((a.data as Record<string, unknown> | null)?.portal_position ?? 9999);
+                  const bp = Number((b.data as Record<string, unknown> | null)?.portal_position ?? 9999);
+                  if (ap !== bp) return ap - bp;
+                  return String(a.title).localeCompare(String(b.title));
+                });
+              if (milestones.length === 0) return null;
+              const allTasks = scopedProjectNodes.filter((n) => {
+                const t = (n.node_type ?? "").toLowerCase();
+                const k = String((n.data as Record<string, unknown> | null)?.kind ?? "");
+                return !["client", "ai_orb", "chat_node"].includes(t) && !["project_group", "milestone_group", "chat_node"].includes(k);
+              });
+              return (
+                <div className="absolute inset-0 z-20 bg-background/95 backdrop-blur-sm overflow-y-auto">
+                  <div className="max-w-5xl mx-auto px-6 py-10">
+                    <div className="mb-6">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-1">Esteira de produção</p>
+                      <h2 className="text-2xl font-semibold text-foreground">Escolha o milestone</h2>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Cada pasta abre uma esteira fordista com as tarefas daquele milestone. Você pode trocar a qualquer momento pelas abas no topo do canvas.
+                      </p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <button
+                        type="button"
+                        onClick={dismissMilestoneOverlay}
+                        className="group flex flex-col gap-2 rounded-xl border border-border bg-card/40 hover:border-primary/40 hover:bg-card/70 transition-all p-4 text-left"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-md border border-border bg-background/60 flex items-center justify-center">
+                            <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">Visão geral</p>
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">todos os milestones</p>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">{allTasks.length} tarefas no projeto</p>
+                      </button>
+                      {milestones.map((m) => {
+                        const md = (m.data as Record<string, unknown> | null) ?? {};
+                        const mPid = md.portal_milestone_id as string | undefined;
+                        const mKey = md.milestone_key as string | undefined;
+                        const mProj = md.portal_project_id as string | undefined;
+                        const tasks = allTasks.filter((n) => {
+                          if (n.parent_node_id === m.id) return true;
+                          const d = (n.data as Record<string, unknown> | null) ?? {};
+                          if (mPid && d.portal_milestone_id === mPid) return true;
+                          if (mKey && mProj && d.milestone_key === mKey && d.portal_project_id === mProj) return true;
+                          return false;
+                        });
+                        const done = tasks.filter((n) => ["done", "completed", "concluido", "concluída", "concluida"].includes((n.status ?? "").toLowerCase())).length;
+                        const pct = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => setSelectedMilestoneId(m.id)}
+                            className="group flex flex-col gap-3 rounded-xl border border-border bg-card/40 hover:border-primary/50 hover:bg-card/70 transition-all p-4 text-left"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="h-8 w-8 shrink-0 rounded-md border border-primary/30 bg-primary/10 flex items-center justify-center">
+                                  <FlaskConical className="h-4 w-4 text-primary" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-foreground truncate">{m.title}</p>
+                                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{m.status ?? "ativo"}</p>
+                                </div>
+                              </div>
+                              <span className="text-[10px] tabular-nums text-muted-foreground">{done}/{tasks.length}</span>
+                            </div>
+                            <div className="h-1 rounded-full bg-muted overflow-hidden">
+                              <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             <CanvasViewport
               nodes={rfNodes}
               edges={rfEdges}
@@ -3637,6 +3737,7 @@ function CanvasStudioInner({
               gridVisible={gridVisible}
               lockedNodes={lockedNodes}
             />
+            </>
           )}
           {!loading && clientGroups.length > 0 && (
             <NodeTypeDock

@@ -78,6 +78,16 @@ export default function ProjectCanvasPage() {
     return () => { cancelled = true; };
   }, [portalProjectId]);
 
+  // Auto-pull silencioso: ao abrir o projeto, puxa milestones+tasks do Portal
+  // sem o usuário precisar apertar nada. Realtime + usePortalAutoSync mantêm
+  // tudo atualizado depois.
+  useEffect(() => {
+    if (!resolved?.workspaceId || !portalProjectId) return;
+    supabase.functions.invoke("pull-portal-tasks", {
+      body: { workspaceId: resolved.workspaceId, portalProjectId },
+    }).catch(() => {/* silencioso */});
+  }, [resolved?.workspaceId, portalProjectId]);
+
   const title = useMemo(() => resolved?.projectTitle ?? "Projeto", [resolved]);
 
   if (!portalProjectId) {
