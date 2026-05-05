@@ -94,6 +94,7 @@ serve(async (req) => {
         .select("id, data")
         .eq("workspace_id", workspaceId)
         .contains("data", { portal_task_id: portalTaskId })
+        .limit(1)
         .maybeSingle();
 
       if (existingByTask) {
