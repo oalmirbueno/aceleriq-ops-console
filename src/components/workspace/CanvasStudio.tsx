@@ -30,6 +30,7 @@ import CanvasTemplatesDialog, { type CanvasTemplate, type NodeSnapshot, type Edg
 import ApplyPlaybookButton from "./ApplyPlaybookButton";
 import CanvasProjectLinker from "./CanvasProjectLinker";
 import DeletableEdge from "./DeletableEdge";
+import MilestoneFordismoBar from "./MilestoneFordismoBar";
 import type { EsteiraTemplate } from "./esteiraTemplates";
 import { syncNodeCreated, syncNodeDeleted } from "./syncToPortalEvents";
 import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalMeta } from "./canvasOperationalMeta";
@@ -417,6 +418,12 @@ function CanvasStudioInner({
   // Plan name of the currently displayed client (fetched from clients table)
   const [clientPlanName, setClientPlanName] = useState<string | null>(null);
   const [clientProjectType, setClientProjectType] = useState<string | null>(null);
+  // Milestone "fordismo" — quando setado, a esteira mostra só as tarefas desse milestone
+  // organizadas por estágio (todo → doing → review → done).
+  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
+
+  // Reset milestone selecionado quando o cliente muda
+  useEffect(() => { setSelectedMilestoneId(null); }, [activeClientId]);
 
   useEffect(() => { dbNodesRef.current = dbNodes; }, [dbNodes]);
   useEffect(() => { dbEdgesRef.current = dbEdges; }, [dbEdges]);
@@ -984,7 +991,36 @@ function CanvasStudioInner({
 
   const visibleCanvasNodes = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
+    // ── Modo "Fordismo": com um milestone selecionado, mostramos apenas as tarefas
+    // daquele milestone, organizadas em esteira por status. Sem milestone selecionado,
+    // mostramos só as PASTAS (cliente + project_group + milestone_group) — assim o
+    // canvas não fica empilhado com 170+ nodes ao mesmo tempo.
+    const milestoneById = new Map(scopedProjectNodes.map((n) => [n.id, n] as const));
+    const isFolder = (node: CanvasNodeRow) => {
+      const type = (node.node_type ?? "").toLowerCase();
+      const kind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
+      return type === "client" || kind === "project_group" || kind === "milestone_group";
+    };
+    const belongsToMilestone = (node: CanvasNodeRow, milestoneId: string): boolean => {
+      if (node.id === milestoneId) return false;
+      const milestone = milestoneById.get(milestoneId);
+      if (!milestone) return false;
+      const mData = (milestone.data as Record<string, unknown> | null) ?? {};
+      const data = (node.data as Record<string, unknown> | null) ?? {};
+      if (node.parent_node_id === milestoneId) return true;
+      if (mData.portal_milestone_id && data.portal_milestone_id === mData.portal_milestone_id) return true;
+      if (mData.milestone_key && data.milestone_key === mData.milestone_key && data.portal_project_id === mData.portal_project_id) return true;
+      return false;
+    };
     return scopedProjectNodes.filter((node) => {
+      if (selectedMilestoneId) {
+        if (node.id === selectedMilestoneId) return false; // a pasta vira o "header"
+        if (isFolder(node)) return false;
+        if (!belongsToMilestone(node, selectedMilestoneId)) return false;
+      } else {
+        // Vista de pastas: mantém pastas; orbs/chats/tarefas ficam ocultos pra evitar bagunça
+        if (!isFolder(node)) return false;
+      }
       const meta = readCanvasOperationalMeta(node.data as Record<string, unknown> | null);
       if (typeFilter && nodeKindOf(node) !== typeFilter && node.node_type !== typeFilter) return false;
       if (statusFilter && mapLegacyStatus(node.status) !== statusFilter) return false;
@@ -995,7 +1031,7 @@ function CanvasStudioInner({
       if (q && !node.title.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter]);
+  }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter, selectedMilestoneId]);
 
   const scopedProjectIds = useMemo(() => new Set(scopedProjectNodes.map((n) => n.id)), [scopedProjectNodes]);
   const scopedEdges = useMemo(
@@ -1104,6 +1140,41 @@ function CanvasStudioInner({
   }, [dbEdges]);
 
   const reactFlowNodes = useMemo(() => {
+    // Layout fordista: quando um milestone está selecionado, reposicionamos as tarefas
+    // em "estações" horizontais (uma coluna por status), mantendo a ordem do portal.
+    const FORDISMO_STAGES: Array<{ key: string; match: (s: string) => boolean }> = [
+      { key: "ideia",       match: (s) => s === "ideia" || s === "planejado" || s === "draft" },
+      { key: "em_producao", match: (s) => s === "em_producao" || s === "active" || s === "ativo" || s === "doing" },
+      { key: "revisao",     match: (s) => s === "revisao" || s === "review" },
+      { key: "bloqueado",   match: (s) => s === "bloqueado" || s === "blocked" },
+      { key: "concluido",   match: (s) => s === "concluido" || s === "done" },
+    ];
+    const FORDISMO_COL_W = 340;
+    const FORDISMO_ROW_H = 156;
+    const FORDISMO_ORIGIN_X = 80;
+    const FORDISMO_ORIGIN_Y = 200;
+    const fordismoOverride = new Map<string, { x: number; y: number }>();
+    if (selectedMilestoneId) {
+      const stageCounts = new Map<string, number>();
+      const sorted = [...visibleCanvasNodes].sort((a, b) => {
+        const pa = Number((a.data as Record<string, unknown> | null)?.portal_position ?? 9999);
+        const pb = Number((b.data as Record<string, unknown> | null)?.portal_position ?? 9999);
+        if (pa !== pb) return pa - pb;
+        return String(a.title).localeCompare(String(b.title));
+      });
+      sorted.forEach((node) => {
+        const status = mapLegacyStatus(node.status ?? "");
+        let stageIdx = FORDISMO_STAGES.findIndex((s) => s.match(status));
+        if (stageIdx < 0) stageIdx = 0;
+        const key = FORDISMO_STAGES[stageIdx].key;
+        const row = stageCounts.get(key) ?? 0;
+        stageCounts.set(key, row + 1);
+        fordismoOverride.set(node.id, {
+          x: FORDISMO_ORIGIN_X + stageIdx * FORDISMO_COL_W,
+          y: FORDISMO_ORIGIN_Y + row * FORDISMO_ROW_H,
+        });
+      });
+    }
     return visibleCanvasNodes.map((n): Node => {
       const owner = n.parent_node_id ? groupMeta[n.parent_node_id] : null;
       const dataObj = (n.data as Record<string, unknown> | null) ?? {};
@@ -1111,13 +1182,16 @@ function CanvasStudioInner({
       const attachmentList = (dataObj.attachments as Array<{ url?: string; type?: string; label?: string }> | undefined) ?? [];
       const isAiOrb = n.node_type === "ai_orb" || dataObj.kind === "ai_orb";
       const isChatNode = dataObj.kind === "chat_node";
+      const override = fordismoOverride.get(n.id);
+      const posX = override ? override.x : Number(n.pos_x ?? 0);
+      const posY = override ? override.y : Number(n.pos_y ?? CONTENT_TOP);
 
       if (isChatNode) {
         const connectedIds = connectionsByNodeId.get(n.id) ?? [];
         return {
           id: n.id,
           type: "chatNode",
-          position: { x: Number(n.pos_x ?? 0), y: Number(n.pos_y ?? CONTENT_TOP) },
+          position: { x: posX, y: posY },
           draggable: !lockedNodes,
           data: {
             ...(dataObj as ChatNodeData),
@@ -1132,7 +1206,7 @@ function CanvasStudioInner({
       return {
         id: n.id,
         type: isAiOrb ? "aiOrb" : "projectCard",
-        position: { x: Number(n.pos_x ?? 0), y: Number(n.pos_y ?? CONTENT_TOP) },
+        position: { x: posX, y: posY },
         draggable: !lockedNodes,
         data: {
           title: n.title,
@@ -1164,7 +1238,7 @@ function CanvasStudioInner({
         } satisfies ProjectNodeData,
       };
     });
-  }, [visibleCanvasNodes, groupMeta, workspaceId, lockedNodes, stableOnPrefilled, stableOnQuickConnect, stableOnDeleteNode, stableOnExpandHub, connectionsByNodeId, clientId]);
+  }, [visibleCanvasNodes, groupMeta, workspaceId, lockedNodes, stableOnPrefilled, stableOnQuickConnect, stableOnDeleteNode, stableOnExpandHub, connectionsByNodeId, clientId, selectedMilestoneId]);
 
   /** Delete edge — instant local update + DB delete. Usado pelo DeletableEdge e context menu. */
   const deleteEdgeById = useCallback(async (edgeId: string) => {
@@ -1563,6 +1637,23 @@ function CanvasStudioInner({
     const found = dbNodesRef.current.find((n) => n.id === node.id);
     if (!found) return;
     if (found.node_type === "client") return; // client groups don't open drawer
+    // Pasta de milestone → abre a esteira do milestone (modo fordismo)
+    const kind = String((found.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
+    if (kind === "milestone_group") {
+      setSelectedMilestoneId(found.id);
+      return;
+    }
+    if (kind === "project_group") {
+      // Abre o primeiro milestone do projeto, se houver
+      const projectData = (found.data as Record<string, unknown> | null) ?? {};
+      const first = dbNodesRef.current.find((m) => {
+        const d = (m.data as Record<string, unknown> | null) ?? {};
+        return String(d.kind ?? "").toLowerCase() === "milestone_group"
+          && d.portal_project_id === projectData.portal_project_id;
+      });
+      if (first) setSelectedMilestoneId(first.id);
+      return;
+    }
     if (nodeKindOf(found) === "ai_orb") {
       setAiOrbConfigNode(found);
       return;
@@ -3036,6 +3127,15 @@ function CanvasStudioInner({
         />
 
         <div className="flex-1 min-w-0 relative">
+          {/* Barra de pastas de milestone — esteira fordista */}
+          {!loading && scopedProjectNodes.length > 0 && (
+            <MilestoneFordismoBar
+              nodes={scopedProjectNodes}
+              selectedMilestoneId={selectedMilestoneId}
+              onSelect={setSelectedMilestoneId}
+              onClear={() => setSelectedMilestoneId(null)}
+            />
+          )}
           {!loading && scopedProjectNodes.length > 0 && (
             <div className="pointer-events-none absolute left-3 top-3 z-10 hidden lg:flex items-center gap-2 rounded-full border border-border/70 bg-card/92 px-3 py-1.5 text-[10px] text-muted-foreground shadow-sm backdrop-blur-sm">
               <span>Entrega {proofTrail.entrega}</span>
