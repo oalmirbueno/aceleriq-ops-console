@@ -164,6 +164,7 @@ serve(async (req) => {
     const nodeData = (nodeRow?.data ?? {}) as Record<string, unknown>;
     const nodePortalTaskId = (nodeData.portal_task_id as string | undefined) ?? body.portalTaskId ?? null;
     const nodePortalMilestoneId = (nodeData.portal_milestone_id as string | undefined) ?? null;
+    if (body.portalProjectId) portalProjectId = body.portalProjectId;
 
     if (!portalClientId) {
       return json({ skipped: true, reason: "portal_client_id not set on client — link the client first" });
