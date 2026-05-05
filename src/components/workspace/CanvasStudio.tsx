@@ -437,13 +437,16 @@ function CanvasStudioInner({
     });
   }, [workspaceId]);
 
-  const syncPortalNow = useCallback(async () => {
+  const syncPortalNow = useCallback(async (options: { pull?: boolean; push?: boolean; limit?: number } = {}) => {
+    const shouldPull = options.pull ?? true;
+    const shouldPush = options.push ?? true;
+    const limit = options.limit ?? 120;
     let pulled = 0;
     let pullFailed = false;
-    try {
+    if (shouldPull) try {
       const { data, error } = await withTimeout(supabase.functions.invoke("pull-portal-tasks", {
         body: { workspaceId },
-      }), 12000, "Portal→Ops");
+      }), 20000, "Portal→Ops");
       pulled = Number(((data as any)?.created ?? 0) + ((data as any)?.updated ?? 0));
       pullFailed = !!error || (data as any)?.ok === false;
     } catch (error) {
@@ -451,53 +454,47 @@ function CanvasStudioInner({
       pullFailed = true;
     }
 
-    // ── Reorganização local: religa tasks órfãs aos seus project_groups
-    try {
-      const { data: groups } = await supabase
-        .from("canvas_nodes")
-        .select("id, data")
-        .eq("workspace_id", workspaceId)
-        .contains("data", { kind: "project_group" });
-      const groupByPid = new Map<string, string>();
-      (groups ?? []).forEach((g: any) => {
-        const pid = (g.data as Record<string, unknown> | null)?.portal_project_id as string | undefined;
-        if (pid) groupByPid.set(String(pid), g.id);
-      });
-      if (groupByPid.size > 0) {
-        const { data: orphans } = await supabase
-          .from("canvas_nodes")
-          .select("id, parent_node_id, data")
-          .eq("workspace_id", workspaceId)
-          .contains("data", { from_portal: true });
-        for (const node of orphans ?? []) {
-          const pid = ((node.data as Record<string, unknown> | null)?.portal_project_id as string | undefined) ?? null;
-          if (!pid) continue;
-          const target = groupByPid.get(String(pid));
-          if (target && (node as any).parent_node_id !== target && node.id !== target) {
-            await supabase.from("canvas_nodes")
-              .update({ parent_node_id: target, updated_at: new Date().toISOString() })
-              .eq("id", node.id);
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("[CanvasStudio] reparent portal nodes failed", err);
-    }
+    const { data: freshNodes } = await supabase
+      .from("canvas_nodes")
+      .select("id, node_type, title, status, parent_node_id, client_id, data")
+      .eq("workspace_id", workspaceId);
+    const allNodes = ((freshNodes ?? dbNodesRef.current) as CanvasNodeRow[]);
+    const nodeById = new Map(allNodes.map((node) => [node.id, node] as const));
+    const groupPortalProjectById = new Map<string, string>();
+    allNodes.forEach((node) => {
+      const data = (node.data as Record<string, unknown> | null) ?? {};
+      const kind = String(data.kind ?? "").toLowerCase();
+      const portalProjectId = typeof data.portal_project_id === "string" ? data.portal_project_id : null;
+      if ((kind === "project_group" || kind === "milestone_group") && portalProjectId) groupPortalProjectById.set(node.id, portalProjectId);
+    });
 
-    const syncableNodes = dbNodesRef.current.filter((node) => {
+    const portalProjectForNode = (node: CanvasNodeRow) => {
+      const direct = (node.data as Record<string, unknown> | null)?.portal_project_id;
+      if (typeof direct === "string" && direct) return direct;
+      let parentId = node.parent_node_id ?? null;
+      for (let depth = 0; parentId && depth < 4; depth++) {
+        const parentProject = groupPortalProjectById.get(parentId);
+        if (parentProject) return parentProject;
+        parentId = nodeById.get(parentId)?.parent_node_id ?? null;
+      }
+      return null;
+    };
+
+    const syncableNodes = shouldPush ? allNodes.filter((node) => {
       const type = (node.node_type ?? "").toLowerCase();
       const kind = ((node.data as Record<string, unknown> | null)?.kind as string | undefined ?? "").toLowerCase();
-      // Pula client, ai_orb, chat_node e o próprio "project_group" (milestone — não é card kanban)
+      // Pula pastas/clientes; só tarefas viram cards reais no kanban do portal.
       if (["client", "ai_orb", "chat_node"].includes(type)) return false;
-      if (kind === "chat_node" || kind === "project_group") return false;
+      if (kind === "chat_node" || kind === "project_group" || kind === "milestone_group") return false;
       return true;
-    }).slice(0, 60);
+    }).slice(0, limit) : [];
 
     let sent = 0;
     let failed = 0;
     for (const node of syncableNodes) {
       const ndata = (node.data as Record<string, unknown> | null) ?? {};
       const hasPortalTask = typeof ndata.portal_task_id === "string" && (ndata.portal_task_id as string).length > 0;
+      const portalProjectId = portalProjectForNode(node);
       try {
         const { data, error } = await withTimeout(supabase.functions.invoke("sync-to-portal", {
           body: {
@@ -509,6 +506,7 @@ function CanvasStudioInner({
             nodeTitle: node.title,
             nodeType: node.node_type,
             status: node.status ?? "draft",
+            portalProjectId: portalProjectId ?? undefined,
           },
         }), 4500, "Ops→Portal");
         if (error || (data as any)?.ok === false || (data as any)?.skipped) failed++;
@@ -522,10 +520,9 @@ function CanvasStudioInner({
     // ── Progresso por milestone (project_group) e progresso geral do cliente ──
     try {
       const COMPLETED = new Set(["done", "completed", "concluido", "concluída", "concluida"]);
-      const allNodes = dbNodesRef.current;
       const groups = allNodes.filter((n) => {
         const k = ((n.data as Record<string, unknown> | null)?.kind as string | undefined) ?? "";
-        return k === "project_group";
+        return k === "milestone_group";
       });
 
       const tasksByGroup = new Map<string, typeof allNodes>();
@@ -536,34 +533,35 @@ function CanvasStudioInner({
         if (!arr) continue;
         const t = (n.node_type ?? "").toLowerCase();
         const k = ((n.data as Record<string, unknown> | null)?.kind as string | undefined) ?? "";
-        if (["client", "ai_orb", "chat_node"].includes(t) || k === "chat_node" || k === "project_group") continue;
+        if (["client", "ai_orb", "chat_node"].includes(t) || k === "chat_node" || k === "project_group" || k === "milestone_group") continue;
         arr.push(n);
       }
 
-      const groupProgress: number[] = [];
+      const projectProgress = new Map<string, number[]>();
       for (const g of groups) {
         const tasks = tasksByGroup.get(g.id) ?? [];
         if (tasks.length === 0) continue;
         const doneCount = tasks.filter((t) => COMPLETED.has((t.status ?? "").toLowerCase())).length;
         const pct = Math.round((doneCount / tasks.length) * 100);
-        groupProgress.push(pct);
         const portalProjectId = ((g.data as Record<string, unknown> | null)?.portal_project_id as string | undefined) ?? null;
         if (!portalProjectId) continue;
+        projectProgress.set(portalProjectId, [...(projectProgress.get(portalProjectId) ?? []), pct]);
+        const gdata = (g.data as Record<string, unknown> | null) ?? {};
+        await supabase.from("canvas_nodes").update({ data: { ...gdata, portal_progress: pct }, updated_at: new Date().toISOString() }).eq("id", g.id).catch(() => {});
+      }
+
+      const projectAverages: number[] = [];
+      for (const [portalProjectId, values] of projectProgress) {
+        const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+        projectAverages.push(avg);
         await supabase.functions.invoke("sync-to-portal", {
-          body: {
-            event: "project_progress",
-            workspaceId,
-            clientId: g.client_id ?? clientId,
-            portalProjectId,
-            progress: pct,
-            message: `Milestone "${g.title}" — ${doneCount}/${tasks.length} concluídas (${pct}%)`,
-          },
+          body: { event: "project_progress", workspaceId, clientId, portalProjectId, progress: avg, message: `Progresso do projeto: ${avg}%` },
         }).catch(() => {});
       }
 
-      // Média geral do cliente (média dos milestones)
-      if (groupProgress.length > 0) {
-        const avg = Math.round(groupProgress.reduce((a, b) => a + b, 0) / groupProgress.length);
+      // Média geral do cliente (média dos projetos/milestones reais)
+      if (projectAverages.length > 0) {
+        const avg = Math.round(projectAverages.reduce((a, b) => a + b, 0) / projectAverages.length);
         await supabase.functions.invoke("sync-to-portal", {
           body: {
             event: "client_progress",
