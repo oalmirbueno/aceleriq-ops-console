@@ -434,6 +434,16 @@ function CanvasStudioInner({
   // portal_progress de um snapshot velho por cima de um mais novo.
   const lastWrittenProgressVersionRef = useRef<Map<string, number>>(new Map());
 
+  // Indicador de sincronização: realtime do Supabase + ida/volta para o Portal.
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({
+    realtimeState: "connecting",
+    realtimeAt: null,
+    portalPushAt: null,
+    portalPullAt: null,
+    portalBusy: false,
+    portalError: null,
+  });
+
   // Active client folder (null = "Todos")
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
   // Plan name of the currently displayed client (fetched from clients table)
