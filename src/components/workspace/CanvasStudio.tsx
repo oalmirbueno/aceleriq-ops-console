@@ -239,7 +239,53 @@ function nodeStageOf(row: CanvasNodeRow): AceleraStageKey {
 
 function nodeKindOf(row: CanvasNodeRow): string {
   const data = (row.data ?? {}) as Record<string, unknown>;
-  return (data.kind as string | undefined) ?? row.node_type;
+  const storedKind = (data.kind as string | undefined) ?? row.node_type;
+  if ((data.from_portal || data.portal_task_id) && (!storedKind || storedKind === "task" || storedKind === "checklist")) {
+    return inferProfessionalKind(row.title, row.description, data.milestone_title as string | undefined);
+  }
+  return storedKind;
+}
+
+function normalizeForKind(value: unknown) {
+  return String(value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function inferProfessionalKind(title?: string | null, description?: string | null, milestoneTitle?: string | null): ProjectNodeKind {
+  const text = normalizeForKind(`${title ?? ""} ${description ?? ""}`);
+  const ctx = normalizeForKind(milestoneTitle ?? "");
+  if (/case|print|documentar|evidencia|portfolio/.test(text)) return "case";
+  if (/before after|antes depois/.test(text)) return "before_after";
+  if (/landing|linktree|hotsite|pagina de links/.test(text)) return "landing_page";
+  if (/shopify|e commerce|ecommerce|loja|checkout|site/.test(text)) return "site";
+  if (/n8n|automacao|automatizar|fluxo|workflow|webhook/.test(text)) return "automacao";
+  if (/integra|api|conectar|sincroniz/.test(text)) return "integracao";
+  if (/agente|chatbot|bot|atendimento|resposta|prompt|gpt|\bia\b/.test(text)) return "agente";
+  if (/metrica|monitor|dashboard|kpi|relatorio|analytics/.test(text)) return "metrica";
+  if (/acesso|credencial|hostinger|senha|login/.test(text)) return "acessos";
+  if (/email|disparo|newsletter/.test(text)) return "email_mkt";
+  if (/trafego|ads|anuncio|campanha/.test(text)) return "trafego";
+  if (/funil|jornada/.test(text)) return "funil";
+  if (/conteudo|copy|roteiro|texto|post/.test(text)) return "conteudo";
+  if (/video|reels|short/.test(text)) return "video";
+  if (/imagem|criativo|arte|design/.test(text)) return "imagem";
+  if (/social|instagram|whatsapp|telegram/.test(text)) return "social";
+  if (/crm|pipeline|kanban/.test(text)) return "crm";
+  if (/reuniao|kickoff|alinhamento/.test(text)) return "reuniao";
+  if (/decisao|aprovar|aprovacao|validar/.test(text)) return "decisao";
+  if (/objetivo|meta/.test(text)) return "objetivo";
+  if (/briefing|levantamento/.test(text)) return "briefing";
+  if (/lancamento|launch/.test(text)) return "lancamento";
+  if (/automacao|atendimento|n8n/.test(ctx)) return "automacao";
+  if (/base|digital|estrutur|tecnic/.test(ctx)) return "integracao";
+  if (/homolog|entrega|operacional|case/.test(ctx)) return "case";
+  if (/trafego|ads|midia/.test(ctx)) return "trafego";
+  if (/conteudo|criativo/.test(ctx)) return "conteudo";
+  return "resultado";
 }
 
 const INPUT_KINDS = new Set(["contexto_ops", "briefing", "documento", "reuniao", "ideia", "objetivo", "acessos", "contato", "asset"]);
@@ -1104,6 +1150,7 @@ function CanvasStudioInner({
   /* Quick lookup: parent group id → { name, logoUrl, seed } */
   const groupMeta = useMemo(() => {
     const map: Record<string, { name: string; logoUrl: string | null; seed: string }> = {};
+    const byId = new Map(projectNodes.map((node) => [node.id, node] as const));
     clientGroups.forEach((c) => {
       map[c.id] = {
         name: c.title,
@@ -1111,8 +1158,21 @@ function CanvasStudioInner({
         seed: c.linked_entity_id ?? c.id,
       };
     });
+    projectNodes.forEach((node) => {
+      let cursor: CanvasNodeRow | undefined = node;
+      const seen = new Set<string>();
+      while (cursor?.parent_node_id && !seen.has(cursor.id)) {
+        seen.add(cursor.id);
+        const parentId = cursor.parent_node_id;
+        if (map[parentId]) {
+          map[node.id] = map[parentId];
+          return;
+        }
+        cursor = byId.get(parentId);
+      }
+    });
     return map;
-  }, [clientGroups, clientLogos]);
+  }, [clientGroups, clientLogos, projectNodes]);
 
   /* Project nodes visible based on active tab */
   const scopedProjectNodes = useMemo(() => {
@@ -1446,7 +1506,7 @@ function CanvasStudioInner({
       }
     }
     const cardNodes = visibleCanvasNodes.map((n): Node => {
-      const owner = n.parent_node_id ? groupMeta[n.parent_node_id] : null;
+      const owner = groupMeta[n.id] ?? (n.parent_node_id ? groupMeta[n.parent_node_id] : null);
       const dataObj = (n.data as Record<string, unknown> | null) ?? {};
       const operationalMeta = (dataObj.operationalMeta ?? dataObj.operational_meta ?? EMPTY_OPERATIONAL_META) as CanvasOperationalMeta;
       const attachmentList = (dataObj.attachments as Array<{ url?: string; type?: string; label?: string }> | undefined) ?? [];
@@ -1955,14 +2015,28 @@ function CanvasStudioInner({
       const fromPortal = !!data.from_portal || !!data.portal_task_id;
       const lockStatus = !!data.lock_status;
       const status = (found.status ?? "").toLowerCase();
-      if (fromPortal && !lockStatus && (status === "draft" || status === "todo" || status === "backlog")) {
-        void supabase.from("canvas_nodes").update({
-          status: "active",
-          data: { ...data, touched_at: new Date().toISOString() },
-          updated_at: new Date().toISOString(),
-        }).eq("id", found.id);
-        // Atualiza otimisticamente para o drawer abrir já com status novo
-        found.status = "active";
+      if (fromPortal) {
+        const currentKind = String(data.kind ?? found.node_type ?? "").toLowerCase();
+        const needsKindPromotion = !currentKind || currentKind === "task" || currentKind === "checklist";
+        const promotedKind = needsKindPromotion
+          ? inferProfessionalKind(found.title, found.description, data.milestone_title as string | undefined)
+          : currentKind;
+        const nextData = {
+          ...data,
+          kind: promotedKind,
+          stage: data.stage ?? "producao",
+          ...(!lockStatus && (status === "draft" || status === "todo" || status === "backlog") ? { touched_at: new Date().toISOString() } : {}),
+        };
+        const nextStatus = !lockStatus && (status === "draft" || status === "todo" || status === "backlog") ? "active" : found.status;
+        if (needsKindPromotion || nextStatus !== found.status || nextData.touched_at !== data.touched_at) {
+          void supabase.from("canvas_nodes").update({
+            status: nextStatus,
+            data: nextData,
+            updated_at: new Date().toISOString(),
+          }).eq("id", found.id);
+          found.status = nextStatus;
+          found.data = nextData;
+        }
       }
     }
     setSelectedNode(found);

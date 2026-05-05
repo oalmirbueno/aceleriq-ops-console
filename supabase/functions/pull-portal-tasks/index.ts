@@ -454,7 +454,7 @@ serve(async (req) => {
         if (/homolog|entrega|operacional|case/.test(ctx)) return "case";
         if (/trafego|ads|midia/.test(ctx)) return "trafego";
         if (/conteudo|criativo/.test(ctx)) return "conteudo";
-        return "checklist";
+        return "resultado";
       })();
       const labels = Array.isArray(t.labels) ? t.labels : [];
       const counterKey = `${taskProjectId}:${milestoneKey}`;
@@ -532,7 +532,7 @@ serve(async (req) => {
                 project_id: taskProjectId,
                 node_id: newNode.id,
                 node_title: title,
-                node_type: "checklist",
+                node_type: inferKind,
                 status: opsStatus,
                 portal_task_id: portalTaskId,
                 portal_milestone_id: portalMilestoneId ?? undefined,

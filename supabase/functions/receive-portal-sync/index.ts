@@ -91,6 +91,38 @@ function compactRecord(record: Record<string, unknown>) {
   return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined && value !== ""));
 }
 
+function normalizeKindText(value: unknown) {
+  return String(value ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function inferProfessionalKind(title: string, description: string | null, milestoneTitle: string | null) {
+  const text = normalizeKindText(`${title} ${description ?? ""}`);
+  const ctx = normalizeKindText(milestoneTitle ?? "");
+  if (/case|print|documentar|evidencia|portfolio/.test(text)) return "case";
+  if (/before after|antes depois/.test(text)) return "before_after";
+  if (/landing|linktree|hotsite|pagina de links/.test(text)) return "landing_page";
+  if (/shopify|e commerce|ecommerce|loja|checkout|site/.test(text)) return "site";
+  if (/n8n|automacao|automatizar|fluxo|workflow|webhook/.test(text)) return "automacao";
+  if (/integra|api|conectar|sincroniz/.test(text)) return "integracao";
+  if (/agente|chatbot|bot|atendimento|resposta|prompt|gpt|\bia\b/.test(text)) return "agente";
+  if (/metrica|monitor|dashboard|kpi|relatorio|analytics/.test(text)) return "metrica";
+  if (/acesso|credencial|hostinger|senha|login/.test(text)) return "acessos";
+  if (/email|disparo|newsletter/.test(text)) return "email_mkt";
+  if (/trafego|ads|anuncio|campanha/.test(text)) return "trafego";
+  if (/funil|jornada/.test(text)) return "funil";
+  if (/conteudo|copy|roteiro|texto|post/.test(text)) return "conteudo";
+  if (/video|reels|short/.test(text)) return "video";
+  if (/imagem|criativo|arte|design/.test(text)) return "imagem";
+  if (/social|instagram|whatsapp|telegram/.test(text)) return "social";
+  if (/crm|pipeline|kanban/.test(text)) return "crm";
+  if (/automacao|atendimento|n8n/.test(ctx)) return "automacao";
+  if (/base|digital|estrutur|tecnic/.test(ctx)) return "integracao";
+  if (/homolog|entrega|operacional|case/.test(ctx)) return "case";
+  if (/trafego|ads|midia/.test(ctx)) return "trafego";
+  if (/conteudo|criativo/.test(ctx)) return "conteudo";
+  return "resultado";
+}
+
 function briefingFromRecord(data: Record<string, unknown>): Record<string, unknown> {
   const keys = [
     "positioning",
@@ -657,6 +689,7 @@ serve(async (req) => {
         const milestoneKey = portalMilestoneId ?? `no-milestone:${portalProjectId ?? ws.id}`;
         const milestoneTitle = firstString(data.milestone_title, data.milestone_name, data.folder_title, data.folder_name, data.stage_title, data.phase_title, data.column_title) ?? "Sem milestone";
         const portalStatus = (firstString(data.status, data.kanban_status) ?? "draft").toLowerCase();
+        const inferredKind = inferProfessionalKind(title, description, milestoneTitle);
         // mapeia status do kanban → ops
         const statusMap: Record<string, string> = {
           todo: "draft", "to-do": "draft", "to_do": "draft", backlog: "draft",
@@ -793,6 +826,7 @@ serve(async (req) => {
                 portal_folder_id: portalMilestoneId ?? undefined,
                 milestone_key: milestoneKey,
                 milestone_title: milestoneTitle,
+                kind: (currentData.kind && currentData.kind !== "checklist") ? currentData.kind : inferredKind,
                 from_portal: true,
                 portal_updated_at: incomingTs ? new Date(incomingTs).toISOString() : new Date().toISOString(),
               }),
@@ -828,7 +862,7 @@ serve(async (req) => {
               status: opsStatus,
               pos_x: 80 + (idx % 6) * 320,
               pos_y: 800 + Math.floor(idx / 6) * 220,
-              data: compactRecord({ from_portal: true, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: portalMilestoneId ?? undefined, portal_folder_id: portalMilestoneId ?? undefined, milestone_key: milestoneKey, milestone_title: milestoneTitle, kind: "checklist", checklist: [], touched_at: null }),
+              data: compactRecord({ from_portal: true, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: portalMilestoneId ?? undefined, portal_folder_id: portalMilestoneId ?? undefined, milestone_key: milestoneKey, milestone_title: milestoneTitle, kind: inferredKind, checklist: [], touched_at: null }),
             }).select("id").single();
             const created = insRes.data as { id: string } | null;
             await logSync({

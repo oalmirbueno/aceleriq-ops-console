@@ -173,7 +173,7 @@ async function materializeProjectCanvas(ops: any, args: {
     if (/homolog|entrega|operacional|case/.test(ctx)) return "case";
     if (/trafego|ads|midia/.test(ctx)) return "trafego";
     if (/conteudo|criativo/.test(ctx)) return "conteudo";
-    return "checklist";
+    return "resultado";
   }
 
   const milestoneTitleByKey = new Map<string, string>();
