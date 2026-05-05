@@ -28,10 +28,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.pull-portal-tasks]
-verify_jwt = true
+verify_jwt = false
 
 [functions.backfill-nodes-to-portal]
-verify_jwt = true
+verify_jwt = false
 
 [functions.pull-portal-leads]
 verify_jwt = false
