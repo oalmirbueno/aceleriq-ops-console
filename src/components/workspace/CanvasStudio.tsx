@@ -3042,7 +3042,7 @@ function CanvasStudioInner({
         created[item.ref] = (data as CanvasNodeRow).id;
         rows.push(data as CanvasNodeRow);
         const r = data as CanvasNodeRow;
-        syncNodeCreated({ workspaceId, clientId, nodeId: r.id, nodeTitle: r.title, nodeType: r.node_type });
+        syncNodeCreated({ workspaceId, clientId, nodeId: r.id, nodeTitle: r.title, nodeType: r.node_type, data: r.data as Record<string, unknown> | null });
       }
       const edges = [
         ["context", "engine", "contexto"], ["instruction", "engine", "regra"], ["engine", "agent", "aciona"],
