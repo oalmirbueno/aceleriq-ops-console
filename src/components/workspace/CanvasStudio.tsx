@@ -46,6 +46,8 @@ import { generatedNodePosition, validateOrbConnection } from "./aiOrbConnections
 import { invokeAiOrbGenerate, nextOrbDataAfterGeneration, readAiOrbData } from "./aiOrbEngine";
 import type { AgentId } from "@/lib/aiAgents";
 import { materializePortalTimelineCanvas } from "@/lib/portalTimelineCanvas";
+import { dbg, dbgWarn, isCanvasDebugEnabled, toggleCanvasDebug } from "@/lib/canvasDebug";
+import CanvasDebugOverlay, { type CanvasDebugStats } from "./CanvasDebugOverlay";
 
 // CanvasStudio é uma camada visual operacional complementar: não substitui o briefing mestre,
 // não cria nova lógica/tabela de sinais estruturados e não usa IA opaca como núcleo decisório.
@@ -473,6 +475,9 @@ function CanvasStudioInner({
   const [gridVisible, setGridVisible] = useState(true);
   const [lockedNodes, setLockedNodes] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+  const [debugOpen, setDebugOpen] = useState<boolean>(() => isCanvasDebugEnabled());
+  const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);
+  const [lastFetchError, setLastFetchError] = useState<string | null>(null);
   const [openDockGroup, setOpenDockGroup] = useState<string | null>(null);
   const milestoneOverlayKey = `canvas:milestone-overlay-dismissed:${workspaceId}:${portalProjectIdProp ?? "all"}`;
   const [milestoneOverlayDismissed, setMilestoneOverlayDismissed] = useState<boolean>(() => {
@@ -879,17 +884,34 @@ function CanvasStudioInner({
   const fetchData = useCallback(async () => {
     // Só ativa skeleton se não tem nada em tela ainda
     setLoading((prev) => prev && dbNodesRef.current.length === 0);
+    const t0 = performance.now();
+    dbg("fetch", "start", { workspaceId, clientId });
     // ── Fase 1: payload leve para renderizar nodes na tela rapidamente.
     // (data jsonb e description podem ser grandes — buscamos depois em paralelo)
     const lightSel = "id, node_type, title, status, pos_x, pos_y, parent_node_id, linked_entity_id, linked_entity_type, workspace_id, client_id, created_at, updated_at";
-    const [{ data: lightNodes }, { data: edgesData }] = await Promise.all([
+    const [nodesRes, edgesRes] = await Promise.all([
       supabase.from("canvas_nodes").select(lightSel).eq("workspace_id", workspaceId).order("created_at"),
       supabase.from("canvas_edges")
         .select("id, source_node_id, target_node_id, source_handle, target_handle, edge_type, label, workspace_id")
         .eq("workspace_id", workspaceId),
     ]);
-    const lightNodesArr = (lightNodes ?? []) as CanvasNodeRow[];
-    const edges = (edgesData ?? []) as CanvasEdgeRecord[];
+    if (nodesRes.error) {
+      dbgWarn("fetch", "nodes error", nodesRes.error);
+      setLastFetchError(nodesRes.error.message);
+    } else if (edgesRes.error) {
+      dbgWarn("fetch", "edges error", edgesRes.error);
+      setLastFetchError(edgesRes.error.message);
+    } else {
+      setLastFetchError(null);
+    }
+    const lightNodesArr = (nodesRes.data ?? []) as CanvasNodeRow[];
+    const edges = (edgesRes.data ?? []) as CanvasEdgeRecord[];
+    dbg("fetch", "done", {
+      ms: Math.round(performance.now() - t0),
+      nodes: lightNodesArr.length,
+      edges: edges.length,
+    });
+    setLastFetchAt(Date.now());
 
     // Mescla com `data`/`description` já em memória (cache) para não regredir cards
     const prevById = new Map(dbNodesRef.current.map((n) => [n.id, n] as const));
@@ -1410,6 +1432,11 @@ function CanvasStudioInner({
       if (e.key.toLowerCase() === "h") setActiveTool("hand");
       if (e.key.toLowerCase() === "g") setGridVisible((v) => !v);
       if (e.key.toLowerCase() === "f") rfInstanceRef.current?.fitView({ padding: 0.32, duration: 280 });
+      if (e.shiftKey && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        const next = toggleCanvasDebug();
+        setDebugOpen(next);
+      }
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -3287,6 +3314,79 @@ function CanvasStudioInner({
     cases: scopedProjectNodes.filter((node) => nodeKindOf(node) === "case").length,
   }), [scopedProjectNodes]);
 
+  // ── Diagnóstico: stats computados para o overlay e logs ──
+  const debugStats: CanvasDebugStats = useMemo(() => {
+    const folderHidden = scopedProjectNodes.filter((n) => {
+      const k = String((n.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
+      return k === "project_group" || k === "milestone_group";
+    }).length;
+    const fromPortal = projectNodes.filter((n) => {
+      const d = (n.data as Record<string, unknown> | null) ?? {};
+      return !!d.from_portal || !!d.portal_task_id;
+    }).length;
+    const manual = projectNodes.filter((n) => (n.data as Record<string, unknown> | null)?.created_from === "manual").length;
+    const aiGenerated = projectNodes.filter((n) => {
+      const d = (n.data as Record<string, unknown> | null) ?? {};
+      return d.created_from === "ai_orb" || d.generatedByAiOrb;
+    }).length;
+    const droppedByClientScope = projectNodes.length - scopedProjectNodes.length;
+    const droppedByMilestone = selectedMilestoneId
+      ? Math.max(0, scopedProjectNodes.length - visibleCanvasNodes.length - folderHidden)
+      : 0;
+    const droppedByUiFilters = !selectedMilestoneId
+      ? Math.max(0, scopedProjectNodes.length - visibleCanvasNodes.length - folderHidden)
+      : 0;
+    return {
+      loading,
+      workspaceId,
+      clientId,
+      activeClientId,
+      selectedMilestoneId,
+      portalProjectIdProp,
+      totals: {
+        dbNodes: dbNodes.length,
+        projectNodes: projectNodes.length,
+        scopedProjectNodes: scopedProjectNodes.length,
+        visibleCanvasNodes: visibleCanvasNodes.length,
+        rfNodes: rfNodes.length,
+        dbEdges: dbEdges.length,
+        scopedEdges: scopedEdges.length,
+        rfEdges: rfEdges.length,
+        clientGroups: clientGroups.length,
+      },
+      filters: {
+        search,
+        typeFilter,
+        statusFilter,
+        approvalFilter,
+        blockedFilter,
+        ownerFilter,
+      },
+      reasons: {
+        droppedByClientScope,
+        droppedByMilestone,
+        droppedByUiFilters,
+        folderNodesHidden: folderHidden,
+        fromPortal,
+        manual,
+        aiGenerated,
+      },
+      lastFetchAt,
+      lastFetchError,
+    };
+  }, [
+    loading, workspaceId, clientId, activeClientId, selectedMilestoneId, portalProjectIdProp,
+    dbNodes.length, projectNodes, scopedProjectNodes, visibleCanvasNodes.length, rfNodes.length,
+    dbEdges.length, scopedEdges.length, rfEdges.length, clientGroups.length,
+    search, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter,
+    lastFetchAt, lastFetchError,
+  ]);
+
+  // Loga sumário sempre que muda algo relevante (com debug ativo)
+  useEffect(() => {
+    dbg("filter", "pipeline", debugStats.totals, debugStats.reasons);
+  }, [debugStats]);
+
   const togglePalette = useCallback(() => setPaletteCollapsed((v) => !v), []);
   const toggleInspector = useCallback(() => setInspectorCollapsed((v) => !v), []);
   const handlePaletteAdd = useCallback((kind: ProjectNodeKind, stage: AceleraStageKey) => addProjectNode(kind, stage), [addProjectNode]);
@@ -4097,6 +4197,9 @@ function CanvasStudioInner({
           toast({ title: "Node movido", description: `→ ${targetName}` });
         }}
       />
+      {debugOpen ? (
+        <CanvasDebugOverlay stats={debugStats} onClose={() => setDebugOpen(false)} />
+      ) : null}
     </div>
   );
 }
