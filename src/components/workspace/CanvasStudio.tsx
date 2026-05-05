@@ -535,8 +535,8 @@ function CanvasStudioInner({
     let pullFailed = false;
     if (shouldPull) try {
       const { data, error } = await withTimeout(supabase.functions.invoke("pull-portal-tasks", {
-        body: { workspaceId },
-      }), 20000, "Portal→Ops");
+        body: { workspaceId, portalProjectId: portalProjectIdProp ?? undefined },
+      }), 30000, "Portal→Ops");
       pulled = Number(((data as any)?.created ?? 0) + ((data as any)?.updated ?? 0));
       pullFailed = !!error || (data as any)?.ok === false;
       if (!pullFailed) setSyncStatus((s) => ({ ...s, portalPullAt: Date.now() }));
