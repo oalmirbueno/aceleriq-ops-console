@@ -59,15 +59,17 @@ export function syncNodeUpdated({
   previousStatus?: string | null;
   data?: Record<string, unknown> | null;
 }) {
-  if (!clientId) return;
+  // Permite sync mesmo sem clientId — o backend aceita eventos project-scoped
+  // desde que portal_project_id esteja presente nos dados do node.
   const progress = computeNodeProgress(status, data);
   const portalProjectId = typeof data?.portal_project_id === "string" ? data.portal_project_id : undefined;
+  if (!clientId && !portalProjectId) return;
 
   void supabase.functions.invoke("sync-to-portal", {
     body: {
       event: "node_updated",
       workspaceId,
-      clientId,
+      clientId: clientId ?? undefined,
       nodeId,
       nodeTitle: nodeTitle ?? undefined,
       nodeType: nodeType ?? undefined,
@@ -75,6 +77,7 @@ export function syncNodeUpdated({
       previousStatus: previousStatus ?? undefined,
       progress,
       portalProjectId,
+      data: data ?? undefined,
     },
   }).catch(() => {});
 }
@@ -98,20 +101,21 @@ export function syncNodeCreated({
   nodeType?: string | null;
   data?: Record<string, unknown> | null;
 }) {
-  if (!clientId) return;
   const progress = computeNodeProgress("active", data);
   const portalProjectId = typeof data?.portal_project_id === "string" ? data.portal_project_id : undefined;
+  if (!clientId && !portalProjectId) return;
   void supabase.functions.invoke("sync-to-portal", {
     body: {
       event: "node_created",
       workspaceId,
-      clientId,
+      clientId: clientId ?? undefined,
       nodeId,
       nodeTitle: nodeTitle ?? undefined,
       nodeType: nodeType ?? undefined,
       status: "active",
       progress,
       portalProjectId,
+      data: data ?? undefined,
     },
   }).catch(() => {});
 }

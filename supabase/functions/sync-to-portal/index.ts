@@ -150,6 +150,7 @@ serve(async (req) => {
       source?: string;
       limit?: number;
       portalProjectId?: string;
+      data?: Record<string, unknown>;
     };
 
     // ── Listagem de projetos do portal (não exige vínculo de cliente) ─────
@@ -194,11 +195,17 @@ serve(async (req) => {
       const ndPid = (ndata.portal_project_id as string | undefined) ?? null;
       if (ndPid) portalProjectId = ndPid;
     }
-    const nodeData = (nodeRow?.data ?? {}) as Record<string, unknown>;
+    // Combina data do node persistido + body.data (fallback para payload direto)
+    const bodyData = (body.data ?? {}) as Record<string, unknown>;
+    const nodeData = { ...(bodyData ?? {}), ...((nodeRow?.data ?? {}) as Record<string, unknown>) };
     const nodePortalTaskId = (nodeData.portal_task_id as string | undefined) ?? body.portalTaskId ?? null;
     const nodePortalMilestoneId = (nodeData.portal_milestone_id as string | undefined) ?? null;
     const nodePortalFolderId = (nodeData.portal_folder_id as string | undefined) ?? nodePortalMilestoneId;
     if (body.portalProjectId) portalProjectId = body.portalProjectId;
+    // Fallback: portal_project_id pode estar em body.data (caso o nodeRow não tenha sido lido)
+    if (!portalProjectId && typeof bodyData.portal_project_id === "string") {
+      portalProjectId = bodyData.portal_project_id as string;
+    }
 
     const projectScopedEvents = new Set([
       "node_created", "node_updated", "node_completed", "node_deleted",
