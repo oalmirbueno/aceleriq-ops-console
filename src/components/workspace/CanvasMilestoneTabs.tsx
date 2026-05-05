@@ -88,8 +88,6 @@ function CanvasMilestoneTabsComp({ nodes, selectedMilestoneId, onSelectMilestone
     }).filter((g) => g.milestones.length > 0 || true);
   }, [nodes]);
 
-  if (grouped.length === 0) return null;
-
   return (
     <div className="flex items-stretch gap-3 px-2 py-1.5 border-b border-border bg-card/40 backdrop-blur-sm overflow-hidden">
       <ScrollArea className="flex-1">
@@ -106,6 +104,13 @@ function CanvasMilestoneTabsComp({ nodes, selectedMilestoneId, onSelectMilestone
             <Layers className="h-3.5 w-3.5" />
             <span>Visão geral</span>
           </button>
+
+          {grouped.length === 0 && (
+            <div className="shrink-0 flex items-center gap-2 px-3 text-[11px] text-muted-foreground/70 italic">
+              <Folder className="h-3 w-3" />
+              <span>Nenhum projeto/milestone ainda — crie um projeto no Portal ou adicione um milestone aqui para começar.</span>
+            </div>
+          )}
 
           {grouped.map(({ project, milestones }) => (
             <div key={project.id} className="shrink-0 flex items-center gap-1.5 pl-2 pr-1.5 py-1 rounded-md border border-border/60 bg-background/30">
