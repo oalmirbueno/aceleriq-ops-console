@@ -1364,13 +1364,20 @@ function CanvasStudioInner({
     const inst = rfInstanceRef.current;
     if (!inst) return;
     if (selectedMilestoneId) {
-      inst.fitView({ padding: 0.12, duration: 300 });
+      // Foco suave no milestone selecionado, mantendo animação curta
+      inst.fitView({
+        padding: 0.25,
+        duration: 220,
+        maxZoom: 1.1,
+        minZoom: 0.5,
+        nodes: [{ id: selectedMilestoneId }],
+      });
       return;
     }
     if (restoredScopesRef.current.has(viewportScope)) return;
     const saved = readSavedViewport(viewportScope);
-    if (saved) inst.setViewport(saved, { duration: 250 });
-    else inst.fitView({ padding: 0.4, duration: 250 });
+    if (saved) inst.setViewport(saved, { duration: 200 });
+    else inst.fitView({ padding: 0.4, duration: 200, maxZoom: 1 });
     restoredScopesRef.current.add(viewportScope);
   }, [viewportScope, readSavedViewport, selectedMilestoneId]);
 
@@ -2294,10 +2301,13 @@ function CanvasStudioInner({
 
       setRfNodes((nodes) => nodes.map((node) => ({ ...node, selected: node.id === newRow.id })));
       window.setTimeout(() => {
-        rfInstanceRef.current?.setCenter(
+        const inst = rfInstanceRef.current;
+        if (!inst) return;
+        const currentZoom = inst.getViewport().zoom;
+        inst.setCenter(
           Number(newRow.pos_x ?? 0) + 170,
           Number(newRow.pos_y ?? 0) + 60,
-          { zoom: 1, duration: 400 },
+          { zoom: currentZoom, duration: 250 },
         );
       }, 100);
     }
@@ -2409,10 +2419,13 @@ function CanvasStudioInner({
 
     // Centraliza canvas no chat node
     setTimeout(() => {
-      rfInstanceRef.current?.setCenter(
+      const inst = rfInstanceRef.current;
+      if (!inst) return;
+      const currentZoom = inst.getViewport().zoom;
+      inst.setCenter(
         Number(chatNode!.pos_x ?? 0) + 160,
         Number(chatNode!.pos_y ?? 0) + 200,
-        { zoom: 1.1, duration: 500 },
+        { zoom: Math.max(currentZoom, 0.9), duration: 280 },
       );
     }, 150);
   }, [dbNodes, dbEdges, addChatNode]);
@@ -3210,7 +3223,7 @@ function CanvasStudioInner({
     );
     toast({ title: "Esteira reorganizada", description: `${updates.length} nodes posicionados por etapa ACELERA.` });
     await fetchData();
-    window.setTimeout(() => rfInstanceRef.current?.fitView({ padding: 0.2, duration: 400 }), 200);
+    window.setTimeout(() => rfInstanceRef.current?.fitView({ padding: 0.25, duration: 220, maxZoom: 1 }), 180);
     setBusyAction(null);
   };
 
