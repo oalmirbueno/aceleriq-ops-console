@@ -45,6 +45,89 @@ function sortPortalItems<T extends Record<string, any>>(items: T[]) {
   });
 }
 
+async function materializeProjectCanvas(ops: any, args: {
+  workspaceId: string; opsClientId: string; clientName: string; project: any; milestones: any[]; tasks: any[];
+}) {
+  const projectId = firstString(args.project?.id, args.project?.project_id, args.project?.uuid);
+  if (!projectId) return { projects: 0, milestones: 0, tasks: 0 };
+  const now = new Date().toISOString();
+  const { data: existingClient } = await ops.from("canvas_nodes")
+    .select("id, pos_x, pos_y")
+    .eq("workspace_id", args.workspaceId)
+    .eq("node_type", "client")
+    .or(`linked_entity_id.eq.${args.opsClientId},client_id.eq.${args.opsClientId}`)
+    .order("created_at", { ascending: true })
+    .limit(1).maybeSingle();
+  let clientNode = existingClient;
+  if (!clientNode?.id) {
+    const { data: createdClient } = await ops.from("canvas_nodes").insert({
+      workspace_id: args.workspaceId,
+      client_id: args.opsClientId,
+      linked_entity_id: args.opsClientId,
+      linked_entity_type: "clients",
+      node_type: "client",
+      title: args.clientName,
+      status: "active",
+      pos_x: 80,
+      pos_y: 0,
+      data: { kind: "client", from_portal: true },
+    }).select("id, pos_x, pos_y").single();
+    clientNode = createdClient;
+  }
+  const baseX = Number(clientNode?.pos_x ?? 80);
+  const baseY = Number(clientNode?.pos_y ?? 0);
+  const projectTitle = firstString(args.project?.name, args.project?.title, args.project?.project_name, "Projeto do Portal");
+  const projectStatus = firstString(args.project?.status, args.project?.state, "active");
+  const { data: existingProject } = await ops.from("canvas_nodes")
+    .select("id, data")
+    .eq("workspace_id", args.workspaceId)
+    .contains("data", { kind: "project_group", portal_project_id: projectId })
+    .order("created_at", { ascending: true })
+    .limit(1).maybeSingle();
+  let projectNodeId = existingProject?.id ?? null;
+  const projectPayload = { kind: "project_group", from_portal: true, portal_project_id: projectId, portal_status: projectStatus, stage: "producao" };
+  if (projectNodeId) {
+    await ops.from("canvas_nodes").update({ parent_node_id: clientNode?.id ?? null, title: projectTitle, status: portalStatusToOps(projectStatus) === "done" ? "done" : "active", pos_x: baseX, pos_y: baseY + 190, updated_at: now, data: { ...((existingProject.data as Record<string, unknown>) ?? {}), ...projectPayload } }).eq("id", projectNodeId);
+  } else {
+    const { data: createdProject } = await ops.from("canvas_nodes").insert({ workspace_id: args.workspaceId, client_id: args.opsClientId, parent_node_id: clientNode?.id ?? null, node_type: "front", title: projectTitle, status: portalStatusToOps(projectStatus) === "done" ? "done" : "active", pos_x: baseX, pos_y: baseY + 190, data: projectPayload }).select("id").single();
+    projectNodeId = createdProject?.id ?? null;
+  }
+  let milestonesCount = 0, tasksCount = 0;
+  const milestoneNodeByKey = new Map<string, string | null>();
+  const projectMilestones = sortPortalItems(args.milestones.filter((m) => projectIdOf(m) === projectId));
+  for (const [index, ms] of projectMilestones.entries()) {
+    const portalMilestoneId = firstString(ms.id, ms.milestone_id, ms.folder_id, ms.portal_folder_id, ms.uuid);
+    const milestoneKey = firstString(portalMilestoneId, ms.key, ms.slug, ms.title, ms.name, `milestone-${index}`);
+    const title = firstString(ms.title, ms.name, ms.folder_name, `Milestone ${index + 1}`);
+    const contains = portalMilestoneId ? { kind: "milestone_group", portal_milestone_id: portalMilestoneId } : { kind: "milestone_group", portal_project_id: projectId, milestone_key: milestoneKey };
+    const { data: existingMs } = await ops.from("canvas_nodes").select("id, data").eq("workspace_id", args.workspaceId).contains("data", contains).order("created_at", { ascending: true }).limit(1).maybeSingle();
+    const data = { ...((existingMs?.data as Record<string, unknown>) ?? {}), kind: "milestone_group", from_portal: true, portal_project_id: projectId, portal_milestone_id: portalMilestoneId || undefined, milestone_key: milestoneKey, portal_position: Number(ms.position ?? ms.order ?? ms.sort_order ?? index), portal_status: firstString(ms.status, "active"), stage: "producao" };
+    const payload = { parent_node_id: projectNodeId, title, status: portalStatusToOps(ms.status ?? "active") === "draft" ? "active" : portalStatusToOps(ms.status ?? "active"), pos_x: baseX + 32 + index * 360, pos_y: baseY + 350, updated_at: now, data };
+    let milestoneNodeId = existingMs?.id ?? null;
+    if (milestoneNodeId) await ops.from("canvas_nodes").update(payload).eq("id", milestoneNodeId);
+    else {
+      const { data: createdMs } = await ops.from("canvas_nodes").insert({ workspace_id: args.workspaceId, client_id: args.opsClientId, node_type: "front", ...payload }).select("id").single();
+      milestoneNodeId = createdMs?.id ?? null;
+    }
+    milestoneNodeByKey.set(portalMilestoneId || milestoneKey, milestoneNodeId);
+    milestonesCount++;
+  }
+  const projectTasks = sortPortalItems(args.tasks.filter((t) => projectIdOf(t) === projectId));
+  for (const [index, task] of projectTasks.entries()) {
+    const portalTaskId = firstString(task.id, task.task_id, task.uuid);
+    if (!portalTaskId) continue;
+    const taskMilestoneId = milestoneIdOf(task);
+    const milestoneNodeId = milestoneNodeByKey.get(taskMilestoneId) ?? null;
+    const { data: existingTask } = await ops.from("canvas_nodes").select("id, data").eq("workspace_id", args.workspaceId).contains("data", { portal_task_id: portalTaskId }).order("created_at", { ascending: true }).limit(1).maybeSingle();
+    const data = { ...((existingTask?.data as Record<string, unknown>) ?? {}), kind: ((existingTask?.data as Record<string, unknown> | null)?.kind ?? "checklist"), from_portal: true, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: taskMilestoneId || undefined, milestone_key: taskMilestoneId || undefined, portal_status: firstString(task.status, task.kanban_status, "todo"), portal_position: Number(task.position ?? task.order ?? task.sort_order ?? index), stage: "producao" };
+    const payload = { parent_node_id: milestoneNodeId ?? projectNodeId, title: firstString(task.title, task.name, "Tarefa do Portal"), status: portalStatusToOps(task.status ?? task.kanban_status), description: task.description ?? task.notes ?? null, pos_x: baseX + 64 + (index % Math.max(projectMilestones.length, 1)) * 360, pos_y: baseY + 480 + Math.floor(index / Math.max(projectMilestones.length, 1)) * 136, updated_at: now, data };
+    if (existingTask?.id) await ops.from("canvas_nodes").update(payload).eq("id", existingTask.id);
+    else await ops.from("canvas_nodes").insert({ workspace_id: args.workspaceId, client_id: args.opsClientId, node_type: "task", ...payload });
+    tasksCount++;
+  }
+  return { projects: 1, milestones: milestonesCount, tasks: tasksCount };
+}
+
 function inferOpsType(t: string | null): string {
   const s = (t ?? "").toLowerCase();
   if (s.includes("site")) return "one_shot_site";
