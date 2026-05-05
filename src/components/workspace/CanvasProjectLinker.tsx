@@ -165,7 +165,11 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
       } catch {
         portalList = [];
       }
-      const localList = await loadLocalWorkspaceProjects(clientId, currentClient);
+      let localList = await loadLocalWorkspaceProjects(clientId, currentClient);
+      if (portalList.length === 0 && localList.length <= 1) {
+        await supabase.functions.invoke("backfill-from-portal");
+        localList = await loadLocalWorkspaceProjects(clientId, currentClient);
+      }
       setProjects(mergeProjects(portalList, localList));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao carregar projetos do portal");
