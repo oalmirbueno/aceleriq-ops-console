@@ -22,10 +22,13 @@ export function usePortalAutoSync(intervalMs = 60_000) {
           body: { source: "auto" },
         });
         const path = window.location.pathname;
+        const search = new URLSearchParams(window.location.search);
+        const tab = search.get("tab");
         const workspaceFromPath = path.match(/\/ops\/workspaces\/([^/]+)/)?.[1];
-        const workspaceFromQuery = new URLSearchParams(window.location.search).get("workspaceId");
+        const workspaceFromQuery = search.get("workspaceId");
         const workspaceId = workspaceFromPath ?? workspaceFromQuery;
-        if (workspaceId) {
+        const shouldPullCanvas = Boolean(workspaceId && (tab === "canvas" || path.includes("/ops/canvas") || path.includes("/ops/projects/")));
+        if (shouldPullCanvas) {
           await supabase.functions.invoke("pull-portal-tasks", {
             body: { workspaceId, source: "auto" },
           });

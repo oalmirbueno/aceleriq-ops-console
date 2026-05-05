@@ -177,22 +177,25 @@ serve(async (req) => {
       const pid = firstString(p.id, p.project_id, p.uuid);
       if (pid) projectById.set(pid, p);
     }
-    const linkedProject = activePortalProjectId ? projectById.get(activePortalProjectId) : undefined;
-    const linkedClient = firstString(linkedProject?.client_id, linkedProject?.profile_id, linkedProject?.customer_id, activePortalClientId);
+    const targetPortalProjectIds = new Set<string>();
+    if (requestedPortalProjectId) targetPortalProjectIds.add(requestedPortalProjectId);
+    else if (activePortalProjectId) targetPortalProjectIds.add(activePortalProjectId);
 
-    const clientPortalProjectIds = new Set<string>();
-    if (activePortalProjectId) clientPortalProjectIds.add(activePortalProjectId);
-    if (requestedPortalProjectId) clientPortalProjectIds.add(requestedPortalProjectId);
-    for (const p of portalProjects) {
-      const pid = firstString(p.id, p.project_id, p.uuid);
-      const pclient = firstString(p.client_id, p.profile_id, p.customer_id, p.user_id, p.client?.id, p.profile?.id);
-      if (pid && pclient && linkedClient && pclient === linkedClient) clientPortalProjectIds.add(pid);
+    // Fallback seguro: só puxa por cliente quando o workspace ainda não tem
+    // portal_project_id. Workspace já vinculado = um projeto, sem misturar
+    // outros projetos do mesmo cliente e sem duplicar grupos no canvas.
+    if (targetPortalProjectIds.size === 0 && activePortalClientId) {
+      for (const p of portalProjects) {
+        const pid = firstString(p.id, p.project_id, p.uuid);
+        const pclient = firstString(p.client_id, p.profile_id, p.customer_id, p.user_id, p.client?.id, p.profile?.id);
+        if (pid && pclient === activePortalClientId) targetPortalProjectIds.add(pid);
+      }
     }
-    if (clientPortalProjectIds.size === 0) return json({ ok: false, skipped: true, reason: "no portal projects found for workspace/client" });
+    if (targetPortalProjectIds.size === 0) return json({ ok: false, skipped: true, reason: "no portal project found for workspace" });
 
     const tasks = sortByPosition(allTasks.filter((t) => {
       const pid = projectIdOfTask(t);
-      return pid ? clientPortalProjectIds.has(pid) : false;
+      return pid ? targetPortalProjectIds.has(pid) : false;
     }));
 
     const milestoneById = new Map<string, Record<string, any>>();
@@ -303,13 +306,13 @@ serve(async (req) => {
     const projectIdsFromTasks = tasks.map(projectIdOfTask).filter(Boolean) as string[];
     const projectIdsFromMilestones = portalMilestones
       .map(projectIdOfMilestone)
-      .filter((pid): pid is string => !!pid && clientPortalProjectIds.has(pid));
-    const projectsInOrder = Array.from(new Set([...projectIdsFromTasks, ...projectIdsFromMilestones]));
+      .filter((pid): pid is string => !!pid && targetPortalProjectIds.has(pid));
+    const projectsInOrder = Array.from(new Set([...targetPortalProjectIds, ...projectIdsFromTasks, ...projectIdsFromMilestones]));
     const milestoneOrderByProject = new Map<string, string[]>();
 
     for (const m of sortByPosition(portalMilestones)) {
       const milestoneProjectId = projectIdOfMilestone(m);
-      if (!milestoneProjectId || !clientPortalProjectIds.has(milestoneProjectId)) continue;
+      if (!milestoneProjectId || !targetPortalProjectIds.has(milestoneProjectId)) continue;
       const projectIndex = Math.max(0, projectsInOrder.indexOf(milestoneProjectId));
       let projectNodeId = projectGroupCache.get(milestoneProjectId) ?? null;
       if (!projectGroupCache.has(milestoneProjectId)) {
@@ -501,7 +504,7 @@ serve(async (req) => {
       const validTaskIds = new Set(tasks.map((t) => firstString(t.id, t.task_id, t.uuid)).filter(Boolean));
       const validMilestoneIds = new Set(
         portalMilestones
-          .filter((m) => clientPortalProjectIds.has(projectIdOfMilestone(m) ?? ""))
+          .filter((m) => targetPortalProjectIds.has(projectIdOfMilestone(m) ?? ""))
           .map((m) => firstString(m.id, m.milestone_id, m.folder_id, m.portal_folder_id, m.uuid))
           .filter(Boolean) as string[],
       );
@@ -516,7 +519,7 @@ serve(async (req) => {
           const d = (n.data ?? {}) as Record<string, any>;
           if (!d.from_portal || !d.portal_task_id) return false;
           const pPid = String(d.portal_project_id ?? "");
-          if (pPid && !clientPortalProjectIds.has(pPid)) return false;
+          if (pPid && !targetPortalProjectIds.has(pPid)) return false;
           return !validTaskIds.has(String(d.portal_task_id));
         })
         .map((n: any) => n.id);
@@ -534,7 +537,7 @@ serve(async (req) => {
           const d = (n.data ?? {}) as Record<string, any>;
           if (d.kind !== "milestone_group" || !d.from_portal || !d.portal_milestone_id) return false;
           const pPid = String(d.portal_project_id ?? "");
-          if (pPid && !clientPortalProjectIds.has(pPid)) return false;
+          if (pPid && !targetPortalProjectIds.has(pPid)) return false;
           return !validMilestoneIds.has(String(d.portal_milestone_id));
         })
         .map((n: any) => n.id);

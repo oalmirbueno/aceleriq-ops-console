@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft, CheckCircle2, Sparkles, Target,
-  FolderKanban, Network, Circle, Dot, MessageSquare,
+  FolderKanban, MessageSquare,
 } from "lucide-react";
 import LoadingState from "@/components/LoadingState";
 import EmptyState from "@/components/EmptyState";

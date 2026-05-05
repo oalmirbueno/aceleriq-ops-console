@@ -90,9 +90,9 @@ export default function WorkspaceProjectsLauncher({ workspaceId, clientName, por
     setLoading(false);
   }, [workspaceId]);
 
-  // Roda backfill (vincula portal_project_id ao workspace se faltar) e
-  // depois pull-portal-tasks (cria os project_group/milestone_group/tasks
-  // como canvas_nodes — que é o que esta tela lista). Esse é o sync real.
+  // Roda backfill e depois pull-portal-tasks no escopo do projeto já
+  // vinculado ao workspace. Só cai para cliente quando o workspace ainda
+  // não tem portal_project_id.
   const fullSync = useCallback(async () => {
     setSyncMessage("Sincronizando Portal…");
     const backfill = await supabase.functions.invoke("backfill-from-portal", { body: { source: "launcher", workspaceId, portalClientId, portalProjectId } });
@@ -175,7 +175,7 @@ export default function WorkspaceProjectsLauncher({ workspaceId, clientName, por
             Aguardando projeto do Portal
           </p>
           <p className="text-xs text-muted-foreground max-w-md">
-            Crie um projeto para <span className="text-foreground">{clientName}</span> no Portal.
+            O projeto de <span className="text-foreground">{clientName}</span> ainda não foi materializado no canvas.
             Ele aparecerá aqui automaticamente — não precisa apertar nada.
           </p>
         </div>
