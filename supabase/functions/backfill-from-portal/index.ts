@@ -190,7 +190,9 @@ async function materializeProjectCanvas(ops: any, args: {
     const milestoneNodeId = milestoneNodeByKey.get(taskMilestoneId) ?? null;
     const existingTask = existingTaskByPortalId.get(portalTaskId) ?? existingTaskByTitle.get(normalizeTitle(title));
     const inferred = inferKind(title, task.description ?? task.notes, milestoneTitleByKey.get(taskMilestoneId));
-    const data = { ...((existingTask?.data as Record<string, unknown>) ?? {}), kind: ((existingTask?.data as Record<string, unknown> | null)?.kind ?? inferred), from_portal: true, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: taskMilestoneId || undefined, milestone_key: taskMilestoneId || undefined, portal_status: firstString(task.status, task.kanban_status, "todo"), portal_position: Number(task.position ?? task.order ?? task.sort_order ?? index), stage: "producao" };
+    const curKind = (existingTask?.data as Record<string, unknown> | null)?.kind as string | undefined;
+    const finalKind = curKind && curKind !== "checklist" ? curKind : inferred;
+    const data = { ...((existingTask?.data as Record<string, unknown>) ?? {}), kind: finalKind, from_portal: true, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: taskMilestoneId || undefined, milestone_key: taskMilestoneId || undefined, portal_status: firstString(task.status, task.kanban_status, "todo"), portal_position: Number(task.position ?? task.order ?? task.sort_order ?? index), stage: "producao" };
     if (existingTask?.id) {
       // Não-destrutivo: só linka ao milestone e atualiza status/data Portal. Preserva título/descrição/posição já editados no Ops.
       await ops.from("canvas_nodes").update({ parent_node_id: milestoneNodeId ?? existingTask.parent_node_id ?? projectNodeId, status: portalStatusToOps(task.status ?? task.kanban_status), updated_at: now, data }).eq("id", existingTask.id);
