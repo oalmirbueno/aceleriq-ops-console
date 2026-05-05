@@ -11,7 +11,7 @@
  * tempo real pelos triggers do Portal (receive-portal-sync) e pelo realtime
  * do canvas_nodes, a barra atualiza sozinha quando algo muda nos dois lados.
  */
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Folder, Layers, Target, Radio, ArrowDownToLine, ArrowUpFromLine, AlertCircle } from "lucide-react";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
@@ -80,7 +80,77 @@ const MilestoneTab = memo(function MilestoneTab({ id, title, active, done, total
   );
 });
 
-function CanvasMilestoneTabsComp({ nodes, selectedMilestoneId, onSelectMilestone }: Props) {
+function relativeTime(ts: number | null, nowMs: number): string {
+  if (!ts) return "—";
+  const diff = Math.max(0, Math.floor((nowMs - ts) / 1000));
+  if (diff < 5) return "agora";
+  if (diff < 60) return `${diff}s atrás`;
+  const m = Math.floor(diff / 60);
+  if (m < 60) return `${m}min atrás`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h atrás`;
+  return `${Math.floor(h / 24)}d atrás`;
+}
+
+const SyncIndicator = memo(function SyncIndicator({ status }: { status: SyncStatus }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 10000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const rt = status.realtimeState;
+  const rtColor =
+    rt === "connected" ? "text-primary"
+    : rt === "connecting" ? "text-amber-400"
+    : "text-destructive";
+  const rtLabel =
+    rt === "connected" ? "Realtime ao vivo"
+    : rt === "connecting" ? "Conectando realtime…"
+    : "Realtime offline";
+
+  const lastRealtime = relativeTime(status.realtimeAt, now);
+  const lastPush = relativeTime(status.portalPushAt, now);
+  const lastPull = relativeTime(status.portalPullAt, now);
+
+  return (
+    <div
+      className="shrink-0 flex items-center gap-2 h-8 px-2.5 rounded-md border border-border/60 bg-background/40 text-[10px] tabular-nums text-muted-foreground"
+      title={[
+        `Realtime: ${rtLabel}${status.realtimeAt ? ` · último evento ${lastRealtime}` : ""}`,
+        `Ops → Portal: ${lastPush}${status.portalBusy ? " (sincronizando…)" : ""}`,
+        `Portal → Ops: ${lastPull}`,
+        status.portalError ? `Erro: ${status.portalError}` : "",
+      ].filter(Boolean).join("\n")}
+    >
+      <span className={`flex items-center gap-1 ${rtColor}`}>
+        <span className="relative flex items-center justify-center">
+          <Radio className="h-3 w-3" />
+          {rt === "connected" && (
+            <span className="absolute inset-0 rounded-full bg-primary/30 animate-ping" />
+          )}
+        </span>
+        <span className="hidden lg:inline">{lastRealtime}</span>
+      </span>
+      <span className="h-3 w-px bg-border/60" />
+      <span className={`flex items-center gap-1 ${status.portalBusy ? "text-primary animate-pulse" : ""}`}>
+        <ArrowUpFromLine className="h-3 w-3" />
+        <span className="hidden lg:inline">{lastPush}</span>
+      </span>
+      <span className="flex items-center gap-1">
+        <ArrowDownToLine className="h-3 w-3" />
+        <span className="hidden lg:inline">{lastPull}</span>
+      </span>
+      {status.portalError && (
+        <span className="flex items-center gap-1 text-destructive">
+          <AlertCircle className="h-3 w-3" />
+        </span>
+      )}
+    </div>
+  );
+});
+
+function CanvasMilestoneTabsComp({ nodes, selectedMilestoneId, onSelectMilestone, syncStatus }: Props) {
   // Build a narrow signature so we only recompute when fields that affect the
   // bar actually change. Unrelated updates (positions, drawer data, etc.) on
   // canvas_nodes won't invalidate this memo.
@@ -253,6 +323,7 @@ function CanvasMilestoneTabsComp({ nodes, selectedMilestoneId, onSelectMilestone
         </div>
         <ScrollBar orientation="horizontal" className="h-1.5" />
       </ScrollArea>
+      {syncStatus && <SyncIndicator status={syncStatus} />}
     </div>
   );
 }
