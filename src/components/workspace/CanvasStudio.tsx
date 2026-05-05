@@ -2294,10 +2294,13 @@ function CanvasStudioInner({
 
       setRfNodes((nodes) => nodes.map((node) => ({ ...node, selected: node.id === newRow.id })));
       window.setTimeout(() => {
-        rfInstanceRef.current?.setCenter(
+        const inst = rfInstanceRef.current;
+        if (!inst) return;
+        const currentZoom = inst.getViewport().zoom;
+        inst.setCenter(
           Number(newRow.pos_x ?? 0) + 170,
           Number(newRow.pos_y ?? 0) + 60,
-          { zoom: 1, duration: 400 },
+          { zoom: currentZoom, duration: 250 },
         );
       }, 100);
     }
