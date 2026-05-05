@@ -484,7 +484,60 @@ serve(async (req) => {
       payload: { total: tasks.length, created, updated, linked, projects: projectGroupCache.size, milestones: milestoneGroupCache.size },
       source: "ops",
     });
-    return json({ ok: true, total: tasks.length, created, updated, linked, projects: projectGroupCache.size, milestones: milestoneGroupCache.size });
+
+    // ─── Reconciliação: remove tasks/milestones do canvas que
+    //     não existem mais no portal para esse projeto. ──────────
+    let removedTasks = 0, removedMilestones = 0;
+    try {
+      const validTaskIds = new Set(tasks.map((t) => firstString(t.id, t.task_id, t.uuid)).filter(Boolean));
+      const validMilestoneIds = new Set(
+        portalMilestones
+          .filter((m) => clientPortalProjectIds.has(projectIdOfMilestone(m) ?? ""))
+          .map((m) => firstString(m.id, m.milestone_id, m.folder_id, m.portal_folder_id, m.uuid))
+          .filter(Boolean) as string[],
+      );
+
+      const { data: existingTasks } = await db
+        .from("canvas_nodes")
+        .select("id, data")
+        .eq("workspace_id", workspaceId)
+        .eq("node_type", "task");
+      const orphanTaskIds = (existingTasks ?? [])
+        .filter((n: any) => {
+          const d = (n.data ?? {}) as Record<string, any>;
+          if (!d.from_portal || !d.portal_task_id) return false;
+          const pPid = String(d.portal_project_id ?? "");
+          if (pPid && !clientPortalProjectIds.has(pPid)) return false;
+          return !validTaskIds.has(String(d.portal_task_id));
+        })
+        .map((n: any) => n.id);
+      if (orphanTaskIds.length) {
+        await db.from("canvas_nodes").delete().in("id", orphanTaskIds);
+        removedTasks = orphanTaskIds.length;
+      }
+
+      const { data: existingMs } = await db
+        .from("canvas_nodes")
+        .select("id, data")
+        .eq("workspace_id", workspaceId);
+      const orphanMsIds = (existingMs ?? [])
+        .filter((n: any) => {
+          const d = (n.data ?? {}) as Record<string, any>;
+          if (d.kind !== "milestone_group" || !d.from_portal || !d.portal_milestone_id) return false;
+          const pPid = String(d.portal_project_id ?? "");
+          if (pPid && !clientPortalProjectIds.has(pPid)) return false;
+          return !validMilestoneIds.has(String(d.portal_milestone_id));
+        })
+        .map((n: any) => n.id);
+      if (orphanMsIds.length) {
+        await db.from("canvas_nodes").delete().in("id", orphanMsIds);
+        removedMilestones = orphanMsIds.length;
+      }
+    } catch (err) {
+      console.warn("reconcile error", err);
+    }
+
+    return json({ ok: true, total: tasks.length, created, updated, linked, projects: projectGroupCache.size, milestones: milestoneGroupCache.size, removedTasks, removedMilestones });
   } catch (err) {
     await logSync({
       direction: "portal_to_ops",
