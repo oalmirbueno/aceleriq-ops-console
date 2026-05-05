@@ -472,7 +472,7 @@ serve(async (req) => {
 
     // ─── MILESTONE / UPDATE / TASK / FILE → TIMELINE ──────────
     if (["milestone", "update", "task", "file"].includes(type)) {
-      const portalProjectId = firstString(data.project_id, data.workspace_id);
+      const portalProjectId = portalProjectIdOf(data);
       let ws: { id: string; client_id: string } | null = null;
       if (portalProjectId) {
         const { data: foundWs } = await supabase
@@ -501,8 +501,8 @@ serve(async (req) => {
 
       // ── MILESTONE: cria/atualiza/remove a pasta milestone_group correspondente ──
       if (type === "milestone") {
-        const portalMilestoneId = firstString(data.id, data.milestone_id);
-        const isDeleted = event === "milestone_deleted" || event === "DELETE" || data.deleted === true;
+        const portalMilestoneId = firstString(data.id, data.milestone_id, data.folder_id, data.portal_folder_id);
+        const isDeleted = event === "milestone_deleted" || event === "folder_deleted" || event === "DELETE" || data.deleted === true;
         if (isDeleted && portalMilestoneId) {
           await supabase.from("canvas_nodes").delete()
             .eq("workspace_id", ws.id)
@@ -543,6 +543,7 @@ serve(async (req) => {
             kind: "milestone_group", from_portal: true,
             portal_project_id: portalProjectId ?? undefined,
             portal_milestone_id: portalMilestoneId,
+            portal_folder_id: portalMilestoneId,
             milestone_key: portalMilestoneId,
             portal_position: Number.isFinite(position) ? position : 0,
             portal_status: portalStatus, stage: "producao",
