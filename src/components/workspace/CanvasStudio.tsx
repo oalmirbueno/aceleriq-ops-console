@@ -1258,8 +1258,16 @@ function CanvasStudioInner({
           hasLinkedEntity: !!n.linked_entity_id,
           links: (dataObj.links as unknown[] | undefined)?.length ?? 0,
           attachments: attachmentList.length,
-          checklistTotal: (dataObj.checklist as Array<{ done?: boolean }> | undefined)?.length ?? 0,
-          checklistDone: (dataObj.checklist as Array<{ done?: boolean }> | undefined)?.filter((c) => c.done).length ?? 0,
+          checklistTotal: (() => {
+            const k = String(dataObj.kind ?? "").toLowerCase();
+            if (k === "milestone_group" || k === "project_group") return groupProgressById.get(n.id)?.total ?? 0;
+            return (dataObj.checklist as Array<{ done?: boolean }> | undefined)?.length ?? 0;
+          })(),
+          checklistDone: (() => {
+            const k = String(dataObj.kind ?? "").toLowerCase();
+            if (k === "milestone_group" || k === "project_group") return groupProgressById.get(n.id)?.done ?? 0;
+            return (dataObj.checklist as Array<{ done?: boolean }> | undefined)?.filter((c) => c.done).length ?? 0;
+          })(),
           clientName: owner?.name ?? null,
           clientSeed: owner?.seed ?? null,
           clientLogoUrl: owner?.logoUrl ?? null,
