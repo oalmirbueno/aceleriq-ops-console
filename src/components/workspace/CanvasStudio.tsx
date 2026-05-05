@@ -1151,21 +1151,32 @@ function CanvasStudioInner({
   const reactFlowNodes = useMemo(() => {
     // Layout fordista: quando um milestone está selecionado, reposicionamos as tarefas
     // em "estações" horizontais (uma coluna por status), mantendo a ordem do portal.
-    const FORDISMO_STAGES: Array<{ key: string; match: (s: string) => boolean }> = [
-      { key: "ideia",       match: (s) => s === "ideia" || s === "planejado" || s === "draft" },
-      { key: "em_producao", match: (s) => s === "em_producao" || s === "active" || s === "ativo" || s === "doing" },
-      { key: "revisao",     match: (s) => s === "revisao" || s === "review" },
-      { key: "bloqueado",   match: (s) => s === "bloqueado" || s === "blocked" },
-      { key: "concluido",   match: (s) => s === "concluido" || s === "done" },
+    const FORDISMO_STAGES: Array<{ key: string; title: string; match: (s: string) => boolean }> = [
+      { key: "ideia", title: "Ideia", match: (s) => s === "ideia" || s === "planejado" || s === "draft" },
+      { key: "em_producao", title: "Em produção", match: (s) => s === "em_producao" || s === "active" || s === "ativo" || s === "doing" },
+      { key: "revisao", title: "Revisão", match: (s) => s === "revisao" || s === "review" },
+      { key: "bloqueado", title: "Bloqueado", match: (s) => s === "bloqueado" || s === "blocked" },
+      { key: "concluido", title: "Concluído", match: (s) => s === "concluido" || s === "done" },
     ];
-    const FORDISMO_COL_W = 340;
+    const FORDISMO_COL_W = 360;
     const FORDISMO_ROW_H = 156;
-    const FORDISMO_ORIGIN_X = 80;
-    const FORDISMO_ORIGIN_Y = 200;
+    const FORDISMO_ORIGIN_X = 120;
+    const FORDISMO_ORIGIN_Y = 330;
     const fordismoOverride = new Map<string, { x: number; y: number }>();
+    const fordismoStageTotals = new Map<string, { total: number; done: number }>();
     if (selectedMilestoneId) {
       const stageCounts = new Map<string, number>();
-      const sorted = [...visibleCanvasNodes].sort((a, b) => {
+      const selectedMilestone = visibleCanvasNodes.find((node) => node.id === selectedMilestoneId);
+      const selectedProject = selectedMilestone?.parent_node_id
+        ? visibleCanvasNodes.find((node) => node.id === selectedMilestone.parent_node_id)
+        : null;
+      if (selectedProject) fordismoOverride.set(selectedProject.id, { x: FORDISMO_ORIGIN_X, y: 96 });
+      if (selectedMilestone) fordismoOverride.set(selectedMilestone.id, { x: FORDISMO_ORIGIN_X, y: 210 });
+      const sorted = visibleCanvasNodes.filter((node) => {
+        const kind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
+        const type = (node.node_type ?? "").toLowerCase();
+        return !["client", "ai_orb", "chat_node"].includes(type) && !["project_group", "milestone_group", "chat_node"].includes(kind);
+      }).sort((a, b) => {
         const pa = Number((a.data as Record<string, unknown> | null)?.portal_position ?? 9999);
         const pb = Number((b.data as Record<string, unknown> | null)?.portal_position ?? 9999);
         if (pa !== pb) return pa - pb;
@@ -1178,13 +1189,27 @@ function CanvasStudioInner({
         const key = FORDISMO_STAGES[stageIdx].key;
         const row = stageCounts.get(key) ?? 0;
         stageCounts.set(key, row + 1);
+        const current = fordismoStageTotals.get(key) ?? { total: 0, done: 0 };
+        fordismoStageTotals.set(key, { total: current.total + 1, done: current.done + (key === "concluido" ? 1 : 0) });
         fordismoOverride.set(node.id, {
           x: FORDISMO_ORIGIN_X + stageIdx * FORDISMO_COL_W,
           y: FORDISMO_ORIGIN_Y + row * FORDISMO_ROW_H,
         });
       });
     }
-    return visibleCanvasNodes.map((n): Node => {
+    const laneNodes: Node[] = selectedMilestoneId ? FORDISMO_STAGES.map((stage, index) => {
+      const totals = fordismoStageTotals.get(stage.key) ?? { total: 0, done: 0 };
+      return {
+        id: `fordismo-lane-${selectedMilestoneId}-${stage.key}`,
+        type: "fordismoLane",
+        position: { x: FORDISMO_ORIGIN_X + index * FORDISMO_COL_W - 18, y: FORDISMO_ORIGIN_Y - 58 },
+        draggable: false,
+        selectable: false,
+        data: { title: stage.title, total: totals.total, done: totals.done, __layoutPositionKey: `fordismo-lane:${selectedMilestoneId}:${stage.key}` },
+        style: { width: 316, height: Math.max(520, (stageCounts.get(stage.key) ?? 0) * FORDISMO_ROW_H + 112), zIndex: -1 },
+      } satisfies Node;
+    }) : [];
+    const cardNodes = visibleCanvasNodes.map((n): Node => {
       const owner = n.parent_node_id ? groupMeta[n.parent_node_id] : null;
       const dataObj = (n.data as Record<string, unknown> | null) ?? {};
       const operationalMeta = (dataObj.operationalMeta ?? dataObj.operational_meta ?? EMPTY_OPERATIONAL_META) as CanvasOperationalMeta;
