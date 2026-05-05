@@ -180,15 +180,21 @@ serve(async (req) => {
 
     else if (event === "node_created" && body.nodeId) {
       if (!portalProjectId) return json({ skipped: true, reason: "portal_project_id not set on workspace" });
+      const { data: node } = await db
+        .from("canvas_nodes")
+        .select("title, node_type, status, data")
+        .eq("id", body.nodeId)
+        .maybeSingle();
       data = {
         project_id: portalProjectId,
         author_id:  PORTAL_ADMIN_ID || portalClientId,
         node_id:    body.nodeId,
-        node_title: body.nodeTitle ?? "node",
-        node_type:  body.nodeType ?? null,
+        node_title: body.nodeTitle ?? node?.title ?? "node",
+        node_type:  body.nodeType ?? node?.node_type ?? null,
         portal_task_id: body.portalTaskId ?? null,
-        status:     body.status ?? null,
-        message:    `Nova tarefa criada: ${body.nodeTitle ?? "node"}`,
+        status:     body.status ?? node?.status ?? "draft",
+        progress:   body.progress ?? computeNodeProgress(node?.status, node?.data as Record<string, unknown> | null),
+        message:    `Nova tarefa criada: ${body.nodeTitle ?? node?.title ?? "node"}`,
         update_type: "task_created",
       };
     }
