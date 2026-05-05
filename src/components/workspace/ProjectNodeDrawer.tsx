@@ -38,7 +38,7 @@ export default function ProjectNodeDrawer(props: Props) {
   if (!node) return null;
 
   const kind = resolveProjectNodeKind({ nodeType: node.node_type, data: node.data }) as ProjectNodeKind | null;
-  const parentFolder = props.clientFolders?.find((c) => c.id === node.parent_node_id);
+  const parentFolder = resolveClientFolder(node, props.clientFolders, props.availableNodes);
   const clientId = parentFolder?.linkedClientId ?? null;
   const clientName = parentFolder?.name ?? "Cliente";
 
@@ -110,4 +110,26 @@ export default function ProjectNodeDrawer(props: Props) {
 
   // ── Legacy fallback para tudo que não foi coberto
   return <LegacyProjectNodeDrawer {...props} />;
+}
+
+function resolveClientFolder(
+  node: CanvasNodeRecord & { parent_node_id?: string | null },
+  clientFolders: ClientFolderOption[] = [],
+  availableNodes: Array<CanvasNodeRecord & { parent_node_id?: string | null }> = [],
+) {
+  const direct = clientFolders.find((c) => c.id === node.parent_node_id);
+  if (direct) return direct;
+
+  const byId = new Map(availableNodes.map((n) => [n.id, n] as const));
+  let current: (CanvasNodeRecord & { parent_node_id?: string | null }) | undefined = node;
+  const visited = new Set<string>();
+  while (current?.parent_node_id && !visited.has(current.id)) {
+    visited.add(current.id);
+    const folder = clientFolders.find((c) => c.id === current?.parent_node_id);
+    if (folder) return folder;
+    current = byId.get(current.parent_node_id);
+  }
+
+  if (clientFolders.length === 1) return clientFolders[0];
+  return null;
 }
