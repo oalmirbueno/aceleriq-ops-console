@@ -1366,7 +1366,12 @@ function CanvasStudioInner({
     const fordismoOverride = new Map<string, { x: number; y: number }>();
     const fordismoStageTotals = new Map<string, { total: number; done: number }>();
     const stageCounts = new Map<string, number>();
-    if (selectedMilestoneId) {
+    // NOTE: o "modo fordismo" não reposiciona mais nodes nem injeta lanes.
+    // Selecionar um milestone nas abas do topo apenas FILTRA as tarefas visíveis
+    // (lógica em visibleNodes), preservando posições, vínculos e estrutura
+    // que o usuário já organizou no canvas. Mantemos os totais por stage só
+    // para quem precisar futuramente.
+    if (false && selectedMilestoneId) {
       const selectedMilestone = visibleCanvasNodes.find((node) => node.id === selectedMilestoneId);
       const selectedProject = selectedMilestone?.parent_node_id
         ? visibleCanvasNodes.find((node) => node.id === selectedMilestone.parent_node_id)
@@ -1398,18 +1403,7 @@ function CanvasStudioInner({
         });
       });
     }
-    const laneNodes: Node[] = selectedMilestoneId ? FORDISMO_STAGES.map((stage, index) => {
-      const totals = fordismoStageTotals.get(stage.key) ?? { total: 0, done: 0 };
-      return {
-        id: `fordismo-lane-${selectedMilestoneId}-${stage.key}`,
-        type: "fordismoLane",
-        position: { x: FORDISMO_ORIGIN_X + index * FORDISMO_COL_W - 18, y: FORDISMO_ORIGIN_Y - 58 },
-        draggable: false,
-        selectable: false,
-        data: { title: stage.title, total: totals.total, done: totals.done, __layoutPositionKey: `fordismo-lane:${selectedMilestoneId}:${stage.key}` },
-        style: { width: 316, height: Math.max(520, (stageCounts.get(stage.key) ?? 0) * FORDISMO_ROW_H + 112), zIndex: -1 },
-      } satisfies Node;
-    }) : [];
+    const laneNodes: Node[] = [];
     // Progresso real por pasta (project_group / milestone_group): conta tarefas filhas
     // (diretas ou matched por portal_milestone_id/milestone_key) e quantas estão done.
     const groupProgressById = new Map<string, { total: number; done: number }>();
@@ -3640,7 +3634,7 @@ function CanvasStudioInner({
             )
           ) : (
             <>
-            {portalProjectIdProp && !selectedMilestoneId && !milestoneOverlayDismissed && (() => {
+            {false && portalProjectIdProp && !selectedMilestoneId && !milestoneOverlayDismissed && (() => {
               const milestones = scopedProjectNodes
                 .filter((n) => String((n.data as Record<string, unknown> | null)?.kind ?? "") === "milestone_group")
                 .sort((a, b) => {
