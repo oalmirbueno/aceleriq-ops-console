@@ -75,7 +75,7 @@ export default function WorkspaceTabCanvas(props: Props) {
       body: { source: "workspace_canvas", workspaceId: props.workspaceId, portalProjectId: props.portalProjectId },
     }).catch(() => null).finally(() => { void materializeMilestonesFromTimeline(); });
     return () => { cancelled = true; };
-  }, [props.workspaceId, props.portalProjectId]);
+  }, [props.workspaceId, props.portalProjectId, props.clientId, props.clientName]);
 
   if (props.portalProjectId) {
     return (
