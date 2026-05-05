@@ -425,6 +425,14 @@ function CanvasStudioInner({
   const autoPortalSyncRef = useRef<{ inFlight: boolean; timer: number | null; interval: number | null }>({ inFlight: false, timer: null, interval: null });
   const portalPushDebounceRef = useRef<number | null>(null);
   const portalPushSignatureRef = useRef<string>("");
+  // Versão monotônica do rollup de progresso. Cada chamada a syncPortalNow
+  // pega um número crescente; se ao terminar de calcular já houver uma versão
+  // maior em curso, descarta o resultado pra não sobrescrever progresso novo
+  // com cálculo velho. Mesmo princípio aplicado ao Portal via `client_version`.
+  const progressVersionRef = useRef<number>(0);
+  // Última versão efetivamente persistida por (escopo) — evita race ao gravar
+  // portal_progress de um snapshot velho por cima de um mais novo.
+  const lastWrittenProgressVersionRef = useRef<Map<string, number>>(new Map());
 
   // Active client folder (null = "Todos")
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
