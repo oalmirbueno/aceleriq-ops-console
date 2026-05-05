@@ -363,7 +363,7 @@ serve(async (req) => {
 
     else if (event === "node_updated" && body.nodeId) {
       if (!portalProjectId) return json({ skipped: true, reason: "portal_project_id not set on workspace" });
-      const authorId = PORTAL_ADMIN_ID || portalClientId || "ops-system";
+      const authorId = PORTAL_ADMIN_ID || portalClientId || undefined;
 
       const statusLabels: Record<string, string> = {
         draft: "Não iniciada",
@@ -408,7 +408,7 @@ serve(async (req) => {
     else if (event === "node_created" && body.nodeId) {
       if (!portalProjectId) return json({ skipped: true, reason: "portal_project_id not set on workspace" });
       const node = nodeRow;
-      const authorId = PORTAL_ADMIN_ID || portalClientId || "ops-system";
+      const authorId = PORTAL_ADMIN_ID || portalClientId || undefined;
       data = {
         project_id: portalProjectId,
         author_id:  authorId,
