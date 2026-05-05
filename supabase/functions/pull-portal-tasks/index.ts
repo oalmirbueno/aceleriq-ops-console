@@ -454,7 +454,7 @@ serve(async (req) => {
         if (/homolog|entrega|operacional|case/.test(ctx)) return "case";
         if (/trafego|ads|midia/.test(ctx)) return "trafego";
         if (/conteudo|criativo/.test(ctx)) return "conteudo";
-        return "checklist";
+        return "resultado";
       })();
       const labels = Array.isArray(t.labels) ? t.labels : [];
       const counterKey = `${taskProjectId}:${milestoneKey}`;
