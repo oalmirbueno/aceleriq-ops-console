@@ -399,7 +399,8 @@ serve(async (req) => {
       reconcile.errors.push((err as Error).message?.slice(0, 200) ?? "reconcile error");
     }
 
-    return new Response(JSON.stringify({ ok: true, stats, summary }),
+    const finalSummary = `${summary} | reconcile: ${reconcile.clients_deleted} clients, ${reconcile.workspaces_deleted} workspaces removidos`;
+    return new Response(JSON.stringify({ ok: true, stats, reconcile, summary: finalSummary }),
       { headers: { ...cors, "Content-Type": "application/json" } });
 
   } catch (err) {
