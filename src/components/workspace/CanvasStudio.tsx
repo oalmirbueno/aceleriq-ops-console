@@ -355,6 +355,30 @@ function canvasNodeDataEqual(a: Record<string, unknown> | undefined, b: Record<s
   return true;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(`${label} demorou demais`)), ms);
+    promise.then(
+      (value) => { window.clearTimeout(timer); resolve(value); },
+      (error) => { window.clearTimeout(timer); reject(error); },
+    );
+  });
+}
+
+async function fetchJsonWithTimeout(url: string, init: RequestInit, ms: number) {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), ms);
+  try {
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    const text = await response.text();
+    let parsed: any = {};
+    try { parsed = text ? JSON.parse(text) : {}; } catch { parsed = { raw: text }; }
+    return { response, parsed };
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 function CanvasStudioInner({
   workspaceId, clientId, clientName,
   fullscreen, onToggleFullscreen, onTimelineRefresh, initialStatusFilter,
@@ -431,36 +455,39 @@ function CanvasStudioInner({
       const type = (node.node_type ?? "").toLowerCase();
       const kind = ((node.data as Record<string, unknown> | null)?.kind as string | undefined ?? "").toLowerCase();
       return !["client", "ai_orb", "chat_node"].includes(type) && kind !== "chat_node";
-    });
+    }).slice(0, 30);
 
     let sent = 0;
     let failed = 0;
     for (const node of syncableNodes) {
-      const { data, error } = await supabase.functions.invoke("sync-to-portal", {
-        body: {
-          event: "node_created",
-          workspaceId,
-          clientId: node.client_id ?? clientId,
-          nodeId: node.id,
-          nodeTitle: node.title,
-          nodeType: node.node_type,
-          status: node.status ?? "draft",
-        },
-      });
-      if (error || (data as any)?.ok === false || (data as any)?.skipped) failed++;
-      else sent++;
+      try {
+        const { data, error } = await withTimeout(supabase.functions.invoke("sync-to-portal", {
+          body: {
+            event: "node_created",
+            workspaceId,
+            clientId: node.client_id ?? clientId,
+            nodeId: node.id,
+            nodeTitle: node.title,
+            nodeType: node.node_type,
+            status: node.status ?? "draft",
+          },
+        }), 4500, "Ops→Portal");
+        if (error || (data as any)?.ok === false || (data as any)?.skipped) failed++;
+        else sent++;
+      } catch (error) {
+        console.error("[CanvasStudio] sync-to-portal node failed", node.id, error);
+        failed++;
+      }
     }
 
     let pulled = 0;
     let pullFailed = false;
     try {
-      const response = await fetch("https://gicbrgagstyvbaaumprj.supabase.co/functions/v1/backfill-tasks-to-ops", {
+      const { response, parsed } = await fetchJsonWithTimeout("https://gicbrgagstyvbaaumprj.supabase.co/functions/v1/backfill-tasks-to-ops", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source: "ops_canvas_manual_sync" }),
-      });
-      const text = await response.text();
-      const parsed = text ? JSON.parse(text) : {};
+      }, 8000);
       pulled = Number(parsed.sent ?? 0);
       pullFailed = !response.ok || Number(parsed.failed ?? 0) > 0;
     } catch (error) {
@@ -557,34 +584,7 @@ function CanvasStudioInner({
   // Mantém refs estáveis sincronizados
   useEffect(() => { fetchDataRef.current = fetchData; }, [fetchData]);
 
-  // Backfill: ao abrir o canvas, sincroniza nodes existentes com o portal (1x por sessão por workspace).
-  useEffect(() => {
-    if (!workspaceId || loading) return;
-    const sessionKey = `ops:backfill-portal:v2:${workspaceId}`;
-    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) return;
-    void syncPortalNow()
-      .then(() => { try { sessionStorage.setItem(sessionKey, "1"); } catch {} })
-      .catch((error) => console.error("[CanvasStudio] syncPortalNow failed", error));
-  }, [workspaceId, loading, syncPortalNow]);
-
-  // Pull ativo: traz tarefas existentes do portal e cria nodes locais (idempotente).
-  useEffect(() => {
-    if (!workspaceId || loading) return;
-    const sessionKey = `ops:pull-tasks:v2:${workspaceId}`;
-    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) return;
-    void fetch("https://gicbrgagstyvbaaumprj.supabase.co/functions/v1/backfill-tasks-to-ops", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source: "ops_canvas_auto_pull" }),
-    })
-      .then(async (response) => {
-        const text = await response.text();
-        if (!response.ok) throw new Error(text || `Portal backfill ${response.status}`);
-        try { sessionStorage.setItem(sessionKey, "1"); } catch {}
-        fetchDataRef.current?.();
-      })
-      .catch((error) => console.error("[CanvasStudio] portal backfill-tasks-to-ops failed", error));
-  }, [workspaceId, loading]);
+  // Sync Portal fica manual pelo botão para evitar timeout/loading infinito ao abrir canvas.
 
   // Realtime: novos nodes (criados pelo portal ou outra sessão) aparecem ao vivo.
   useEffect(() => {
