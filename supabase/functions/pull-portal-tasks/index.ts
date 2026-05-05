@@ -1,7 +1,7 @@
 /**
  * pull-portal-tasks — busca tasks reais do portal e organiza no canvas por:
  * cliente → projeto → milestone → task.
- * (redeploy trigger)
+ * (redeploy trigger v3 — scoped to workspace's portal_project_id)
  * Idempotente: nunca duplica; faz match por portal_task_id/ops_node_id.
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
