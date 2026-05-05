@@ -1206,6 +1206,10 @@ function CanvasStudioInner({
         for (const n of projectNodes) {
           const d = (n.data as Record<string, unknown> | null) ?? {};
           if (d.portal_project_id === portalProjectIdProp) allowedProj.add(n.id);
+          const type = (n.node_type ?? "").toLowerCase();
+          const kind = String(d.kind ?? "").toLowerCase();
+          const isOpsFreeNode = type === "ai_orb" || kind === "ai_orb" || kind === "chat_node" || d.created_from === "manual" || d.created_from === "ai_orb" || d.generatedByAiOrb;
+          if (isOpsFreeNode && activeClientId && n.parent_node_id === activeClientId) allowedProj.add(n.id);
         }
         // Inclui a pasta do cliente como "raiz" visual.
         const clientRoot = projectNodes.find((n) => (n.node_type ?? "").toLowerCase() === "client" && (n.client_id === clientId || n.linked_entity_id === clientId));
@@ -1266,6 +1270,15 @@ function CanvasStudioInner({
       const kind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
       return type === "client" || kind === "project_group" || kind === "milestone_group";
     };
+    const isFreeOperationalNode = (node: CanvasNodeRow): boolean => {
+      const type = (node.node_type ?? "").toLowerCase();
+      const data = (node.data as Record<string, unknown> | null) ?? {};
+      const kind = String(data.kind ?? "").toLowerCase();
+      if (isFolder(node)) return false;
+      if (type === "ai_orb" || kind === "ai_orb" || kind === "chat_node") return true;
+      if (data.created_from === "manual" || data.created_from === "ai_orb" || data.generatedByAiOrb) return true;
+      return false;
+    };
     const belongsToMilestone = (node: CanvasNodeRow, milestoneId: string): boolean => {
       if (node.id === milestoneId) return false;
       const milestone = milestoneById.get(milestoneId);
@@ -1294,7 +1307,9 @@ function CanvasStudioInner({
       return true;
     };
     if (!selectedMilestoneId) return scopedProjectNodes.filter(passesUiFilters);
-    const milestoneNodes = scopedProjectNodes.filter((node) => passesUiFilters(node) && belongsToMilestone(node, selectedMilestoneId));
+    const milestoneNodes = scopedProjectNodes.filter((node) => passesUiFilters(node) && (
+      belongsToMilestone(node, selectedMilestoneId) || isFreeOperationalNode(node)
+    ));
     // Fallback seguro: se o Portal ainda não gravou parent/portal_milestone_id nas tasks,
     // não deixa o milestone abrir vazio; mostra os nodes já existentes do projeto escopado.
     return milestoneNodes.length > 0 ? milestoneNodes : scopedProjectNodes.filter(passesUiFilters);
@@ -2169,8 +2184,15 @@ function CanvasStudioInner({
     const milestoneNode = selectedMilestoneId
       ? scopedProjectNodes.find((n) => n.id === selectedMilestoneId)
       : null;
+    const portalProjectNode = portalProjectIdProp
+      ? scopedProjectNodes.find((n) => {
+        const d = (n.data as Record<string, unknown> | null) ?? {};
+        return String(d.kind ?? "").toLowerCase() === "project_group" && d.portal_project_id === portalProjectIdProp;
+      })
+      : null;
     const milestoneData = (milestoneNode?.data as Record<string, unknown> | null) ?? null;
-    const parent = milestoneNode?.id ?? pickParentGroup(resolvedParent);
+    const projectData = (portalProjectNode?.data as Record<string, unknown> | null) ?? null;
+    const parent = milestoneNode?.id ?? portalProjectNode?.id ?? pickParentGroup(resolvedParent);
     const initialTitle = `${meta.titleTemplate}`;
     let connectionLabel: string | null = null;
 
@@ -2199,7 +2221,7 @@ function CanvasStudioInner({
     }
 
     const portalMeta: Record<string, unknown> = {};
-    if (milestoneData?.portal_project_id) portalMeta.portal_project_id = milestoneData.portal_project_id;
+    if (milestoneData?.portal_project_id || projectData?.portal_project_id) portalMeta.portal_project_id = milestoneData?.portal_project_id ?? projectData?.portal_project_id;
     if (milestoneData?.portal_milestone_id) portalMeta.portal_milestone_id = milestoneData.portal_milestone_id;
     if (milestoneData?.milestone_key) portalMeta.milestone_key = milestoneData.milestone_key;
     if (milestoneData?.portal_folder_id) portalMeta.portal_folder_id = milestoneData.portal_folder_id;
@@ -2410,8 +2432,8 @@ function CanvasStudioInner({
 
     // Compat: se vier boolean (chamada antiga), converte pra deterministic
     const opts = typeof options === "boolean"
-      ? { agentId: "strategist" as AgentId, customPrompt: "", targetNodes: 10, deterministic: options }
-      : { agentId: (options.agentId ?? "strategist") as AgentId, customPrompt: options.customPrompt ?? "", targetNodes: options.targetNodes ?? 10, model: options.model, deterministic: false };
+      ? { agentId: "strategist" as AgentId, customPrompt: "", targetNodes: 20, deterministic: options }
+      : { agentId: (options.agentId ?? "strategist") as AgentId, customPrompt: options.customPrompt ?? "", targetNodes: options.targetNodes ?? 20, model: options.model, deterministic: false };
 
     const orb = readAiOrbData(aiOrbConfigNode.data as Record<string, unknown> | null);
     const generatingData = { ...orb, isGenerating: true, lastError: undefined };
@@ -2436,8 +2458,24 @@ function CanvasStudioInner({
       });
       const orbX = Number(aiOrbConfigNode.pos_x ?? OPS_FLOW_X.engine);
       const orbY = Number(aiOrbConfigNode.pos_y ?? CONTENT_TOP + 520);
-      const parent = aiOrbConfigNode.parent_node_id ?? ensureActiveClient();
+      const milestoneNode = selectedMilestoneId
+        ? scopedProjectNodes.find((node) => node.id === selectedMilestoneId)
+        : null;
+      const portalProjectNode = portalProjectIdProp
+        ? scopedProjectNodes.find((node) => {
+          const d = (node.data as Record<string, unknown> | null) ?? {};
+          return String(d.kind ?? "").toLowerCase() === "project_group" && d.portal_project_id === portalProjectIdProp;
+        })
+        : null;
+      const milestoneData = (milestoneNode?.data as Record<string, unknown> | null) ?? null;
+      const projectData = (portalProjectNode?.data as Record<string, unknown> | null) ?? null;
+      const parent = milestoneNode?.id ?? aiOrbConfigNode.parent_node_id ?? portalProjectNode?.id ?? ensureActiveClient();
       if (!parent) return;
+      const portalMeta: Record<string, unknown> = {};
+      if (milestoneData?.portal_project_id || projectData?.portal_project_id) portalMeta.portal_project_id = milestoneData?.portal_project_id ?? projectData?.portal_project_id;
+      if (milestoneData?.portal_milestone_id) portalMeta.portal_milestone_id = milestoneData.portal_milestone_id;
+      if (milestoneData?.milestone_key) portalMeta.milestone_key = milestoneData.milestone_key;
+      if (milestoneData?.portal_folder_id) portalMeta.portal_folder_id = milestoneData.portal_folder_id;
 
       const createdByRef: Record<string, CanvasNodeRow> = {};
       const createdNodes: CanvasNodeRow[] = [];
@@ -2450,7 +2488,7 @@ function CanvasStudioInner({
           client_id: clientId,
           node_type: projectKindToDbNodeType(spec.kind),
           title: spec.title,
-          status: "draft",
+          status: "active",
           description: spec.description,
           pos_x: pos.x,
           pos_y: pos.y,
@@ -2460,6 +2498,8 @@ function CanvasStudioInner({
             stage: spec.stage,
             checklist: getChecklistTemplate(spec.kind),
             generatedByAiOrb: aiOrbConfigNode.id,
+            created_from: "ai_orb",
+            ...portalMeta,
             rationale: result.rationale,
             agent_id: opts.agentId,
             ...specData,
@@ -2470,6 +2510,16 @@ function CanvasStudioInner({
         createdNodes.push(data as CanvasNodeRow);
         const row = data as CanvasNodeRow;
         syncNodeCreated({ workspaceId, clientId, nodeId: row.id, nodeTitle: row.title, nodeType: row.node_type });
+        syncNodeUpdated({
+          workspaceId,
+          clientId,
+          nodeId: row.id,
+          nodeTitle: row.title,
+          nodeType: row.node_type,
+          status: "active",
+          previousStatus: "draft",
+          data: row.data as Record<string, unknown> | null,
+        });
       }
 
       const generatedEdges = [
@@ -2509,7 +2559,7 @@ function CanvasStudioInner({
     } finally {
       setBusyAction(null);
     }
-  }, [aiOrbConfigNode, clientId, ensureActiveClient, workspaceId]);
+  }, [aiOrbConfigNode, clientId, ensureActiveClient, portalProjectIdProp, scopedProjectNodes, selectedMilestoneId, workspaceId]);
 
   const expandEngineHub = useCallback(async (engineNodeId: string) => {
     const engineNode = dbNodes.find((node) => node.id === engineNodeId);

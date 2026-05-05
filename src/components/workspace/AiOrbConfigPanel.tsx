@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { AGENT_LIST, getAgent, type AgentId } from "@/lib/aiAgents";
 import type { AiOrbType } from "./AiOrbNode";
@@ -49,7 +50,7 @@ export default function AiOrbConfigPanel({ open, onOpenChange, data, onDataChang
     data ? ORB_DEFAULT_AGENT[data.orbType as AiOrbType] ?? "strategist" : "strategist"
   );
   const [customPrompt, setCustomPrompt] = useState("");
-  const [targetNodes, setTargetNodes] = useState(10);
+  const [targetNodes, setTargetNodes] = useState(20);
   const [selectedModel, setSelectedModel] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -61,7 +62,7 @@ export default function AiOrbConfigPanel({ open, onOpenChange, data, onDataChang
     if (!open || !data) return;
     setSelectedAgent(ORB_DEFAULT_AGENT[data.orbType as AiOrbType] ?? "strategist");
     setCustomPrompt("");
-    setTargetNodes(10);
+    setTargetNodes(20);
     setSelectedModel("");
   }, [open, data?.orbType]);
 
@@ -71,7 +72,7 @@ export default function AiOrbConfigPanel({ open, onOpenChange, data, onDataChang
     onGenerate({
       agentId: selectedAgent,
       customPrompt: customPrompt.trim(),
-      targetNodes,
+      targetNodes: Math.max(1, Math.floor(Number(targetNodes) || 1)),
       model: selectedModel || undefined,
     });
   };
@@ -153,8 +154,8 @@ export default function AiOrbConfigPanel({ open, onOpenChange, data, onDataChang
           {/* ═══ QUANTIDADE DE NODES ═══ */}
           <div>
             <Label className="text-xs font-semibold mb-2">Quantos nodes gerar?</Label>
-            <div className="flex items-center gap-2">
-              {[5, 10, 15, 20].map((n) => (
+            <div className="flex flex-wrap items-center gap-2">
+              {[10, 20, 30, 50].map((n) => (
                 <button
                   key={n}
                   type="button"
@@ -171,6 +172,16 @@ export default function AiOrbConfigPanel({ open, onOpenChange, data, onDataChang
                   {n} nodes
                 </button>
               ))}
+              <Input
+                type="number"
+                min={1}
+                max={200}
+                value={targetNodes}
+                onChange={(e) => setTargetNodes(Math.max(1, Math.min(200, Number(e.target.value) || 1)))}
+                disabled={generating}
+                className="h-8 w-20 text-xs"
+                aria-label="Quantidade livre de nodes"
+              />
             </div>
           </div>
 

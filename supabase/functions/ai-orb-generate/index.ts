@@ -14,7 +14,7 @@ const VALID_STAGES = ["entrada","diagnostico","estrutura_base","planejamento","p
 const KIND_DEFAULT_STAGE: Record<string, string> = { briefing:"entrada", contexto_ops:"entrada", objetivo:"entrada", acessos:"entrada", documento:"diagnostico", checklist:"estrutura_base", instrucao:"planejamento", funil:"planejamento", landing_page:"producao", site:"producao", automacao:"producao", ia:"producao", integracao:"producao", agente:"producao", resultado:"producao", conteudo:"producao", video:"producao", imagem:"producao", trafego:"ativacao", email_mkt:"ativacao", social:"ativacao", lancamento:"ativacao", decisao:"ativacao", crm:"otimizacao", metrica:"otimizacao", before_after:"expansao", case:"expansao" };
 
 type OrbType = "planner" | "docs" | "content" | "tech" | "proof" | "full";
-type Body = { orbId: string; workspaceId: string; clientId: string; orbType: OrbType; aiEngine?: string; customPrompt?: string; focusAreas?: string[]; deterministic?: boolean };
+type Body = { orbId: string; workspaceId: string; clientId: string; orbType: OrbType; aiEngine?: string; customPrompt?: string; focusAreas?: string[]; deterministic?: boolean; targetNodes?: number; model?: string; agentId?: string; agentSystemPrompt?: string };
 
 const ORB_PROMPTS: Record<OrbType, { hint: string; system: string; fallback: { nodes: Array<Record<string, string>>; edges: Array<Record<string, string>>; insights: string[] } }> = {
   planner: { hint: "OKRs, roadmap 90 dias, priorização por impacto × esforço", system: "Consultor sênior de estratégia e operações. Gere objetivos SMART, plano 90 dias, frentes priorizadas e checkpoints.", fallback: { nodes: [{ ref:"okr", kind:"objetivo", stage:"entrada", title:"OKRs operacionais", description:"Objetivos SMART e resultados-chave da operação." },{ ref:"plan", kind:"documento", stage:"planejamento", title:"Plano Operacional 90 dias", description:"Roadmap em sprints 0-30, 30-60 e 60-90 dias." },{ ref:"sprint", kind:"instrucao", stage:"planejamento", title:"Sprint 1 — Fundação", description:"Primeiros passos e quick wins." }], edges: [{ fromRef:"okr", toRef:"plan", label:"orienta" },{ fromRef:"plan", toRef:"sprint", label:"executa" }], insights: ["Plano estruturado em objetivos, roadmap e execução inicial."] } },
@@ -27,7 +27,9 @@ const ORB_PROMPTS: Record<OrbType, { hint: string; system: string; fallback: { n
 
 function json(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } }); }
 
-function sanitize(raw: { rationale?: string; nodes?: Array<Record<string, string>>; edges?: Array<Record<string, string>>; insights?: string[] }) {
+function sanitize(raw: { rationale?: string; nodes?: Array<Record<string, string>>; edges?: Array<Record<string, string>>; insights?: string[] }, targetNodes = 20) {
+  const nodeLimit = Math.max(1, Math.min(200, Math.floor(Number(targetNodes) || 20)));
+  const edgeLimit = Math.max(40, nodeLimit * 3);
   const seen = new Set<string>();
   const nodes = (raw.nodes ?? []).map((node, index) => {
     let ref = (node.ref ?? `node_${index}`).toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 32);
@@ -36,10 +38,21 @@ function sanitize(raw: { rationale?: string; nodes?: Array<Record<string, string
     const kind = (VALID_KINDS as readonly string[]).includes(node.kind) ? node.kind : "documento";
     const stage = (VALID_STAGES as readonly string[]).includes(node.stage) ? node.stage : KIND_DEFAULT_STAGE[kind] ?? "planejamento";
     return { ref, kind, stage, title: (node.title ?? "Node gerado").slice(0, 90), description: (node.description ?? "Gerado pelo AI Orb.").slice(0, 260) };
-  }).slice(0, 28);
+  }).slice(0, nodeLimit);
   const refs = new Set(nodes.map((node) => node.ref));
-  const edges = (raw.edges ?? []).filter((edge) => refs.has(edge.fromRef) && refs.has(edge.toRef) && edge.fromRef !== edge.toRef).map((edge) => ({ fromRef: edge.fromRef, toRef: edge.toRef, label: edge.label?.slice(0, 40) ?? null })).slice(0, 40);
+  const edges = (raw.edges ?? []).filter((edge) => refs.has(edge.fromRef) && refs.has(edge.toRef) && edge.fromRef !== edge.toRef).map((edge) => ({ fromRef: edge.fromRef, toRef: edge.toRef, label: edge.label?.slice(0, 40) ?? null })).slice(0, edgeLimit);
   return { nodes, edges, rationale: raw.rationale ?? "Geração operacional do AI Orb.", insights: (raw.insights ?? []).slice(0, 6) };
+}
+
+function expandFallback(def: { nodes: Array<Record<string, string>>; edges: Array<Record<string, string>>; insights: string[] }, targetNodes: number, rationale: string) {
+  const base = def.nodes.length > 0 ? def.nodes : [{ ref: "node", kind: "resultado", stage: "producao", title: "Entrega operacional", description: "Tarefa operacional gerada pelo AI Orb." }];
+  const nodes = Array.from({ length: targetNodes }, (_, index) => {
+    const template = base[index % base.length];
+    const cycle = Math.floor(index / base.length) + 1;
+    return { ...template, ref: `${template.ref ?? "node"}_${index + 1}`, title: cycle === 1 ? template.title : `${template.title} · etapa ${cycle}` };
+  });
+  const edges = nodes.slice(1).map((node, index) => ({ fromRef: nodes[index].ref, toRef: node.ref, label: "próxima" }));
+  return sanitize({ nodes, edges, insights: def.insights, rationale }, targetNodes);
 }
 
 serve(async (req) => {
@@ -56,7 +69,8 @@ serve(async (req) => {
     const body = await req.json() as Body;
     if (!body.orbId || !body.workspaceId || !body.clientId || !body.orbType) return json({ error: "orbId, workspaceId, clientId e orbType são obrigatórios" }, 400);
     const def = ORB_PROMPTS[body.orbType] ?? ORB_PROMPTS.planner;
-    if (body.deterministic) return json({ ...def.fallback, rationale: `Fallback determinístico: ${def.hint}` });
+    const targetNodes = Math.max(1, Math.min(200, Math.floor(Number(body.targetNodes) || 20)));
+    if (body.deterministic) return json(expandFallback(def.fallback, targetNodes, `Fallback determinístico: ${def.hint}`));
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
     const [clientRes, contextRes, metricsRes, nodesRes, edgesRes] = await Promise.all([
@@ -69,15 +83,15 @@ serve(async (req) => {
 
     const contextPayload = { cliente: clientRes.data, contextos: contextRes.data, metricas: metricsRes.data, canvas_nodes: nodesRes.data, canvas_edges: edgesRes.data, foco: body.focusAreas, memoria_orb: (nodesRes.data ?? []).find((n: Record<string, unknown>) => n.id === body.orbId)?.data, pista: def.hint };
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY || body.aiEngine !== "internal") return json({ ...def.fallback, rationale: `Fallback seguro: ${def.hint}` });
+    if (!LOVABLE_API_KEY || body.aiEngine !== "internal") return json(expandFallback(def.fallback, targetNodes, `Fallback seguro: ${def.hint}`));
 
     const tool = { type: "function", function: { name: "build_orb_output", description: "Nodes e edges gerados por AI Orb", parameters: { type: "object", properties: { rationale: { type: "string" }, insights: { type: "array", items: { type: "string" } }, nodes: { type: "array", items: { type: "object", properties: { ref: { type: "string" }, kind: { type: "string", enum: [...VALID_KINDS] }, stage: { type: "string", enum: [...VALID_STAGES] }, title: { type: "string" }, description: { type: "string" } }, required: ["ref","kind","stage","title","description"], additionalProperties: false } }, edges: { type: "array", items: { type: "object", properties: { fromRef: { type: "string" }, toRef: { type: "string" }, label: { type: "string" } }, required: ["fromRef","toRef"], additionalProperties: false } } }, required: ["rationale","insights","nodes","edges"], additionalProperties: false } } };
-    const aiRes = await fetch(AI_GATEWAY_URL, { method: "POST", headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: AI_MODEL, temperature: 0.3, messages: [{ role: "system", content: `${def.system}\n${body.customPrompt ?? ""}\nUse apenas kinds/stages permitidos. Não invente números. Retorne saída executável.` }, { role: "user", content: JSON.stringify(contextPayload).slice(0, 24000) }], tools: [tool], tool_choice: { type: "function", function: { name: "build_orb_output" } } }) });
-    if (!aiRes.ok) return json({ ...def.fallback, rationale: `Fallback por falha da IA: ${def.hint}` });
+    const aiRes = await fetch(AI_GATEWAY_URL, { method: "POST", headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: body.model || AI_MODEL, temperature: 0.3, messages: [{ role: "system", content: `${body.agentSystemPrompt ?? def.system}\n${def.system}\n${body.customPrompt ?? ""}\nGere exatamente ${targetNodes} nodes quando o contexto permitir. Não resuma em poucos nodes. Cada node precisa ser uma tarefa/entrega operacional específica, auditável e com descrição profissional. Use apenas kinds/stages permitidos. Não invente números. Retorne saída executável.` }, { role: "user", content: JSON.stringify(contextPayload).slice(0, 24000) }], tools: [tool], tool_choice: { type: "function", function: { name: "build_orb_output" } } }) });
+    if (!aiRes.ok) return json(expandFallback(def.fallback, targetNodes, `Fallback por falha da IA: ${def.hint}`));
     const aiData = await aiRes.json();
     const args = aiData?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
-    if (!args) return json({ ...def.fallback, rationale: `Fallback por resposta incompleta: ${def.hint}` });
-    return json(sanitize(JSON.parse(args)));
+    if (!args) return json(expandFallback(def.fallback, targetNodes, `Fallback por resposta incompleta: ${def.hint}`));
+    return json(sanitize(JSON.parse(args), targetNodes));
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Erro inesperado" }, 500);
   }
