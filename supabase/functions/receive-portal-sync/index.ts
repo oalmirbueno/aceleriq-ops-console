@@ -457,17 +457,6 @@ serve(async (req) => {
       const description = firstString(data.description, data.message, data.content);
       const happenedAt = firstString(data.target_date, data.created_at, data.updated_at) || new Date().toISOString();
 
-      const { error } = await supabase.from("timeline_events").insert({
-        workspace_id: ws.id,
-        client_id: ws.client_id,
-        event_type: `portal_${type}`,
-        title,
-        description,
-        happened_at: happenedAt,
-        metadata: { source: "portal_sync", portal_id: data.id, raw_type: rawType, event },
-      });
-      if (error) throw error;
-
       // ── TASK: cria/atualiza/remove node correspondente no canvas ────
       if (type === "task") {
         const portalTaskId = firstString(data.id, data.task_id);
@@ -482,7 +471,7 @@ serve(async (req) => {
         };
         const opsStatus = statusMap[portalStatus] ?? portalStatus;
 
-        const isDeleted = event === "task_deleted" || data.deleted === true;
+        const isDeleted = event === "task_deleted" || event === "DELETE" || data.deleted === true;
         if (isDeleted && portalTaskId) {
           await supabase.from("canvas_nodes").delete()
             .eq("workspace_id", ws.id)
@@ -547,6 +536,17 @@ serve(async (req) => {
           }
         }
       }
+
+      const { error } = await supabase.from("timeline_events").insert({
+        workspace_id: ws.id,
+        client_id: ws.client_id,
+        event_type: `portal_${type}`,
+        title,
+        description,
+        happened_at: happenedAt,
+        metadata: { source: "portal_sync", portal_id: data.id, raw_type: rawType, event },
+      });
+      if (error) throw error;
 
       return json({ ok: true, action: "timeline_event_created", type });
     }
