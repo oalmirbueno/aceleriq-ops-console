@@ -142,6 +142,46 @@ async function materializeProjectCanvas(ops: any, args: {
     const key = normalizeTitle(node.title);
     if (key && (!linkedProjectId || linkedProjectId === projectId) && !existingTaskByTitle.has(key)) existingTaskByTitle.set(key, node);
   }
+  function inferKind(title: string, description: string | null | undefined, milestoneTitle: string | null | undefined): string {
+    const norm = (s: unknown) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+    const text = norm(`${title} ${description ?? ""}`);
+    const ctx = norm(milestoneTitle ?? "");
+    if (/case|print|documentar|evidencia|portfolio/.test(text)) return "case";
+    if (/before.?after|antes.?depois/.test(text)) return "before_after";
+    if (/landing|linktree|hotsite|pagina de links/.test(text)) return "landing_page";
+    if (/shopify|e ?commerce|ecommerce|loja|checkout|site/.test(text)) return "site";
+    if (/n8n|automacao|automatizar|fluxo|workflow|webhook/.test(text)) return "automacao";
+    if (/integra|api|conectar|sincroniz/.test(text)) return "integracao";
+    if (/agente|chatbot|bot|atendimento|resposta|prompt|gpt|ia\b/.test(text)) return "agente";
+    if (/metrica|monitor|dashboard|kpi|relatorio|analytics/.test(text)) return "metrica";
+    if (/acesso|credencial|hostinger|senha|login/.test(text)) return "acessos";
+    if (/email|disparo|newsletter/.test(text)) return "email_mkt";
+    if (/trafego|ads|anuncio|campanha/.test(text)) return "trafego";
+    if (/funil|jornada/.test(text)) return "funil";
+    if (/conteudo|copy|roteiro|texto|post/.test(text)) return "conteudo";
+    if (/video|reels|short/.test(text)) return "video";
+    if (/imagem|criativo|arte|design/.test(text)) return "imagem";
+    if (/social|instagram|whatsapp|telegram/.test(text)) return "social";
+    if (/crm|pipeline|kanban/.test(text)) return "crm";
+    if (/reuniao|kickoff|alinhamento/.test(text)) return "reuniao";
+    if (/decisao|aprovar|aprovacao|validar/.test(text)) return "decisao";
+    if (/objetivo|meta/.test(text)) return "objetivo";
+    if (/briefing|levantamento/.test(text)) return "briefing";
+    if (/lancamento|launch/.test(text)) return "lancamento";
+    if (/automacao|atendimento|n8n/.test(ctx)) return "automacao";
+    if (/base|digital|estrutur|tecnic/.test(ctx)) return "integracao";
+    if (/homolog|entrega|operacional|case/.test(ctx)) return "case";
+    if (/trafego|ads|midia/.test(ctx)) return "trafego";
+    if (/conteudo|criativo/.test(ctx)) return "conteudo";
+    return "checklist";
+  }
+
+  const milestoneTitleByKey = new Map<string, string>();
+  for (const ms of projectMilestones) {
+    const id = firstString((ms as any).id, (ms as any).milestone_id, (ms as any).uuid);
+    if (id) milestoneTitleByKey.set(id, firstString((ms as any).title, (ms as any).name, ""));
+  }
+
   for (const [index, task] of projectTasks.entries()) {
     const portalTaskId = firstString(task.id, task.task_id, task.uuid);
     if (!portalTaskId) continue;
@@ -149,7 +189,8 @@ async function materializeProjectCanvas(ops: any, args: {
     const taskMilestoneId = milestoneIdOf(task);
     const milestoneNodeId = milestoneNodeByKey.get(taskMilestoneId) ?? null;
     const existingTask = existingTaskByPortalId.get(portalTaskId) ?? existingTaskByTitle.get(normalizeTitle(title));
-    const data = { ...((existingTask?.data as Record<string, unknown>) ?? {}), kind: ((existingTask?.data as Record<string, unknown> | null)?.kind ?? "checklist"), from_portal: true, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: taskMilestoneId || undefined, milestone_key: taskMilestoneId || undefined, portal_status: firstString(task.status, task.kanban_status, "todo"), portal_position: Number(task.position ?? task.order ?? task.sort_order ?? index), stage: "producao" };
+    const inferred = inferKind(title, task.description ?? task.notes, milestoneTitleByKey.get(taskMilestoneId));
+    const data = { ...((existingTask?.data as Record<string, unknown>) ?? {}), kind: ((existingTask?.data as Record<string, unknown> | null)?.kind ?? inferred), from_portal: true, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: taskMilestoneId || undefined, milestone_key: taskMilestoneId || undefined, portal_status: firstString(task.status, task.kanban_status, "todo"), portal_position: Number(task.position ?? task.order ?? task.sort_order ?? index), stage: "producao" };
     if (existingTask?.id) {
       // Não-destrutivo: só linka ao milestone e atualiza status/data Portal. Preserva título/descrição/posição já editados no Ops.
       await ops.from("canvas_nodes").update({ parent_node_id: milestoneNodeId ?? existingTask.parent_node_id ?? projectNodeId, status: portalStatusToOps(task.status ?? task.kanban_status), updated_at: now, data }).eq("id", existingTask.id);
