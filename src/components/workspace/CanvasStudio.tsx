@@ -28,6 +28,7 @@ import CanvasClientTabs, { type CanvasClientTab } from "./CanvasClientTabs";
 import GenerateEsteiraDialog from "./GenerateEsteiraDialog";
 import CanvasTemplatesDialog, { type CanvasTemplate, type NodeSnapshot, type EdgeSnapshot } from "./CanvasTemplatesDialog";
 import ApplyPlaybookButton from "./ApplyPlaybookButton";
+import CanvasProjectLinker from "./CanvasProjectLinker";
 import DeletableEdge from "./DeletableEdge";
 import type { EsteiraTemplate } from "./esteiraTemplates";
 import { syncNodeCreated, syncNodeDeleted } from "./syncToPortalEvents";
