@@ -2257,7 +2257,7 @@ function CanvasStudioInner({
     if (data) {
       const newRow = data as CanvasNodeRow;
       setDbNodes((prev) => [...prev, newRow]);
-      syncNodeCreated({ workspaceId, clientId, nodeId: newRow.id, nodeTitle: newRow.title, nodeType: newRow.node_type });
+      syncNodeCreated({ workspaceId, clientId, nodeId: newRow.id, nodeTitle: newRow.title, nodeType: newRow.node_type, data: newRow.data as Record<string, unknown> | null });
       // Dispara também um node_updated com status=active pro portal mostrar progresso/notificação
       syncNodeUpdated({
         workspaceId,
@@ -2509,7 +2509,7 @@ function CanvasStudioInner({
         createdByRef[spec.ref] = data as CanvasNodeRow;
         createdNodes.push(data as CanvasNodeRow);
         const row = data as CanvasNodeRow;
-        syncNodeCreated({ workspaceId, clientId, nodeId: row.id, nodeTitle: row.title, nodeType: row.node_type });
+        syncNodeCreated({ workspaceId, clientId, nodeId: row.id, nodeTitle: row.title, nodeType: row.node_type, data: row.data as Record<string, unknown> | null });
         syncNodeUpdated({
           workspaceId,
           clientId,
