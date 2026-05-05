@@ -570,9 +570,21 @@ serve(async (req) => {
 
         const isDeleted = event === "task_deleted" || event === "DELETE" || data.deleted === true;
         if (isDeleted && portalTaskId) {
-          await supabase.from("canvas_nodes").delete()
+          const delRes = await supabase.from("canvas_nodes").delete()
             .eq("workspace_id", ws.id)
             .contains("data", { portal_task_id: portalTaskId });
+          await logSync({
+            direction: "portal_to_ops",
+            event: "task_deleted",
+            status: delRes.error ? "error" : "ok",
+            workspaceId: ws.id,
+            clientId: ws.client_id,
+            portalProjectId: portalProjectId ?? null,
+            portalTaskId,
+            portalMilestoneId,
+            message: delRes.error ? delRes.error.message : "deleted by portal",
+            source,
+          });
         } else if (portalTaskId) {
           const projectId = portalProjectId ?? firstString(data.project_id, data.workspace_id) ?? "portal-project";
           let projectGroupId: string | null = null;
