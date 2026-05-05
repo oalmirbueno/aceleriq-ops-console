@@ -115,6 +115,7 @@ serve(async (req) => {
 
   const db = createClient(SUPABASE_URL, SERVICE_KEY);
   const steps: Array<{ step: string; ok: boolean; detail?: unknown }> = [];
+  const stopwatch = startTimer();
 
   try {
     const body = (await req.json().catch(() => ({}))) as {
