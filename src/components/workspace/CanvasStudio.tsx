@@ -1415,6 +1415,11 @@ function CanvasStudioInner({
       if (e.key.toLowerCase() === "h") setActiveTool("hand");
       if (e.key.toLowerCase() === "g") setGridVisible((v) => !v);
       if (e.key.toLowerCase() === "f") rfInstanceRef.current?.fitView({ padding: 0.32, duration: 280 });
+      if (e.shiftKey && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        const next = toggleCanvasDebug();
+        setDebugOpen(next);
+      }
     };
 
     window.addEventListener("keydown", onKeyDown);
