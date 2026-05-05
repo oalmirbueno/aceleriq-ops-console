@@ -2558,22 +2558,24 @@ function CanvasStudioInner({
             variant="outline"
             className="h-8 text-xs"
             onClick={async () => {
-              const [push, pull] = await Promise.all([
-                supabase.functions.invoke("backfill-nodes-to-portal", { body: { workspaceId } }),
-                supabase.functions.invoke("pull-portal-tasks", { body: { workspaceId } }),
-              ]);
-              const pushData = (push.data as { sent?: number; total?: number; error?: string } | null) ?? null;
-              const pullData = (pull.data as { created?: number; updated?: number; total?: number; error?: string } | null) ?? null;
-              if (push.error || pull.error || pushData?.error || pullData?.error) {
-                toast({ title: "Sync com portal falhou", description: push.error?.message ?? pull.error?.message ?? pushData?.error ?? pullData?.error, variant: "destructive" });
-                return;
+              try {
+                setBusyAction("portal-sync");
+                const result = await syncPortalNow();
+                toast({
+                  title: result.failed || result.pullFailed ? "Sync com portal parcial" : "Sync com portal",
+                  description: `Ops→Portal ${result.sent}/${result.total} · Portal→Ops ${result.pulled}${result.failed || result.pullFailed ? " · confira vínculos/secrets" : ""}`,
+                  variant: result.sent === 0 && result.pulled === 0 ? "destructive" : undefined,
+                });
+              } catch (error) {
+                toast({ title: "Sync com portal falhou", description: error instanceof Error ? error.message : "Erro inesperado", variant: "destructive" });
+              } finally {
+                setBusyAction(null);
               }
-              if ((pullData?.created ?? 0) > 0 || (pullData?.updated ?? 0) > 0) await fetchData();
-              toast({ title: "Sync com portal", description: `Ops→Portal ${pushData?.sent ?? 0}/${pushData?.total ?? 0} · Portal→Ops ${(pullData?.created ?? 0) + (pullData?.updated ?? 0)}/${pullData?.total ?? 0}` });
             }}
+            disabled={busyAction === "portal-sync"}
             title="Sincronizar nodes existentes com o portal e puxar tasks do kanban"
           >
-            <RefreshCw className="h-3.5 w-3.5 mr-1" />
+            {busyAction === "portal-sync" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
             Sync portal
           </Button>
           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onToggleFullscreen} aria-label="Alternar tela cheia">
