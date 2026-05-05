@@ -656,7 +656,7 @@ serve(async (req) => {
               status: "active",
               pos_x: 112,
               pos_y: 360 + (count ?? 0) * 420,
-              data: compactRecord({ kind: "milestone_group", from_portal: true, portal_project_id: projectId, portal_milestone_id: portalMilestoneId ?? undefined, milestone_key: milestoneKey, stage: "producao" }),
+              data: compactRecord({ kind: "milestone_group", from_portal: true, portal_project_id: projectId, portal_milestone_id: portalMilestoneId ?? undefined, portal_folder_id: portalMilestoneId ?? undefined, milestone_key: milestoneKey, stage: "producao" }),
             }).select("id").single();
             milestoneGroupId = createdMilestone?.id ?? null;
           }
