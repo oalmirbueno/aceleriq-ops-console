@@ -118,6 +118,8 @@ serve(async (req) => {
       status?: string;
       previousStatus?: string;
       progress?: number;
+      progress_version?: number;
+      calculated_at?: string;
       portalTaskId?: string;
       source?: string;
       limit?: number;
