@@ -2015,14 +2015,28 @@ function CanvasStudioInner({
       const fromPortal = !!data.from_portal || !!data.portal_task_id;
       const lockStatus = !!data.lock_status;
       const status = (found.status ?? "").toLowerCase();
-      if (fromPortal && !lockStatus && (status === "draft" || status === "todo" || status === "backlog")) {
-        void supabase.from("canvas_nodes").update({
-          status: "active",
-          data: { ...data, touched_at: new Date().toISOString() },
-          updated_at: new Date().toISOString(),
-        }).eq("id", found.id);
-        // Atualiza otimisticamente para o drawer abrir já com status novo
-        found.status = "active";
+      if (fromPortal) {
+        const currentKind = String(data.kind ?? found.node_type ?? "").toLowerCase();
+        const needsKindPromotion = !currentKind || currentKind === "task" || currentKind === "checklist";
+        const promotedKind = needsKindPromotion
+          ? inferProfessionalKind(found.title, found.description, data.milestone_title as string | undefined)
+          : currentKind;
+        const nextData = {
+          ...data,
+          kind: promotedKind,
+          stage: data.stage ?? "producao",
+          ...(!lockStatus && (status === "draft" || status === "todo" || status === "backlog") ? { touched_at: new Date().toISOString() } : {}),
+        };
+        const nextStatus = !lockStatus && (status === "draft" || status === "todo" || status === "backlog") ? "active" : found.status;
+        if (needsKindPromotion || nextStatus !== found.status || nextData.touched_at !== data.touched_at) {
+          void supabase.from("canvas_nodes").update({
+            status: nextStatus,
+            data: nextData,
+            updated_at: new Date().toISOString(),
+          }).eq("id", found.id);
+          found.status = nextStatus;
+          found.data = nextData;
+        }
       }
     }
     setSelectedNode(found);
