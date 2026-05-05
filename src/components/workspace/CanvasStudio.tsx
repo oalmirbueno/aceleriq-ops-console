@@ -2083,6 +2083,9 @@ function CanvasStudioInner({
       (inserted as any[]).forEach((dbNode, i) => {
         const tmplNode = template.nodes[i] as any;
         if (tmplNode?.ref) refToId.set(tmplNode.ref, dbNode.id);
+        if (dbNode?.node_type !== "client") {
+          syncNodeCreated({ workspaceId, clientId, nodeId: dbNode.id, nodeTitle: dbNode.title, nodeType: dbNode.node_type });
+        }
       });
 
       // Create edges
