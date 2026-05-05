@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? "https://grxljyocuadywcksfyvu.supabase.co";
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2dyeGxqeW9jdWFkeXdja3NmeXZ1LnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc3NjIwMzM2NywiZXhwIjoyMDkxNzc5MzY3fQ.K1-tFjyfHdZIUDDRV5I14GTwl4mpvfGVNt55BAkgDnM";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdyeGxqeW9jdWFkeXdja3NmeXZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyMDMzNjcsImV4cCI6MjA5MTc3OTM2N30.K1-tFjyfHdZIUDDRV5I14GTwl4mpvfGVNt55BAkgDnM";
 
 interface PortalProject {
   id: string;
@@ -107,15 +107,12 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
     () => projects.find((p) => p.id === portalProjectId) ?? null,
     [projects, portalProjectId],
   );
-  const hasStrictClientMatch = useMemo(
-    () => !!client?.portal_client_id || projects.some((p) => projectMatchesClient(p, client)),
-    [projects, client],
-  );
-
+  const matchedProjects = useMemo(() => projects.filter((p) => projectMatchesClient(p, client)), [projects, client]);
   const filtered = useMemo(() => {
     const matched = projects.filter((p) => projectMatchesClient(p, client));
     return matched.length > 0 ? matched : projects;
   }, [projects, client]);
+  const showingClientProjects = matchedProjects.length > 0;
 
   // Carrega vínculos atuais e lista de projetos do portal
   const load = useCallback(async () => {
@@ -232,14 +229,14 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 max-h-[60vh] overflow-y-auto">
         <DropdownMenuLabel className="text-xs">
-          {hasStrictClientMatch
+          {showingClientProjects
             ? `Projetos deste cliente (${filtered.length})`
             : `Todos os projetos do portal (${filtered.length})`}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         {filtered.length === 0 ? (
           <div className="px-3 py-3 text-xs text-muted-foreground">
-            {hasStrictClientMatch
+            {showingClientProjects
               ? "Nenhum projeto deste cliente no portal."
               : "Nenhum projeto encontrado no portal."}
           </div>
