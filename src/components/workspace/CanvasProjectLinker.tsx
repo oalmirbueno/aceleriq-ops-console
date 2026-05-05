@@ -16,6 +16,9 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? "https://grxljyocuadywcksfyvu.supabase.co";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2dyeGxqeW9jdWFkeXdja3NmeXZ1LnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc3NjIwMzM2NywiZXhwIjoyMDkxNzc5MzY3fQ.K1-tFjyfHdZIUDDRV5I14GTwl4mpvfGVNt55BAkgDnM";
+
 interface PortalProject {
   id: string;
   name: string;
@@ -70,12 +73,12 @@ function projectMatchesClient(project: PortalProject, client: ClientLookup | nul
 
 async function callPortalProxy(path: string, reqBody?: unknown) {
   const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData.session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
-  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/portal-proxy`, {
+  const token = sessionData.session?.access_token ?? SUPABASE_ANON_KEY;
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/portal-proxy`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      apikey: SUPABASE_ANON_KEY,
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ path, body: reqBody ?? {} }),
