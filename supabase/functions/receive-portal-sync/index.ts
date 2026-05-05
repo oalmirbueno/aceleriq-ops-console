@@ -689,6 +689,7 @@ serve(async (req) => {
         const milestoneKey = portalMilestoneId ?? `no-milestone:${portalProjectId ?? ws.id}`;
         const milestoneTitle = firstString(data.milestone_title, data.milestone_name, data.folder_title, data.folder_name, data.stage_title, data.phase_title, data.column_title) ?? "Sem milestone";
         const portalStatus = (firstString(data.status, data.kanban_status) ?? "draft").toLowerCase();
+        const inferredKind = inferProfessionalKind(title, description, milestoneTitle);
         // mapeia status do kanban → ops
         const statusMap: Record<string, string> = {
           todo: "draft", "to-do": "draft", "to_do": "draft", backlog: "draft",
@@ -825,6 +826,7 @@ serve(async (req) => {
                 portal_folder_id: portalMilestoneId ?? undefined,
                 milestone_key: milestoneKey,
                 milestone_title: milestoneTitle,
+                kind: (currentData.kind && currentData.kind !== "checklist") ? currentData.kind : inferredKind,
                 from_portal: true,
                 portal_updated_at: incomingTs ? new Date(incomingTs).toISOString() : new Date().toISOString(),
               }),
@@ -860,7 +862,7 @@ serve(async (req) => {
               status: opsStatus,
               pos_x: 80 + (idx % 6) * 320,
               pos_y: 800 + Math.floor(idx / 6) * 220,
-              data: compactRecord({ from_portal: true, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: portalMilestoneId ?? undefined, portal_folder_id: portalMilestoneId ?? undefined, milestone_key: milestoneKey, milestone_title: milestoneTitle, kind: "checklist", checklist: [], touched_at: null }),
+              data: compactRecord({ from_portal: true, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: portalMilestoneId ?? undefined, portal_folder_id: portalMilestoneId ?? undefined, milestone_key: milestoneKey, milestone_title: milestoneTitle, kind: inferredKind, checklist: [], touched_at: null }),
             }).select("id").single();
             const created = insRes.data as { id: string } | null;
             await logSync({
