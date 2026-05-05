@@ -9,8 +9,41 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+function firstString(...values: unknown[]) {
+  for (const value of values) {
+    const str = typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
+    if (str) return str;
+  }
+  return "";
+}
+
+function projectIdOf(record: any) {
+  return firstString(record?.project_id, record?.portal_project_id, record?.workspace_id, record?.project?.id, record?.milestone?.project_id, record?.folder?.project_id);
+}
+
+function milestoneIdOf(record: any) {
+  return firstString(record?.milestone_id, record?.portal_milestone_id, record?.folder_id, record?.portal_folder_id, record?.stage_id, record?.phase_id, record?.column_id, record?.milestone?.id, record?.folder?.id);
+}
+
+function portalStatusToOps(status: unknown) {
+  const s = String(status ?? "").toLowerCase();
+  if (["done", "completed", "concluido", "concluida", "concluída", "finalizada"].includes(s)) return "done";
+  if (["doing", "active", "in_progress", "in-progress", "andamento"].includes(s)) return "active";
+  if (["blocked", "bloqueado", "bloqueada"].includes(s)) return "blocked";
+  return "draft";
+}
+
+function sortPortalItems<T extends Record<string, any>>(items: T[]) {
+  return items.slice().sort((a, b) => {
+    const ap = Number(a.position ?? a.order ?? a.sort_order ?? a.sequence ?? 9999);
+    const bp = Number(b.position ?? b.order ?? b.sort_order ?? b.sequence ?? 9999);
+    if (Number.isFinite(ap) && Number.isFinite(bp) && ap !== bp) return ap - bp;
+    return String(a.created_at ?? a.title ?? a.name ?? a.id ?? "").localeCompare(String(b.created_at ?? b.title ?? b.name ?? b.id ?? ""));
+  });
+}
 
 function inferOpsType(t: string | null): string {
   const s = (t ?? "").toLowerCase();
