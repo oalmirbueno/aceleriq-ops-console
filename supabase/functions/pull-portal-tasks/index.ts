@@ -180,7 +180,7 @@ serve(async (req) => {
 
     const milestoneById = new Map<string, Record<string, any>>();
     for (const m of portalMilestones) {
-      const mid = firstString(m.id, m.milestone_id, m.uuid);
+      const mid = firstString(m.id, m.milestone_id, m.folder_id, m.portal_folder_id, m.uuid);
       if (mid) milestoneById.set(mid, m);
     }
 
@@ -283,13 +283,50 @@ serve(async (req) => {
     const projectGroupCache = new Map<string, string | null>();
     const milestoneGroupCache = new Map<string, string | null>();
     const taskCounters = new Map<string, number>();
-    const projectsInOrder = Array.from(new Set(tasks.map((t) => firstString(t.project_id, t.portal_project_id, t.workspace_id)).filter(Boolean)));
+    const projectIdsFromTasks = tasks.map(projectIdOfTask).filter(Boolean) as string[];
+    const projectIdsFromMilestones = portalMilestones
+      .map(projectIdOfMilestone)
+      .filter((pid): pid is string => !!pid && clientPortalProjectIds.has(pid));
+    const projectsInOrder = Array.from(new Set([...projectIdsFromTasks, ...projectIdsFromMilestones]));
     const milestoneOrderByProject = new Map<string, string[]>();
+
+    for (const m of sortByPosition(portalMilestones)) {
+      const milestoneProjectId = projectIdOfMilestone(m);
+      if (!milestoneProjectId || !clientPortalProjectIds.has(milestoneProjectId)) continue;
+      const projectIndex = Math.max(0, projectsInOrder.indexOf(milestoneProjectId));
+      let projectNodeId = projectGroupCache.get(milestoneProjectId) ?? null;
+      if (!projectGroupCache.has(milestoneProjectId)) {
+        projectNodeId = await ensureProjectGroupNode(milestoneProjectId, projectIndex);
+        projectGroupCache.set(milestoneProjectId, projectNodeId);
+      }
+      const portalMilestoneId = firstString(m.id, m.milestone_id, m.folder_id, m.portal_folder_id, m.uuid);
+      const milestoneKey = milestoneKeyOf(m, portalMilestoneId ?? `milestone:${milestoneProjectId}`);
+      const order = milestoneOrderByProject.get(milestoneProjectId) ?? [];
+      if (!order.includes(milestoneKey)) order.push(milestoneKey);
+      milestoneOrderByProject.set(milestoneProjectId, order);
+      const milestoneIndex = order.indexOf(milestoneKey);
+      const position = Number(m.position ?? m.order ?? m.sort_order ?? milestoneIndex);
+      const cacheKey = `${milestoneProjectId}:${milestoneKey}`;
+      if (!milestoneGroupCache.has(cacheKey)) {
+        const milestoneNodeId = await ensureMilestoneGroupNode({
+          portalProjectId: milestoneProjectId,
+          projectNodeId,
+          milestoneKey,
+          portalMilestoneId: portalMilestoneId ?? null,
+          title: milestoneTitleOf(m, {}, "Sem milestone"),
+          status: firstString(m.status, "active").toLowerCase(),
+          position: Number.isFinite(position) ? position : milestoneIndex,
+          projectIndex,
+          milestoneIndex,
+        });
+        milestoneGroupCache.set(cacheKey, milestoneNodeId);
+      }
+    }
 
     for (const t of tasks) {
       const portalTaskId = firstString(t.id, t.task_id, t.uuid);
       if (!portalTaskId) continue;
-      const taskProjectId = firstString(t.project_id, t.portal_project_id, t.workspace_id, ws.portal_project_id);
+      const taskProjectId = firstString(projectIdOfTask(t), ws.portal_project_id);
       if (!taskProjectId) continue;
       const projectIndex = Math.max(0, projectsInOrder.indexOf(taskProjectId));
 
