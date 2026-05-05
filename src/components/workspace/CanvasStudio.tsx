@@ -390,6 +390,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 function CanvasStudioInner({
   workspaceId, clientId, clientName,
   fullscreen, onToggleFullscreen, onTimelineRefresh, initialStatusFilter,
+  portalProjectId: portalProjectIdProp = null,
 }: Props) {
   
   // Cache em memória por workspaceId — evita "carrega ao abrir / carrega ao sair"
