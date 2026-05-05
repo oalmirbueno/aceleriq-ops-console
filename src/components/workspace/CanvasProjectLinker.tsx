@@ -159,15 +159,20 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 max-h-[60vh] overflow-y-auto">
         <DropdownMenuLabel className="text-xs">
-          {portalClientId
-            ? `Projetos do cliente no portal (${filtered.length})`
-            : `Todos os projetos do portal (${projects.length})`}
+          Projetos deste cliente ({filtered.length})
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {(filtered.length === 0 ? projects : filtered).length === 0 ? (
-          <div className="px-3 py-4 text-xs text-muted-foreground">Nenhum projeto encontrado</div>
+        {!portalClientId ? (
+          <div className="px-3 py-3 text-xs text-muted-foreground">
+            Cliente ainda não vinculado ao portal. Vincule o cliente primeiro
+            para listar os projetos dele.
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="px-3 py-3 text-xs text-muted-foreground">
+            Nenhum projeto deste cliente no portal.
+          </div>
         ) : (
-          (filtered.length === 0 ? projects : filtered).map((p) => {
+          filtered.map((p) => {
             const isCurrent = p.id === portalProjectId;
             return (
               <DropdownMenuItem
@@ -186,14 +191,6 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
               </DropdownMenuItem>
             );
           })
-        )}
-        {!portalClientId && projects.length > 0 && (
-          <>
-            <DropdownMenuSeparator />
-            <div className="px-3 py-2 text-[10px] text-muted-foreground">
-              Cliente ainda não vinculado ao portal — vincule pela página de clientes para filtrar automaticamente.
-            </div>
-          </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>
