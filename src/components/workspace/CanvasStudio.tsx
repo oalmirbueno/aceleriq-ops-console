@@ -522,6 +522,7 @@ function CanvasStudioInner({
     const shouldPull = options.pull ?? true;
     const shouldPush = options.push ?? true;
     const limit = options.limit ?? 120;
+    setSyncStatus((s) => ({ ...s, portalBusy: true, portalError: null }));
     let pulled = 0;
     let pullFailed = false;
     if (shouldPull) try {
@@ -530,6 +531,7 @@ function CanvasStudioInner({
       }), 20000, "Portal→Ops");
       pulled = Number(((data as any)?.created ?? 0) + ((data as any)?.updated ?? 0));
       pullFailed = !!error || (data as any)?.ok === false;
+      if (!pullFailed) setSyncStatus((s) => ({ ...s, portalPullAt: Date.now() }));
     } catch (error) {
       console.error("[CanvasStudio] pull_portal_tasks failed", error);
       pullFailed = true;
