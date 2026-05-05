@@ -3224,6 +3224,15 @@ function CanvasStudioInner({
       />
       )}
 
+      {/* Milestone tabs (fordismo): substituem as pastinhas dentro do canvas. */}
+      {!focusMode && (
+        <CanvasMilestoneTabs
+          nodes={scopedProjectNodes}
+          selectedMilestoneId={selectedMilestoneId}
+          onSelectMilestone={(id) => setSelectedMilestoneId(id)}
+        />
+      )}
+
       {/* Body: palette + canvas + inspector */}
       <div className="flex flex-1 min-h-0">
         <OperationalCanvasToolbar
