@@ -483,6 +483,7 @@ serve(async (req) => {
             .select("id, data")
             .eq("workspace_id", ws.id)
             .contains("data", { portal_task_id: portalTaskId })
+            .limit(1)
             .maybeSingle();
 
           if (existing) {
@@ -509,7 +510,7 @@ serve(async (req) => {
               status: opsStatus,
               pos_x: 80 + (idx % 6) * 320,
               pos_y: 800 + Math.floor(idx / 6) * 220,
-              data: { from_portal: true, portal_task_id: portalTaskId, touched_at: null },
+              data: { from_portal: true, portal_task_id: portalTaskId, kind: "checklist", checklist: [], touched_at: null },
             }).select("id").single();
 
             // Callback de pareamento: avisa o portal que o node foi criado, com portal_task_id.
