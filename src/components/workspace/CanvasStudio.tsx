@@ -2510,6 +2510,16 @@ function CanvasStudioInner({
         createdNodes.push(data as CanvasNodeRow);
         const row = data as CanvasNodeRow;
         syncNodeCreated({ workspaceId, clientId, nodeId: row.id, nodeTitle: row.title, nodeType: row.node_type });
+        syncNodeUpdated({
+          workspaceId,
+          clientId,
+          nodeId: row.id,
+          nodeTitle: row.title,
+          nodeType: row.node_type,
+          status: "active",
+          previousStatus: "draft",
+          data: row.data as Record<string, unknown> | null,
+        });
       }
 
       const generatedEdges = [
