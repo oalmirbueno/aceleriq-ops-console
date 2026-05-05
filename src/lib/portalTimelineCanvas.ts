@@ -67,14 +67,41 @@ function portalStatusToOps(status: unknown) {
   return "draft";
 }
 
-function inferNodeKind(title: string, description?: string | null) {
+function inferNodeKind(title: string, description?: string | null, milestoneTitle?: string | null) {
   const text = normalizeTitle(`${title} ${description ?? ""}`);
-  if (/case|print|documentar|evidencia|prova/.test(text)) return "case";
-  if (/landing|pagina de links|pagina/.test(text)) return "landing_page";
-  if (/shopify|e commerce|ecommerce|site/.test(text)) return "site";
-  if (/n8n|automacao|fluxo|integrar|resposta/.test(text)) return "automacao";
-  if (/metrica|monitor/.test(text)) return "metrica";
-  if (/acesso|credencial|hostinger/.test(text)) return "acessos";
+  const ctx = normalizeTitle(`${milestoneTitle ?? ""}`);
+
+  // Specific patterns first
+  if (/case|print|documentar|evidencia|prova|portfolio/.test(text)) return "case";
+  if (/before.?after|antes.?depois|comparativo/.test(text)) return "before_after";
+  if (/landing|pagina de links|linktree|hotsite/.test(text)) return "landing_page";
+  if (/shopify|e ?commerce|ecommerce|loja|checkout|site/.test(text)) return "site";
+  if (/n8n|automacao|automatizar|fluxo|workflow|webhook/.test(text)) return "automacao";
+  if (/integra|api|conectar|sincroniz/.test(text)) return "integracao";
+  if (/agente|chatbot|bot|atendimento|resposta|ia|gpt|prompt/.test(text)) return "agente";
+  if (/metrica|monitor|dashboard|kpi|relatorio|analytics/.test(text)) return "metrica";
+  if (/acesso|credencial|hostinger|senha|login/.test(text)) return "acessos";
+  if (/email|disparo|newsletter|mkt/.test(text)) return "email_mkt";
+  if (/trafego|ads|anuncio|campanha|meta ads|google ads/.test(text)) return "trafego";
+  if (/funil|jornada|nutricao/.test(text)) return "funil";
+  if (/conteudo|copy|roteiro|texto|post/.test(text)) return "conteudo";
+  if (/video|reels|short/.test(text)) return "video";
+  if (/imagem|criativo|arte|design/.test(text)) return "imagem";
+  if (/social|instagram|whatsapp|telegram/.test(text)) return "social";
+  if (/crm|pipeline|kanban/.test(text)) return "crm";
+  if (/reuniao|kickoff|alinhamento/.test(text)) return "reuniao";
+  if (/decisao|aprovar|aprovacao|validar/.test(text)) return "decisao";
+  if (/objetivo|meta|kpi/.test(text)) return "objetivo";
+  if (/briefing|levantamento|descoberta/.test(text)) return "briefing";
+  if (/lancamento|launch|go live/.test(text)) return "lancamento";
+
+  // Milestone context fallback — herda o tema do milestone para evitar "checklist genérico"
+  if (/automacao|atendimento|n8n/.test(ctx)) return "automacao";
+  if (/base|digital|estrutur|tecnic/.test(ctx)) return "integracao";
+  if (/homolog|entrega|operacional|case/.test(ctx)) return "case";
+  if (/trafego|ads|midia/.test(ctx)) return "trafego";
+  if (/conteudo|criativo/.test(ctx)) return "conteudo";
+
   return "checklist";
 }
 
@@ -238,7 +265,7 @@ export async function materializePortalTimelineCanvas({
     const status = portalStatusToOps(event.payload?.status);
     const data = {
       ...(existing?.data ?? {}),
-      kind: existing?.data?.kind ?? inferNodeKind(title, event.description),
+      kind: existing?.data?.kind ?? inferNodeKind(title, event.description, milestone?.title),
       from_portal: true,
       portal_task_id: portalTaskId,
       portal_project_id: portalProjectId,
