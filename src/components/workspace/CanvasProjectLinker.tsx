@@ -26,6 +26,65 @@ interface PortalProject {
   client_company: string | null;
 }
 
+interface ClientLookup {
+  id: string;
+  name: string | null;
+  company_name: string | null;
+  portal_client_id: string | null;
+}
+
+const normalizeText = (value?: string | null) =>
+  (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+function normalizePortalProject(raw: Record<string, any>): PortalProject | null {
+  const id = String(raw.id ?? raw.project_id ?? raw.uuid ?? "").trim();
+  if (!id) return null;
+  const client = raw.client ?? raw.profile ?? raw.customer ?? {};
+  const clientId = String(raw.client_id ?? raw.profile_id ?? raw.customer_id ?? raw.user_id ?? client.id ?? "").trim();
+  const clientName = String(raw.client_name ?? raw.profile_name ?? raw.customer_name ?? client.full_name ?? client.name ?? raw.full_name ?? "Cliente do portal");
+  const clientCompany = (raw.client_company ?? raw.company_name ?? client.company_name ?? client.company ?? null) as string | null;
+  return {
+    id,
+    name: String(raw.name ?? raw.title ?? raw.project_name ?? "Projeto do portal"),
+    status: String(raw.status ?? raw.state ?? "active"),
+    project_type: String(raw.project_type ?? raw.type ?? raw.kind ?? "projeto"),
+    client_id: clientId,
+    client_name: clientName,
+    client_company: clientCompany,
+  };
+}
+
+function projectMatchesClient(project: PortalProject, client: ClientLookup | null) {
+  if (!client) return true;
+  if (client.portal_client_id && project.client_id && project.client_id === client.portal_client_id) return true;
+  const clientTerms = [client.name, client.company_name].map(normalizeText).filter(Boolean);
+  if (clientTerms.length === 0) return !client.portal_client_id;
+  const portalTerms = [project.client_name, project.client_company].map(normalizeText).filter(Boolean).join(" ");
+  return clientTerms.some((term) => portalTerms.includes(term) || term.includes(portalTerms));
+}
+
+async function callPortalProxy(path: string, reqBody?: unknown) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/portal-proxy`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ path, body: reqBody ?? {} }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.error) throw new Error(data?.hint ?? data?.error ?? `Portal ${response.status}`);
+  return data;
+}
+
 interface Props {
   workspaceId: string;
   clientId: string;
@@ -36,7 +95,7 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [portalProjectId, setPortalProjectId] = useState<string | null>(null);
-  const [portalClientId, setPortalClientId] = useState<string | null>(null);
+  const [client, setClient] = useState<ClientLookup | null>(null);
   const [projects, setProjects] = useState<PortalProject[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [autoSelected, setAutoSelected] = useState(false);
@@ -47,9 +106,9 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
   );
 
   const filtered = useMemo(() => {
-    if (!portalClientId) return projects;
-    return projects.filter((p) => p.client_id === portalClientId);
-  }, [projects, portalClientId]);
+    const matched = projects.filter((p) => projectMatchesClient(p, client));
+    return matched.length > 0 ? matched : projects;
+  }, [projects, client]);
 
   // Carrega vínculos atuais e lista de projetos do portal
   const load = useCallback(async () => {
