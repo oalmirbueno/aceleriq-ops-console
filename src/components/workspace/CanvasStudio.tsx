@@ -365,20 +365,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
-async function fetchJsonWithTimeout(url: string, init: RequestInit, ms: number) {
-  const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), ms);
-  try {
-    const response = await fetch(url, { ...init, signal: controller.signal });
-    const text = await response.text();
-    let parsed: any = {};
-    try { parsed = text ? JSON.parse(text) : {}; } catch { parsed = { raw: text }; }
-    return { response, parsed };
-  } finally {
-    window.clearTimeout(timer);
-  }
-}
-
 function CanvasStudioInner({
   workspaceId, clientId, clientName,
   fullscreen, onToggleFullscreen, onTimelineRefresh, initialStatusFilter,
