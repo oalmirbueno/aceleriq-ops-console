@@ -30,6 +30,10 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function safeJson(text: string): unknown {
+  try { return JSON.parse(text); } catch { return { raw: text.slice(0, 500) }; }
+}
+
 const COMPLETED = new Set(["done", "completed", "concluido"]);
 function computeNodeProgress(status?: string | null, data?: Record<string, unknown> | null): number {
   const s = (status ?? "").toLowerCase();
