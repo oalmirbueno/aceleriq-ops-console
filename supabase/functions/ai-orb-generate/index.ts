@@ -44,6 +44,17 @@ function sanitize(raw: { rationale?: string; nodes?: Array<Record<string, string
   return { nodes, edges, rationale: raw.rationale ?? "Geração operacional do AI Orb.", insights: (raw.insights ?? []).slice(0, 6) };
 }
 
+function expandFallback(def: { nodes: Array<Record<string, string>>; edges: Array<Record<string, string>>; insights: string[] }, targetNodes: number, rationale: string) {
+  const base = def.nodes.length > 0 ? def.nodes : [{ ref: "node", kind: "resultado", stage: "producao", title: "Entrega operacional", description: "Tarefa operacional gerada pelo AI Orb." }];
+  const nodes = Array.from({ length: targetNodes }, (_, index) => {
+    const template = base[index % base.length];
+    const cycle = Math.floor(index / base.length) + 1;
+    return { ...template, ref: `${template.ref ?? "node"}_${index + 1}`, title: cycle === 1 ? template.title : `${template.title} · etapa ${cycle}` };
+  });
+  const edges = nodes.slice(1).map((node, index) => ({ fromRef: nodes[index].ref, toRef: node.ref, label: "próxima" }));
+  return sanitize({ nodes, edges, insights: def.insights, rationale }, targetNodes);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
@@ -59,7 +70,7 @@ serve(async (req) => {
     if (!body.orbId || !body.workspaceId || !body.clientId || !body.orbType) return json({ error: "orbId, workspaceId, clientId e orbType são obrigatórios" }, 400);
     const def = ORB_PROMPTS[body.orbType] ?? ORB_PROMPTS.planner;
     const targetNodes = Math.max(1, Math.min(200, Math.floor(Number(body.targetNodes) || 20)));
-    if (body.deterministic) return json({ ...def.fallback, rationale: `Fallback determinístico: ${def.hint}` });
+    if (body.deterministic) return json(expandFallback(def.fallback, targetNodes, `Fallback determinístico: ${def.hint}`));
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
     const [clientRes, contextRes, metricsRes, nodesRes, edgesRes] = await Promise.all([
@@ -72,14 +83,14 @@ serve(async (req) => {
 
     const contextPayload = { cliente: clientRes.data, contextos: contextRes.data, metricas: metricsRes.data, canvas_nodes: nodesRes.data, canvas_edges: edgesRes.data, foco: body.focusAreas, memoria_orb: (nodesRes.data ?? []).find((n: Record<string, unknown>) => n.id === body.orbId)?.data, pista: def.hint };
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY || body.aiEngine !== "internal") return json({ ...def.fallback, rationale: `Fallback seguro: ${def.hint}` });
+    if (!LOVABLE_API_KEY || body.aiEngine !== "internal") return json(expandFallback(def.fallback, targetNodes, `Fallback seguro: ${def.hint}`));
 
     const tool = { type: "function", function: { name: "build_orb_output", description: "Nodes e edges gerados por AI Orb", parameters: { type: "object", properties: { rationale: { type: "string" }, insights: { type: "array", items: { type: "string" } }, nodes: { type: "array", items: { type: "object", properties: { ref: { type: "string" }, kind: { type: "string", enum: [...VALID_KINDS] }, stage: { type: "string", enum: [...VALID_STAGES] }, title: { type: "string" }, description: { type: "string" } }, required: ["ref","kind","stage","title","description"], additionalProperties: false } }, edges: { type: "array", items: { type: "object", properties: { fromRef: { type: "string" }, toRef: { type: "string" }, label: { type: "string" } }, required: ["fromRef","toRef"], additionalProperties: false } } }, required: ["rationale","insights","nodes","edges"], additionalProperties: false } } };
     const aiRes = await fetch(AI_GATEWAY_URL, { method: "POST", headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: body.model || AI_MODEL, temperature: 0.3, messages: [{ role: "system", content: `${body.agentSystemPrompt ?? def.system}\n${def.system}\n${body.customPrompt ?? ""}\nGere exatamente ${targetNodes} nodes quando o contexto permitir. Não resuma em poucos nodes. Cada node precisa ser uma tarefa/entrega operacional específica, auditável e com descrição profissional. Use apenas kinds/stages permitidos. Não invente números. Retorne saída executável.` }, { role: "user", content: JSON.stringify(contextPayload).slice(0, 24000) }], tools: [tool], tool_choice: { type: "function", function: { name: "build_orb_output" } } }) });
-    if (!aiRes.ok) return json({ ...def.fallback, rationale: `Fallback por falha da IA: ${def.hint}` });
+    if (!aiRes.ok) return json(expandFallback(def.fallback, targetNodes, `Fallback por falha da IA: ${def.hint}`));
     const aiData = await aiRes.json();
     const args = aiData?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
-    if (!args) return json({ ...def.fallback, rationale: `Fallback por resposta incompleta: ${def.hint}` });
+    if (!args) return json(expandFallback(def.fallback, targetNodes, `Fallback por resposta incompleta: ${def.hint}`));
     return json(sanitize(JSON.parse(args), targetNodes));
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Erro inesperado" }, 500);
