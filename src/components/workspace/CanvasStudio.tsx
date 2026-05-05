@@ -812,7 +812,7 @@ function CanvasStudioInner({
         const kind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
         return !["client", "ai_orb", "chat_node"].includes(type) && !["project_group", "milestone_group", "chat_node"].includes(kind);
       })
-      .map((node) => `${node.id}:${node.title}:${node.status}:${node.parent_node_id ?? ""}`)
+      .map((node) => `${node.id}:${node.title}:${node.status}`)
       .join("|");
     if (!signature || signature === portalPushSignatureRef.current) return;
     portalPushSignatureRef.current = signature;
