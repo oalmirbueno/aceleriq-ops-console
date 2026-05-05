@@ -575,8 +575,6 @@ function CanvasStudioInner({
       .eq("workspace_id", workspaceId);
     const allNodes = ((freshNodes ?? dbNodesRef.current) as CanvasNodeRow[]);
     const clientRoot = allNodes.find((node) => node.node_type === "client" && (node.client_id === clientId || node.linked_entity_id === clientId));
-    const baseX = Number(clientRoot?.pos_x ?? 60);
-    const baseY = Number(clientRoot?.pos_y ?? 0);
 
     const portalOrder = (node: CanvasNodeRow) => {
       const value = Number((node.data as Record<string, unknown> | null)?.portal_position ?? 9999);
@@ -588,25 +586,26 @@ function CanvasStudioInner({
     const milestoneGroups = allNodes
       .filter((node) => String((node.data as Record<string, unknown> | null)?.kind ?? "") === "milestone_group")
       .sort((a, b) => portalOrder(a) - portalOrder(b) || String(a.title).localeCompare(String(b.title)));
-    const layoutUpdates: Array<{ id: string; pos_x: number; pos_y: number; parent_node_id?: string | null }> = [];
+    const relationshipUpdates: Array<{ id: string; parent_node_id: string | null }> = [];
     const nonGroupTask = (node: CanvasNodeRow) => {
       const type = (node.node_type ?? "").toLowerCase();
       const kind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
       return !["client", "ai_orb", "chat_node"].includes(type) && !["project_group", "milestone_group", "chat_node"].includes(kind);
     };
-    projectGroups.forEach((project, projectIndex) => {
+    projectGroups.forEach((project) => {
       const projectData = (project.data as Record<string, unknown> | null) ?? {};
       const portalProjectId = typeof projectData.portal_project_id === "string" ? projectData.portal_project_id : null;
-      const projectX = baseX + projectIndex * 1760;
-      layoutUpdates.push({ id: project.id, pos_x: projectX, pos_y: baseY + 190, parent_node_id: clientRoot?.id ?? project.parent_node_id ?? null });
+      if (!project.parent_node_id && clientRoot?.id) {
+        relationshipUpdates.push({ id: project.id, parent_node_id: clientRoot.id });
+      }
       const milestones = milestoneGroups.filter((milestone) => {
         const data = (milestone.data as Record<string, unknown> | null) ?? {};
         return portalProjectId && data.portal_project_id === portalProjectId;
       });
-      milestones.forEach((milestone, milestoneIndex) => {
-        const milestoneX = projectX + 32 + milestoneIndex * 360;
-        const milestoneY = baseY + 350;
-        layoutUpdates.push({ id: milestone.id, pos_x: milestoneX, pos_y: milestoneY, parent_node_id: project.id });
+      milestones.forEach((milestone) => {
+        if (!milestone.parent_node_id) {
+          relationshipUpdates.push({ id: milestone.id, parent_node_id: project.id });
+        }
         const milestoneData = (milestone.data as Record<string, unknown> | null) ?? {};
         const tasks = allNodes
           .filter((node) => {
@@ -619,22 +618,20 @@ function CanvasStudioInner({
               ));
           })
           .sort((a, b) => portalOrder(a) - portalOrder(b) || String(a.title).localeCompare(String(b.title)));
-        tasks.forEach((task, taskIndex) => {
-          layoutUpdates.push({ id: task.id, pos_x: milestoneX + 32, pos_y: baseY + 480 + taskIndex * 136, parent_node_id: milestone.id });
+        tasks.forEach((task) => {
+          if (!task.parent_node_id) {
+            relationshipUpdates.push({ id: task.id, parent_node_id: milestone.id });
+          }
         });
       });
     });
-    const changedLayoutUpdates = layoutUpdates.filter((item) => {
+    const changedRelationshipUpdates = relationshipUpdates.filter((item) => {
       const current = allNodes.find((node) => node.id === item.id);
       if (!current) return false;
-      return Math.round(Number(current.pos_x ?? 0)) !== Math.round(item.pos_x)
-        || Math.round(Number(current.pos_y ?? 0)) !== Math.round(item.pos_y)
-        || (item.parent_node_id !== undefined && current.parent_node_id !== item.parent_node_id);
+      return current.parent_node_id !== item.parent_node_id;
     });
-    if (changedLayoutUpdates.length > 0) {
-      await Promise.all(changedLayoutUpdates.map((item) => supabase.from("canvas_nodes").update({
-        pos_x: item.pos_x,
-        pos_y: item.pos_y,
+    if (changedRelationshipUpdates.length > 0) {
+      await Promise.all(changedRelationshipUpdates.map((item) => supabase.from("canvas_nodes").update({
         parent_node_id: item.parent_node_id,
         updated_at: new Date().toISOString(),
       }).eq("id", item.id)));
@@ -1217,16 +1214,12 @@ function CanvasStudioInner({
       if (mData.milestone_key && data.milestone_key === mData.milestone_key && data.portal_project_id === mData.portal_project_id) return true;
       return false;
     };
-    return scopedProjectNodes.filter((node) => {
+    const passesUiFilters = (node: CanvasNodeRow) => {
       // Pastinhas (project_group / milestone_group) saíram do canvas:
       // agora vivem na barra superior CanvasMilestoneTabs. Os nodes ainda
       // existem no DB para a sincronia bidirecional com o Portal.
       const folderKind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
       if (folderKind === "project_group" || folderKind === "milestone_group") return false;
-      if (selectedMilestoneId) {
-        const selected = milestoneById.get(selectedMilestoneId);
-        if (!belongsToMilestone(node, selectedMilestoneId)) return false;
-      }
       const meta = readCanvasOperationalMeta(node.data as Record<string, unknown> | null);
       if (typeFilter && nodeKindOf(node) !== typeFilter && node.node_type !== typeFilter) return false;
       if (statusFilter && mapLegacyStatus(node.status) !== statusFilter) return false;
@@ -1236,7 +1229,12 @@ function CanvasStudioInner({
       if (ownerFilter && meta.ownerName !== ownerFilter) return false;
       if (q && !node.title.toLowerCase().includes(q)) return false;
       return true;
-    });
+    };
+    if (!selectedMilestoneId) return scopedProjectNodes.filter(passesUiFilters);
+    const milestoneNodes = scopedProjectNodes.filter((node) => passesUiFilters(node) && belongsToMilestone(node, selectedMilestoneId));
+    // Fallback seguro: se o Portal ainda não gravou parent/portal_milestone_id nas tasks,
+    // não deixa o milestone abrir vazio; mostra os nodes já existentes do projeto escopado.
+    return milestoneNodes.length > 0 ? milestoneNodes : scopedProjectNodes.filter(passesUiFilters);
   }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter, selectedMilestoneId]);
 
   const scopedProjectIds = useMemo(() => new Set(scopedProjectNodes.map((n) => n.id)), [scopedProjectNodes]);

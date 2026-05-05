@@ -37,6 +37,15 @@ function compactRecord(record: Record<string, unknown>) {
   return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined && value !== ""));
 }
 
+function normalizeTitle(value: unknown) {
+  return firstString(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 function sortByPosition<T extends Record<string, any>>(items: T[]) {
   return items.slice().sort((a, b) => {
     const ap = Number(a.position ?? a.order ?? a.sort_order ?? a.sequence ?? 9999);
@@ -218,11 +227,8 @@ serve(async (req) => {
       const pos_y = clientBaseY + 190;
       if (existing?.id) {
         await db.from("canvas_nodes").update({
-          parent_node_id: clientNodeId,
-          title: projTitle,
+          parent_node_id: clientNodeId ?? undefined,
           status: projStatus === "completed" ? "done" : "active",
-          pos_x,
-          pos_y,
           updated_at: new Date().toISOString(),
           data: { ...((existing.data as Record<string, unknown>) ?? {}), kind: "project_group", from_portal: true, portal_project_id: portalProjectId, portal_status: projStatus, stage: "producao" },
         }).eq("id", existing.id);
@@ -285,7 +291,12 @@ serve(async (req) => {
         }),
       };
       if (existing?.id) {
-        await db.from("canvas_nodes").update(payload).eq("id", existing.id);
+        await db.from("canvas_nodes").update({
+          parent_node_id: args.projectNodeId ?? undefined,
+          status: payload.status,
+          updated_at: payload.updated_at,
+          data: payload.data,
+        }).eq("id", existing.id);
         return existing.id;
       }
       const { data: created } = await db.from("canvas_nodes").insert({
@@ -309,6 +320,25 @@ serve(async (req) => {
       .filter((pid): pid is string => !!pid && targetPortalProjectIds.has(pid));
     const projectsInOrder = Array.from(new Set([...targetPortalProjectIds, ...projectIdsFromTasks, ...projectIdsFromMilestones]));
     const milestoneOrderByProject = new Map<string, string[]>();
+
+    const { data: currentTaskNodes } = await db
+      .from("canvas_nodes")
+      .select("id, title, description, data, parent_node_id, pos_x, pos_y, node_type")
+      .eq("workspace_id", workspaceId)
+      .eq("client_id", (ws as any).client_id);
+    const existingTaskByPortalId = new Map<string, any>();
+    const existingTaskByTitle = new Map<string, any>();
+    for (const node of currentTaskNodes ?? []) {
+      const nodeData = (node.data as Record<string, unknown> | null) ?? {};
+      const kind = String(nodeData.kind ?? "").toLowerCase();
+      const type = String(node.node_type ?? "").toLowerCase();
+      if (["client", "ai_orb", "chat_node"].includes(type) || ["project_group", "milestone_group", "chat_node"].includes(kind)) continue;
+      const linkedTaskId = firstString(nodeData.portal_task_id);
+      if (linkedTaskId) existingTaskByPortalId.set(linkedTaskId, node);
+      const linkedProjectId = firstString(nodeData.portal_project_id);
+      const key = normalizeTitle(node.title);
+      if (key && (!linkedProjectId || targetPortalProjectIds.has(linkedProjectId)) && !existingTaskByTitle.has(key)) existingTaskByTitle.set(key, node);
+    }
 
     for (const m of sortByPosition(portalMilestones)) {
       const milestoneProjectId = projectIdOfMilestone(m);
@@ -419,20 +449,18 @@ serve(async (req) => {
         stage: cur.stage ?? "producao",
       });
 
-      const existingQuery = opsNodeId
-        ? db.from("canvas_nodes").select("id, data").eq("id", opsNodeId).maybeSingle()
-        : db.from("canvas_nodes").select("id, data").eq("workspace_id", workspaceId).contains("data", { portal_task_id: portalTaskId }).limit(1).maybeSingle();
-      const { data: existing } = await existingQuery;
+      let existing: any = null;
+      if (opsNodeId) {
+        const { data: byOpsNodeId } = await db.from("canvas_nodes").select("id, title, description, data, parent_node_id, pos_x, pos_y").eq("id", opsNodeId).maybeSingle();
+        existing = byOpsNodeId;
+      }
+      if (!existing) existing = existingTaskByPortalId.get(portalTaskId) ?? existingTaskByTitle.get(normalizeTitle(title));
 
       if (existing) {
         const cur = (existing.data as Record<string, unknown>) ?? {};
         await db.from("canvas_nodes").update({
-          title,
           status: opsStatus,
           parent_node_id: milestoneNodeId,
-          description,
-          pos_x,
-          pos_y,
           updated_at: new Date().toISOString(),
           data: nextTaskData(cur),
         }).eq("id", existing.id);

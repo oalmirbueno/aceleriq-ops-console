@@ -45,6 +45,15 @@ function sortPortalItems<T extends Record<string, any>>(items: T[]) {
   });
 }
 
+function normalizeTitle(value: unknown) {
+  return firstString(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 async function materializeProjectCanvas(ops: any, args: {
   workspaceId: string; opsClientId: string; clientName: string; project: any; milestones: any[]; tasks: any[];
 }) {
@@ -116,12 +125,30 @@ async function materializeProjectCanvas(ops: any, args: {
     milestonesCount++;
   }
   const projectTasks = sortPortalItems(args.tasks.filter((t) => projectIdOf(t) === projectId));
+  const { data: currentTaskNodes } = await ops.from("canvas_nodes")
+    .select("id, title, data, parent_node_id, node_type")
+    .eq("workspace_id", args.workspaceId)
+    .eq("client_id", args.opsClientId);
+  const existingTaskByPortalId = new Map<string, any>();
+  const existingTaskByTitle = new Map<string, any>();
+  for (const node of currentTaskNodes ?? []) {
+    const nodeData = (node.data as Record<string, unknown> | null) ?? {};
+    const kind = String(nodeData.kind ?? "").toLowerCase();
+    const type = String(node.node_type ?? "").toLowerCase();
+    if (["client", "ai_orb", "chat_node"].includes(type) || ["project_group", "milestone_group", "chat_node"].includes(kind)) continue;
+    const linkedTaskId = firstString(nodeData.portal_task_id);
+    if (linkedTaskId) existingTaskByPortalId.set(linkedTaskId, node);
+    const linkedProjectId = firstString(nodeData.portal_project_id);
+    const key = normalizeTitle(node.title);
+    if (key && (!linkedProjectId || linkedProjectId === projectId) && !existingTaskByTitle.has(key)) existingTaskByTitle.set(key, node);
+  }
   for (const [index, task] of projectTasks.entries()) {
     const portalTaskId = firstString(task.id, task.task_id, task.uuid);
     if (!portalTaskId) continue;
+    const title = firstString(task.title, task.name, "Tarefa do Portal");
     const taskMilestoneId = milestoneIdOf(task);
     const milestoneNodeId = milestoneNodeByKey.get(taskMilestoneId) ?? null;
-    const { data: existingTask } = await ops.from("canvas_nodes").select("id, data, parent_node_id").eq("workspace_id", args.workspaceId).contains("data", { portal_task_id: portalTaskId }).order("created_at", { ascending: true }).limit(1).maybeSingle();
+    const existingTask = existingTaskByPortalId.get(portalTaskId) ?? existingTaskByTitle.get(normalizeTitle(title));
     const data = { ...((existingTask?.data as Record<string, unknown>) ?? {}), kind: ((existingTask?.data as Record<string, unknown> | null)?.kind ?? "checklist"), from_portal: true, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: taskMilestoneId || undefined, milestone_key: taskMilestoneId || undefined, portal_status: firstString(task.status, task.kanban_status, "todo"), portal_position: Number(task.position ?? task.order ?? task.sort_order ?? index), stage: "producao" };
     if (existingTask?.id) {
       // Não-destrutivo: só linka ao milestone e atualiza status/data Portal. Preserva título/descrição/posição já editados no Ops.
