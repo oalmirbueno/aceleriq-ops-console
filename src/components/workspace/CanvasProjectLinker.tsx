@@ -71,6 +71,35 @@ function projectMatchesClient(project: PortalProject, client: ClientLookup | nul
   return clientTerms.some((term) => portalTerms.includes(term) || term.includes(portalTerms));
 }
 
+async function loadLocalWorkspaceProjects(clientId: string, client: ClientLookup | null): Promise<PortalProject[]> {
+  const { data, error } = await supabase
+    .from("workspaces")
+    .select("id, name, status, project_type, portal_project_id")
+    .eq("client_id", clientId)
+    .not("portal_project_id", "is", null)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return ((data ?? []) as Array<Record<string, any>>)
+    .filter((ws) => ws.portal_project_id)
+    .map((ws) => ({
+      id: String(ws.portal_project_id),
+      name: String(ws.name ?? "Projeto do portal"),
+      status: String(ws.status ?? "active"),
+      project_type: String(ws.project_type ?? "projeto"),
+      client_id: client?.portal_client_id ?? "",
+      client_name: client?.name ?? "Cliente do portal",
+      client_company: client?.company_name ?? null,
+    }));
+}
+
+function mergeProjects(...groups: PortalProject[][]) {
+  const map = new Map<string, PortalProject>();
+  groups.flat().forEach((project) => {
+    if (!map.has(project.id)) map.set(project.id, project);
+  });
+  return Array.from(map.values());
+}
+
 async function callPortalProxy(path: string, reqBody?: unknown) {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token ?? SUPABASE_ANON_KEY;
@@ -124,23 +153,20 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
         supabase.from("clients").select("id, name, company_name, portal_client_id").eq("id", clientId).maybeSingle(),
       ]);
       const ppid = (wsRes.data?.portal_project_id as string | null) ?? null;
+      const currentClient = (clientRes.data as ClientLookup | null) ?? null;
       setPortalProjectId(ppid);
-      setClient((clientRes.data as ClientLookup | null) ?? null);
+      setClient(currentClient);
 
-      let data: any = null;
+      let portalList: PortalProject[] = [];
       try {
-        data = await callPortalProxy("ops-projects-list");
+        const data = await callPortalProxy("ops-projects-list");
+        const rawList = Array.isArray(data?.projects) ? data.projects : Array.isArray(data) ? data : [];
+        portalList = rawList.map((item: Record<string, any>) => normalizePortalProject(item)).filter(Boolean) as PortalProject[];
       } catch {
-        const fallback = await supabase.functions.invoke("sync-to-portal", {
-          body: { event: "list_portal_projects", workspaceId, clientId },
-        });
-        if (fallback.error) throw fallback.error;
-        data = fallback.data;
+        portalList = [];
       }
-      if (data?.ok === false) throw new Error(data?.error ?? "Falha ao listar projetos");
-      const rawList = Array.isArray(data?.projects) ? data.projects : Array.isArray(data) ? data : [];
-      const list = rawList.map((item: Record<string, any>) => normalizePortalProject(item)).filter(Boolean) as PortalProject[];
-      setProjects(list);
+      const localList = await loadLocalWorkspaceProjects(clientId, currentClient);
+      setProjects(mergeProjects(portalList, localList));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao carregar projetos do portal");
     } finally {
