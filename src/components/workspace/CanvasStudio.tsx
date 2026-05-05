@@ -2432,8 +2432,8 @@ function CanvasStudioInner({
 
     // Compat: se vier boolean (chamada antiga), converte pra deterministic
     const opts = typeof options === "boolean"
-      ? { agentId: "strategist" as AgentId, customPrompt: "", targetNodes: 10, deterministic: options }
-      : { agentId: (options.agentId ?? "strategist") as AgentId, customPrompt: options.customPrompt ?? "", targetNodes: options.targetNodes ?? 10, model: options.model, deterministic: false };
+      ? { agentId: "strategist" as AgentId, customPrompt: "", targetNodes: 20, deterministic: options }
+      : { agentId: (options.agentId ?? "strategist") as AgentId, customPrompt: options.customPrompt ?? "", targetNodes: options.targetNodes ?? 20, model: options.model, deterministic: false };
 
     const orb = readAiOrbData(aiOrbConfigNode.data as Record<string, unknown> | null);
     const generatingData = { ...orb, isGenerating: true, lastError: undefined };
@@ -2559,7 +2559,7 @@ function CanvasStudioInner({
     } finally {
       setBusyAction(null);
     }
-  }, [aiOrbConfigNode, clientId, ensureActiveClient, workspaceId]);
+  }, [aiOrbConfigNode, clientId, ensureActiveClient, portalProjectIdProp, scopedProjectNodes, selectedMilestoneId, workspaceId]);
 
   const expandEngineHub = useCallback(async (engineNodeId: string) => {
     const engineNode = dbNodes.find((node) => node.id === engineNodeId);
