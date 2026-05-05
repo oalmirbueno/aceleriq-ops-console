@@ -1003,10 +1003,8 @@ function CanvasStudioInner({
 
   const visibleCanvasNodes = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
-    // ── Modo "Fordismo": com um milestone selecionado, mostramos apenas as tarefas
-    // daquele milestone, organizadas em esteira por status. Sem milestone selecionado,
-    // mostramos só as PASTAS (cliente + project_group + milestone_group) — assim o
-    // canvas não fica empilhado com 170+ nodes ao mesmo tempo.
+    // Fordismo acontece dentro do canvas: sem seleção, nada some; com milestone
+    // selecionado, focamos projeto + pasta do milestone + tarefas reais dele.
     const milestoneById = new Map(scopedProjectNodes.map((n) => [n.id, n] as const));
     const isFolder = (node: CanvasNodeRow) => {
       const type = (node.node_type ?? "").toLowerCase();
@@ -1026,12 +1024,11 @@ function CanvasStudioInner({
     };
     return scopedProjectNodes.filter((node) => {
       if (selectedMilestoneId) {
-        if (node.id === selectedMilestoneId) return false; // a pasta vira o "header"
+        const selected = milestoneById.get(selectedMilestoneId);
+        if (node.id === selectedMilestoneId) return true;
+        if (selected?.parent_node_id && node.id === selected.parent_node_id) return true;
         if (isFolder(node)) return false;
         if (!belongsToMilestone(node, selectedMilestoneId)) return false;
-      } else {
-        // Vista de pastas: mantém pastas; orbs/chats/tarefas ficam ocultos pra evitar bagunça
-        if (!isFolder(node)) return false;
       }
       const meta = readCanvasOperationalMeta(node.data as Record<string, unknown> | null);
       if (typeFilter && nodeKindOf(node) !== typeFilter && node.node_type !== typeFilter) return false;
