@@ -2447,8 +2447,17 @@ function CanvasStudioInner({
       });
       const orbX = Number(aiOrbConfigNode.pos_x ?? OPS_FLOW_X.engine);
       const orbY = Number(aiOrbConfigNode.pos_y ?? CONTENT_TOP + 520);
-      const parent = aiOrbConfigNode.parent_node_id ?? ensureActiveClient();
+      const milestoneNode = selectedMilestoneId
+        ? scopedProjectNodes.find((node) => node.id === selectedMilestoneId)
+        : null;
+      const milestoneData = (milestoneNode?.data as Record<string, unknown> | null) ?? null;
+      const parent = milestoneNode?.id ?? aiOrbConfigNode.parent_node_id ?? ensureActiveClient();
       if (!parent) return;
+      const portalMeta: Record<string, unknown> = {};
+      if (milestoneData?.portal_project_id) portalMeta.portal_project_id = milestoneData.portal_project_id;
+      if (milestoneData?.portal_milestone_id) portalMeta.portal_milestone_id = milestoneData.portal_milestone_id;
+      if (milestoneData?.milestone_key) portalMeta.milestone_key = milestoneData.milestone_key;
+      if (milestoneData?.portal_folder_id) portalMeta.portal_folder_id = milestoneData.portal_folder_id;
 
       const createdByRef: Record<string, CanvasNodeRow> = {};
       const createdNodes: CanvasNodeRow[] = [];
@@ -2461,7 +2470,7 @@ function CanvasStudioInner({
           client_id: clientId,
           node_type: projectKindToDbNodeType(spec.kind),
           title: spec.title,
-          status: "draft",
+          status: "active",
           description: spec.description,
           pos_x: pos.x,
           pos_y: pos.y,
@@ -2471,6 +2480,8 @@ function CanvasStudioInner({
             stage: spec.stage,
             checklist: getChecklistTemplate(spec.kind),
             generatedByAiOrb: aiOrbConfigNode.id,
+            created_from: "ai_orb",
+            ...portalMeta,
             rationale: result.rationale,
             agent_id: opts.agentId,
             ...specData,
