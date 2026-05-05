@@ -138,9 +138,8 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
   );
   const matchedProjects = useMemo(() => projects.filter((p) => projectMatchesClient(p, client)), [projects, client]);
   const filtered = useMemo(() => {
-    const matched = projects.filter((p) => projectMatchesClient(p, client));
-    return matched.length > 0 ? matched : projects;
-  }, [projects, client]);
+    return matchedProjects.length > 0 ? matchedProjects : projects;
+  }, [matchedProjects, projects]);
   const showingClientProjects = matchedProjects.length > 0;
 
   // Carrega vínculos atuais e lista de projetos do portal
@@ -212,14 +211,15 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
     }
   }, [workspaceId, clientId, client, onLinked]);
 
-  // Auto-seleciona quando ha exatamente 1 projeto disponivel e nenhum vinculo ativo
+  // Auto-seleciona apenas quando ha exatamente 1 projeto QUE BATE com este cliente
+  // (evita vincular projeto de outro cliente quando o fallback mostra "todos").
   useEffect(() => {
     if (loading || saving || autoSelected || portalProjectId) return;
-    if (filtered.length === 1) {
+    if (matchedProjects.length === 1 && client?.portal_client_id) {
       setAutoSelected(true);
-      void link(filtered[0]);
+      void link(matchedProjects[0]);
     }
-  }, [loading, saving, autoSelected, portalProjectId, filtered, link]);
+  }, [loading, saving, autoSelected, portalProjectId, matchedProjects, client, link]);
 
   if (loading) {
     return (
