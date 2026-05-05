@@ -13,15 +13,26 @@
  */
 import { memo, useMemo } from "react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Folder, Layers, Target } from "lucide-react";
+import { Folder, Layers, Target, Radio, ArrowDownToLine, ArrowUpFromLine, AlertCircle } from "lucide-react";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 
 type CanvasNodeRow = CanvasNodeRecord & { parent_node_id?: string | null };
+
+export type RealtimeState = "connecting" | "connected" | "disconnected";
+export interface SyncStatus {
+  realtimeState: RealtimeState;
+  realtimeAt: number | null;     // último postgres_changes recebido
+  portalPushAt: number | null;   // último Ops→Portal concluído
+  portalPullAt: number | null;   // último Portal→Ops concluído
+  portalBusy: boolean;           // sync em voo
+  portalError: string | null;    // mensagem se o último round falhou
+}
 
 interface Props {
   nodes: CanvasNodeRow[];
   selectedMilestoneId: string | null;
   onSelectMilestone: (id: string | null) => void;
+  syncStatus?: SyncStatus;
 }
 
 function kindOf(n: CanvasNodeRow): string {
