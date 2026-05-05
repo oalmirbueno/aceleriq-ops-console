@@ -1755,6 +1755,24 @@ function CanvasStudioInner({
     }
     // ChatNode handles interactions inline — não abre drawer
     if (nodeKindOf(found) === "chat_node") return;
+    // Modo híbrido: ao abrir um node-tarefa que está em "draft" e veio do portal,
+    // promove automaticamente para "active" (em andamento) — a menos que o
+    // operador tenha travado o auto-status nesse node (data.lock_status = true).
+    {
+      const data = (found.data as Record<string, unknown> | null) ?? {};
+      const fromPortal = !!data.from_portal || !!data.portal_task_id;
+      const lockStatus = !!data.lock_status;
+      const status = (found.status ?? "").toLowerCase();
+      if (fromPortal && !lockStatus && (status === "draft" || status === "todo" || status === "backlog")) {
+        void supabase.from("canvas_nodes").update({
+          status: "active",
+          data: { ...data, touched_at: new Date().toISOString() },
+          updated_at: new Date().toISOString(),
+        }).eq("id", found.id);
+        // Atualiza otimisticamente para o drawer abrir já com status novo
+        found.status = "active";
+      }
+    }
     setSelectedNode(found);
   }, [selectedMilestoneId]);
 
