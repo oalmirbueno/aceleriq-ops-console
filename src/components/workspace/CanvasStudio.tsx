@@ -2019,6 +2019,8 @@ function CanvasStudioInner({
         if (row) {
           refToId[tn.ref] = (row as CanvasNodeRow).id;
           newRows.push(row as CanvasNodeRow);
+          const r = row as CanvasNodeRow;
+          syncNodeCreated({ workspaceId, clientId, nodeId: r.id, nodeTitle: r.title, nodeType: r.node_type });
         }
       }
 
