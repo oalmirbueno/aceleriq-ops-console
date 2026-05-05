@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { getProjectTypeMeta, getNodeFamily } from "./canvasProjectTypes";
 import { getEsteiraStatus, mapLegacyStatus } from "./canvasEsteiraStatus";
+import { statusProgressPct } from "./canvasEsteiraStatus";
 import {
   countOperationalDependencies,
   countOperationalEvidence,
@@ -154,6 +155,10 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
   const checklistPct = d.checklistTotal && d.checklistTotal > 0
     ? Math.round(((d.checklistDone ?? 0) / d.checklistTotal) * 100)
     : null;
+  const statusPct = statusProgressPct(mapLegacyStatus(d.status));
+  const overallPct = checklistPct !== null
+    ? Math.max(checklistPct, statusPct >= 100 ? 100 : 0, statusPct)
+    : statusPct;
   const opMeta = d.operationalMeta ?? null;
   const overdue = isOperationalOverdue(opMeta);
   const blocked = !!opMeta?.blockedReason || d.status === "blocked" || d.status === "bloqueado";
@@ -277,6 +282,27 @@ function ProjectNodeCardComp({ data, selected }: NodeProps) {
             </div>
           </div>
         )}
+
+        {/* Progresso geral — derivado do status (sempre visível) */}
+        <div className="px-3 pb-2">
+          <div className="flex items-center justify-between text-[10px] text-white/40 mb-1">
+            <span>Progresso</span>
+            <span className="tabular-nums font-semibold" style={{ color: accent }}>
+              {overallPct}%
+            </span>
+          </div>
+          <div className="h-1 rounded-full bg-white/5 overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${overallPct}%`,
+                background: overallPct >= 100
+                  ? accent
+                  : `linear-gradient(90deg, ${accent}80, ${accent})`,
+              }}
+            />
+          </div>
+        </div>
 
         {/* Footer: metadata + quick actions */}
         <div
