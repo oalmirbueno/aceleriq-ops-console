@@ -65,6 +65,7 @@ serve(async (req) => {
   const PORTAL_URL_HOOK = Deno.env.get("PORTAL_WEBHOOK_URL") ?? `${PORTAL_BASE}/ops-webhook`;
 
   try {
+    const stopwatch = startTimer();
     const authHeader = req.headers.get("Authorization") ?? "";
     const auth = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
     const { data: userData } = await auth.auth.getUser();
