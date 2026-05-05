@@ -166,6 +166,14 @@ serve(async (req) => {
         const title = String(task.title ?? "Tarefa do portal");
         const status = TASK_STATUS_TO_OPS[String(task.status ?? "backlog").toLowerCase()] ?? "draft";
         const opsNodeId = typeof task.ops_node_id === "string" ? task.ops_node_id : null;
+        const description = (task.description ?? task.notes ?? null) as string | null;
+        const priority    = (task.priority ?? null) as string | null;
+        const dueDate     = (task.due_date ?? task.dueDate ?? null) as string | null;
+        const assignee    = (task.assignee_id ?? task.assignee ?? null) as string | null;
+        const portalPosition = Number(task.position ?? task.order ?? 0);
+        const portalStatusRaw = String(task.status ?? "backlog").toLowerCase();
+        const checklist = Array.isArray(task.checklist) ? task.checklist : [];
+        const labels   = Array.isArray(task.labels)   ? task.labels   : [];
 
         const { data: existing } = opsNodeId
           ? await db.from("canvas_nodes").select("id, data").eq("id", opsNodeId).maybeSingle()
@@ -173,7 +181,23 @@ serve(async (req) => {
 
         if (existing) {
           const currentData = (existing.data as Record<string, unknown>) ?? {};
-          await db.from("canvas_nodes").update({ title, status, data: { ...currentData, portal_task_id: portalTaskId, from_portal: true }, updated_at: new Date().toISOString() }).eq("id", existing.id);
+          await db.from("canvas_nodes").update({
+            title,
+            status,
+            description,
+            data: {
+              ...currentData,
+              portal_task_id: portalTaskId,
+              from_portal: true,
+              portal_status: portalStatusRaw,
+              priority,
+              due_date: dueDate,
+              assignee,
+              labels,
+              checklist: checklist.length > 0 ? checklist : (currentData.checklist ?? []),
+            },
+            updated_at: new Date().toISOString(),
+          }).eq("id", existing.id);
           updated++;
         } else {
           const { count } = await db.from("canvas_nodes").select("id", { count: "exact", head: true }).eq("workspace_id", body.workspaceId);
@@ -185,9 +209,21 @@ serve(async (req) => {
             node_type: "task",
             title,
             status,
+            description,
             pos_x: 80 + (idx % 6) * 320,
             pos_y: 820 + Math.floor(idx / 6) * 180,
-            data: { from_portal: true, portal_task_id: portalTaskId, kind: "checklist", checklist: [] },
+            data: {
+              from_portal: true,
+              portal_task_id: portalTaskId,
+              portal_status: portalStatusRaw,
+              kind: "checklist",
+              checklist,
+              priority,
+              due_date: dueDate,
+              assignee,
+              labels,
+              stage: "producao",
+            },
           });
           created++;
         }
