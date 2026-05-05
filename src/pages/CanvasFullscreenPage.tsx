@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { Loader2, FolderOpen } from "lucide-react";
 import CanvasStudio from "@/components/workspace/CanvasStudio";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -12,6 +12,7 @@ export default function CanvasFullscreenPage() {
   const clientName = searchParams.get("clientName") || "Canvas Ops";
   const queryProjectId = searchParams.get("portalProjectId");
   const [redirecting, setRedirecting] = useState(true);
+  const [projects, setProjects] = useState<Array<{ portalProjectId: string; title: string }>>([]);
 
   if (!workspaceId || !clientId) {
     navigate("/ops/canvas", { replace: true });
@@ -31,19 +32,23 @@ export default function CanvasFullscreenPage() {
       }
       const { data: groups } = await supabase
         .from("canvas_nodes")
-        .select("data")
+        .select("title, data")
         .eq("workspace_id", workspaceId)
         .contains("data", { kind: "project_group" });
       if (cancelled) return;
-      const projectIds = Array.from(new Set(
-        (groups ?? [])
-          .map((g) => (g.data as Record<string, unknown> | null)?.portal_project_id)
-          .filter((id): id is string => typeof id === "string" && id.length > 0)
-      ));
-      if (projectIds.length === 1) {
-        navigate(`/ops/projects/${projectIds[0]}`, { replace: true });
+      const map = new Map<string, string>();
+      for (const g of groups ?? []) {
+        const ppid = (g.data as Record<string, unknown> | null)?.portal_project_id;
+        if (typeof ppid === "string" && ppid && !map.has(ppid)) {
+          map.set(ppid, (g.title as string) ?? "Projeto");
+        }
+      }
+      const list = Array.from(map.entries()).map(([portalProjectId, title]) => ({ portalProjectId, title }));
+      if (list.length === 1) {
+        navigate(`/ops/projects/${list[0].portalProjectId}`, { replace: true });
         return;
       }
+      setProjects(list);
       setRedirecting(false);
     })();
     return () => { cancelled = true; };
