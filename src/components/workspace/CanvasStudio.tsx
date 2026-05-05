@@ -409,6 +409,8 @@ function CanvasStudioInner({
   const dbEdgesRef = useRef<CanvasEdgeRecord[]>([]);
   const clientLogosRef = useRef<Record<string, string | null>>({});
   const autoPortalSyncRef = useRef<{ inFlight: boolean; timer: number | null; interval: number | null }>({ inFlight: false, timer: null, interval: null });
+  const portalPushDebounceRef = useRef<number | null>(null);
+  const portalPushSignatureRef = useRef<string>("");
 
   // Active client folder (null = "Todos")
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
@@ -717,6 +719,28 @@ function CanvasStudioInner({
       state.interval = null;
     };
   }, [workspaceId, clientId, syncPortalNow]);
+
+  useEffect(() => {
+    if (!workspaceId || !clientId || dbNodes.length === 0) return;
+    const signature = dbNodes
+      .filter((node) => {
+        const type = (node.node_type ?? "").toLowerCase();
+        const kind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
+        return !["client", "ai_orb", "chat_node"].includes(type) && !["project_group", "milestone_group", "chat_node"].includes(kind);
+      })
+      .map((node) => `${node.id}:${node.title}:${node.status}:${node.parent_node_id ?? ""}`)
+      .join("|");
+    if (!signature || signature === portalPushSignatureRef.current) return;
+    portalPushSignatureRef.current = signature;
+    if (portalPushDebounceRef.current) window.clearTimeout(portalPushDebounceRef.current);
+    portalPushDebounceRef.current = window.setTimeout(() => {
+      void syncPortalNow({ pull: false, push: true, limit: 120 }).catch((err) => console.warn("[CanvasStudio] auto portal push failed", err));
+    }, 1800);
+    return () => {
+      if (portalPushDebounceRef.current) window.clearTimeout(portalPushDebounceRef.current);
+      portalPushDebounceRef.current = null;
+    };
+  }, [workspaceId, clientId, dbNodes, syncPortalNow]);
 
   // Realtime: novos nodes (criados pelo portal ou outra sessão) aparecem ao vivo.
   useEffect(() => {
