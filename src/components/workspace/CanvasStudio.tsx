@@ -30,6 +30,7 @@ import CanvasTemplatesDialog, { type CanvasTemplate, type NodeSnapshot, type Edg
 import ApplyPlaybookButton from "./ApplyPlaybookButton";
 import CanvasProjectLinker from "./CanvasProjectLinker";
 import DeletableEdge from "./DeletableEdge";
+import MilestoneFordismoBar from "./MilestoneFordismoBar";
 import type { EsteiraTemplate } from "./esteiraTemplates";
 import { syncNodeCreated, syncNodeDeleted } from "./syncToPortalEvents";
 import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalMeta } from "./canvasOperationalMeta";
