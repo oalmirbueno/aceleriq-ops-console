@@ -121,7 +121,7 @@ async function materializeProjectCanvas(ops: any, args: {
     if (!portalTaskId) continue;
     const taskMilestoneId = milestoneIdOf(task);
     const milestoneNodeId = milestoneNodeByKey.get(taskMilestoneId) ?? null;
-    const { data: existingTask } = await ops.from("canvas_nodes").select("id, data").eq("workspace_id", args.workspaceId).contains("data", { portal_task_id: portalTaskId }).order("created_at", { ascending: true }).limit(1).maybeSingle();
+    const { data: existingTask } = await ops.from("canvas_nodes").select("id, data, parent_node_id").eq("workspace_id", args.workspaceId).contains("data", { portal_task_id: portalTaskId }).order("created_at", { ascending: true }).limit(1).maybeSingle();
     const data = { ...((existingTask?.data as Record<string, unknown>) ?? {}), kind: ((existingTask?.data as Record<string, unknown> | null)?.kind ?? "checklist"), from_portal: true, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: taskMilestoneId || undefined, milestone_key: taskMilestoneId || undefined, portal_status: firstString(task.status, task.kanban_status, "todo"), portal_position: Number(task.position ?? task.order ?? task.sort_order ?? index), stage: "producao" };
     if (existingTask?.id) {
       // Não-destrutivo: só linka ao milestone e atualiza status/data Portal. Preserva título/descrição/posição já editados no Ops.
