@@ -257,7 +257,9 @@ serve(async (req) => {
       : "";
     const rawType = String(body.type ?? body.table ?? inferredType);
     const type = normalizeType(rawType);
-    const data = (body.data ?? {}) as Record<string, unknown>;
+    const data = ((body.data && typeof body.data === "object")
+      ? body.data
+      : Object.fromEntries(Object.entries(body).filter(([key]) => !["event", "type", "table", "context", "source"].includes(key)))) as Record<string, unknown>;
     const context = (body.context ?? {}) as Record<string, unknown>;
     const source = String(body.source ?? "").toLowerCase();
 
