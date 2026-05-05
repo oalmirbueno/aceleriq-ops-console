@@ -32,7 +32,7 @@ import ApplyPlaybookButton from "./ApplyPlaybookButton";
 import CanvasProjectLinker from "./CanvasProjectLinker";
 import DeletableEdge from "./DeletableEdge";
 import type { EsteiraTemplate } from "./esteiraTemplates";
-import { syncNodeCreated, syncNodeDeleted } from "./syncToPortalEvents";
+import { syncNodeCreated, syncNodeDeleted, syncNodeUpdated } from "./syncToPortalEvents";
 import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalMeta } from "./canvasOperationalMeta";
 import {
   ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH,
