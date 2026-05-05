@@ -433,10 +433,50 @@ function CanvasStudioInner({
   const [clientProjectType, setClientProjectType] = useState<string | null>(null);
   // Milestone "fordismo" — quando setado, a esteira mostra só as tarefas desse milestone
   // organizadas por estágio (todo → doing → review → done).
-  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
+  // Persistido em URL (?milestone=...) + localStorage por (workspace, cliente)
+  // pra sobreviver a refresh e troca de aba.
+  const milestoneStorageKey = `canvas:milestone:${workspaceId}:${activeClientId ?? "all"}`;
+  const [selectedMilestoneId, setSelectedMilestoneIdState] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const url = new URL(window.location.href);
+    const fromUrl = url.searchParams.get("milestone");
+    if (fromUrl) return fromUrl;
+    return null;
+  });
 
-  // Reset milestone selecionado quando o cliente muda
-  useEffect(() => { setSelectedMilestoneId(null); }, [activeClientId]);
+  const setSelectedMilestoneId = useCallback((next: string | null | ((prev: string | null) => string | null)) => {
+    setSelectedMilestoneIdState((prev) => {
+      const value = typeof next === "function" ? (next as (p: string | null) => string | null)(prev) : next;
+      if (typeof window !== "undefined") {
+        try {
+          const url = new URL(window.location.href);
+          if (value) url.searchParams.set("milestone", value);
+          else url.searchParams.delete("milestone");
+          window.history.replaceState(null, "", url.toString());
+          if (activeClientId !== null || workspaceId) {
+            if (value) localStorage.setItem(milestoneStorageKey, value);
+            else localStorage.removeItem(milestoneStorageKey);
+          }
+        } catch (err) {
+          console.warn("[CanvasStudio] persist milestone failed", err);
+        }
+      }
+      return value;
+    });
+  }, [activeClientId, workspaceId, milestoneStorageKey]);
+
+  // Restaura do localStorage quando troca de cliente (URL tem prioridade na primeira render)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const fromUrl = url.searchParams.get("milestone");
+    if (fromUrl) {
+      setSelectedMilestoneIdState(fromUrl);
+      return;
+    }
+    const stored = localStorage.getItem(milestoneStorageKey);
+    setSelectedMilestoneIdState(stored ?? null);
+  }, [milestoneStorageKey]);
 
   useEffect(() => { dbNodesRef.current = dbNodes; }, [dbNodes]);
   useEffect(() => { dbEdgesRef.current = dbEdges; }, [dbEdges]);
