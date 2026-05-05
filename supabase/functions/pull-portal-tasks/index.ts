@@ -211,7 +211,7 @@ serve(async (req) => {
 
       const { data: created } = await db.from("canvas_nodes").insert({
         workspace_id: workspaceId,
-        client_id: ws.client_id,
+        client_id: (ws as any).client_id,
         parent_node_id: clientNodeId,
         node_type: "front",
         title: projTitle,
@@ -270,7 +270,7 @@ serve(async (req) => {
       }
       const { data: created } = await db.from("canvas_nodes").insert({
         workspace_id: workspaceId,
-        client_id: ws.client_id,
+        client_id: (ws as any).client_id,
         node_type: "front",
         ...payload,
       }).select("id").single();
