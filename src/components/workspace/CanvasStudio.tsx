@@ -2515,6 +2515,10 @@ function CanvasStudioInner({
       const baseX = Number(root?.pos_x ?? 60);
       const baseY = Number(root?.pos_y ?? 0);
       const updates: Array<{ id: string; pos_x: number; pos_y: number; parent_node_id?: string | null }> = [];
+      const portalOrder = (node: CanvasNodeRow) => {
+        const value = Number((node.data as Record<string, unknown> | null)?.portal_position ?? 9999);
+        return Number.isFinite(value) ? value : 9999;
+      };
       const isTask = (node: CanvasNodeRow) => {
         const type = (node.node_type ?? "").toLowerCase();
         const kind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
@@ -2526,7 +2530,7 @@ function CanvasStudioInner({
         updates.push({ id: project.id, pos_x: projectX, pos_y: baseY + 190, parent_node_id: root?.id ?? project.parent_node_id ?? null });
         portalMilestones
           .filter((milestone) => (milestone.data as Record<string, unknown> | null)?.portal_project_id === portalProjectId)
-          .sort((a, b) => a.title.localeCompare(b.title))
+          .sort((a, b) => portalOrder(a) - portalOrder(b) || a.title.localeCompare(b.title))
           .forEach((milestone, milestoneIndex) => {
             const milestoneX = projectX + 32 + milestoneIndex * 360;
             updates.push({ id: milestone.id, pos_x: milestoneX, pos_y: baseY + 350, parent_node_id: project.id });
@@ -2539,7 +2543,7 @@ function CanvasStudioInner({
                   (milestoneData.portal_milestone_id && taskData.portal_milestone_id === milestoneData.portal_milestone_id)
                   || (milestoneData.milestone_key && taskData.milestone_key === milestoneData.milestone_key)
                 ));
-            }).sort((a, b) => a.title.localeCompare(b.title)).forEach((task, taskIndex) => {
+            }).sort((a, b) => portalOrder(a) - portalOrder(b) || a.title.localeCompare(b.title)).forEach((task, taskIndex) => {
               updates.push({ id: task.id, pos_x: milestoneX + 32, pos_y: baseY + 480 + taskIndex * 136, parent_node_id: milestone.id });
             });
           });
