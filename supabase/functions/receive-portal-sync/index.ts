@@ -291,14 +291,98 @@ serve(async (req) => {
       return json({ error: "type e data são obrigatórios" }, 400);
     }
 
-    if (event === "DELETE" && type !== "task") {
-      return json({ ok: true, action: "delete_ignored", type_received: rawType });
-    }
-
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    const isDeleteEvent =
+      event === "DELETE" ||
+      event.toLowerCase().endsWith("_deleted") ||
+      data.deleted === true;
+
+    // ─── DELETE: profile/client/project ───────────────────────
+    if (isDeleteEvent && (type === "profile" || type === "project" || type === "milestone" && false)) {
+      // handled below per-type
+    }
+
+    if (isDeleteEvent && type === "profile") {
+      const portalClientId = firstString(data.id, data.client_id, data.user_id);
+      if (!portalClientId) return json({ error: "profile.id obrigatório para delete" }, 400);
+      const { data: existingClient } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("portal_client_id", portalClientId)
+        .maybeSingle();
+      if (!existingClient) {
+        await logSync({
+          direction: "portal_to_ops",
+          event: "client_deleted",
+          status: "skipped",
+          message: "client_not_found",
+          payload: { portal_client_id: portalClientId },
+          source,
+        });
+        return json({ ok: true, action: "client_not_found", portal_client_id: portalClientId });
+      }
+      // Coleta workspaces para limpar canvas/timeline
+      const { data: wss } = await supabase
+        .from("workspaces")
+        .select("id")
+        .eq("client_id", existingClient.id);
+      const wsIds = (wss ?? []).map((w: any) => w.id);
+      if (wsIds.length) {
+        await supabase.from("canvas_edges").delete().in("workspace_id", wsIds);
+        await supabase.from("canvas_nodes").delete().in("workspace_id", wsIds);
+        await supabase.from("timeline_events").delete().in("workspace_id", wsIds);
+        await supabase.from("workspaces").delete().in("id", wsIds);
+      }
+      const delRes = await supabase.from("clients").delete().eq("id", existingClient.id);
+      await logSync({
+        direction: "portal_to_ops",
+        event: "client_deleted",
+        status: delRes.error ? "error" : "ok",
+        clientId: existingClient.id,
+        message: delRes.error ? delRes.error.message : `client_deleted (workspaces=${wsIds.length})`,
+        payload: { portal_client_id: portalClientId, workspace_ids: wsIds },
+        source,
+      });
+      if (delRes.error) return json({ error: delRes.error.message }, 500);
+      return json({ ok: true, action: "client_deleted", client_id: existingClient.id, workspaces_removed: wsIds.length });
+    }
+
+    if (isDeleteEvent && type === "project") {
+      const portalProjectId = firstString(data.id);
+      if (!portalProjectId) return json({ error: "project.id obrigatório para delete" }, 400);
+      const { data: existingWs } = await supabase
+        .from("workspaces")
+        .select("id, client_id")
+        .eq("portal_project_id", portalProjectId)
+        .maybeSingle();
+      if (!existingWs) {
+        return json({ ok: true, action: "workspace_not_found", portal_project_id: portalProjectId });
+      }
+      await supabase.from("canvas_edges").delete().eq("workspace_id", existingWs.id);
+      await supabase.from("canvas_nodes").delete().eq("workspace_id", existingWs.id);
+      await supabase.from("timeline_events").delete().eq("workspace_id", existingWs.id);
+      const delRes = await supabase.from("workspaces").delete().eq("id", existingWs.id);
+      await logSync({
+        direction: "portal_to_ops",
+        event: "project_deleted",
+        status: delRes.error ? "error" : "ok",
+        workspaceId: existingWs.id,
+        clientId: existingWs.client_id,
+        portalProjectId,
+        message: delRes.error ? delRes.error.message : "workspace_deleted",
+        source,
+      });
+      if (delRes.error) return json({ error: delRes.error.message }, 500);
+      return json({ ok: true, action: "workspace_deleted", workspace_id: existingWs.id });
+    }
+
+    if (event === "DELETE" && !["task", "profile", "project", "milestone"].includes(type)) {
+      return json({ ok: true, action: "delete_ignored", type_received: rawType });
+    }
 
     // ─── PROFILE / CLIENT ─────────────────────────────────────
     if (type === "profile") {
