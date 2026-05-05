@@ -174,7 +174,7 @@ serve(async (req) => {
     }
 
     const tasks = sortByPosition(allTasks.filter((t) => {
-      const pid = firstString(t.project_id, t.portal_project_id, t.workspace_id);
+      const pid = projectIdOfTask(t);
       return pid ? clientPortalProjectIds.has(pid) : false;
     }));
 
