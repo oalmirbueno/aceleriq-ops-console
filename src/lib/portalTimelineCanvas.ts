@@ -102,7 +102,7 @@ function inferNodeKind(title: string, description?: string | null, milestoneTitl
   if (/trafego|ads|midia/.test(ctx)) return "trafego";
   if (/conteudo|criativo/.test(ctx)) return "conteudo";
 
-  return "checklist";
+  return "resultado";
 }
 
 function scoreMilestone(milestoneTitle: string, taskTitle: string, taskDescription?: string | null) {
