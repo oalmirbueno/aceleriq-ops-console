@@ -73,6 +73,15 @@ async function sendToPortal(
   }
 }
 
+const PORTAL_BASE = "https://gicbrgagstyvbaaumprj.supabase.co/functions/v1";
+const TASK_STATUS_TO_OPS: Record<string, string> = {
+  todo: "draft", backlog: "draft",
+  doing: "active", in_progress: "active",
+  review: "in_review",
+  blocked: "blocked",
+  done: "done",
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
@@ -100,6 +109,7 @@ serve(async (req) => {
       progress?: number;
       portalTaskId?: string;
       source?: string;
+      limit?: number;
     };
 
     // ── Busca IDs do portal vinculados ao workspace/client ──────────────
@@ -120,6 +130,56 @@ serve(async (req) => {
 
     let event = String(body.event ?? "").trim().toLowerCase();
     let data: Record<string, unknown> = {};
+
+    if (event === "pull_portal_tasks") {
+      if (!portalProjectId) return json({ ok: false, error: "portal_project_id not set on workspace" }, 400);
+      if (!PORTAL_SECRET) return json({ ok: false, error: "PORTAL_WEBHOOK_SECRET not configured" }, 500);
+
+      const res = await fetch(`${PORTAL_BASE}/ops-tasks-list`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-webhook-secret": PORTAL_SECRET },
+        body: JSON.stringify({ project_id: portalProjectId, limit: Math.min(Math.max(Number(body.limit) || 200, 1), 500) }),
+      });
+      const raw = await res.text();
+      if (!res.ok) return json({ ok: false, error: `portal ops-tasks-list ${res.status}`, raw: raw.slice(0, 300) }, 502);
+      let parsed: any = {};
+      try { parsed = JSON.parse(raw); } catch { return json({ ok: false, error: "invalid portal tasks json" }, 502); }
+      const tasks: Array<Record<string, unknown>> = Array.isArray(parsed.tasks) ? parsed.tasks : [];
+      let created = 0, updated = 0;
+      for (const task of tasks) {
+        const portalTaskId = String(task.id ?? "");
+        if (!portalTaskId) continue;
+        const title = String(task.title ?? "Tarefa do portal");
+        const status = TASK_STATUS_TO_OPS[String(task.status ?? "backlog").toLowerCase()] ?? "draft";
+        const opsNodeId = typeof task.ops_node_id === "string" ? task.ops_node_id : null;
+
+        const { data: existing } = opsNodeId
+          ? await db.from("canvas_nodes").select("id, data").eq("id", opsNodeId).maybeSingle()
+          : await db.from("canvas_nodes").select("id, data").eq("workspace_id", body.workspaceId).contains("data", { portal_task_id: portalTaskId }).maybeSingle();
+
+        if (existing) {
+          const currentData = (existing.data as Record<string, unknown>) ?? {};
+          await db.from("canvas_nodes").update({ title, status, data: { ...currentData, portal_task_id: portalTaskId, from_portal: true }, updated_at: new Date().toISOString() }).eq("id", existing.id);
+          updated++;
+        } else {
+          const { count } = await db.from("canvas_nodes").select("id", { count: "exact", head: true }).eq("workspace_id", body.workspaceId);
+          const idx = count ?? 0;
+          await db.from("canvas_nodes").insert({
+            workspace_id: body.workspaceId,
+            client_id: body.clientId,
+            parent_node_id: null,
+            node_type: "task",
+            title,
+            status,
+            pos_x: 80 + (idx % 6) * 320,
+            pos_y: 820 + Math.floor(idx / 6) * 180,
+            data: { from_portal: true, portal_task_id: portalTaskId, kind: "checklist", checklist: [] },
+          });
+          created++;
+        }
+      }
+      return json({ ok: true, event, portal_project_id: portalProjectId, portal_client_id: portalClientId, total: tasks.length, created, updated });
+    }
 
     if (event === "file_approved" && body.assetId) {
       const { data: asset } = await db
