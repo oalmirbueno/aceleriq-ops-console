@@ -3515,6 +3515,26 @@ function CanvasStudioInner({
             </div>
             )
           ) : scopedProjectNodes.length === 0 ? (
+            portalProjectIdProp ? (
+            <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center relative">
+              <Loader2 className="h-10 w-10 text-muted-foreground animate-spin" />
+              <div>
+                <p className="text-base font-semibold text-foreground mb-1">Trazendo esteira do Portal…</p>
+                <p className="text-xs text-muted-foreground max-w-md">
+                  Buscando milestones, tarefas concluídas e em andamento deste projeto.
+                </p>
+              </div>
+              <div className="flex gap-2 mt-2 flex-wrap justify-center">
+                <Button size="sm" variant="outline" onClick={() => syncPortalNow({ pull: true, push: false })} disabled={syncStatus.portalBusy}>
+                  {syncStatus.portalBusy ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
+                  Sincronizar agora
+                </Button>
+              </div>
+              {syncStatus.portalError && (
+                <p className="text-[11px] text-destructive">{syncStatus.portalError}</p>
+              )}
+            </div>
+            ) : (
             <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center relative">
               <div className="h-12 w-12 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center">
                 <Sparkles className="h-6 w-6 text-primary" />
@@ -3549,6 +3569,7 @@ function CanvasStudioInner({
                 </Button>
               </div>
             </div>
+            )
           ) : (
             <CanvasViewport
               nodes={rfNodes}
