@@ -931,6 +931,8 @@ function CanvasStudioInner({
   // Realtime: novos nodes (criados pelo portal ou outra sessão) aparecem ao vivo.
   useEffect(() => {
     if (!workspaceId) return;
+    setSyncStatus((s) => ({ ...s, realtimeState: "connecting" }));
+    const markEvent = () => setSyncStatus((s) => ({ ...s, realtimeAt: Date.now(), realtimeState: "connected" }));
     const channel = supabase
       .channel(`canvas-nodes-${workspaceId}`)
       .on("postgres_changes", {
@@ -939,6 +941,7 @@ function CanvasStudioInner({
       }, (payload) => {
         const row = payload.new as CanvasNodeRow;
         setDbNodes((prev) => prev.some((n) => n.id === row.id) ? prev : [...prev, row]);
+        markEvent();
       })
       .on("postgres_changes", {
         event: "UPDATE", schema: "public", table: "canvas_nodes",
@@ -955,6 +958,7 @@ function CanvasStudioInner({
           if (prevTs && newTs && newTs < prevTs) return n; // stale event — ignora
           return { ...n, ...row };
         }));
+        markEvent();
       })
       .on("postgres_changes", {
         event: "DELETE", schema: "public", table: "canvas_nodes",
@@ -963,9 +967,19 @@ function CanvasStudioInner({
         const oldId = (payload.old as { id?: string }).id;
         if (!oldId) return;
         setDbNodes((prev) => prev.filter((n) => n.id !== oldId));
+        markEvent();
       })
-      .subscribe();
-    return () => { void supabase.removeChannel(channel); };
+      .subscribe((status) => {
+        const next: RealtimeState =
+          status === "SUBSCRIBED" ? "connected"
+          : status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED" ? "disconnected"
+          : "connecting";
+        setSyncStatus((s) => ({ ...s, realtimeState: next }));
+      });
+    return () => {
+      void supabase.removeChannel(channel);
+      setSyncStatus((s) => ({ ...s, realtimeState: "disconnected" }));
+    };
   }, [workspaceId]);
 
   // Auto-cria o node "client" quando o canvas vem de um workspace e ainda não tem pasta
