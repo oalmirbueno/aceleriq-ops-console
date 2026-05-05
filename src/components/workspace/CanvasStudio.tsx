@@ -25,6 +25,7 @@ import ProjectNodeDrawer from "./ProjectNodeDrawer";
 import CanvasInspector from "./CanvasInspector";
 import CanvasClientPicker from "./CanvasClientPicker";
 import CanvasClientTabs, { type CanvasClientTab } from "./CanvasClientTabs";
+import CanvasMilestoneTabs from "./CanvasMilestoneTabs";
 import GenerateEsteiraDialog from "./GenerateEsteiraDialog";
 import CanvasTemplatesDialog, { type CanvasTemplate, type NodeSnapshot, type EdgeSnapshot } from "./CanvasTemplatesDialog";
 import ApplyPlaybookButton from "./ApplyPlaybookButton";
@@ -1023,11 +1024,13 @@ function CanvasStudioInner({
       return false;
     };
     return scopedProjectNodes.filter((node) => {
+      // Pastinhas (project_group / milestone_group) saíram do canvas:
+      // agora vivem na barra superior CanvasMilestoneTabs. Os nodes ainda
+      // existem no DB para a sincronia bidirecional com o Portal.
+      const folderKind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
+      if (folderKind === "project_group" || folderKind === "milestone_group") return false;
       if (selectedMilestoneId) {
         const selected = milestoneById.get(selectedMilestoneId);
-        if (node.id === selectedMilestoneId) return true;
-        if (selected?.parent_node_id && node.id === selected.parent_node_id) return true;
-        if (isFolder(node)) return false;
         if (!belongsToMilestone(node, selectedMilestoneId)) return false;
       }
       const meta = readCanvasOperationalMeta(node.data as Record<string, unknown> | null);
@@ -3221,6 +3224,15 @@ function CanvasStudioInner({
           }
         }}
       />
+      )}
+
+      {/* Milestone tabs (fordismo): substituem as pastinhas dentro do canvas. */}
+      {!focusMode && (
+        <CanvasMilestoneTabs
+          nodes={scopedProjectNodes}
+          selectedMilestoneId={selectedMilestoneId}
+          onSelectMilestone={(id) => setSelectedMilestoneId(id)}
+        />
       )}
 
       {/* Body: palette + canvas + inspector */}
