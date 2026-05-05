@@ -987,7 +987,36 @@ function CanvasStudioInner({
 
   const visibleCanvasNodes = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
+    // ── Modo "Fordismo": com um milestone selecionado, mostramos apenas as tarefas
+    // daquele milestone, organizadas em esteira por status. Sem milestone selecionado,
+    // mostramos só as PASTAS (cliente + project_group + milestone_group) — assim o
+    // canvas não fica empilhado com 170+ nodes ao mesmo tempo.
+    const milestoneById = new Map(scopedProjectNodes.map((n) => [n.id, n] as const));
+    const isFolder = (node: CanvasNodeRow) => {
+      const type = (node.node_type ?? "").toLowerCase();
+      const kind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
+      return type === "client" || kind === "project_group" || kind === "milestone_group";
+    };
+    const belongsToMilestone = (node: CanvasNodeRow, milestoneId: string): boolean => {
+      if (node.id === milestoneId) return false;
+      const milestone = milestoneById.get(milestoneId);
+      if (!milestone) return false;
+      const mData = (milestone.data as Record<string, unknown> | null) ?? {};
+      const data = (node.data as Record<string, unknown> | null) ?? {};
+      if (node.parent_node_id === milestoneId) return true;
+      if (mData.portal_milestone_id && data.portal_milestone_id === mData.portal_milestone_id) return true;
+      if (mData.milestone_key && data.milestone_key === mData.milestone_key && data.portal_project_id === mData.portal_project_id) return true;
+      return false;
+    };
     return scopedProjectNodes.filter((node) => {
+      if (selectedMilestoneId) {
+        if (node.id === selectedMilestoneId) return false; // a pasta vira o "header"
+        if (isFolder(node)) return false;
+        if (!belongsToMilestone(node, selectedMilestoneId)) return false;
+      } else {
+        // Vista de pastas: mantém pastas; orbs/chats/tarefas ficam ocultos pra evitar bagunça
+        if (!isFolder(node)) return false;
+      }
       const meta = readCanvasOperationalMeta(node.data as Record<string, unknown> | null);
       if (typeFilter && nodeKindOf(node) !== typeFilter && node.node_type !== typeFilter) return false;
       if (statusFilter && mapLegacyStatus(node.status) !== statusFilter) return false;
@@ -998,7 +1027,7 @@ function CanvasStudioInner({
       if (q && !node.title.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter]);
+  }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter, selectedMilestoneId]);
 
   const scopedProjectIds = useMemo(() => new Set(scopedProjectNodes.map((n) => n.id)), [scopedProjectNodes]);
   const scopedEdges = useMemo(
