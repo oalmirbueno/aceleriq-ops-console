@@ -58,6 +58,7 @@ serve(async (req) => {
     const body = await req.json() as Body;
     if (!body.orbId || !body.workspaceId || !body.clientId || !body.orbType) return json({ error: "orbId, workspaceId, clientId e orbType são obrigatórios" }, 400);
     const def = ORB_PROMPTS[body.orbType] ?? ORB_PROMPTS.planner;
+    const targetNodes = Math.max(1, Math.min(200, Math.floor(Number(body.targetNodes) || 20)));
     if (body.deterministic) return json({ ...def.fallback, rationale: `Fallback determinístico: ${def.hint}` });
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
@@ -74,12 +75,12 @@ serve(async (req) => {
     if (!LOVABLE_API_KEY || body.aiEngine !== "internal") return json({ ...def.fallback, rationale: `Fallback seguro: ${def.hint}` });
 
     const tool = { type: "function", function: { name: "build_orb_output", description: "Nodes e edges gerados por AI Orb", parameters: { type: "object", properties: { rationale: { type: "string" }, insights: { type: "array", items: { type: "string" } }, nodes: { type: "array", items: { type: "object", properties: { ref: { type: "string" }, kind: { type: "string", enum: [...VALID_KINDS] }, stage: { type: "string", enum: [...VALID_STAGES] }, title: { type: "string" }, description: { type: "string" } }, required: ["ref","kind","stage","title","description"], additionalProperties: false } }, edges: { type: "array", items: { type: "object", properties: { fromRef: { type: "string" }, toRef: { type: "string" }, label: { type: "string" } }, required: ["fromRef","toRef"], additionalProperties: false } } }, required: ["rationale","insights","nodes","edges"], additionalProperties: false } } };
-    const aiRes = await fetch(AI_GATEWAY_URL, { method: "POST", headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: AI_MODEL, temperature: 0.3, messages: [{ role: "system", content: `${def.system}\n${body.customPrompt ?? ""}\nUse apenas kinds/stages permitidos. Não invente números. Retorne saída executável.` }, { role: "user", content: JSON.stringify(contextPayload).slice(0, 24000) }], tools: [tool], tool_choice: { type: "function", function: { name: "build_orb_output" } } }) });
+    const aiRes = await fetch(AI_GATEWAY_URL, { method: "POST", headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: body.model || AI_MODEL, temperature: 0.3, messages: [{ role: "system", content: `${body.agentSystemPrompt ?? def.system}\n${def.system}\n${body.customPrompt ?? ""}\nGere exatamente ${targetNodes} nodes quando o contexto permitir. Não resuma em poucos nodes. Cada node precisa ser uma tarefa/entrega operacional específica, auditável e com descrição profissional. Use apenas kinds/stages permitidos. Não invente números. Retorne saída executável.` }, { role: "user", content: JSON.stringify(contextPayload).slice(0, 24000) }], tools: [tool], tool_choice: { type: "function", function: { name: "build_orb_output" } } }) });
     if (!aiRes.ok) return json({ ...def.fallback, rationale: `Fallback por falha da IA: ${def.hint}` });
     const aiData = await aiRes.json();
     const args = aiData?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
     if (!args) return json({ ...def.fallback, rationale: `Fallback por resposta incompleta: ${def.hint}` });
-    return json(sanitize(JSON.parse(args)));
+    return json(sanitize(JSON.parse(args), targetNodes));
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Erro inesperado" }, 500);
   }
