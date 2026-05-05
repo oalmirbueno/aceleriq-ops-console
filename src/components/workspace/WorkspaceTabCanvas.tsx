@@ -4,6 +4,8 @@ interface Props {
   workspaceId: string;
   clientId: string;
   clientName: string;
+  portalClientId?: string | null;
+  portalProjectId?: string | null;
   onTimelineRefresh?: () => Promise<void> | void;
   initialStatusFilter?: string | null;
 }
@@ -11,7 +13,12 @@ interface Props {
 export default function WorkspaceTabCanvas(props: Props) {
   return (
     <div className="animate-fade-in">
-      <WorkspaceProjectsLauncher workspaceId={props.workspaceId} clientName={props.clientName} />
+      <WorkspaceProjectsLauncher
+        workspaceId={props.workspaceId}
+        clientName={props.clientName}
+        portalClientId={props.portalClientId}
+        portalProjectId={props.portalProjectId}
+      />
     </div>
   );
 }

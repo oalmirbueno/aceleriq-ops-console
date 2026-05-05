@@ -28,13 +28,16 @@ interface ProjectGroup {
 interface Props {
   workspaceId: string;
   clientName: string;
+  portalClientId?: string | null;
+  portalProjectId?: string | null;
 }
 
-export default function WorkspaceProjectsLauncher({ workspaceId, clientName }: Props) {
+export default function WorkspaceProjectsLauncher({ workspaceId, clientName, portalClientId, portalProjectId }: Props) {
   const navigate = useNavigate();
   const [projects, setProjects] = useState<ProjectGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const autoPulledRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -91,15 +94,23 @@ export default function WorkspaceProjectsLauncher({ workspaceId, clientName }: P
   // depois pull-portal-tasks (cria os project_group/milestone_group/tasks
   // como canvas_nodes — que é o que esta tela lista). Esse é o sync real.
   const fullSync = useCallback(async () => {
-    try {
-      await supabase.functions.invoke("backfill-from-portal", { body: { source: "launcher" } });
-    } catch { /* segue mesmo se falhar */ }
-    try {
-      await supabase.functions.invoke("pull-portal-tasks", { body: { workspaceId } });
-    } catch { /* idem */ }
-  }, [workspaceId]);
+    setSyncMessage("Sincronizando Portal…");
+    const backfill = await supabase.functions.invoke("backfill-from-portal", { body: { source: "launcher", workspaceId, portalClientId, portalProjectId } });
+    if (backfill.error) throw backfill.error;
+
+    const pullBody: Record<string, string> = { workspaceId };
+    if (portalProjectId) pullBody.portalProjectId = portalProjectId;
+    const pull = await supabase.functions.invoke("pull-portal-tasks", { body: pullBody });
+    if (pull.error) throw pull.error;
+
+    const result = (pull.data ?? {}) as { skipped?: boolean; reason?: string; total?: number; projects?: number; milestones?: number };
+    if (result.skipped) throw new Error(result.reason ?? "Portal não retornou projetos para este workspace");
+    setSyncMessage(`Portal sincronizado: ${result.projects ?? 0} projeto(s), ${result.milestones ?? 0} milestone(s), ${result.total ?? 0} tarefa(s).`);
+  }, [workspaceId, portalClientId, portalProjectId]);
 
   useEffect(() => {
+    setLoading(true);
+    setSyncMessage(null);
     load();
     // realtime: novos projetos/milestones do Portal aparecem na hora
     const ch = supabase
@@ -124,6 +135,8 @@ export default function WorkspaceProjectsLauncher({ workspaceId, clientName }: P
       try {
         await fullSync();
         await load();
+      } catch (err) {
+        setSyncMessage(err instanceof Error ? err.message : "Falha ao sincronizar Portal");
       } finally {
         setSyncing(false);
       }
@@ -132,9 +145,12 @@ export default function WorkspaceProjectsLauncher({ workspaceId, clientName }: P
 
   const triggerSync = async () => {
     setSyncing(true);
+    setSyncMessage(null);
     try {
       await fullSync();
       await load();
+    } catch (err) {
+      setSyncMessage(err instanceof Error ? err.message : "Falha ao sincronizar Portal");
     } finally {
       setSyncing(false);
     }
@@ -163,10 +179,14 @@ export default function WorkspaceProjectsLauncher({ workspaceId, clientName }: P
             Ele aparecerá aqui automaticamente — não precisa apertar nada.
           </p>
         </div>
-        <Button size="sm" variant="outline" onClick={triggerSync} disabled={syncing} className="mt-2 h-8 text-xs gap-1.5">
-          <RefreshCw className={`h-3 w-3 ${syncing ? "animate-spin" : ""}`} />
-          {syncing ? "Sincronizando…" : "Sincronizar agora (opcional)"}
-        </Button>
+        {(syncing || syncMessage) && (
+          <p className="text-[11px] text-muted-foreground max-w-md">{syncing ? "Buscando projetos, milestones e tarefas do Portal…" : syncMessage}</p>
+        )}
+        {!syncing && syncMessage?.toLowerCase().includes("falha") && (
+          <Button size="sm" variant="outline" onClick={triggerSync} className="mt-2 h-8 text-xs gap-1.5">
+            <RefreshCw className="h-3 w-3" /> Tentar novamente
+          </Button>
+        )}
       </div>
     );
   }
@@ -178,11 +198,12 @@ export default function WorkspaceProjectsLauncher({ workspaceId, clientName }: P
           <h3 className="text-sm font-semibold text-foreground">Projetos do Portal</h3>
           <p className="text-[11px] text-muted-foreground">Cada projeto tem seu próprio canvas com milestones e tarefas em tempo real.</p>
         </div>
-        <Button size="sm" variant="ghost" onClick={triggerSync} disabled={syncing} className="h-7 text-[11px] gap-1.5 text-muted-foreground">
+        <Button size="sm" variant="ghost" onClick={triggerSync} disabled={syncing} className="h-7 text-[11px] gap-1.5 text-muted-foreground" title="Atualizar dados do Portal">
           <RefreshCw className={`h-3 w-3 ${syncing ? "animate-spin" : ""}`} />
-          {syncing ? "Sincronizando…" : "Sincronizar"}
+          {syncing ? "Atualizando…" : "Atualizar"}
         </Button>
       </div>
+      {syncMessage && <p className="text-[11px] text-muted-foreground">{syncMessage}</p>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {projects.map((p) => {
           const pct = p.totalTasks > 0 ? Math.round((p.doneTasks / p.totalTasks) * 100) : 0;
