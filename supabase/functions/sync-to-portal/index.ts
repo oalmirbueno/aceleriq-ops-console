@@ -363,6 +363,7 @@ serve(async (req) => {
 
     else if (event === "node_updated" && body.nodeId) {
       if (!portalProjectId) return json({ skipped: true, reason: "portal_project_id not set on workspace" });
+      const authorId = PORTAL_ADMIN_ID || portalClientId || "ops-system";
 
       const statusLabels: Record<string, string> = {
         draft: "Não iniciada",
@@ -383,7 +384,8 @@ serve(async (req) => {
 
       data = {
         project_id:  portalProjectId,
-        author_id:   PORTAL_ADMIN_ID || portalClientId,
+        author_id:   authorId,
+        client_id:   portalClientId ?? undefined,
         message,
         update_type: "task_progress",
         // campos para o ops-webhook v2 fazer upsert na tabela tasks
@@ -406,9 +408,11 @@ serve(async (req) => {
     else if (event === "node_created" && body.nodeId) {
       if (!portalProjectId) return json({ skipped: true, reason: "portal_project_id not set on workspace" });
       const node = nodeRow;
+      const authorId = PORTAL_ADMIN_ID || portalClientId || "ops-system";
       data = {
         project_id: portalProjectId,
-        author_id:  PORTAL_ADMIN_ID || portalClientId,
+        author_id:  authorId,
+        client_id:  portalClientId ?? undefined,
         node_id:    body.nodeId,
         node_title: body.nodeTitle ?? node?.title ?? "node",
         node_type:  body.nodeType ?? node?.node_type ?? null,
