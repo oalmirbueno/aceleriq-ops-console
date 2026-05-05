@@ -306,13 +306,13 @@ serve(async (req) => {
     const projectIdsFromTasks = tasks.map(projectIdOfTask).filter(Boolean) as string[];
     const projectIdsFromMilestones = portalMilestones
       .map(projectIdOfMilestone)
-      .filter((pid): pid is string => !!pid && clientPortalProjectIds.has(pid));
-    const projectsInOrder = Array.from(new Set([...projectIdsFromTasks, ...projectIdsFromMilestones]));
+      .filter((pid): pid is string => !!pid && targetPortalProjectIds.has(pid));
+    const projectsInOrder = Array.from(new Set([...targetPortalProjectIds, ...projectIdsFromTasks, ...projectIdsFromMilestones]));
     const milestoneOrderByProject = new Map<string, string[]>();
 
     for (const m of sortByPosition(portalMilestones)) {
       const milestoneProjectId = projectIdOfMilestone(m);
-      if (!milestoneProjectId || !clientPortalProjectIds.has(milestoneProjectId)) continue;
+      if (!milestoneProjectId || !targetPortalProjectIds.has(milestoneProjectId)) continue;
       const projectIndex = Math.max(0, projectsInOrder.indexOf(milestoneProjectId));
       let projectNodeId = projectGroupCache.get(milestoneProjectId) ?? null;
       if (!projectGroupCache.has(milestoneProjectId)) {
