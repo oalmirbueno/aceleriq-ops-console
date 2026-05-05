@@ -25,6 +25,7 @@ import ProjectNodeDrawer from "./ProjectNodeDrawer";
 import CanvasInspector from "./CanvasInspector";
 import CanvasClientPicker from "./CanvasClientPicker";
 import CanvasClientTabs, { type CanvasClientTab } from "./CanvasClientTabs";
+import CanvasMilestoneTabs from "./CanvasMilestoneTabs";
 import GenerateEsteiraDialog from "./GenerateEsteiraDialog";
 import CanvasTemplatesDialog, { type CanvasTemplate, type NodeSnapshot, type EdgeSnapshot } from "./CanvasTemplatesDialog";
 import ApplyPlaybookButton from "./ApplyPlaybookButton";
