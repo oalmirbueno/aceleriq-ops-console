@@ -7,7 +7,7 @@ import {
   type ReactFlowInstance, type Viewport, SelectionMode, MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow, MousePointer2, Hand, Lock, Grid3X3, Camera, Type, Image, FileStack, Bot, Megaphone, Trophy, MessageCircle, Focus, Eye, LayoutTemplate, RefreshCw } from "lucide-react";
+import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow, MousePointer2, Hand, Lock, Grid3X3, Camera, Type, Image, FileStack, Bot, Megaphone, Trophy, MessageCircle, Focus, Eye, LayoutTemplate, RefreshCw, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -3180,6 +3180,40 @@ function CanvasStudioInner({
           >
             {busyAction === "portal-sync" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
             Sync portal
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs"
+            onClick={async () => {
+              try {
+                setBusyAction("smoke-test");
+                const { data, error } = await supabase.functions.invoke("smoke-test-cycle", {
+                  body: { workspaceId, restore: false },
+                });
+                if (error) throw error;
+                const r = data as any;
+                const s = r?.summary ?? {};
+                const ok = !!r?.ok;
+                console.log("[smoke-test-cycle] full report", r);
+                toast({
+                  title: ok ? "Smoke test OK" : "Smoke test com falhas",
+                  description: ok
+                    ? `Milestone ${s.milestone_done_before}→${s.milestone_done_after}/${s.milestone_total} · Projeto ${s.project_pct_before}%→${s.project_pct_after}%${s.portal_progress_pushed ? " · enviado ao Portal" : ""}`
+                    : (r?.error ?? "Veja o console pro relatório completo"),
+                  variant: ok ? undefined : "destructive",
+                });
+              } catch (err) {
+                toast({ title: "Smoke test falhou", description: err instanceof Error ? err.message : "Erro inesperado", variant: "destructive" });
+              } finally {
+                setBusyAction(null);
+              }
+            }}
+            disabled={busyAction === "smoke-test"}
+            title="Roda ciclo Portal→Ops→Portal: marca uma task como done, valida done/total e envia project_progress"
+          >
+            {busyAction === "smoke-test" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5 mr-1" />}
+            Smoke test
           </Button>
           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onToggleFullscreen} aria-label="Alternar tela cheia">
             {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
