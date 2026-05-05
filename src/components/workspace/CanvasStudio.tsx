@@ -521,6 +521,52 @@ function CanvasStudioInner({
       .catch(() => {});
   }, [workspaceId, loading]);
 
+  // Pull ativo: traz tarefas existentes do portal e cria nodes locais (idempotente).
+  useEffect(() => {
+    if (!workspaceId || loading) return;
+    const sessionKey = `ops:pull-tasks:${workspaceId}`;
+    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) return;
+    void supabase.functions.invoke("pull-portal-tasks", { body: { workspaceId } })
+      .then(({ data }) => {
+        try { sessionStorage.setItem(sessionKey, "1"); } catch {}
+        if (data && (data as any).created > 0) {
+          fetchDataRef.current?.();
+        }
+      })
+      .catch(() => {});
+  }, [workspaceId, loading]);
+
+  // Realtime: novos nodes (criados pelo portal ou outra sessão) aparecem ao vivo.
+  useEffect(() => {
+    if (!workspaceId) return;
+    const channel = supabase
+      .channel(`canvas-nodes-${workspaceId}`)
+      .on("postgres_changes", {
+        event: "INSERT", schema: "public", table: "canvas_nodes",
+        filter: `workspace_id=eq.${workspaceId}`,
+      }, (payload) => {
+        const row = payload.new as CanvasNodeRow;
+        setDbNodes((prev) => prev.some((n) => n.id === row.id) ? prev : [...prev, row]);
+      })
+      .on("postgres_changes", {
+        event: "UPDATE", schema: "public", table: "canvas_nodes",
+        filter: `workspace_id=eq.${workspaceId}`,
+      }, (payload) => {
+        const row = payload.new as CanvasNodeRow;
+        setDbNodes((prev) => prev.map((n) => n.id === row.id ? { ...n, ...row } : n));
+      })
+      .on("postgres_changes", {
+        event: "DELETE", schema: "public", table: "canvas_nodes",
+        filter: `workspace_id=eq.${workspaceId}`,
+      }, (payload) => {
+        const oldId = (payload.old as { id?: string }).id;
+        if (!oldId) return;
+        setDbNodes((prev) => prev.filter((n) => n.id !== oldId));
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [workspaceId]);
+
   // Auto-cria o node "client" quando o canvas vem de um workspace e ainda não tem pasta
   useEffect(() => {
     if (loading || !workspaceId || !clientId || !clientName) return;
