@@ -56,6 +56,8 @@ function normalizeType(type: string): string {
     briefing: "briefing",
     milestones: "milestone",
     milestone: "milestone",
+    folders: "milestone",
+    folder: "milestone",
     updates: "update",
     update: "update",
     tasks: "task",
@@ -71,6 +73,18 @@ function firstString(...values: unknown[]): string | null {
     if (typeof v === "string" && v.trim()) return v.trim();
   }
   return null;
+}
+
+function portalProjectIdOf(data: Record<string, unknown>): string | null {
+  const milestone = (data.milestone && typeof data.milestone === "object") ? data.milestone as Record<string, unknown> : {};
+  const folder = (data.folder && typeof data.folder === "object") ? data.folder as Record<string, unknown> : {};
+  return firstString(data.project_id, data.portal_project_id, data.workspace_id, milestone.project_id, folder.project_id);
+}
+
+function portalMilestoneIdOf(data: Record<string, unknown>): string | null {
+  const milestone = (data.milestone && typeof data.milestone === "object") ? data.milestone as Record<string, unknown> : {};
+  const folder = (data.folder && typeof data.folder === "object") ? data.folder as Record<string, unknown> : {};
+  return firstString(data.milestone_id, data.portal_milestone_id, data.folder_id, data.portal_folder_id, data.stage_id, data.phase_id, data.column_id, milestone.id, folder.id);
 }
 
 function compactRecord(record: Record<string, unknown>) {
@@ -458,7 +472,7 @@ serve(async (req) => {
 
     // ─── MILESTONE / UPDATE / TASK / FILE → TIMELINE ──────────
     if (["milestone", "update", "task", "file"].includes(type)) {
-      const portalProjectId = firstString(data.project_id, data.workspace_id);
+      const portalProjectId = portalProjectIdOf(data);
       let ws: { id: string; client_id: string } | null = null;
       if (portalProjectId) {
         const { data: foundWs } = await supabase
@@ -487,8 +501,8 @@ serve(async (req) => {
 
       // ── MILESTONE: cria/atualiza/remove a pasta milestone_group correspondente ──
       if (type === "milestone") {
-        const portalMilestoneId = firstString(data.id, data.milestone_id);
-        const isDeleted = event === "milestone_deleted" || event === "DELETE" || data.deleted === true;
+        const portalMilestoneId = firstString(data.id, data.milestone_id, data.folder_id, data.portal_folder_id);
+        const isDeleted = event === "milestone_deleted" || event === "folder_deleted" || event === "DELETE" || data.deleted === true;
         if (isDeleted && portalMilestoneId) {
           await supabase.from("canvas_nodes").delete()
             .eq("workspace_id", ws.id)
@@ -529,6 +543,7 @@ serve(async (req) => {
             kind: "milestone_group", from_portal: true,
             portal_project_id: portalProjectId ?? undefined,
             portal_milestone_id: portalMilestoneId,
+            portal_folder_id: portalMilestoneId,
             milestone_key: portalMilestoneId,
             portal_position: Number.isFinite(position) ? position : 0,
             portal_status: portalStatus, stage: "producao",
@@ -554,9 +569,9 @@ serve(async (req) => {
       // ── TASK: cria/atualiza/remove node correspondente no canvas ────
       if (type === "task") {
         const portalTaskId = firstString(data.id, data.task_id);
-        const portalMilestoneId = firstString(data.milestone_id, data.portal_milestone_id, data.stage_id, data.phase_id, data.column_id);
+        const portalMilestoneId = portalMilestoneIdOf(data);
         const milestoneKey = portalMilestoneId ?? `no-milestone:${portalProjectId ?? ws.id}`;
-        const milestoneTitle = firstString(data.milestone_title, data.milestone_name, data.stage_title, data.phase_title, data.column_title) ?? "Sem milestone";
+        const milestoneTitle = firstString(data.milestone_title, data.milestone_name, data.folder_title, data.folder_name, data.stage_title, data.phase_title, data.column_title) ?? "Sem milestone";
         const portalStatus = (firstString(data.status, data.kanban_status) ?? "draft").toLowerCase();
         // mapeia status do kanban → ops
         const statusMap: Record<string, string> = {
@@ -641,7 +656,7 @@ serve(async (req) => {
               status: "active",
               pos_x: 112,
               pos_y: 360 + (count ?? 0) * 420,
-              data: compactRecord({ kind: "milestone_group", from_portal: true, portal_project_id: projectId, portal_milestone_id: portalMilestoneId ?? undefined, milestone_key: milestoneKey, stage: "producao" }),
+              data: compactRecord({ kind: "milestone_group", from_portal: true, portal_project_id: projectId, portal_milestone_id: portalMilestoneId ?? undefined, portal_folder_id: portalMilestoneId ?? undefined, milestone_key: milestoneKey, stage: "producao" }),
             }).select("id").single();
             milestoneGroupId = createdMilestone?.id ?? null;
           }
@@ -691,6 +706,7 @@ serve(async (req) => {
                 portal_task_id: portalTaskId,
                 portal_project_id: projectId,
                 portal_milestone_id: portalMilestoneId ?? undefined,
+                portal_folder_id: portalMilestoneId ?? undefined,
                 milestone_key: milestoneKey,
                 milestone_title: milestoneTitle,
                 from_portal: true,
@@ -728,7 +744,7 @@ serve(async (req) => {
               status: opsStatus,
               pos_x: 80 + (idx % 6) * 320,
               pos_y: 800 + Math.floor(idx / 6) * 220,
-              data: compactRecord({ from_portal: true, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: portalMilestoneId ?? undefined, milestone_key: milestoneKey, milestone_title: milestoneTitle, kind: "checklist", checklist: [], touched_at: null }),
+              data: compactRecord({ from_portal: true, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: portalMilestoneId ?? undefined, portal_folder_id: portalMilestoneId ?? undefined, milestone_key: milestoneKey, milestone_title: milestoneTitle, kind: "checklist", checklist: [], touched_at: null }),
             }).select("id").single();
             const created = insRes.data as { id: string } | null;
             await logSync({

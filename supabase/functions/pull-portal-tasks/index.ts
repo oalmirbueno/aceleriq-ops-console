@@ -47,11 +47,23 @@ function sortByPosition<T extends Record<string, any>>(items: T[]) {
 }
 
 function milestoneIdOf(task: Record<string, any>) {
-  return firstString(task.milestone_id, task.portal_milestone_id, task.stage_id, task.phase_id, task.column_id, task.milestone?.id);
+  return firstString(task.milestone_id, task.portal_milestone_id, task.folder_id, task.portal_folder_id, task.stage_id, task.phase_id, task.column_id, task.milestone?.id, task.folder?.id);
 }
 
 function milestoneTitleOf(milestone: Record<string, any> | undefined, task: Record<string, any>, fallback: string) {
-  return firstString(milestone?.title, milestone?.name, task.milestone_title, task.milestone_name, task.stage_title, task.phase_title, task.column_title, task.milestone?.title, fallback);
+  return firstString(milestone?.title, milestone?.name, milestone?.folder_name, task.milestone_title, task.milestone_name, task.folder_title, task.folder_name, task.stage_title, task.phase_title, task.column_title, task.milestone?.title, task.folder?.title, task.folder?.name, fallback);
+}
+
+function projectIdOfTask(task: Record<string, any>) {
+  return firstString(task.project_id, task.portal_project_id, task.workspace_id, task.project?.id, task.milestone?.project_id, task.folder?.project_id);
+}
+
+function projectIdOfMilestone(milestone: Record<string, any>) {
+  return firstString(milestone.project_id, milestone.portal_project_id, milestone.workspace_id, milestone.project?.id, milestone.folder?.project_id);
+}
+
+function milestoneKeyOf(record: Record<string, any>, fallback: string) {
+  return firstString(record.id, record.milestone_id, record.folder_id, record.portal_folder_id, record.key, record.slug, record.title, record.name, fallback);
 }
 
 serve(async (req) => {
@@ -162,13 +174,13 @@ serve(async (req) => {
     }
 
     const tasks = sortByPosition(allTasks.filter((t) => {
-      const pid = firstString(t.project_id, t.portal_project_id, t.workspace_id);
+      const pid = projectIdOfTask(t);
       return pid ? clientPortalProjectIds.has(pid) : false;
     }));
 
     const milestoneById = new Map<string, Record<string, any>>();
     for (const m of portalMilestones) {
-      const mid = firstString(m.id, m.milestone_id, m.uuid);
+      const mid = firstString(m.id, m.milestone_id, m.folder_id, m.portal_folder_id, m.uuid);
       if (mid) milestoneById.set(mid, m);
     }
 
@@ -199,7 +211,7 @@ serve(async (req) => {
 
       const { data: created } = await db.from("canvas_nodes").insert({
         workspace_id: workspaceId,
-        client_id: ws.client_id,
+        client_id: (ws as any).client_id,
         parent_node_id: clientNodeId,
         node_type: "front",
         title: projTitle,
@@ -258,7 +270,7 @@ serve(async (req) => {
       }
       const { data: created } = await db.from("canvas_nodes").insert({
         workspace_id: workspaceId,
-        client_id: ws.client_id,
+        client_id: (ws as any).client_id,
         node_type: "front",
         ...payload,
       }).select("id").single();
@@ -271,13 +283,50 @@ serve(async (req) => {
     const projectGroupCache = new Map<string, string | null>();
     const milestoneGroupCache = new Map<string, string | null>();
     const taskCounters = new Map<string, number>();
-    const projectsInOrder = Array.from(new Set(tasks.map((t) => firstString(t.project_id, t.portal_project_id, t.workspace_id)).filter(Boolean)));
+    const projectIdsFromTasks = tasks.map(projectIdOfTask).filter(Boolean) as string[];
+    const projectIdsFromMilestones = portalMilestones
+      .map(projectIdOfMilestone)
+      .filter((pid): pid is string => !!pid && clientPortalProjectIds.has(pid));
+    const projectsInOrder = Array.from(new Set([...projectIdsFromTasks, ...projectIdsFromMilestones]));
     const milestoneOrderByProject = new Map<string, string[]>();
+
+    for (const m of sortByPosition(portalMilestones)) {
+      const milestoneProjectId = projectIdOfMilestone(m);
+      if (!milestoneProjectId || !clientPortalProjectIds.has(milestoneProjectId)) continue;
+      const projectIndex = Math.max(0, projectsInOrder.indexOf(milestoneProjectId));
+      let projectNodeId = projectGroupCache.get(milestoneProjectId) ?? null;
+      if (!projectGroupCache.has(milestoneProjectId)) {
+        projectNodeId = await ensureProjectGroupNode(milestoneProjectId, projectIndex);
+        projectGroupCache.set(milestoneProjectId, projectNodeId);
+      }
+      const portalMilestoneId = firstString(m.id, m.milestone_id, m.folder_id, m.portal_folder_id, m.uuid);
+      const milestoneKey = milestoneKeyOf(m, portalMilestoneId ?? `milestone:${milestoneProjectId}`);
+      const order = milestoneOrderByProject.get(milestoneProjectId) ?? [];
+      if (!order.includes(milestoneKey)) order.push(milestoneKey);
+      milestoneOrderByProject.set(milestoneProjectId, order);
+      const milestoneIndex = order.indexOf(milestoneKey);
+      const position = Number(m.position ?? m.order ?? m.sort_order ?? milestoneIndex);
+      const cacheKey = `${milestoneProjectId}:${milestoneKey}`;
+      if (!milestoneGroupCache.has(cacheKey)) {
+        const milestoneNodeId = await ensureMilestoneGroupNode({
+          portalProjectId: milestoneProjectId,
+          projectNodeId,
+          milestoneKey,
+          portalMilestoneId: portalMilestoneId ?? null,
+          title: milestoneTitleOf(m, {}, "Sem milestone"),
+          status: firstString(m.status, "active").toLowerCase(),
+          position: Number.isFinite(position) ? position : milestoneIndex,
+          projectIndex,
+          milestoneIndex,
+        });
+        milestoneGroupCache.set(cacheKey, milestoneNodeId);
+      }
+    }
 
     for (const t of tasks) {
       const portalTaskId = firstString(t.id, t.task_id, t.uuid);
       if (!portalTaskId) continue;
-      const taskProjectId = firstString(t.project_id, t.portal_project_id, t.workspace_id, ws.portal_project_id);
+      const taskProjectId = firstString(projectIdOfTask(t), ws.portal_project_id);
       if (!taskProjectId) continue;
       const projectIndex = Math.max(0, projectsInOrder.indexOf(taskProjectId));
 
