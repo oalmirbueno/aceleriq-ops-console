@@ -21,6 +21,15 @@ export function usePortalAutoSync(intervalMs = 60_000) {
         await supabase.functions.invoke("backfill-from-portal", {
           body: { source: "auto" },
         });
+        const path = window.location.pathname;
+        const workspaceFromPath = path.match(/\/ops\/workspaces\/([^/]+)/)?.[1];
+        const workspaceFromQuery = new URLSearchParams(window.location.search).get("workspaceId");
+        const workspaceId = workspaceFromPath ?? workspaceFromQuery;
+        if (workspaceId) {
+          await supabase.functions.invoke("pull-portal-tasks", {
+            body: { workspaceId, source: "auto" },
+          });
+        }
       } catch {
         // silencioso: é background sync
       } finally {
