@@ -32,10 +32,7 @@ create policy "sync_audit_log: service role full access"
   using (auth.role() = 'service_role')
   with check (auth.role() = 'service_role');
 
-drop policy if exists "sync_audit_log: admins read" on public.sync_audit_log;
-create policy "sync_audit_log: admins read"
-  on public.sync_audit_log for select
-  using (public.has_role(auth.uid(), 'admin'));
+-- Reads via service role only (no roles system yet).
 
 create or replace function public.sync_audit_log_prune()
 returns trigger
