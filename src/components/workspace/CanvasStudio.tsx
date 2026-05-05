@@ -553,9 +553,20 @@ function CanvasStudioInner({
       pulled = Number(((data as any)?.created ?? 0) + ((data as any)?.updated ?? 0));
       pullFailed = !!error || (data as any)?.ok === false;
       if (!pullFailed) setSyncStatus((s) => ({ ...s, portalPullAt: Date.now() }));
+      if (pullFailed) {
+        const fallback = await supabase.functions.invoke("backfill-from-portal", {
+          body: { source: "canvas_fallback", workspaceId, portalProjectId: portalProjectIdProp ?? undefined },
+        });
+        pullFailed = !!fallback.error || (fallback.data as any)?.ok === false;
+        if (!pullFailed) setSyncStatus((s) => ({ ...s, portalPullAt: Date.now() }));
+      }
     } catch (error) {
       console.error("[CanvasStudio] pull_portal_tasks failed", error);
-      pullFailed = true;
+      const fallback = await supabase.functions.invoke("backfill-from-portal", {
+        body: { source: "canvas_fallback", workspaceId, portalProjectId: portalProjectIdProp ?? undefined },
+      }).catch(() => ({ error: true } as const));
+      pullFailed = !!fallback.error;
+      if (!pullFailed) setSyncStatus((s) => ({ ...s, portalPullAt: Date.now() }));
     }
 
     const { data: freshNodes } = await supabase
