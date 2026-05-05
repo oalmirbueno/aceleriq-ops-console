@@ -508,8 +508,15 @@ function CanvasStudioInner({
         });
       });
     });
-    if (layoutUpdates.length > 0) {
-      await Promise.all(layoutUpdates.map((item) => supabase.from("canvas_nodes").update({
+    const changedLayoutUpdates = layoutUpdates.filter((item) => {
+      const current = allNodes.find((node) => node.id === item.id);
+      if (!current) return false;
+      return Math.round(Number(current.pos_x ?? 0)) !== Math.round(item.pos_x)
+        || Math.round(Number(current.pos_y ?? 0)) !== Math.round(item.pos_y)
+        || (item.parent_node_id !== undefined && current.parent_node_id !== item.parent_node_id);
+    });
+    if (changedLayoutUpdates.length > 0) {
+      await Promise.all(changedLayoutUpdates.map((item) => supabase.from("canvas_nodes").update({
         pos_x: item.pos_x,
         pos_y: item.pos_y,
         parent_node_id: item.parent_node_id,
