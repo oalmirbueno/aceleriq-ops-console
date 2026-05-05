@@ -89,8 +89,25 @@ serve(async (req) => {
       const status = n.status ?? "draft";
       const progress = progressOf(status, n.data as Record<string, unknown> | null);
       const label = STATUS_LABELS[status.toLowerCase()] ?? status;
-      const payload = {
+      // 1) garante que existe a tarefa no portal (idempotente via ops_node_id)
+      const createdPayload = {
+        event: "node_created",
+        source: "ops",
+        data: {
+          project_id: portalProjectId,
+          author_id: PORTAL_ADMIN || portalClientId,
+          node_id: n.id,
+          node_title: n.title ?? "node",
+          node_type: n.node_type ?? null,
+          status,
+          message: `Tarefa "${n.title ?? "node"}"`,
+          update_type: "task_created",
+        },
+      };
+      // 2) atualiza progresso/status
+      const updatedPayload = {
         event: "node_updated",
+        source: "ops",
         data: {
           project_id: portalProjectId,
           author_id: PORTAL_ADMIN || portalClientId,
@@ -104,8 +121,9 @@ serve(async (req) => {
         },
       };
       try {
-        const res = await fetch(PORTAL_URL, { method: "POST", headers, body: JSON.stringify(payload) });
-        if (res.ok) sent++; else skipped++;
+        const r1 = await fetch(PORTAL_URL, { method: "POST", headers, body: JSON.stringify(createdPayload) });
+        const r2 = await fetch(PORTAL_URL, { method: "POST", headers, body: JSON.stringify(updatedPayload) });
+        if (r1.ok || r2.ok) sent++; else skipped++;
       } catch { skipped++; }
     }
 

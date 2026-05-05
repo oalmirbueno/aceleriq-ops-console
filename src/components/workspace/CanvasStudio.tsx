@@ -30,7 +30,7 @@ import CanvasTemplatesDialog, { type CanvasTemplate, type NodeSnapshot, type Edg
 import ApplyPlaybookButton from "./ApplyPlaybookButton";
 import DeletableEdge from "./DeletableEdge";
 import type { EsteiraTemplate } from "./esteiraTemplates";
-import { syncNodeDeleted } from "./syncToPortalEvents";
+import { syncNodeCreated, syncNodeDeleted } from "./syncToPortalEvents";
 import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalMeta } from "./canvasOperationalMeta";
 import {
   ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH,
@@ -520,6 +520,52 @@ function CanvasStudioInner({
       .then(() => { try { sessionStorage.setItem(sessionKey, "1"); } catch {} })
       .catch(() => {});
   }, [workspaceId, loading]);
+
+  // Pull ativo: traz tarefas existentes do portal e cria nodes locais (idempotente).
+  useEffect(() => {
+    if (!workspaceId || loading) return;
+    const sessionKey = `ops:pull-tasks:${workspaceId}`;
+    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) return;
+    void supabase.functions.invoke("pull-portal-tasks", { body: { workspaceId } })
+      .then(({ data }) => {
+        try { sessionStorage.setItem(sessionKey, "1"); } catch {}
+        if (data && (data as any).created > 0) {
+          fetchDataRef.current?.();
+        }
+      })
+      .catch(() => {});
+  }, [workspaceId, loading]);
+
+  // Realtime: novos nodes (criados pelo portal ou outra sessão) aparecem ao vivo.
+  useEffect(() => {
+    if (!workspaceId) return;
+    const channel = supabase
+      .channel(`canvas-nodes-${workspaceId}`)
+      .on("postgres_changes", {
+        event: "INSERT", schema: "public", table: "canvas_nodes",
+        filter: `workspace_id=eq.${workspaceId}`,
+      }, (payload) => {
+        const row = payload.new as CanvasNodeRow;
+        setDbNodes((prev) => prev.some((n) => n.id === row.id) ? prev : [...prev, row]);
+      })
+      .on("postgres_changes", {
+        event: "UPDATE", schema: "public", table: "canvas_nodes",
+        filter: `workspace_id=eq.${workspaceId}`,
+      }, (payload) => {
+        const row = payload.new as CanvasNodeRow;
+        setDbNodes((prev) => prev.map((n) => n.id === row.id ? { ...n, ...row } : n));
+      })
+      .on("postgres_changes", {
+        event: "DELETE", schema: "public", table: "canvas_nodes",
+        filter: `workspace_id=eq.${workspaceId}`,
+      }, (payload) => {
+        const oldId = (payload.old as { id?: string }).id;
+        if (!oldId) return;
+        setDbNodes((prev) => prev.filter((n) => n.id !== oldId));
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [workspaceId]);
 
   // Auto-cria o node "client" quando o canvas vem de um workspace e ainda não tem pasta
   useEffect(() => {
@@ -1410,6 +1456,7 @@ function CanvasStudioInner({
     if (data) {
       const newRow = data as CanvasNodeRow;
       setDbNodes((prev) => [...prev, newRow]);
+      syncNodeCreated({ workspaceId, clientId, nodeId: newRow.id, nodeTitle: newRow.title, nodeType: newRow.node_type });
 
       // Auto connect from source if requested
       if (opts.sourceId) {
@@ -1625,6 +1672,8 @@ function CanvasStudioInner({
         if (error || !data) throw error ?? new Error("Falha ao criar node gerado pelo Orb.");
         createdByRef[spec.ref] = data as CanvasNodeRow;
         createdNodes.push(data as CanvasNodeRow);
+        const row = data as CanvasNodeRow;
+        syncNodeCreated({ workspaceId, clientId, nodeId: row.id, nodeTitle: row.title, nodeType: row.node_type });
       }
 
       const generatedEdges = [
@@ -1814,6 +1863,7 @@ function CanvasStudioInner({
         const row = data as CanvasNodeRow;
         createdNodes.push(row);
         createdByRef[spec.ref] = row;
+        syncNodeCreated({ workspaceId, clientId, nodeId: row.id, nodeTitle: row.title, nodeType: row.node_type });
       }
 
       const resultNode = existingResult ?? createdByRef.result;
@@ -2015,6 +2065,8 @@ function CanvasStudioInner({
         if (row) {
           refToId[tn.ref] = (row as CanvasNodeRow).id;
           newRows.push(row as CanvasNodeRow);
+          const r = row as CanvasNodeRow;
+          syncNodeCreated({ workspaceId, clientId, nodeId: r.id, nodeTitle: r.title, nodeType: r.node_type });
         }
       }
 
@@ -2079,6 +2131,9 @@ function CanvasStudioInner({
       (inserted as any[]).forEach((dbNode, i) => {
         const tmplNode = template.nodes[i] as any;
         if (tmplNode?.ref) refToId.set(tmplNode.ref, dbNode.id);
+        if (dbNode?.node_type !== "client") {
+          syncNodeCreated({ workspaceId, clientId, nodeId: dbNode.id, nodeTitle: dbNode.title, nodeType: dbNode.node_type });
+        }
       });
 
       // Create edges
@@ -2140,6 +2195,8 @@ function CanvasStudioInner({
         if (error) throw error;
         created[item.ref] = (data as CanvasNodeRow).id;
         rows.push(data as CanvasNodeRow);
+        const r = data as CanvasNodeRow;
+        syncNodeCreated({ workspaceId, clientId, nodeId: r.id, nodeTitle: r.title, nodeType: r.node_type });
       }
       const edges = [
         ["context", "engine", "contexto"], ["instruction", "engine", "regra"], ["engine", "agent", "aciona"],
