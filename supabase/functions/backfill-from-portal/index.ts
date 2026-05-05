@@ -121,16 +121,20 @@ serve(async (req) => {
 
     const milestonesByProject = new Map<string, any[]>();
     milestones.forEach(m => {
-      const l = milestonesByProject.get(m.project_id) ?? [];
+      const projectId = projectIdOf(m);
+      if (!projectId) return;
+      const l = milestonesByProject.get(projectId) ?? [];
       l.push(m);
-      milestonesByProject.set(m.project_id, l);
+      milestonesByProject.set(projectId, l);
     });
 
     const tasksByProject = new Map<string, any[]>();
     tasks.forEach(t => {
-      const l = tasksByProject.get(t.project_id) ?? [];
+      const projectId = projectIdOf(t);
+      if (!projectId) return;
+      const l = tasksByProject.get(projectId) ?? [];
       l.push(t);
-      tasksByProject.set(t.project_id, l);
+      tasksByProject.set(projectId, l);
     });
 
     const updatesByProject = new Map<string, any[]>();
