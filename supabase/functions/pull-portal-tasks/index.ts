@@ -47,11 +47,23 @@ function sortByPosition<T extends Record<string, any>>(items: T[]) {
 }
 
 function milestoneIdOf(task: Record<string, any>) {
-  return firstString(task.milestone_id, task.portal_milestone_id, task.stage_id, task.phase_id, task.column_id, task.milestone?.id);
+  return firstString(task.milestone_id, task.portal_milestone_id, task.folder_id, task.portal_folder_id, task.stage_id, task.phase_id, task.column_id, task.milestone?.id, task.folder?.id);
 }
 
 function milestoneTitleOf(milestone: Record<string, any> | undefined, task: Record<string, any>, fallback: string) {
-  return firstString(milestone?.title, milestone?.name, task.milestone_title, task.milestone_name, task.stage_title, task.phase_title, task.column_title, task.milestone?.title, fallback);
+  return firstString(milestone?.title, milestone?.name, milestone?.folder_name, task.milestone_title, task.milestone_name, task.folder_title, task.folder_name, task.stage_title, task.phase_title, task.column_title, task.milestone?.title, task.folder?.title, task.folder?.name, fallback);
+}
+
+function projectIdOfTask(task: Record<string, any>) {
+  return firstString(task.project_id, task.portal_project_id, task.workspace_id, task.project?.id, task.milestone?.project_id, task.folder?.project_id);
+}
+
+function projectIdOfMilestone(milestone: Record<string, any>) {
+  return firstString(milestone.project_id, milestone.portal_project_id, milestone.workspace_id, milestone.project?.id, milestone.folder?.project_id);
+}
+
+function milestoneKeyOf(record: Record<string, any>, fallback: string) {
+  return firstString(record.id, record.milestone_id, record.folder_id, record.portal_folder_id, record.key, record.slug, record.title, record.name, fallback);
 }
 
 serve(async (req) => {
