@@ -1352,6 +1352,7 @@ function CanvasStudioInner({
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
   const expandEngineHubRef = useRef<((engineNodeId: string) => void | Promise<void>) | null>(null);
   const restoredScopesRef = useRef<Set<string>>(new Set());
+  const focusedMilestoneViewportRef = useRef<string | null>(null);
   const draggingNodesRef = useRef<Set<string>>(new Set());
   const saveTimerRef = useRef<number | null>(null);
 
@@ -1386,22 +1387,29 @@ function CanvasStudioInner({
     const inst = rfInstanceRef.current;
     if (!inst) return;
     if (selectedMilestoneId) {
-      // Foco suave no milestone selecionado, mantendo animação curta
+      if (rfNodes.length === 0) return;
+      const visibleNodeKey = rfNodes.map((node) => node.id).sort().join("|");
+      const focusKey = `${viewportScope}:${selectedMilestoneId}:${visibleNodeKey}`;
+      if (focusedMilestoneViewportRef.current === focusKey) return;
+      focusedMilestoneViewportRef.current = focusKey;
+      // O milestone/pasta fica oculto no canvas; focar nele deslocava a tela para vazio.
+      // Foca somente os nodes realmente renderizados daquele milestone.
       inst.fitView({
-        padding: 0.25,
+        padding: 0.32,
         duration: 220,
-        maxZoom: 1.1,
+        maxZoom: 1.05,
         minZoom: 0.5,
-        nodes: [{ id: selectedMilestoneId }],
+        nodes: rfNodes.map((node) => ({ id: node.id })),
       });
       return;
     }
+    focusedMilestoneViewportRef.current = null;
     if (restoredScopesRef.current.has(viewportScope)) return;
     const saved = readSavedViewport(viewportScope);
     if (saved) inst.setViewport(saved, { duration: 200 });
     else inst.fitView({ padding: 0.4, duration: 200, maxZoom: 1 });
     restoredScopesRef.current.add(viewportScope);
-  }, [viewportScope, readSavedViewport, selectedMilestoneId]);
+  }, [viewportScope, readSavedViewport, selectedMilestoneId, rfNodes]);
 
   // Persiste com debounce no fim de cada pan/zoom
   const handleMoveEnd = useCallback((_e: unknown, vp: Viewport) => {

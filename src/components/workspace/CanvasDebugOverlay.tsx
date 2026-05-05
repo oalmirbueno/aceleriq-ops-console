@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { forwardRef, useEffect, useState } from "react";
 import { Bug, X, Copy, Check } from "lucide-react";
 import { setCanvasDebug } from "@/lib/canvasDebug";
 
@@ -164,15 +164,18 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Row({ k, v, highlight }: { k: string; v: string | number | null | undefined; highlight?: "warn" | "error" }) {
+const Row = forwardRef<HTMLDivElement, { k: string; v: string | number | null | undefined; highlight?: "warn" | "error" }>(function Row(
+  { k, v, highlight },
+  ref,
+) {
   const color = highlight === "error" ? "text-red-400" : highlight === "warn" ? "text-amber-400" : "text-foreground";
   return (
-    <div className="flex items-baseline justify-between gap-3">
+    <div ref={ref} className="flex items-baseline justify-between gap-3">
       <span className="text-muted-foreground truncate">{k}</span>
       <span className={`${color} font-semibold tabular-nums`}>{String(v ?? "—")}</span>
     </div>
   );
-}
+});
 
 function shortId(id?: string | null) {
   if (!id) return "—";
