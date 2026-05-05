@@ -584,34 +584,7 @@ function CanvasStudioInner({
   // Mantém refs estáveis sincronizados
   useEffect(() => { fetchDataRef.current = fetchData; }, [fetchData]);
 
-  // Backfill: ao abrir o canvas, sincroniza nodes existentes com o portal (1x por sessão por workspace).
-  useEffect(() => {
-    if (!workspaceId || loading) return;
-    const sessionKey = `ops:backfill-portal:v2:${workspaceId}`;
-    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) return;
-    void syncPortalNow()
-      .then(() => { try { sessionStorage.setItem(sessionKey, "1"); } catch {} })
-      .catch((error) => console.error("[CanvasStudio] syncPortalNow failed", error));
-  }, [workspaceId, loading, syncPortalNow]);
-
-  // Pull ativo: traz tarefas existentes do portal e cria nodes locais (idempotente).
-  useEffect(() => {
-    if (!workspaceId || loading) return;
-    const sessionKey = `ops:pull-tasks:v2:${workspaceId}`;
-    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) return;
-    void fetch("https://gicbrgagstyvbaaumprj.supabase.co/functions/v1/backfill-tasks-to-ops", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source: "ops_canvas_auto_pull" }),
-    })
-      .then(async (response) => {
-        const text = await response.text();
-        if (!response.ok) throw new Error(text || `Portal backfill ${response.status}`);
-        try { sessionStorage.setItem(sessionKey, "1"); } catch {}
-        fetchDataRef.current?.();
-      })
-      .catch((error) => console.error("[CanvasStudio] portal backfill-tasks-to-ops failed", error));
-  }, [workspaceId, loading]);
+  // Sync Portal fica manual pelo botão para evitar timeout/loading infinito ao abrir canvas.
 
   // Realtime: novos nodes (criados pelo portal ou outra sessão) aparecem ao vivo.
   useEffect(() => {
