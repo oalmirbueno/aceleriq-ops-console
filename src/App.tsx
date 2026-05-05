@@ -15,6 +15,7 @@ import WorkspacesPage from "@/pages/WorkspacesPage";
 import WorkspaceDetailPage from "@/pages/WorkspaceDetailPage";
 import CanvasPage from "@/pages/CanvasPage";
 import CanvasFullscreenPage from "@/pages/CanvasFullscreenPage";
+import ProjectCanvasPage from "@/pages/ProjectCanvasPage";
 import SettingsPage from "@/pages/SettingsPage";
 import AiManagementPage from "@/pages/AiManagementPage";
 import AdminRoute from "@/components/AdminRoute";
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/login" element={<LoginPage />} />
             <Route path="/briefing/:token" element={<ClientBriefingPage />} />
             <Route path="/ops/canvas/open" element={<ProtectedRoute><CanvasFullscreenPage /></ProtectedRoute>} />
+            <Route path="/ops/projects/:portalProjectId" element={<ProtectedRoute><ProjectCanvasPage /></ProtectedRoute>} />
             <Route path="/" element={<Navigate to="/ops" replace />} />
             <Route path="/ops" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route index element={<DashboardPage />} />
