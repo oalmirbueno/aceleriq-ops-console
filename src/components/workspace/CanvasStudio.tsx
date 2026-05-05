@@ -1364,13 +1364,20 @@ function CanvasStudioInner({
     const inst = rfInstanceRef.current;
     if (!inst) return;
     if (selectedMilestoneId) {
-      inst.fitView({ padding: 0.12, duration: 300 });
+      // Foco suave no milestone selecionado, mantendo animação curta
+      inst.fitView({
+        padding: 0.25,
+        duration: 220,
+        maxZoom: 1.1,
+        minZoom: 0.5,
+        nodes: [{ id: selectedMilestoneId }],
+      });
       return;
     }
     if (restoredScopesRef.current.has(viewportScope)) return;
     const saved = readSavedViewport(viewportScope);
-    if (saved) inst.setViewport(saved, { duration: 250 });
-    else inst.fitView({ padding: 0.4, duration: 250 });
+    if (saved) inst.setViewport(saved, { duration: 200 });
+    else inst.fitView({ padding: 0.4, duration: 200, maxZoom: 1 });
     restoredScopesRef.current.add(viewportScope);
   }, [viewportScope, readSavedViewport, selectedMilestoneId]);
 
