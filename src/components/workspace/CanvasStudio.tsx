@@ -514,7 +514,7 @@ function CanvasStudioInner({
   // Backfill: ao abrir o canvas, sincroniza nodes existentes com o portal (1x por sessão por workspace).
   useEffect(() => {
     if (!workspaceId || loading) return;
-    const sessionKey = `ops:backfill-portal:${workspaceId}`;
+    const sessionKey = `ops:backfill-portal:v2:${workspaceId}`;
     if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) return;
     void supabase.functions.invoke("backfill-nodes-to-portal", { body: { workspaceId } })
       .then(({ data, error }) => {
@@ -530,7 +530,7 @@ function CanvasStudioInner({
   // Pull ativo: traz tarefas existentes do portal e cria nodes locais (idempotente).
   useEffect(() => {
     if (!workspaceId || loading) return;
-    const sessionKey = `ops:pull-tasks:${workspaceId}`;
+    const sessionKey = `ops:pull-tasks:v2:${workspaceId}`;
     if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) return;
     void supabase.functions.invoke("pull-portal-tasks", { body: { workspaceId } })
       .then(({ data, error }) => {
