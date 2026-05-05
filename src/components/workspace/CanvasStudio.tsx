@@ -71,6 +71,18 @@ interface Props {
   initialStatusFilter?: string | null;
 }
 
+function FordismoLaneNode({ data }: NodeProps) {
+  const d = data as { title?: string; total?: number; done?: number };
+  return (
+    <div className="h-full w-full rounded-lg border border-border/70 bg-card/45 backdrop-blur-sm shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between border-b border-border/60 bg-background/70 px-3 py-2">
+        <span className="text-[11px] font-semibold uppercase text-foreground truncate">{d.title}</span>
+        <span className="text-[10px] text-muted-foreground tabular-nums">{d.done ?? 0}/{d.total ?? 0}</span>
+      </div>
+    </div>
+  );
+}
+
 const nodeTypes = {
   projectCard: ProjectNodeCard,
   canvasGroup: CanvasGroupNode,
