@@ -441,8 +441,8 @@ function CanvasStudioInner({
     let pulled = 0;
     let pullFailed = false;
     try {
-      const { data, error } = await withTimeout(supabase.functions.invoke("sync-to-portal", {
-        body: { event: "pull_portal_tasks", workspaceId, clientId, limit: 500 },
+      const { data, error } = await withTimeout(supabase.functions.invoke("pull-portal-tasks", {
+        body: { workspaceId },
       }), 12000, "Portal→Ops");
       pulled = Number(((data as any)?.created ?? 0) + ((data as any)?.updated ?? 0));
       pullFailed = !!error || (data as any)?.ok === false;
@@ -705,8 +705,10 @@ function CanvasStudioInner({
   /* Project nodes visible based on active tab */
   const scopedProjectNodes = useMemo(() => {
     if (activeClientId === null) return projectNodes;
-    return projectNodes.filter((n) => n.parent_node_id === activeClientId);
-  }, [projectNodes, activeClientId]);
+    const activeGroup = clientGroups.find((group) => group.id === activeClientId);
+    const linkedClientId = activeGroup?.linked_entity_id ?? activeGroup?.client_id ?? null;
+    return projectNodes.filter((n) => n.parent_node_id === activeClientId || (!n.parent_node_id && linkedClientId && n.client_id === linkedClientId));
+  }, [projectNodes, activeClientId, clientGroups]);
 
   type QuickAddState = { open: boolean; sourceId: string | null; dir: "right" | "bottom" | null };
   const [quickAddState, setQuickAddState] = useState<QuickAddState>({ open: false, sourceId: null, dir: null });
