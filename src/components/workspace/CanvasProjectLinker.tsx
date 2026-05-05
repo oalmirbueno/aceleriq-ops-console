@@ -65,10 +65,13 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
       setPortalProjectId(ppid);
       setPortalClientId(pcid);
 
-      const { data, error: fnErr } = await supabase.functions.invoke("portal-proxy", {
-        body: { path: "ops-projects-list" },
+      const { data, error: fnErr } = await supabase.functions.invoke("sync-to-portal", {
+        body: { event: "list_portal_projects", workspaceId, clientId },
       });
       if (fnErr) throw fnErr;
+      if ((data as any)?.ok === false) {
+        throw new Error((data as any)?.error ?? "Falha ao listar projetos");
+      }
       const list = ((data as any)?.projects ?? []) as PortalProject[];
       setProjects(list);
     } catch (err) {
@@ -159,17 +162,16 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 max-h-[60vh] overflow-y-auto">
         <DropdownMenuLabel className="text-xs">
-          Projetos deste cliente ({filtered.length})
+          {portalClientId
+            ? `Projetos deste cliente (${filtered.length})`
+            : `Todos os projetos do portal (${filtered.length})`}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {!portalClientId ? (
+        {filtered.length === 0 ? (
           <div className="px-3 py-3 text-xs text-muted-foreground">
-            Cliente ainda não vinculado ao portal. Vincule o cliente primeiro
-            para listar os projetos dele.
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="px-3 py-3 text-xs text-muted-foreground">
-            Nenhum projeto deste cliente no portal.
+            {portalClientId
+              ? "Nenhum projeto deste cliente no portal."
+              : "Nenhum projeto encontrado no portal."}
           </div>
         ) : (
           filtered.map((p) => {
@@ -191,6 +193,14 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
               </DropdownMenuItem>
             );
           })
+        )}
+        {!portalClientId && filtered.length > 0 && (
+          <>
+            <DropdownMenuSeparator />
+            <div className="px-3 py-2 text-[10px] text-muted-foreground">
+              Cliente sem vínculo no portal — selecione qualquer projeto para vincular agora.
+            </div>
+          </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

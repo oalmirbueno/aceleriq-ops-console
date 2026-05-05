@@ -112,6 +112,20 @@ serve(async (req) => {
       limit?: number;
     };
 
+    // ── Listagem de projetos do portal (não exige vínculo de cliente) ─────
+    if (String(body.event ?? "").trim().toLowerCase() === "list_portal_projects") {
+      if (!PORTAL_SECRET) return json({ ok: false, error: "PORTAL_WEBHOOK_SECRET not configured" }, 500);
+      const res = await fetch(`${PORTAL_BASE}/ops-projects-list`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-webhook-secret": PORTAL_SECRET },
+        body: JSON.stringify({}),
+      });
+      const raw = await res.text();
+      if (!res.ok) return json({ ok: false, error: `portal ops-projects-list ${res.status}`, raw: raw.slice(0, 300) }, 502);
+      let parsed: any; try { parsed = JSON.parse(raw); } catch { parsed = { projects: [] }; }
+      return json({ ok: true, projects: parsed.projects ?? [] });
+    }
+
     // ── Busca IDs do portal vinculados ao workspace/client ──────────────
     const { data: ws } = await db
       .from("workspaces")
