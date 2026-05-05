@@ -470,7 +470,7 @@ serve(async (req) => {
 
       if (!ws) {
         const clientName = firstString(context.client_full_name, data.client_name) || "Cliente do Portal";
-        const ensured = await ensureWorkspace(supabase, opsClientId, clientName, firstString(data.client_id, data.user_id));
+        const ensured = await ensureWorkspace(supabase, opsClientId, clientName, firstString(data.client_id, data.user_id), "ai_first", portalProjectId);
         ws = { id: ensured.workspaceId, client_id: opsClientId };
       }
 
