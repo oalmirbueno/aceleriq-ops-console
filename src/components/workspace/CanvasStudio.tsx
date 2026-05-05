@@ -70,6 +70,13 @@ interface Props {
   onToggleFullscreen: () => void;
   onTimelineRefresh?: () => Promise<void> | void;
   initialStatusFilter?: string | null;
+  /**
+   * Quando definido, o canvas é restrito a este projeto do Portal: somente o
+   * project_group com `data.portal_project_id === portalProjectId` (e seus
+   * descendentes — milestones, tasks) é renderizado. Garante que cada projeto
+   * abre seu próprio canvas, mesmo que o workspace tenha múltiplos projetos.
+   */
+  portalProjectId?: string | null;
 }
 
 function FordismoLaneNode({ data }: NodeProps) {
