@@ -177,22 +177,25 @@ serve(async (req) => {
       const pid = firstString(p.id, p.project_id, p.uuid);
       if (pid) projectById.set(pid, p);
     }
-    const linkedProject = activePortalProjectId ? projectById.get(activePortalProjectId) : undefined;
-    const linkedClient = firstString(linkedProject?.client_id, linkedProject?.profile_id, linkedProject?.customer_id, activePortalClientId);
+    const targetPortalProjectIds = new Set<string>();
+    if (requestedPortalProjectId) targetPortalProjectIds.add(requestedPortalProjectId);
+    else if (activePortalProjectId) targetPortalProjectIds.add(activePortalProjectId);
 
-    const clientPortalProjectIds = new Set<string>();
-    if (activePortalProjectId) clientPortalProjectIds.add(activePortalProjectId);
-    if (requestedPortalProjectId) clientPortalProjectIds.add(requestedPortalProjectId);
-    for (const p of portalProjects) {
-      const pid = firstString(p.id, p.project_id, p.uuid);
-      const pclient = firstString(p.client_id, p.profile_id, p.customer_id, p.user_id, p.client?.id, p.profile?.id);
-      if (pid && pclient && linkedClient && pclient === linkedClient) clientPortalProjectIds.add(pid);
+    // Fallback seguro: só puxa por cliente quando o workspace ainda não tem
+    // portal_project_id. Workspace já vinculado = um projeto, sem misturar
+    // outros projetos do mesmo cliente e sem duplicar grupos no canvas.
+    if (targetPortalProjectIds.size === 0 && activePortalClientId) {
+      for (const p of portalProjects) {
+        const pid = firstString(p.id, p.project_id, p.uuid);
+        const pclient = firstString(p.client_id, p.profile_id, p.customer_id, p.user_id, p.client?.id, p.profile?.id);
+        if (pid && pclient === activePortalClientId) targetPortalProjectIds.add(pid);
+      }
     }
-    if (clientPortalProjectIds.size === 0) return json({ ok: false, skipped: true, reason: "no portal projects found for workspace/client" });
+    if (targetPortalProjectIds.size === 0) return json({ ok: false, skipped: true, reason: "no portal project found for workspace" });
 
     const tasks = sortByPosition(allTasks.filter((t) => {
       const pid = projectIdOfTask(t);
-      return pid ? clientPortalProjectIds.has(pid) : false;
+      return pid ? targetPortalProjectIds.has(pid) : false;
     }));
 
     const milestoneById = new Map<string, Record<string, any>>();
