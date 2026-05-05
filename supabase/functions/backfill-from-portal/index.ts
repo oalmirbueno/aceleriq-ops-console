@@ -407,6 +407,18 @@ serve(async (req) => {
               stats.workspaces_created++;
             }
 
+            const canvasSync = await materializeProjectCanvas(ops, {
+              workspaceId: wsId,
+              opsClientId,
+              clientName: profile.full_name || profile.company_name || "Cliente",
+              project: proj,
+              milestones,
+              tasks,
+            });
+            stats.canvas_projects_synced += canvasSync.projects;
+            stats.canvas_milestones_synced += canvasSync.milestones;
+            stats.canvas_tasks_synced += canvasSync.tasks;
+
             // ── Sync milestones → timeline_events ──
             for (const ms of (milestonesByProject.get(proj.id) ?? [])) {
               const { data: ex } = await ops.from("timeline_events")
