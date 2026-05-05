@@ -23,7 +23,6 @@ export default function ProjectCanvasPage() {
     projectTitle: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pulling, setPulling] = useState(false);
 
   useEffect(() => {
     if (!portalProjectId) return;
@@ -84,10 +83,9 @@ export default function ProjectCanvasPage() {
   // tudo atualizado depois.
   useEffect(() => {
     if (!resolved?.workspaceId || !portalProjectId) return;
-    setPulling(true);
     supabase.functions.invoke("pull-portal-tasks", {
       body: { workspaceId: resolved.workspaceId, portalProjectId },
-    }).catch(() => {/* silencioso */}).finally(() => setPulling(false));
+    }).catch(() => {/* silencioso */});
   }, [resolved?.workspaceId, portalProjectId]);
 
   const title = useMemo(() => resolved?.projectTitle ?? "Projeto", [resolved]);
