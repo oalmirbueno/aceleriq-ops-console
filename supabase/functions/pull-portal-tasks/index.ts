@@ -415,8 +415,27 @@ serve(async (req) => {
       }
     }
 
+    await logSync({
+      direction: "portal_to_ops",
+      event: "pull_portal_tasks",
+      status: "ok",
+      workspaceId,
+      clientId: (ws as any)?.client_id ?? null,
+      portalProjectId: ws.portal_project_id ?? null,
+      durationMs: stopwatch(),
+      message: `pulled ${tasks.length} tasks (created=${created}, updated=${updated})`,
+      payload: { total: tasks.length, created, updated, linked, projects: projectGroupCache.size, milestones: milestoneGroupCache.size },
+      source: "ops",
+    });
     return json({ ok: true, total: tasks.length, created, updated, linked, projects: projectGroupCache.size, milestones: milestoneGroupCache.size });
   } catch (err) {
+    await logSync({
+      direction: "portal_to_ops",
+      event: "pull_portal_tasks",
+      status: "error",
+      message: err instanceof Error ? err.message : "internal error",
+      source: "ops",
+    });
     return json({ error: err instanceof Error ? err.message : "internal error" }, 500);
   }
 });
