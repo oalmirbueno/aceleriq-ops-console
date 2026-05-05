@@ -707,7 +707,23 @@ function CanvasStudioInner({
     if (activeClientId === null) return projectNodes;
     const activeGroup = clientGroups.find((group) => group.id === activeClientId);
     const linkedClientId = activeGroup?.linked_entity_id ?? activeGroup?.client_id ?? null;
-    return projectNodes.filter((n) => n.parent_node_id === activeClientId || (!n.parent_node_id && linkedClientId && n.client_id === linkedClientId));
+    // Inclui descendentes (project_group → tasks → ...) recursivamente.
+    const allowed = new Set<string>([activeClientId]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const n of projectNodes) {
+        if (!allowed.has(n.id) && n.parent_node_id && allowed.has(n.parent_node_id)) {
+          allowed.add(n.id);
+          changed = true;
+        }
+      }
+    }
+    return projectNodes.filter(
+      (n) =>
+        allowed.has(n.id) ||
+        (!n.parent_node_id && linkedClientId && n.client_id === linkedClientId),
+    );
   }, [projectNodes, activeClientId, clientGroups]);
 
   type QuickAddState = { open: boolean; sourceId: string | null; dir: "right" | "bottom" | null };
