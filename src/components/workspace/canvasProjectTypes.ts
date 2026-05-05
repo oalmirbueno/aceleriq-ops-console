@@ -158,6 +158,7 @@ const KIND_TO_FAMILY: Record<ProjectNodeKind, NodeFamily> = {
   crm: "growth", metrica: "proof",
   before_after: "proof", case: "proof",
   ai_orb: "tech", chat_node: "tech",
+  project_group: "structure", milestone_group: "structure",
 };
 
 export function getNodeFamily(kind: string): NodeFamily {
