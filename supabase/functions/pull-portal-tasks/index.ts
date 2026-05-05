@@ -85,7 +85,7 @@ serve(async (req) => {
 
     const body = (await req.json().catch(() => ({}))) as { workspaceId?: string; portalProjectId?: string };
     const workspaceId = body.workspaceId;
-    const requestedPortalProjectId = body.portalProjectId ?? null;
+    const requestedPortalProjectId = firstString(body.portalProjectId) || null;
     if (!workspaceId) return json({ error: "workspaceId required" }, 400);
 
     const db = createClient(SUPABASE_URL, SERVICE_KEY);
@@ -95,13 +95,19 @@ serve(async (req) => {
       .eq("id", workspaceId)
       .single();
     if (!ws) return json({ error: "workspace not found" }, 404);
+    let activePortalProjectId = firstString((ws as any).portal_project_id);
+    const activePortalClientId = firstString((ws.clients as any)?.portal_client_id);
+
     // Auto-vincula workspace ao portal_project_id quando o caller informa
-    // (fluxo do canvas /ops/projects/:portalProjectId).
-    if (!ws.portal_project_id && requestedPortalProjectId) {
+    // (fluxo do canvas /ops/projects/:portalProjectId). Quando o workspace
+    // é o hub do cliente e não um projeto específico, usamos portal_client_id
+    // para puxar TODOS os projetos desse cliente.
+    if (!activePortalProjectId && requestedPortalProjectId) {
       await db.from("workspaces").update({ portal_project_id: requestedPortalProjectId, updated_at: new Date().toISOString() }).eq("id", workspaceId);
       ws = { ...ws, portal_project_id: requestedPortalProjectId } as typeof ws;
+      activePortalProjectId = requestedPortalProjectId;
     }
-    if (!ws.portal_project_id) return json({ ok: false, skipped: true, reason: "workspace not linked to portal" });
+    if (!activePortalProjectId && !activePortalClientId) return json({ ok: false, skipped: true, reason: "workspace/client not linked to portal" });
 
     const portalHeaders: Record<string, string> = {
       "Content-Type": "application/json",
@@ -171,15 +177,18 @@ serve(async (req) => {
       const pid = firstString(p.id, p.project_id, p.uuid);
       if (pid) projectById.set(pid, p);
     }
-    const linkedProject = projectById.get(String(ws.portal_project_id));
-    const linkedClient = firstString(linkedProject?.client_id, linkedProject?.profile_id, linkedProject?.customer_id, (ws.clients as any)?.portal_client_id);
+    const linkedProject = activePortalProjectId ? projectById.get(activePortalProjectId) : undefined;
+    const linkedClient = firstString(linkedProject?.client_id, linkedProject?.profile_id, linkedProject?.customer_id, activePortalClientId);
 
-    const clientPortalProjectIds = new Set<string>([String(ws.portal_project_id)]);
+    const clientPortalProjectIds = new Set<string>();
+    if (activePortalProjectId) clientPortalProjectIds.add(activePortalProjectId);
+    if (requestedPortalProjectId) clientPortalProjectIds.add(requestedPortalProjectId);
     for (const p of portalProjects) {
       const pid = firstString(p.id, p.project_id, p.uuid);
       const pclient = firstString(p.client_id, p.profile_id, p.customer_id, p.user_id, p.client?.id, p.profile?.id);
       if (pid && pclient && linkedClient && pclient === linkedClient) clientPortalProjectIds.add(pid);
     }
+    if (clientPortalProjectIds.size === 0) return json({ ok: false, skipped: true, reason: "no portal projects found for workspace/client" });
 
     const tasks = sortByPosition(allTasks.filter((t) => {
       const pid = projectIdOfTask(t);
