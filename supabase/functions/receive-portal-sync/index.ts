@@ -636,7 +636,7 @@ serve(async (req) => {
           // procura node existente por portal_task_id em data
           const { data: existing } = await supabase
             .from("canvas_nodes")
-            .select("id, data")
+            .select("id, data, updated_at")
             .eq("workspace_id", ws.id)
             .contains("data", { portal_task_id: portalTaskId })
             .limit(1)
@@ -644,12 +644,30 @@ serve(async (req) => {
 
           if (existing) {
             const currentData = (existing.data as Record<string, unknown>) ?? {};
+            // Consistência: descarta payload mais antigo que o estado atual.
+            // Compara updated_at do payload do portal contra o portal_updated_at
+            // gravado no node. Se o evento atual for mais velho, ignora — evita
+            // que UPDATE atrasado sobrescreva um status mais novo.
+            const incomingTs = Date.parse(firstString(data.updated_at, data.modified_at) || "") || 0;
+            const lastPortalTs = Date.parse(String(currentData.portal_updated_at ?? "")) || 0;
+            if (incomingTs && lastPortalTs && incomingTs < lastPortalTs) {
+              return json({ ok: true, skipped: "stale_portal_event", portalTaskId });
+            }
             await supabase.from("canvas_nodes").update({
               title,
               status: opsStatus,
               parent_node_id: milestoneGroupId,
               updated_at: new Date().toISOString(),
-              data: compactRecord({ ...currentData, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: portalMilestoneId ?? undefined, milestone_key: milestoneKey, milestone_title: milestoneTitle, from_portal: true }),
+              data: compactRecord({
+                ...currentData,
+                portal_task_id: portalTaskId,
+                portal_project_id: projectId,
+                portal_milestone_id: portalMilestoneId ?? undefined,
+                milestone_key: milestoneKey,
+                milestone_title: milestoneTitle,
+                from_portal: true,
+                portal_updated_at: incomingTs ? new Date(incomingTs).toISOString() : new Date().toISOString(),
+              }),
             }).eq("id", existing.id);
           } else {
             // posição: empilha verticalmente abaixo do canvas (operador arrasta depois)
