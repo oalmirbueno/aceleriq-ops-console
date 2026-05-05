@@ -547,7 +547,7 @@ function CanvasStudioInner({
         if (!portalProjectId) continue;
         projectProgress.set(portalProjectId, [...(projectProgress.get(portalProjectId) ?? []), pct]);
         const gdata = (g.data as Record<string, unknown> | null) ?? {};
-        await supabase.from("canvas_nodes").update({ data: { ...gdata, portal_progress: pct }, updated_at: new Date().toISOString() }).eq("id", g.id).catch(() => {});
+        await supabase.from("canvas_nodes").update({ data: { ...gdata, portal_progress: pct }, updated_at: new Date().toISOString() }).eq("id", g.id);
       }
 
       const projectAverages: number[] = [];
