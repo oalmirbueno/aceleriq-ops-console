@@ -74,7 +74,7 @@ Regras: objetivos SMART; quick wins nos primeiros 30 dias; plano em sprints 0-30
     fallbackNodes: [
       { ref: "okr", kind: "objetivo", stage: "entrada", title: "OKRs operacionais", description: "Objetivos SMART e resultados-chave que orientam a operação." },
       { ref: "plan", kind: "documento", stage: "planejamento", title: "Plano Operacional 90 dias", description: "Roadmap dividido em fundação, construção e ativação." },
-      { ref: "sprint1", kind: "checklist", stage: "planejamento", title: "Sprint 1 — Fundação", description: "Quick wins e dependências críticas dos primeiros 30 dias." },
+      { ref: "sprint1", kind: "instrucao", stage: "planejamento", title: "Sprint 1 — Fundação", description: "Quick wins e dependências críticas dos primeiros 30 dias." },
     ],
     fallbackEdges: [{ fromRef: "okr", toRef: "plan", label: "orienta" }, { fromRef: "plan", toRef: "sprint1", label: "executa" }],
   },
