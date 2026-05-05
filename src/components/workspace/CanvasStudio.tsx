@@ -3314,6 +3314,79 @@ function CanvasStudioInner({
     cases: scopedProjectNodes.filter((node) => nodeKindOf(node) === "case").length,
   }), [scopedProjectNodes]);
 
+  // ── Diagnóstico: stats computados para o overlay e logs ──
+  const debugStats: CanvasDebugStats = useMemo(() => {
+    const folderHidden = scopedProjectNodes.filter((n) => {
+      const k = String((n.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
+      return k === "project_group" || k === "milestone_group";
+    }).length;
+    const fromPortal = projectNodes.filter((n) => {
+      const d = (n.data as Record<string, unknown> | null) ?? {};
+      return !!d.from_portal || !!d.portal_task_id;
+    }).length;
+    const manual = projectNodes.filter((n) => (n.data as Record<string, unknown> | null)?.created_from === "manual").length;
+    const aiGenerated = projectNodes.filter((n) => {
+      const d = (n.data as Record<string, unknown> | null) ?? {};
+      return d.created_from === "ai_orb" || d.generatedByAiOrb;
+    }).length;
+    const droppedByClientScope = projectNodes.length - scopedProjectNodes.length;
+    const droppedByMilestone = selectedMilestoneId
+      ? Math.max(0, scopedProjectNodes.length - visibleCanvasNodes.length - folderHidden)
+      : 0;
+    const droppedByUiFilters = !selectedMilestoneId
+      ? Math.max(0, scopedProjectNodes.length - visibleCanvasNodes.length - folderHidden)
+      : 0;
+    return {
+      loading,
+      workspaceId,
+      clientId,
+      activeClientId,
+      selectedMilestoneId,
+      portalProjectIdProp,
+      totals: {
+        dbNodes: dbNodes.length,
+        projectNodes: projectNodes.length,
+        scopedProjectNodes: scopedProjectNodes.length,
+        visibleCanvasNodes: visibleCanvasNodes.length,
+        rfNodes: rfNodes.length,
+        dbEdges: dbEdges.length,
+        scopedEdges: scopedEdges.length,
+        rfEdges: rfEdges.length,
+        clientGroups: clientGroups.length,
+      },
+      filters: {
+        search,
+        typeFilter,
+        statusFilter,
+        approvalFilter,
+        blockedFilter,
+        ownerFilter,
+      },
+      reasons: {
+        droppedByClientScope,
+        droppedByMilestone,
+        droppedByUiFilters,
+        folderNodesHidden: folderHidden,
+        fromPortal,
+        manual,
+        aiGenerated,
+      },
+      lastFetchAt,
+      lastFetchError,
+    };
+  }, [
+    loading, workspaceId, clientId, activeClientId, selectedMilestoneId, portalProjectIdProp,
+    dbNodes.length, projectNodes, scopedProjectNodes, visibleCanvasNodes.length, rfNodes.length,
+    dbEdges.length, scopedEdges.length, rfEdges.length, clientGroups.length,
+    search, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter,
+    lastFetchAt, lastFetchError,
+  ]);
+
+  // Loga sumário sempre que muda algo relevante (com debug ativo)
+  useEffect(() => {
+    dbg("filter", "pipeline", debugStats.totals, debugStats.reasons);
+  }, [debugStats]);
+
   const togglePalette = useCallback(() => setPaletteCollapsed((v) => !v), []);
   const toggleInspector = useCallback(() => setInspectorCollapsed((v) => !v), []);
   const handlePaletteAdd = useCallback((kind: ProjectNodeKind, stage: AceleraStageKey) => addProjectNode(kind, stage), [addProjectNode]);
