@@ -771,6 +771,7 @@ function CanvasStudioInner({
         const t = (n.node_type ?? "").toLowerCase();
         const k = ((n.data as Record<string, unknown> | null)?.kind as string | undefined) ?? "";
         if (["client", "ai_orb", "chat_node"].includes(t) || k === "chat_node" || k === "project_group" || k === "milestone_group") continue;
+      if (portalProjectIdProp && portalProjectForNode(n) !== portalProjectIdProp) continue;
         arr.push(n);
       }
 
@@ -803,6 +804,7 @@ function CanvasStudioInner({
 
       const projectAverages: number[] = [];
       for (const [portalProjectId, values] of projectProgress) {
+        if (portalProjectIdProp && portalProjectId !== portalProjectIdProp) continue;
         if (progressVersion < progressVersionRef.current) break; // descartado
         const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
         projectAverages.push(avg);
