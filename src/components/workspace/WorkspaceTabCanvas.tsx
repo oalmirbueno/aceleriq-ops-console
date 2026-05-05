@@ -65,7 +65,8 @@ export default function WorkspaceTabCanvas(props: Props) {
           .maybeSingle();
         const data = { ...((existingMilestone?.data as Record<string, unknown>) ?? {}), kind: "milestone_group", from_portal: true, portal_project_id: props.portalProjectId, portal_milestone_id: portalMilestoneId, milestone_key: portalMilestoneId, portal_position: index, portal_status: event.payload?.status ?? "active", stage: "producao", fallback_source: "timeline_events" };
         if (existingMilestone?.id) {
-          await supabase.from("canvas_nodes").update({ parent_node_id: projectNodeId, title, description: event.description, updated_at: now, data }).eq("id", existingMilestone.id);
+          // Não-destrutivo: só atualiza metadados de vínculo Portal; preserva título/posição definidos no canvas.
+          await supabase.from("canvas_nodes").update({ updated_at: now, data }).eq("id", existingMilestone.id);
         } else {
           await supabase.from("canvas_nodes").insert({ workspace_id: props.workspaceId, client_id: props.clientId, parent_node_id: projectNodeId, node_type: "front", title, description: event.description, status: "active", pos_x: 112 + index * 360, pos_y: 350, data });
         }
