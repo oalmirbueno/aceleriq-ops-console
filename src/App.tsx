@@ -18,6 +18,7 @@ import CanvasFullscreenPage from "@/pages/CanvasFullscreenPage";
 import ProjectCanvasPage from "@/pages/ProjectCanvasPage";
 import SettingsPage from "@/pages/SettingsPage";
 import AiManagementPage from "@/pages/AiManagementPage";
+import SyncLogsPage from "@/pages/SyncLogsPage";
 import AdminRoute from "@/components/AdminRoute";
 import NotFound from "@/pages/NotFound";
 import ClientBriefingPage from "@/pages/ClientBriefingPage";
@@ -48,6 +49,7 @@ const App = () => (
               <Route path="canvas" element={<CanvasPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="ai" element={<AdminRoute><AiManagementPage /></AdminRoute>} />
+              <Route path="sync-logs" element={<AdminRoute><SyncLogsPage /></AdminRoute>} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
