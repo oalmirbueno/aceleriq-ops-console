@@ -900,12 +900,12 @@ function CanvasStudioInner({
     const run = (pull: boolean) => {
       if (state.inFlight) return;
       state.inFlight = true;
-      void syncPortalNow({ pull, push: true, limit: 120 })
+      void syncPortalNow({ pull, push: false, limit: 120 })
         .catch((err) => console.warn("[CanvasStudio] auto portal sync failed", err))
         .finally(() => { state.inFlight = false; });
     };
     state.timer = window.setTimeout(() => run(true), 900);
-    state.interval = window.setInterval(() => run(true), 45000);
+    state.interval = window.setInterval(() => run(true), 15000);
     return () => {
       if (state.timer) window.clearTimeout(state.timer);
       if (state.interval) window.clearInterval(state.interval);
