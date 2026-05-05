@@ -52,12 +52,17 @@ function computeNodeProgress(status?: string | null, data?: Record<string, unkno
 async function sendToPortal(
   url: string,
   secret: string | undefined,
+  anonKey: string | undefined,
   event: string,
   data: Record<string, unknown>,
   source?: string,
 ): Promise<{ ok: boolean; error?: string; status?: number; body?: string }> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (secret) headers["x-webhook-secret"] = secret;
+  if (anonKey) {
+    headers.apikey = anonKey;
+    headers.Authorization = `Bearer ${anonKey}`;
+  }
 
   try {
     const res = await fetch(url, {
@@ -158,6 +163,7 @@ serve(async (req) => {
     }
     const nodeData = (nodeRow?.data ?? {}) as Record<string, unknown>;
     const nodePortalTaskId = (nodeData.portal_task_id as string | undefined) ?? body.portalTaskId ?? null;
+    const nodePortalMilestoneId = (nodeData.portal_milestone_id as string | undefined) ?? null;
 
     if (!portalClientId) {
       return json({ skipped: true, reason: "portal_client_id not set on client — link the client first" });
@@ -346,6 +352,7 @@ serve(async (req) => {
         previous_status: body.previousStatus ?? null,
         progress,
         portal_task_id: nodePortalTaskId,
+        portal_milestone_id: nodePortalMilestoneId,
       };
       // mantém event="node_updated" — quando portal atualizar o webhook, fará upsert em tasks.
       // Se portal ainda não suporta, ele simplesmente ignora.
@@ -361,6 +368,7 @@ serve(async (req) => {
         node_title: body.nodeTitle ?? node?.title ?? "node",
         node_type:  body.nodeType ?? node?.node_type ?? null,
         portal_task_id: nodePortalTaskId,
+        portal_milestone_id: nodePortalMilestoneId,
         status:     body.status ?? node?.status ?? "draft",
         progress:   body.progress ?? computeNodeProgress(node?.status, node?.data as Record<string, unknown> | null),
         message:    `Nova tarefa criada: ${body.nodeTitle ?? node?.title ?? "node"}`,
@@ -377,6 +385,7 @@ serve(async (req) => {
         message:    `Tarefa removida do canvas`,
         update_type: "task_deleted",
         portal_task_id: nodePortalTaskId,
+        portal_milestone_id: nodePortalMilestoneId,
       };
     }
 
@@ -439,7 +448,7 @@ serve(async (req) => {
     }
 
     // ── Envia ────────────────────────────────────────────────────────────
-    const result = await sendToPortal(PORTAL_URL, PORTAL_SECRET, event, data, body.source ?? "ops");
+    const result = await sendToPortal(PORTAL_URL, PORTAL_SECRET, PORTAL_ANON_KEY, event, data, body.source ?? "ops");
 
     if (!result.ok) {
       console.error("[sync-to-portal] Portal error:", result.error);
