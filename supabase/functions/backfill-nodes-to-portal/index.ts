@@ -10,7 +10,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-webhook-secret, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 function json(body: unknown, status = 200) {
@@ -123,8 +124,14 @@ serve(async (req) => {
       try {
         const r1 = await fetch(PORTAL_URL, { method: "POST", headers, body: JSON.stringify(createdPayload) });
         const r2 = await fetch(PORTAL_URL, { method: "POST", headers, body: JSON.stringify(updatedPayload) });
-        if (r1.ok || r2.ok) sent++; else skipped++;
-      } catch { skipped++; }
+        if (r1.ok || r2.ok) sent++; else {
+          console.error("[backfill-nodes-to-portal] portal rejected", { node_id: n.id, create_status: r1.status, update_status: r2.status, create_body: await r1.text(), update_body: await r2.text() });
+          skipped++;
+        }
+      } catch (err) {
+        console.error("[backfill-nodes-to-portal] portal fetch failed", err);
+        skipped++;
+      }
     }
 
     return json({ ok: true, total: list.length, sent, skipped });

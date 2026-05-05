@@ -514,26 +514,36 @@ function CanvasStudioInner({
   // Backfill: ao abrir o canvas, sincroniza nodes existentes com o portal (1x por sessão por workspace).
   useEffect(() => {
     if (!workspaceId || loading) return;
-    const sessionKey = `ops:backfill-portal:${workspaceId}`;
+    const sessionKey = `ops:backfill-portal:v2:${workspaceId}`;
     if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) return;
     void supabase.functions.invoke("backfill-nodes-to-portal", { body: { workspaceId } })
-      .then(() => { try { sessionStorage.setItem(sessionKey, "1"); } catch {} })
-      .catch(() => {});
+      .then(({ data, error }) => {
+        if (error || (data as any)?.ok === false) {
+          console.error("[CanvasStudio] backfill-nodes-to-portal failed", error ?? data);
+          return;
+        }
+        try { sessionStorage.setItem(sessionKey, "1"); } catch {}
+      })
+      .catch((error) => console.error("[CanvasStudio] backfill-nodes-to-portal failed", error));
   }, [workspaceId, loading]);
 
   // Pull ativo: traz tarefas existentes do portal e cria nodes locais (idempotente).
   useEffect(() => {
     if (!workspaceId || loading) return;
-    const sessionKey = `ops:pull-tasks:${workspaceId}`;
+    const sessionKey = `ops:pull-tasks:v2:${workspaceId}`;
     if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) return;
     void supabase.functions.invoke("pull-portal-tasks", { body: { workspaceId } })
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error || (data as any)?.ok === false) {
+          console.error("[CanvasStudio] pull-portal-tasks failed", error ?? data);
+          return;
+        }
         try { sessionStorage.setItem(sessionKey, "1"); } catch {}
-        if (data && (data as any).created > 0) {
+        if (data && ((data as any).created > 0 || (data as any).updated > 0)) {
           fetchDataRef.current?.();
         }
       })
-      .catch(() => {});
+      .catch((error) => console.error("[CanvasStudio] pull-portal-tasks failed", error));
   }, [workspaceId, loading]);
 
   // Realtime: novos nodes (criados pelo portal ou outra sessão) aparecem ao vivo.
@@ -2508,11 +2518,20 @@ function CanvasStudioInner({
             variant="outline"
             className="h-8 text-xs"
             onClick={async () => {
-              const r = await supabase.functions.invoke("backfill-nodes-to-portal", { body: { workspaceId } });
-              const res = (r.data as { sent?: number; total?: number } | null) ?? null;
-              toast({ title: "Sync com portal", description: res ? `Enviados ${res.sent ?? 0}/${res.total ?? 0} cards` : "Disparado" });
+              const [push, pull] = await Promise.all([
+                supabase.functions.invoke("backfill-nodes-to-portal", { body: { workspaceId } }),
+                supabase.functions.invoke("pull-portal-tasks", { body: { workspaceId } }),
+              ]);
+              const pushData = (push.data as { sent?: number; total?: number; error?: string } | null) ?? null;
+              const pullData = (pull.data as { created?: number; updated?: number; total?: number; error?: string } | null) ?? null;
+              if (push.error || pull.error || pushData?.error || pullData?.error) {
+                toast({ title: "Sync com portal falhou", description: push.error?.message ?? pull.error?.message ?? pushData?.error ?? pullData?.error, variant: "destructive" });
+                return;
+              }
+              if ((pullData?.created ?? 0) > 0 || (pullData?.updated ?? 0) > 0) await fetchData();
+              toast({ title: "Sync com portal", description: `Ops→Portal ${pushData?.sent ?? 0}/${pushData?.total ?? 0} · Portal→Ops ${(pullData?.created ?? 0) + (pullData?.updated ?? 0)}/${pullData?.total ?? 0}` });
             }}
-            title="Sincronizar todos os nodes existentes com o kanban do portal"
+            title="Sincronizar nodes existentes com o portal e puxar tasks do kanban"
           >
             <RefreshCw className="h-3.5 w-3.5 mr-1" />
             Sync portal

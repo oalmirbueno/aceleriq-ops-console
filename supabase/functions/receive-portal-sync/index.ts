@@ -11,7 +11,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-webhook-secret",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-webhook-secret, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -257,7 +257,9 @@ serve(async (req) => {
       : "";
     const rawType = String(body.type ?? body.table ?? inferredType);
     const type = normalizeType(rawType);
-    const data = (body.data ?? {}) as Record<string, unknown>;
+    const data = ((body.data && typeof body.data === "object")
+      ? body.data
+      : Object.fromEntries(Object.entries(body).filter(([key]) => !["event", "type", "table", "context", "source"].includes(key)))) as Record<string, unknown>;
     const context = (body.context ?? {}) as Record<string, unknown>;
     const source = String(body.source ?? "").toLowerCase();
 

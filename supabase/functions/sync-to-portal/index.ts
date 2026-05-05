@@ -19,7 +19,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-webhook-secret, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 function json(body: unknown, status = 200) {
@@ -28,13 +29,33 @@ function json(body: unknown, status = 200) {
   });
 }
 
+const COMPLETED = new Set(["done", "completed", "concluido"]);
+function computeNodeProgress(status?: string | null, data?: Record<string, unknown> | null): number {
+  const s = (status ?? "").toLowerCase();
+  if (COMPLETED.has(s)) return 100;
+  const ignore = new Set(["operationalMeta", "operational_meta", "_meta", "history"]);
+  const entries = Object.entries(data ?? {}).filter(([k]) => !ignore.has(k));
+  const total = entries.length || 1;
+  const filled = entries.filter(([, v]) => {
+    if (v == null) return false;
+    if (typeof v === "string") return v.trim().length > 0;
+    if (Array.isArray(v)) return v.length > 0;
+    if (typeof v === "object") return Object.keys(v as object).length > 0;
+    return true;
+  }).length;
+  const ratio = Math.min(filled / total, 1);
+  if (s === "draft" || s === "" || s === "not_started") return Math.round(ratio * 33);
+  if (s === "blocked" || s === "bloqueado") return Math.round(33 + ratio * 33);
+  return Math.round(33 + ratio * 33);
+}
+
 async function sendToPortal(
   url: string,
   secret: string | undefined,
   event: string,
   data: Record<string, unknown>,
   source?: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; status?: number; body?: string }> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (secret) headers["x-webhook-secret"] = secret;
 
@@ -44,11 +65,9 @@ async function sendToPortal(
       headers,
       body: JSON.stringify({ event, data, source: source ?? "ops" }),
     });
-    if (!res.ok) {
-      const text = await res.text();
-      return { ok: false, error: `HTTP ${res.status}: ${text}` };
-    }
-    return { ok: true };
+    const text = await res.text();
+    if (!res.ok) return { ok: false, status: res.status, body: text, error: `HTTP ${res.status}: ${text}` };
+    return { ok: true, status: res.status, body: text.slice(0, 500) };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "fetch failed" };
   }
@@ -99,7 +118,7 @@ serve(async (req) => {
 
     // ── Monta payload por evento ────────────────────────────────────────
 
-    let event = body.event;
+    let event = String(body.event ?? "").trim().toLowerCase();
     let data: Record<string, unknown> = {};
 
     if (event === "file_approved" && body.assetId) {
@@ -181,15 +200,21 @@ serve(async (req) => {
 
     else if (event === "node_created" && body.nodeId) {
       if (!portalProjectId) return json({ skipped: true, reason: "portal_project_id not set on workspace" });
+      const { data: node } = await db
+        .from("canvas_nodes")
+        .select("title, node_type, status, data")
+        .eq("id", body.nodeId)
+        .maybeSingle();
       data = {
         project_id: portalProjectId,
         author_id:  PORTAL_ADMIN_ID || portalClientId,
         node_id:    body.nodeId,
-        node_title: body.nodeTitle ?? "node",
-        node_type:  body.nodeType ?? null,
+        node_title: body.nodeTitle ?? node?.title ?? "node",
+        node_type:  body.nodeType ?? node?.node_type ?? null,
         portal_task_id: body.portalTaskId ?? null,
-        status:     body.status ?? null,
-        message:    `Nova tarefa criada: ${body.nodeTitle ?? "node"}`,
+        status:     body.status ?? node?.status ?? "draft",
+        progress:   body.progress ?? computeNodeProgress(node?.status, node?.data as Record<string, unknown> | null),
+        message:    `Nova tarefa criada: ${body.nodeTitle ?? node?.title ?? "node"}`,
         update_type: "task_created",
       };
     }
@@ -251,7 +276,7 @@ serve(async (req) => {
       await db.from("assets").update({ metadata: { ...m, synced_to_portal: true } }).eq("id", body.assetId);
     }
 
-    return json({ ok: true, event, portal_project_id: portalProjectId, portal_client_id: portalClientId });
+    return json({ ok: true, event, portal_project_id: portalProjectId, portal_client_id: portalClientId, portal_response: result.body });
 
   } catch (err) {
     return json({ error: err instanceof Error ? err.message : "internal error" }, 500);
