@@ -230,11 +230,14 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const rawType = String(body.type ?? "");
+    const event = String(body.event ?? "");
+    const inferredType = event.toLowerCase().startsWith("task_") || event.toLowerCase() === "delete"
+      ? "tasks"
+      : "";
+    const rawType = String(body.type ?? body.table ?? inferredType);
     const type = normalizeType(rawType);
     const data = (body.data ?? {}) as Record<string, unknown>;
     const context = (body.context ?? {}) as Record<string, unknown>;
-    const event = String(body.event ?? "");
     const source = String(body.source ?? "").toLowerCase();
 
     // Anti-loop: ignora eventos que vieram do próprio Ops (ricocheteados pelo portal).
@@ -246,7 +249,7 @@ serve(async (req) => {
       return json({ error: "type e data são obrigatórios" }, 400);
     }
 
-    if (event === "DELETE") {
+    if (event === "DELETE" && type !== "task") {
       return json({ ok: true, action: "delete_ignored", type_received: rawType });
     }
 
