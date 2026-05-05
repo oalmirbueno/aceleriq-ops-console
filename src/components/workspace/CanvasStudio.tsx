@@ -614,27 +614,61 @@ function CanvasStudioInner({
   const fetchData = useCallback(async () => {
     // Só ativa skeleton se não tem nada em tela ainda
     setLoading((prev) => prev && dbNodesRef.current.length === 0);
-    const [{ data: nodesData }, { data: edgesData }] = await Promise.all([
-      // Only fields the card/drawer actually need — cuts ~40% of payload
-      supabase.from("canvas_nodes")
-        .select("id, node_type, title, description, status, pos_x, pos_y, data, parent_node_id, linked_entity_id, linked_entity_type, workspace_id, client_id, created_at, updated_at")
-        .eq("workspace_id", workspaceId)
-        .order("created_at"),
+    // ── Fase 1: payload leve para renderizar nodes na tela rapidamente.
+    // (data jsonb e description podem ser grandes — buscamos depois em paralelo)
+    const lightSel = "id, node_type, title, status, pos_x, pos_y, parent_node_id, linked_entity_id, linked_entity_type, workspace_id, client_id, created_at, updated_at";
+    const [{ data: lightNodes }, { data: edgesData }] = await Promise.all([
+      supabase.from("canvas_nodes").select(lightSel).eq("workspace_id", workspaceId).order("created_at"),
       supabase.from("canvas_edges")
         .select("id, source_node_id, target_node_id, source_handle, target_handle, edge_type, label, workspace_id")
         .eq("workspace_id", workspaceId),
     ]);
-    const nodes = (nodesData ?? []) as CanvasNodeRow[];
+    const lightNodesArr = (lightNodes ?? []) as CanvasNodeRow[];
     const edges = (edgesData ?? []) as CanvasEdgeRecord[];
-    dbNodesRef.current = nodes;
+
+    // Mescla com `data`/`description` já em memória (cache) para não regredir cards
+    const prevById = new Map(dbNodesRef.current.map((n) => [n.id, n] as const));
+    const merged = lightNodesArr.map((n) => {
+      const prev = prevById.get(n.id);
+      return prev ? { ...prev, ...n, data: prev.data, description: prev.description } : n;
+    });
+
+    dbNodesRef.current = merged;
     dbEdgesRef.current = edges;
-    setDbNodes(nodes);
+    setDbNodes(merged);
     setDbEdges(edges);
+    setLoading(false);
+
+    // ── Fase 2 (background): enriquece com data + description, em chunks.
+    void (async () => {
+      const ids = lightNodesArr.map((n) => n.id);
+      const CHUNK = 80;
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const slice = ids.slice(i, i + CHUNK);
+        const { data: detail } = await supabase
+          .from("canvas_nodes")
+          .select("id, data, description")
+          .in("id", slice);
+        if (!detail || detail.length === 0) continue;
+        const detailMap = new Map(detail.map((d: any) => [d.id, d] as const));
+        setDbNodes((prev) => {
+          const next = prev.map((n) => {
+            const d = detailMap.get(n.id);
+            if (!d) return n;
+            return { ...n, data: d.data ?? n.data, description: d.description ?? n.description };
+          });
+          dbNodesRef.current = next;
+          return next;
+        });
+        // pequeno yield pro browser respirar
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    })();
 
     // Fetch logos for all linked clients (tolerant if column doesn't exist)
     const linkedIds = Array.from(
       new Set(
-        ((nodesData ?? []) as CanvasNodeRow[])
+        lightNodesArr
           .filter((n) => n.node_type === "client" && n.linked_entity_id)
           .map((n) => n.linked_entity_id as string),
       ),
@@ -651,15 +685,13 @@ function CanvasStudioInner({
         });
         clientLogosRef.current = map;
         setClientLogos(map);
-        cacheRef.current.set(workspaceId, { nodes, edges, logos: map });
+        cacheRef.current.set(workspaceId, { nodes: merged, edges, logos: map });
       }
     } else {
       clientLogosRef.current = {};
       setClientLogos({});
-      cacheRef.current.set(workspaceId, { nodes, edges, logos: {} });
+      cacheRef.current.set(workspaceId, { nodes: merged, edges, logos: {} });
     }
-
-    setLoading(false);
   }, [workspaceId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
