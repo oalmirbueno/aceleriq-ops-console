@@ -569,9 +569,9 @@ serve(async (req) => {
       // ── TASK: cria/atualiza/remove node correspondente no canvas ────
       if (type === "task") {
         const portalTaskId = firstString(data.id, data.task_id);
-        const portalMilestoneId = firstString(data.milestone_id, data.portal_milestone_id, data.stage_id, data.phase_id, data.column_id);
+        const portalMilestoneId = portalMilestoneIdOf(data);
         const milestoneKey = portalMilestoneId ?? `no-milestone:${portalProjectId ?? ws.id}`;
-        const milestoneTitle = firstString(data.milestone_title, data.milestone_name, data.stage_title, data.phase_title, data.column_title) ?? "Sem milestone";
+        const milestoneTitle = firstString(data.milestone_title, data.milestone_name, data.folder_title, data.folder_name, data.stage_title, data.phase_title, data.column_title) ?? "Sem milestone";
         const portalStatus = (firstString(data.status, data.kanban_status) ?? "draft").toLowerCase();
         // mapeia status do kanban → ops
         const statusMap: Record<string, string> = {
@@ -706,6 +706,7 @@ serve(async (req) => {
                 portal_task_id: portalTaskId,
                 portal_project_id: projectId,
                 portal_milestone_id: portalMilestoneId ?? undefined,
+                portal_folder_id: portalMilestoneId ?? undefined,
                 milestone_key: milestoneKey,
                 milestone_title: milestoneTitle,
                 from_portal: true,
@@ -743,7 +744,7 @@ serve(async (req) => {
               status: opsStatus,
               pos_x: 80 + (idx % 6) * 320,
               pos_y: 800 + Math.floor(idx / 6) * 220,
-              data: compactRecord({ from_portal: true, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: portalMilestoneId ?? undefined, milestone_key: milestoneKey, milestone_title: milestoneTitle, kind: "checklist", checklist: [], touched_at: null }),
+              data: compactRecord({ from_portal: true, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: portalMilestoneId ?? undefined, portal_folder_id: portalMilestoneId ?? undefined, milestone_key: milestoneKey, milestone_title: milestoneTitle, kind: "checklist", checklist: [], touched_at: null }),
             }).select("id").single();
             const created = insRes.data as { id: string } | null;
             await logSync({
