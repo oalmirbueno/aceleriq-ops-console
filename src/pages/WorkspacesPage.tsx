@@ -44,8 +44,7 @@ function progressFor(stage: string) {
 }
 
 function canvasUrl(workspace: WorkspaceHubItem) {
-  const params = new URLSearchParams({ workspaceId: workspace.id, clientId: workspace.clients?.id ?? "", clientName: workspace.clients?.name ?? workspace.name });
-  return `/ops/canvas?${params.toString()}`;
+  return `/ops/workspaces/${workspace.id}?tab=canvas`;
 }
 
 function WorkspaceMiniCard({ workspace, nodeCount, onOpen, onCanvas }: { workspace: WorkspaceHubItem; nodeCount: number; onOpen: () => void; onCanvas: () => void }) {
