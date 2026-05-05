@@ -460,7 +460,27 @@ serve(async (req) => {
     }
 
     // ── Envia ────────────────────────────────────────────────────────────
+    const stopwatch = startTimer();
     const result = await sendToPortal(PORTAL_URL, PORTAL_SECRET, PORTAL_ANON_KEY, event, data, body.source ?? "ops");
+    const elapsed = stopwatch();
+
+    await logSync({
+      direction: "ops_to_portal",
+      event,
+      status: result.ok ? "ok" : "error",
+      workspaceId: body.workspaceId,
+      clientId: body.clientId,
+      nodeId: body.nodeId ?? null,
+      portalProjectId: portalProjectId ?? null,
+      portalTaskId: nodePortalTaskId ?? body.portalTaskId ?? null,
+      portalMilestoneId: nodePortalMilestoneId,
+      httpStatus: result.status ?? null,
+      durationMs: elapsed,
+      message: result.ok ? null : result.error ?? "portal_error",
+      payload: data,
+      response: result.body ? safeJson(result.body) : null,
+      source: body.source ?? "ops",
+    });
 
     if (!result.ok) {
       console.error("[sync-to-portal] Portal error:", result.error);
