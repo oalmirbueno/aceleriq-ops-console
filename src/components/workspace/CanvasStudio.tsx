@@ -1214,16 +1214,12 @@ function CanvasStudioInner({
       if (mData.milestone_key && data.milestone_key === mData.milestone_key && data.portal_project_id === mData.portal_project_id) return true;
       return false;
     };
-    return scopedProjectNodes.filter((node) => {
+    const passesUiFilters = (node: CanvasNodeRow) => {
       // Pastinhas (project_group / milestone_group) saíram do canvas:
       // agora vivem na barra superior CanvasMilestoneTabs. Os nodes ainda
       // existem no DB para a sincronia bidirecional com o Portal.
       const folderKind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
       if (folderKind === "project_group" || folderKind === "milestone_group") return false;
-      if (selectedMilestoneId) {
-        const selected = milestoneById.get(selectedMilestoneId);
-        if (!belongsToMilestone(node, selectedMilestoneId)) return false;
-      }
       const meta = readCanvasOperationalMeta(node.data as Record<string, unknown> | null);
       if (typeFilter && nodeKindOf(node) !== typeFilter && node.node_type !== typeFilter) return false;
       if (statusFilter && mapLegacyStatus(node.status) !== statusFilter) return false;
@@ -1233,7 +1229,12 @@ function CanvasStudioInner({
       if (ownerFilter && meta.ownerName !== ownerFilter) return false;
       if (q && !node.title.toLowerCase().includes(q)) return false;
       return true;
-    });
+    };
+    if (!selectedMilestoneId) return scopedProjectNodes.filter(passesUiFilters);
+    const milestoneNodes = scopedProjectNodes.filter((node) => passesUiFilters(node) && belongsToMilestone(node, selectedMilestoneId));
+    // Fallback seguro: se o Portal ainda não gravou parent/portal_milestone_id nas tasks,
+    // não deixa o milestone abrir vazio; mostra os nodes já existentes do projeto escopado.
+    return milestoneNodes.length > 0 ? milestoneNodes : scopedProjectNodes.filter(passesUiFilters);
   }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter, selectedMilestoneId]);
 
   const scopedProjectIds = useMemo(() => new Set(scopedProjectNodes.map((n) => n.id)), [scopedProjectNodes]);
