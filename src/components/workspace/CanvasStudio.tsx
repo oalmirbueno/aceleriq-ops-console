@@ -408,6 +408,7 @@ function CanvasStudioInner({
   const dbNodesRef = useRef<CanvasNodeRow[]>([]);
   const dbEdgesRef = useRef<CanvasEdgeRecord[]>([]);
   const clientLogosRef = useRef<Record<string, string | null>>({});
+  const autoPortalSyncRef = useRef<{ inFlight: boolean; timer: number | null; interval: number | null }>({ inFlight: false, timer: null, interval: null });
 
   // Active client folder (null = "Todos")
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
@@ -697,7 +698,25 @@ function CanvasStudioInner({
   // Mantém refs estáveis sincronizados
   useEffect(() => { fetchDataRef.current = fetchData; }, [fetchData]);
 
-  // Sync Portal fica manual pelo botão para evitar timeout/loading infinito ao abrir canvas.
+  useEffect(() => {
+    if (!workspaceId || !clientId) return;
+    const state = autoPortalSyncRef.current;
+    const run = (pull: boolean) => {
+      if (state.inFlight) return;
+      state.inFlight = true;
+      void syncPortalNow({ pull, push: true, limit: 120 })
+        .catch((err) => console.warn("[CanvasStudio] auto portal sync failed", err))
+        .finally(() => { state.inFlight = false; });
+    };
+    state.timer = window.setTimeout(() => run(true), 900);
+    state.interval = window.setInterval(() => run(true), 45000);
+    return () => {
+      if (state.timer) window.clearTimeout(state.timer);
+      if (state.interval) window.clearInterval(state.interval);
+      state.timer = null;
+      state.interval = null;
+    };
+  }, [workspaceId, clientId, syncPortalNow]);
 
   // Realtime: novos nodes (criados pelo portal ou outra sessão) aparecem ao vivo.
   useEffect(() => {
