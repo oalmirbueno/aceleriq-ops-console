@@ -22,7 +22,6 @@ interface Props {
   nodes: CanvasNodeRow[];
   selectedMilestoneId: string | null;
   onSelectMilestone: (id: string | null) => void;
-  groupProgressById?: Map<string, { total: number; done: number }>;
 }
 
 function kindOf(n: CanvasNodeRow): string {
@@ -35,6 +34,37 @@ function portalOrder(n: CanvasNodeRow): number {
 }
 
 function CanvasMilestoneTabsComp({ nodes, selectedMilestoneId, onSelectMilestone, groupProgressById }: Props) {
+  // groupProgressById removed from props; compute locally so the bar stays
+  // self-contained. Real-time updates flow via the parent re-rendering with
+  // updated `nodes` (canvas_nodes realtime + portal triggers).
+  const progressById = useMemo(() => {
+    const COMPLETED = new Set(["done", "completed", "concluido", "concluída", "concluida"]);
+    const isTaskish = (n: CanvasNodeRow) => {
+      const t = (n.node_type ?? "").toLowerCase();
+      const k = kindOf(n);
+      return !["client", "ai_orb", "chat_node"].includes(t) && !["project_group", "milestone_group", "chat_node"].includes(k);
+    };
+    const map = new Map<string, { total: number; done: number }>();
+    const milestones = nodes.filter((n) => kindOf(n) === "milestone_group");
+    for (const m of milestones) {
+      const md = (m.data as Record<string, unknown> | null) ?? {};
+      const mPid = md.portal_milestone_id as string | undefined;
+      const mKey = md.milestone_key as string | undefined;
+      const mProj = md.portal_project_id as string | undefined;
+      const tasks = nodes.filter((n) => {
+        if (!isTaskish(n)) return false;
+        if (n.parent_node_id === m.id) return true;
+        const d = (n.data as Record<string, unknown> | null) ?? {};
+        if (mPid && d.portal_milestone_id === mPid) return true;
+        if (mKey && d.milestone_key === mKey && d.portal_project_id === mProj) return true;
+        return false;
+      });
+      const done = tasks.filter((t) => COMPLETED.has((t.status ?? "").toLowerCase())).length;
+      map.set(m.id, { total: tasks.length, done });
+    }
+    return map;
+  }, [nodes]);
+
   const grouped = useMemo(() => {
     const projects = nodes
       .filter((n) => kindOf(n) === "project_group")
