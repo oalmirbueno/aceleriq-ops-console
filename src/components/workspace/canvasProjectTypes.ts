@@ -66,7 +66,8 @@ export type ProjectNodeKind =
   | "crm" | "checklist" | "asset" | "metrica"
   | "before_after" | "case" | "video" | "imagem"
   | "contato" | "objetivo" | "lancamento"
-  | "ai_orb" | "chat_node";
+  | "ai_orb" | "chat_node"
+  | "project_group" | "milestone_group";
 
 export type NodeFamily =
   | "entry" | "structure" | "plan" | "build"
