@@ -652,9 +652,24 @@ serve(async (req) => {
             const incomingTs = Date.parse(firstString(data.updated_at, data.modified_at) || "") || 0;
             const lastPortalTs = Date.parse(String(currentData.portal_updated_at ?? "")) || 0;
             if (incomingTs && lastPortalTs && incomingTs < lastPortalTs) {
+              await logSync({
+                direction: "portal_to_ops",
+                event: "task_upsert",
+                status: "skipped",
+                workspaceId: ws.id,
+                clientId: ws.client_id,
+                nodeId: existing.id,
+                portalProjectId: projectId,
+                portalTaskId,
+                portalMilestoneId,
+                message: "stale_portal_event",
+                payload: { incoming_updated_at: data.updated_at, current_portal_updated_at: currentData.portal_updated_at, incoming_status: portalStatus, current_status: existing && (existing as any).status },
+                source,
+              });
               return json({ ok: true, skipped: "stale_portal_event", portalTaskId });
             }
-            await supabase.from("canvas_nodes").update({
+            const prevStatus = (existing as any)?.status ?? null;
+            const updRes = await supabase.from("canvas_nodes").update({
               title,
               status: opsStatus,
               parent_node_id: milestoneGroupId,
@@ -670,6 +685,20 @@ serve(async (req) => {
                 portal_updated_at: incomingTs ? new Date(incomingTs).toISOString() : new Date().toISOString(),
               }),
             }).eq("id", existing.id);
+            await logSync({
+              direction: "portal_to_ops",
+              event: "task_upsert",
+              status: updRes.error ? "error" : "ok",
+              workspaceId: ws.id,
+              clientId: ws.client_id,
+              nodeId: existing.id,
+              portalProjectId: projectId,
+              portalTaskId,
+              portalMilestoneId,
+              message: updRes.error ? updRes.error.message : `task_updated ${prevStatus ?? "?"}→${opsStatus}`,
+              payload: { title, status_in: portalStatus, status_out: opsStatus, milestone_key: milestoneKey, milestone_title: milestoneTitle },
+              source,
+            });
           } else {
             // posição: empilha verticalmente abaixo do canvas (operador arrasta depois)
             const { count } = await supabase
@@ -677,7 +706,7 @@ serve(async (req) => {
               .select("id", { count: "exact", head: true })
               .eq("workspace_id", ws.id);
             const idx = count ?? 0;
-            const { data: created } = await supabase.from("canvas_nodes").insert({
+            const insRes = await supabase.from("canvas_nodes").insert({
               workspace_id: ws.id,
               client_id: ws.client_id,
               parent_node_id: milestoneGroupId,
@@ -689,6 +718,21 @@ serve(async (req) => {
               pos_y: 800 + Math.floor(idx / 6) * 220,
               data: compactRecord({ from_portal: true, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: portalMilestoneId ?? undefined, milestone_key: milestoneKey, milestone_title: milestoneTitle, kind: "checklist", checklist: [], touched_at: null }),
             }).select("id").single();
+            const created = insRes.data as { id: string } | null;
+            await logSync({
+              direction: "portal_to_ops",
+              event: "task_upsert",
+              status: insRes.error ? "error" : "ok",
+              workspaceId: ws.id,
+              clientId: ws.client_id,
+              nodeId: created?.id ?? null,
+              portalProjectId: projectId,
+              portalTaskId,
+              portalMilestoneId,
+              message: insRes.error ? insRes.error.message : "task_created",
+              payload: { title, status: opsStatus, milestone_key: milestoneKey, milestone_title: milestoneTitle },
+              source,
+            });
 
             // Callback de pareamento: avisa o portal que o node foi criado, com portal_task_id.
             // Portal usa isso pra setar tasks.ops_node_id e fechar o vínculo.
