@@ -466,12 +466,16 @@ function CanvasStudioInner({
     const baseX = Number(clientRoot?.pos_x ?? 60);
     const baseY = Number(clientRoot?.pos_y ?? 0);
 
+    const portalOrder = (node: CanvasNodeRow) => {
+      const value = Number((node.data as Record<string, unknown> | null)?.portal_position ?? 9999);
+      return Number.isFinite(value) ? value : 9999;
+    };
     const projectGroups = allNodes
       .filter((node) => String((node.data as Record<string, unknown> | null)?.kind ?? "") === "project_group")
       .sort((a, b) => String(a.title).localeCompare(String(b.title)));
     const milestoneGroups = allNodes
       .filter((node) => String((node.data as Record<string, unknown> | null)?.kind ?? "") === "milestone_group")
-      .sort((a, b) => String(a.title).localeCompare(String(b.title)));
+      .sort((a, b) => portalOrder(a) - portalOrder(b) || String(a.title).localeCompare(String(b.title)));
     const layoutUpdates: Array<{ id: string; pos_x: number; pos_y: number; parent_node_id?: string | null }> = [];
     const nonGroupTask = (node: CanvasNodeRow) => {
       const type = (node.node_type ?? "").toLowerCase();
@@ -502,7 +506,7 @@ function CanvasStudioInner({
                 || (milestoneData.milestone_key && data.milestone_key === milestoneData.milestone_key)
               ));
           })
-          .sort((a, b) => String(a.title).localeCompare(String(b.title)));
+          .sort((a, b) => portalOrder(a) - portalOrder(b) || String(a.title).localeCompare(String(b.title)));
         tasks.forEach((task, taskIndex) => {
           layoutUpdates.push({ id: task.id, pos_x: milestoneX + 32, pos_y: baseY + 480 + taskIndex * 136, parent_node_id: milestone.id });
         });
