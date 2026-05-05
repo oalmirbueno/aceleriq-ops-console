@@ -451,6 +451,39 @@ function CanvasStudioInner({
       pullFailed = true;
     }
 
+    // ── Reorganização local: religa tasks órfãs aos seus project_groups
+    try {
+      const { data: groups } = await supabase
+        .from("canvas_nodes")
+        .select("id, data")
+        .eq("workspace_id", workspaceId)
+        .contains("data", { kind: "project_group" });
+      const groupByPid = new Map<string, string>();
+      (groups ?? []).forEach((g: any) => {
+        const pid = (g.data as Record<string, unknown> | null)?.portal_project_id as string | undefined;
+        if (pid) groupByPid.set(String(pid), g.id);
+      });
+      if (groupByPid.size > 0) {
+        const { data: orphans } = await supabase
+          .from("canvas_nodes")
+          .select("id, parent_node_id, data")
+          .eq("workspace_id", workspaceId)
+          .contains("data", { from_portal: true });
+        for (const node of orphans ?? []) {
+          const pid = ((node.data as Record<string, unknown> | null)?.portal_project_id as string | undefined) ?? null;
+          if (!pid) continue;
+          const target = groupByPid.get(String(pid));
+          if (target && (node as any).parent_node_id !== target && node.id !== target) {
+            await supabase.from("canvas_nodes")
+              .update({ parent_node_id: target, updated_at: new Date().toISOString() })
+              .eq("id", node.id);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[CanvasStudio] reparent portal nodes failed", err);
+    }
+
     const syncableNodes = dbNodesRef.current.filter((node) => {
       const type = (node.node_type ?? "").toLowerCase();
       const kind = ((node.data as Record<string, unknown> | null)?.kind as string | undefined ?? "").toLowerCase();
