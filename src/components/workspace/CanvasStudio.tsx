@@ -3629,7 +3629,7 @@ function CanvasStudioInner({
             )
           ) : (
             <>
-            {portalProjectIdProp && !selectedMilestoneId && (() => {
+            {portalProjectIdProp && !selectedMilestoneId && !milestoneOverlayDismissed && (() => {
               const milestones = scopedProjectNodes
                 .filter((n) => String((n.data as Record<string, unknown> | null)?.kind ?? "") === "milestone_group")
                 .sort((a, b) => {
@@ -3657,19 +3657,7 @@ function CanvasStudioInner({
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       <button
                         type="button"
-                        onClick={() => setSelectedMilestoneId(null as any)}
-                        className="hidden"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          // "Visão geral" = comportamento legado (todos os nodes)
-                          // mantemos null mas marcamos uma flag local via querystring
-                          const url = new URL(window.location.href);
-                          url.searchParams.set("milestone", "__all__");
-                          window.history.replaceState(null, "", url.toString());
-                          setSelectedMilestoneId("__all__");
-                        }}
+                        onClick={dismissMilestoneOverlay}
                         className="group flex flex-col gap-2 rounded-xl border border-border bg-card/40 hover:border-primary/40 hover:bg-card/70 transition-all p-4 text-left"
                       >
                         <div className="flex items-center gap-2">
