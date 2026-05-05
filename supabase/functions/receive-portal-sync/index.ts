@@ -619,6 +619,7 @@ serve(async (req) => {
                     nodeType: "checklist",
                     status: opsStatus,
                     portalTaskId,
+                    portalProjectId: projectId,
                     source: "ops",
                   },
                 });
