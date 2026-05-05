@@ -289,7 +289,7 @@ serve(async (req) => {
       const milestone = portalMilestoneId ? milestoneById.get(portalMilestoneId) : undefined;
       const milestoneTitle = milestoneTitleOf(milestone, t, "Sem milestone");
       const milestoneStatus = firstString(milestone?.status, t.milestone_status, t.stage_status, "active").toLowerCase();
-      const milestonePosition = Number(milestone?.position ?? milestone?.order ?? milestone?.sort_order ?? milestoneIndex ?? 0);
+      const milestonePositionRaw = Number(milestone?.position ?? milestone?.order ?? milestone?.sort_order ?? 0);
       const order = milestoneOrderByProject.get(taskProjectId) ?? [];
       if (!order.includes(milestoneKey)) order.push(milestoneKey);
       milestoneOrderByProject.set(taskProjectId, order);
@@ -305,7 +305,7 @@ serve(async (req) => {
           portalMilestoneId,
           title: milestoneTitle,
           status: milestoneStatus,
-          position: Number.isFinite(milestonePosition) ? milestonePosition : milestoneIndex,
+          position: Number.isFinite(milestonePositionRaw) ? milestonePositionRaw : milestoneIndex,
           projectIndex,
           milestoneIndex,
         });
