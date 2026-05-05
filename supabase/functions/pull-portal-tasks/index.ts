@@ -215,6 +215,7 @@ serve(async (req) => {
       portalMilestoneId: string | null;
       title: string;
       status: string;
+      position: number;
       projectIndex: number;
       milestoneIndex: number;
     }): Promise<string | null> {
@@ -243,6 +244,7 @@ serve(async (req) => {
           portal_project_id: args.portalProjectId,
           portal_milestone_id: args.portalMilestoneId ?? undefined,
           milestone_key: args.milestoneKey,
+          portal_position: args.position,
           portal_status: args.status,
           stage: "producao",
         }),
@@ -287,6 +289,7 @@ serve(async (req) => {
       const milestone = portalMilestoneId ? milestoneById.get(portalMilestoneId) : undefined;
       const milestoneTitle = milestoneTitleOf(milestone, t, "Sem milestone");
       const milestoneStatus = firstString(milestone?.status, t.milestone_status, t.stage_status, "active").toLowerCase();
+      const milestonePosition = Number(milestone?.position ?? milestone?.order ?? milestone?.sort_order ?? milestoneIndex ?? 0);
       const order = milestoneOrderByProject.get(taskProjectId) ?? [];
       if (!order.includes(milestoneKey)) order.push(milestoneKey);
       milestoneOrderByProject.set(taskProjectId, order);
@@ -302,6 +305,7 @@ serve(async (req) => {
           portalMilestoneId,
           title: milestoneTitle,
           status: milestoneStatus,
+          position: Number.isFinite(milestonePosition) ? milestonePosition : milestoneIndex,
           projectIndex,
           milestoneIndex,
         });
@@ -318,6 +322,7 @@ serve(async (req) => {
       const assignee = (t.assignee_id ?? t.assignee ?? null) as string | null;
       const checklist = Array.isArray(t.checklist) ? t.checklist : [];
       const labels = Array.isArray(t.labels) ? t.labels : [];
+      const portalPosition = Number(t.position ?? t.order ?? t.sort_order ?? t.sequence ?? idx);
       const counterKey = `${taskProjectId}:${milestoneKey}`;
       const idx = taskCounters.get(counterKey) ?? 0;
       taskCounters.set(counterKey, idx + 1);
@@ -332,6 +337,7 @@ serve(async (req) => {
         milestone_key: milestoneKey,
         milestone_title: milestoneTitle,
         portal_status: portalStatus,
+        portal_position: Number.isFinite(portalPosition) ? portalPosition : idx,
         kind: cur.kind ?? "checklist",
         checklist: checklist.length > 0 ? checklist : (cur.checklist ?? []),
         priority,
