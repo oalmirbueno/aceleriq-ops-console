@@ -387,7 +387,7 @@ serve(async (req) => {
               }).eq("id", existWs.id);
               wsId = existWs.id;
               stats.workspaces_updated++;
-            } else if (requestedWorkspaceId) {
+            } else if (requestedWorkspaceId && requestedPortalProjectId) {
               await ops.from("workspaces").update({
                 name: proj.name,
                 summary: proj.description || null,
