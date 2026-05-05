@@ -45,6 +45,7 @@ import { AI_ORBS, createAiOrbData } from "./aiOrbConstants";
 import { generatedNodePosition, validateOrbConnection } from "./aiOrbConnections";
 import { invokeAiOrbGenerate, nextOrbDataAfterGeneration, readAiOrbData } from "./aiOrbEngine";
 import type { AgentId } from "@/lib/aiAgents";
+import { materializePortalTimelineCanvas } from "@/lib/portalTimelineCanvas";
 
 // CanvasStudio é uma camada visual operacional complementar: não substitui o briefing mestre,
 // não cria nova lógica/tabela de sinais estruturados e não usa IA opaca como núcleo decisório.
@@ -560,6 +561,7 @@ function CanvasStudioInner({
         pullFailed = !!fallback.error || (fallback.data as any)?.ok === false;
         if (!pullFailed) setSyncStatus((s) => ({ ...s, portalPullAt: Date.now() }));
       }
+      await materializePortalTimelineCanvas({ workspaceId, clientId, clientName, portalProjectId: portalProjectIdProp });
     } catch (error) {
       console.error("[CanvasStudio] pull_portal_tasks failed", error);
       const fallback = await supabase.functions.invoke("backfill-from-portal", {
@@ -567,6 +569,7 @@ function CanvasStudioInner({
       }).catch(() => ({ error: true } as const));
       pullFailed = !!fallback.error;
       if (!pullFailed) setSyncStatus((s) => ({ ...s, portalPullAt: Date.now() }));
+      await materializePortalTimelineCanvas({ workspaceId, clientId, clientName, portalProjectId: portalProjectIdProp });
     }
 
     const { data: freshNodes } = await supabase

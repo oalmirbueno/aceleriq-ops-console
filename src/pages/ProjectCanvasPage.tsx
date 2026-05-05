@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import CanvasStudio from "@/components/workspace/CanvasStudio";
 import { supabase } from "@/integrations/supabase/client";
+import { materializePortalTimelineCanvas } from "@/lib/portalTimelineCanvas";
 
 /**
  * Canvas de UM projeto do Portal.
@@ -90,8 +91,14 @@ export default function ProjectCanvasPage() {
       await supabase.functions.invoke("pull-portal-tasks", {
         body: { workspaceId: resolved.workspaceId, portalProjectId },
       }).catch(() => null);
+      await materializePortalTimelineCanvas({
+        workspaceId: resolved.workspaceId,
+        clientId: resolved.clientId,
+        clientName: resolved.clientName,
+        portalProjectId,
+      }).catch(() => null);
     })();
-  }, [resolved?.workspaceId, portalProjectId]);
+  }, [resolved?.workspaceId, resolved?.clientId, resolved?.clientName, portalProjectId]);
 
   const title = useMemo(() => resolved?.projectTitle ?? "Projeto", [resolved]);
 
