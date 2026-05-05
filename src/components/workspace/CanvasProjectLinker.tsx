@@ -117,21 +117,25 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
     try {
       const [wsRes, clientRes] = await Promise.all([
         supabase.from("workspaces").select("portal_project_id").eq("id", workspaceId).maybeSingle(),
-        supabase.from("clients").select("portal_client_id").eq("id", clientId).maybeSingle(),
+        supabase.from("clients").select("id, name, company_name, portal_client_id").eq("id", clientId).maybeSingle(),
       ]);
       const ppid = (wsRes.data?.portal_project_id as string | null) ?? null;
-      const pcid = (clientRes.data?.portal_client_id as string | null) ?? null;
       setPortalProjectId(ppid);
-      setPortalClientId(pcid);
+      setClient((clientRes.data as ClientLookup | null) ?? null);
 
-      const { data, error: fnErr } = await supabase.functions.invoke("sync-to-portal", {
-        body: { event: "list_portal_projects", workspaceId, clientId },
-      });
-      if (fnErr) throw fnErr;
-      if ((data as any)?.ok === false) {
-        throw new Error((data as any)?.error ?? "Falha ao listar projetos");
+      let data: any = null;
+      try {
+        data = await callPortalProxy("ops-projects-list");
+      } catch {
+        const fallback = await supabase.functions.invoke("sync-to-portal", {
+          body: { event: "list_portal_projects", workspaceId, clientId },
+        });
+        if (fallback.error) throw fallback.error;
+        data = fallback.data;
       }
-      const list = ((data as any)?.projects ?? []) as PortalProject[];
+      if (data?.ok === false) throw new Error(data?.error ?? "Falha ao listar projetos");
+      const rawList = Array.isArray(data?.projects) ? data.projects : Array.isArray(data) ? data : [];
+      const list = rawList.map((item: Record<string, any>) => normalizePortalProject(item)).filter(Boolean) as PortalProject[];
       setProjects(list);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao carregar projetos do portal");
@@ -151,13 +155,13 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
         .eq("id", workspaceId);
       if (wsErr) throw wsErr;
 
-      // Garante portal_client_id no cliente Ops (caso ainda nao tenha)
-      if (!portalClientId && project.client_id) {
+      // Corrige/garante portal_client_id no cliente Ops a partir do projeto selecionado.
+      if (project.client_id && project.client_id !== client?.portal_client_id) {
         await supabase
           .from("clients")
           .update({ portal_client_id: project.client_id, updated_at: new Date().toISOString() })
           .eq("id", clientId);
-        setPortalClientId(project.client_id);
+        setClient((prev) => prev ? { ...prev, portal_client_id: project.client_id } : prev);
       }
 
       setPortalProjectId(project.id);
@@ -172,7 +176,7 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
     } finally {
       setSaving(false);
     }
-  }, [workspaceId, clientId, portalClientId, onLinked]);
+  }, [workspaceId, clientId, client, onLinked]);
 
   // Auto-seleciona quando ha exatamente 1 projeto disponivel e nenhum vinculo ativo
   useEffect(() => {
