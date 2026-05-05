@@ -92,6 +92,15 @@ const TASK_STATUS_TO_OPS: Record<string, string> = {
   done: "done", completed: "done", concluido: "done", concluída: "done", concluida: "done",
 };
 
+function opsStatusToPortal(status?: string | null): string {
+  const s = String(status ?? "active").toLowerCase();
+  if (["done", "completed", "concluido", "concluída", "concluida"].includes(s)) return "done";
+  if (["blocked", "bloqueado", "bloqueada"].includes(s)) return "blocked";
+  if (["in_review", "review", "revisao", "revisão"].includes(s)) return "review";
+  if (["draft", "not_started", "todo", "backlog"].includes(s)) return "todo";
+  return "doing";
+}
+
 function normalizeKindText(value: unknown) {
   return String(value ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -390,6 +399,7 @@ serve(async (req) => {
         : `Tarefa "${title}" — ${statusLabel}`;
 
       data = {
+        id: nodePortalTaskId ?? undefined,
         project_id:  portalProjectId,
         author_id:   authorId,
         client_id:   portalClientId ?? undefined,
@@ -400,6 +410,9 @@ serve(async (req) => {
         node_title:  title,
         node_type:   body.nodeType ?? null,
         status:      body.status ?? null,
+        kanban_status: opsStatusToPortal(body.status),
+        title,
+        ops_node_id: body.nodeId,
         previous_status: body.previousStatus ?? null,
         progress,
         portal_task_id: nodePortalTaskId,
@@ -417,6 +430,7 @@ serve(async (req) => {
       const node = nodeRow;
       const authorId = PORTAL_ADMIN_ID || portalClientId || undefined;
       data = {
+        id: nodePortalTaskId ?? undefined,
         project_id: portalProjectId,
         author_id:  authorId,
         client_id:  portalClientId ?? undefined,
@@ -429,6 +443,9 @@ serve(async (req) => {
         portal_folder_id: nodePortalFolderId,
         folder_id: nodePortalFolderId,
         status:     body.status ?? node?.status ?? "draft",
+        kanban_status: opsStatusToPortal(body.status ?? node?.status ?? "active"),
+        title:      body.nodeTitle ?? node?.title ?? "node",
+        ops_node_id: body.nodeId,
         progress:   body.progress ?? computeNodeProgress(node?.status, node?.data as Record<string, unknown> | null),
         message:    `Nova tarefa criada: ${body.nodeTitle ?? node?.title ?? "node"}`,
         update_type: "task_created",
