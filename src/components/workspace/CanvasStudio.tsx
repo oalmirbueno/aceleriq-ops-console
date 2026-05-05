@@ -2518,11 +2518,20 @@ function CanvasStudioInner({
             variant="outline"
             className="h-8 text-xs"
             onClick={async () => {
-              const r = await supabase.functions.invoke("backfill-nodes-to-portal", { body: { workspaceId } });
-              const res = (r.data as { sent?: number; total?: number } | null) ?? null;
-              toast({ title: "Sync com portal", description: res ? `Enviados ${res.sent ?? 0}/${res.total ?? 0} cards` : "Disparado" });
+              const [push, pull] = await Promise.all([
+                supabase.functions.invoke("backfill-nodes-to-portal", { body: { workspaceId } }),
+                supabase.functions.invoke("pull-portal-tasks", { body: { workspaceId } }),
+              ]);
+              const pushData = (push.data as { sent?: number; total?: number; error?: string } | null) ?? null;
+              const pullData = (pull.data as { created?: number; updated?: number; total?: number; error?: string } | null) ?? null;
+              if (push.error || pull.error || pushData?.error || pullData?.error) {
+                toast({ title: "Sync com portal falhou", description: push.error?.message ?? pull.error?.message ?? pushData?.error ?? pullData?.error, variant: "destructive" });
+                return;
+              }
+              if ((pullData?.created ?? 0) > 0 || (pullData?.updated ?? 0) > 0) await fetchData();
+              toast({ title: "Sync com portal", description: `Ops→Portal ${pushData?.sent ?? 0}/${pushData?.total ?? 0} · Portal→Ops ${(pullData?.created ?? 0) + (pullData?.updated ?? 0)}/${pullData?.total ?? 0}` });
             }}
-            title="Sincronizar todos os nodes existentes com o kanban do portal"
+            title="Sincronizar nodes existentes com o portal e puxar tasks do kanban"
           >
             <RefreshCw className="h-3.5 w-3.5 mr-1" />
             Sync portal
