@@ -517,8 +517,14 @@ function CanvasStudioInner({
     const sessionKey = `ops:backfill-portal:${workspaceId}`;
     if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) return;
     void supabase.functions.invoke("backfill-nodes-to-portal", { body: { workspaceId } })
-      .then(() => { try { sessionStorage.setItem(sessionKey, "1"); } catch {} })
-      .catch(() => {});
+      .then(({ data, error }) => {
+        if (error || (data as any)?.ok === false) {
+          console.error("[CanvasStudio] backfill-nodes-to-portal failed", error ?? data);
+          return;
+        }
+        try { sessionStorage.setItem(sessionKey, "1"); } catch {}
+      })
+      .catch((error) => console.error("[CanvasStudio] backfill-nodes-to-portal failed", error));
   }, [workspaceId, loading]);
 
   // Pull ativo: traz tarefas existentes do portal e cria nodes locais (idempotente).
@@ -527,13 +533,17 @@ function CanvasStudioInner({
     const sessionKey = `ops:pull-tasks:${workspaceId}`;
     if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) return;
     void supabase.functions.invoke("pull-portal-tasks", { body: { workspaceId } })
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error || (data as any)?.ok === false) {
+          console.error("[CanvasStudio] pull-portal-tasks failed", error ?? data);
+          return;
+        }
         try { sessionStorage.setItem(sessionKey, "1"); } catch {}
-        if (data && (data as any).created > 0) {
+        if (data && ((data as any).created > 0 || (data as any).updated > 0)) {
           fetchDataRef.current?.();
         }
       })
-      .catch(() => {});
+      .catch((error) => console.error("[CanvasStudio] pull-portal-tasks failed", error));
   }, [workspaceId, loading]);
 
   // Realtime: novos nodes (criados pelo portal ou outra sessão) aparecem ao vivo.
