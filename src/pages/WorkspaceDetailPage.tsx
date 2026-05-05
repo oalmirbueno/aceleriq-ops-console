@@ -5,7 +5,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ArrowLeft, CheckCircle2, RefreshCw, Sparkles, Target,
+  ArrowLeft, CheckCircle2, Sparkles, Target,
   FolderKanban, Network, Circle, Dot, MessageSquare,
 } from "lucide-react";
 import LoadingState from "@/components/LoadingState";
@@ -158,7 +158,6 @@ export default function WorkspaceDetailPage() {
   const [nodes, setNodes] = useState<NodeProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") ?? "resumo");
   const [promptLibraryOpen, setPromptLibraryOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -244,14 +243,6 @@ export default function WorkspaceDetailPage() {
   const portalProjectId = ws.portal_project_id ?? null;
   const portalClientId  = ws.clients?.portal_client_id ?? null;
 
-  const openCanvas = () => {
-    setActiveTab("canvas");
-    // mantém URL em sincronia para deep-link
-    const url = new URL(window.location.href);
-    url.searchParams.set("tab", "canvas");
-    window.history.replaceState(null, "", url.toString());
-  };
-
   // Group tabs for rendering
   const groups = TABS.reduce<Record<string, typeof TABS>>((acc, tab) => {
     if (!acc[tab.group]) acc[tab.group] = [];
@@ -325,21 +316,6 @@ export default function WorkspaceDetailPage() {
 
             {/* Right: actions */}
             <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs gap-1.5"
-                onClick={async () => {
-                  setRefreshing(true);
-                  const { data } = await supabase.from("canvas_nodes").select("id, status").eq("workspace_id", ws.id);
-                  if (data) setNodes(data as NodeProgress[]);
-                  setRefreshing(false);
-                }}
-                disabled={refreshing}
-              >
-                <RefreshCw className={cn("h-3 w-3", refreshing && "animate-spin")} />
-                Atualizar progresso
-              </Button>
               {portalClientId ? (
                 <span className="flex items-center gap-1.5 text-xs text-emerald-400 border border-emerald-400/25 bg-emerald-400/5 rounded-md px-2 py-1">
                   <CheckCircle2 className="h-3 w-3" />
@@ -616,7 +592,15 @@ export default function WorkspaceDetailPage() {
             <WorkspaceTabCase workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={load} />
           </TabsContent>
           <TabsContent value="canvas">
-            <WorkspaceTabCanvas workspaceId={ws.id} clientId={ws.client_id} clientName={clientName} onTimelineRefresh={load} initialStatusFilter={canvasStatus} />
+            <WorkspaceTabCanvas
+              workspaceId={ws.id}
+              clientId={ws.client_id}
+              clientName={clientName}
+              portalClientId={portalClientId}
+              portalProjectId={portalProjectId}
+              onTimelineRefresh={load}
+              initialStatusFilter={canvasStatus}
+            />
           </TabsContent>
         </div>
       </Tabs>
