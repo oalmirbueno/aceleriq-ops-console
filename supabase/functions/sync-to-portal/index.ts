@@ -200,13 +200,18 @@ serve(async (req) => {
     const nodePortalFolderId = (nodeData.portal_folder_id as string | undefined) ?? nodePortalMilestoneId;
     if (body.portalProjectId) portalProjectId = body.portalProjectId;
 
-    if (!portalClientId) {
+    const projectScopedEvents = new Set([
+      "node_created", "node_updated", "node_completed", "node_deleted",
+      "stage_advanced", "project_progress", "file_approved", "pull_portal_tasks",
+    ]);
+    const rawEvent = String(body.event ?? "").trim().toLowerCase();
+    if (!portalClientId && !projectScopedEvents.has(rawEvent)) {
       return json({ skipped: true, reason: "portal_client_id not set on client — link the client first" });
     }
 
     // ── Monta payload por evento ────────────────────────────────────────
 
-    let event = String(body.event ?? "").trim().toLowerCase();
+    let event = rawEvent;
     let data: Record<string, unknown> = {};
 
     if (event === "pull_portal_tasks") {
