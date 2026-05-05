@@ -504,7 +504,7 @@ serve(async (req) => {
       const validTaskIds = new Set(tasks.map((t) => firstString(t.id, t.task_id, t.uuid)).filter(Boolean));
       const validMilestoneIds = new Set(
         portalMilestones
-          .filter((m) => clientPortalProjectIds.has(projectIdOfMilestone(m) ?? ""))
+          .filter((m) => targetPortalProjectIds.has(projectIdOfMilestone(m) ?? ""))
           .map((m) => firstString(m.id, m.milestone_id, m.folder_id, m.portal_folder_id, m.uuid))
           .filter(Boolean) as string[],
       );
@@ -519,7 +519,7 @@ serve(async (req) => {
           const d = (n.data ?? {}) as Record<string, any>;
           if (!d.from_portal || !d.portal_task_id) return false;
           const pPid = String(d.portal_project_id ?? "");
-          if (pPid && !clientPortalProjectIds.has(pPid)) return false;
+          if (pPid && !targetPortalProjectIds.has(pPid)) return false;
           return !validTaskIds.has(String(d.portal_task_id));
         })
         .map((n: any) => n.id);
@@ -537,7 +537,7 @@ serve(async (req) => {
           const d = (n.data ?? {}) as Record<string, any>;
           if (d.kind !== "milestone_group" || !d.from_portal || !d.portal_milestone_id) return false;
           const pPid = String(d.portal_project_id ?? "");
-          if (pPid && !clientPortalProjectIds.has(pPid)) return false;
+          if (pPid && !targetPortalProjectIds.has(pPid)) return false;
           return !validMilestoneIds.has(String(d.portal_milestone_id));
         })
         .map((n: any) => n.id);
