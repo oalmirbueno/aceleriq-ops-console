@@ -79,7 +79,7 @@ const TASK_STATUS_TO_OPS: Record<string, string> = {
   doing: "active", in_progress: "active",
   review: "in_review",
   blocked: "blocked",
-  done: "done",
+  done: "done", completed: "done", concluido: "done", concluída: "done", concluida: "done",
 };
 
 serve(async (req) => {
@@ -89,6 +89,7 @@ serve(async (req) => {
   const SERVICE_KEY         = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const PORTAL_URL          = Deno.env.get("PORTAL_WEBHOOK_URL") ?? "https://gicbrgagstyvbaaumprj.supabase.co/functions/v1/ops-webhook";
   const PORTAL_SECRET       = Deno.env.get("PORTAL_WEBHOOK_SECRET");
+  const PORTAL_ANON_KEY     = Deno.env.get("PORTAL_ANON_KEY") ?? "";
   const PORTAL_ADMIN_ID     = Deno.env.get("PORTAL_ADMIN_USER_ID") ?? "";
 
   const db = createClient(SUPABASE_URL, SERVICE_KEY);
@@ -117,7 +118,11 @@ serve(async (req) => {
       if (!PORTAL_SECRET) return json({ ok: false, error: "PORTAL_WEBHOOK_SECRET not configured" }, 500);
       const res = await fetch(`${PORTAL_BASE}/ops-projects-list`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-webhook-secret": PORTAL_SECRET },
+        headers: {
+          "Content-Type": "application/json",
+          "x-webhook-secret": PORTAL_SECRET,
+          ...(PORTAL_ANON_KEY ? { apikey: PORTAL_ANON_KEY, Authorization: `Bearer ${PORTAL_ANON_KEY}` } : {}),
+        },
         body: JSON.stringify({}),
       });
       const raw = await res.text();
@@ -149,9 +154,24 @@ serve(async (req) => {
       if (!portalProjectId) return json({ ok: false, error: "portal_project_id not set on workspace" }, 400);
       if (!PORTAL_SECRET) return json({ ok: false, error: "PORTAL_WEBHOOK_SECRET not configured" }, 500);
 
+      const { data: clientNode } = await db
+        .from("canvas_nodes")
+        .select("id")
+        .eq("workspace_id", body.workspaceId)
+        .eq("node_type", "client")
+        .or(`linked_entity_id.eq.${body.clientId},client_id.eq.${body.clientId}`)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      const parentNodeId = clientNode?.id ?? null;
+
       const res = await fetch(`${PORTAL_BASE}/ops-tasks-list`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-webhook-secret": PORTAL_SECRET },
+        headers: {
+          "Content-Type": "application/json",
+          "x-webhook-secret": PORTAL_SECRET,
+          ...(PORTAL_ANON_KEY ? { apikey: PORTAL_ANON_KEY, Authorization: `Bearer ${PORTAL_ANON_KEY}` } : {}),
+        },
         body: JSON.stringify({ project_id: portalProjectId, limit: Math.min(Math.max(Number(body.limit) || 200, 1), 500) }),
       });
       const raw = await res.text();
@@ -182,12 +202,15 @@ serve(async (req) => {
         if (existing) {
           const currentData = (existing.data as Record<string, unknown>) ?? {};
           await db.from("canvas_nodes").update({
+            client_id: body.clientId,
+            parent_node_id: parentNodeId,
             title,
             status,
             description,
             data: {
               ...currentData,
               portal_task_id: portalTaskId,
+              portal_project_id: portalProjectId,
               from_portal: true,
               portal_status: portalStatusRaw,
               priority,
@@ -205,7 +228,7 @@ serve(async (req) => {
           await db.from("canvas_nodes").insert({
             workspace_id: body.workspaceId,
             client_id: body.clientId,
-            parent_node_id: null,
+            parent_node_id: parentNodeId,
             node_type: "task",
             title,
             status,
@@ -215,6 +238,7 @@ serve(async (req) => {
             data: {
               from_portal: true,
               portal_task_id: portalTaskId,
+              portal_project_id: portalProjectId,
               portal_status: portalStatusRaw,
               kind: "checklist",
               checklist,

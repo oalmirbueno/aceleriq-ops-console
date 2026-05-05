@@ -16,6 +16,9 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? "https://grxljyocuadywcksfyvu.supabase.co";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdyeGxqeW9jdWFkeXdja3NmeXZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyMDMzNjcsImV4cCI6MjA5MTc3OTM2N30.K1-tFjyfHdZIUDDRV5I14GTwl4mpvfGVNt55BAkgDnM";
+
 interface PortalProject {
   id: string;
   name: string;
@@ -24,6 +27,65 @@ interface PortalProject {
   client_id: string;
   client_name: string;
   client_company: string | null;
+}
+
+interface ClientLookup {
+  id: string;
+  name: string | null;
+  company_name: string | null;
+  portal_client_id: string | null;
+}
+
+const normalizeText = (value?: string | null) =>
+  (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+function normalizePortalProject(raw: Record<string, any>): PortalProject | null {
+  const id = String(raw.id ?? raw.project_id ?? raw.uuid ?? "").trim();
+  if (!id) return null;
+  const client = raw.client ?? raw.profile ?? raw.customer ?? {};
+  const clientId = String(raw.client_id ?? raw.profile_id ?? raw.customer_id ?? raw.user_id ?? client.id ?? "").trim();
+  const clientName = String(raw.client_name ?? raw.profile_name ?? raw.customer_name ?? client.full_name ?? client.name ?? raw.full_name ?? "Cliente do portal");
+  const clientCompany = (raw.client_company ?? raw.company_name ?? client.company_name ?? client.company ?? null) as string | null;
+  return {
+    id,
+    name: String(raw.name ?? raw.title ?? raw.project_name ?? "Projeto do portal"),
+    status: String(raw.status ?? raw.state ?? "active"),
+    project_type: String(raw.project_type ?? raw.type ?? raw.kind ?? "projeto"),
+    client_id: clientId,
+    client_name: clientName,
+    client_company: clientCompany,
+  };
+}
+
+function projectMatchesClient(project: PortalProject, client: ClientLookup | null) {
+  if (!client) return true;
+  if (client.portal_client_id && project.client_id && project.client_id === client.portal_client_id) return true;
+  const clientTerms = [client.name, client.company_name].map(normalizeText).filter(Boolean);
+  if (clientTerms.length === 0) return !client.portal_client_id;
+  const portalTerms = [project.client_name, project.client_company].map(normalizeText).filter(Boolean).join(" ");
+  return clientTerms.some((term) => portalTerms.includes(term) || term.includes(portalTerms));
+}
+
+async function callPortalProxy(path: string, reqBody?: unknown) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token ?? SUPABASE_ANON_KEY;
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/portal-proxy`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ path, body: reqBody ?? {} }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.error) throw new Error(data?.hint ?? data?.error ?? `Portal ${response.status}`);
+  return data;
 }
 
 interface Props {
@@ -36,7 +98,7 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [portalProjectId, setPortalProjectId] = useState<string | null>(null);
-  const [portalClientId, setPortalClientId] = useState<string | null>(null);
+  const [client, setClient] = useState<ClientLookup | null>(null);
   const [projects, setProjects] = useState<PortalProject[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [autoSelected, setAutoSelected] = useState(false);
@@ -45,11 +107,12 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
     () => projects.find((p) => p.id === portalProjectId) ?? null,
     [projects, portalProjectId],
   );
-
+  const matchedProjects = useMemo(() => projects.filter((p) => projectMatchesClient(p, client)), [projects, client]);
   const filtered = useMemo(() => {
-    if (!portalClientId) return projects;
-    return projects.filter((p) => p.client_id === portalClientId);
-  }, [projects, portalClientId]);
+    const matched = projects.filter((p) => projectMatchesClient(p, client));
+    return matched.length > 0 ? matched : projects;
+  }, [projects, client]);
+  const showingClientProjects = matchedProjects.length > 0;
 
   // Carrega vínculos atuais e lista de projetos do portal
   const load = useCallback(async () => {
@@ -58,21 +121,25 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
     try {
       const [wsRes, clientRes] = await Promise.all([
         supabase.from("workspaces").select("portal_project_id").eq("id", workspaceId).maybeSingle(),
-        supabase.from("clients").select("portal_client_id").eq("id", clientId).maybeSingle(),
+        supabase.from("clients").select("id, name, company_name, portal_client_id").eq("id", clientId).maybeSingle(),
       ]);
       const ppid = (wsRes.data?.portal_project_id as string | null) ?? null;
-      const pcid = (clientRes.data?.portal_client_id as string | null) ?? null;
       setPortalProjectId(ppid);
-      setPortalClientId(pcid);
+      setClient((clientRes.data as ClientLookup | null) ?? null);
 
-      const { data, error: fnErr } = await supabase.functions.invoke("sync-to-portal", {
-        body: { event: "list_portal_projects", workspaceId, clientId },
-      });
-      if (fnErr) throw fnErr;
-      if ((data as any)?.ok === false) {
-        throw new Error((data as any)?.error ?? "Falha ao listar projetos");
+      let data: any = null;
+      try {
+        data = await callPortalProxy("ops-projects-list");
+      } catch {
+        const fallback = await supabase.functions.invoke("sync-to-portal", {
+          body: { event: "list_portal_projects", workspaceId, clientId },
+        });
+        if (fallback.error) throw fallback.error;
+        data = fallback.data;
       }
-      const list = ((data as any)?.projects ?? []) as PortalProject[];
+      if (data?.ok === false) throw new Error(data?.error ?? "Falha ao listar projetos");
+      const rawList = Array.isArray(data?.projects) ? data.projects : Array.isArray(data) ? data : [];
+      const list = rawList.map((item: Record<string, any>) => normalizePortalProject(item)).filter(Boolean) as PortalProject[];
       setProjects(list);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao carregar projetos do portal");
@@ -92,13 +159,13 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
         .eq("id", workspaceId);
       if (wsErr) throw wsErr;
 
-      // Garante portal_client_id no cliente Ops (caso ainda nao tenha)
-      if (!portalClientId && project.client_id) {
+      // Corrige/garante portal_client_id no cliente Ops a partir do projeto selecionado.
+      if (project.client_id && project.client_id !== client?.portal_client_id) {
         await supabase
           .from("clients")
           .update({ portal_client_id: project.client_id, updated_at: new Date().toISOString() })
           .eq("id", clientId);
-        setPortalClientId(project.client_id);
+        setClient((prev) => prev ? { ...prev, portal_client_id: project.client_id } : prev);
       }
 
       setPortalProjectId(project.id);
@@ -113,7 +180,7 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
     } finally {
       setSaving(false);
     }
-  }, [workspaceId, clientId, portalClientId, onLinked]);
+  }, [workspaceId, clientId, client, onLinked]);
 
   // Auto-seleciona quando ha exatamente 1 projeto disponivel e nenhum vinculo ativo
   useEffect(() => {
@@ -162,14 +229,14 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 max-h-[60vh] overflow-y-auto">
         <DropdownMenuLabel className="text-xs">
-          {portalClientId
+          {showingClientProjects
             ? `Projetos deste cliente (${filtered.length})`
             : `Todos os projetos do portal (${filtered.length})`}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         {filtered.length === 0 ? (
           <div className="px-3 py-3 text-xs text-muted-foreground">
-            {portalClientId
+            {showingClientProjects
               ? "Nenhum projeto deste cliente no portal."
               : "Nenhum projeto encontrado no portal."}
           </div>
@@ -194,7 +261,7 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
             );
           })
         )}
-        {!portalClientId && filtered.length > 0 && (
+        {!client?.portal_client_id && filtered.length > 0 && (
           <>
             <DropdownMenuSeparator />
             <div className="px-3 py-2 text-[10px] text-muted-foreground">
