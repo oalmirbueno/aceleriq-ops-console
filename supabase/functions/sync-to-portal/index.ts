@@ -19,7 +19,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-webhook-secret, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 function json(body: unknown, status = 200) {
@@ -34,7 +35,7 @@ async function sendToPortal(
   event: string,
   data: Record<string, unknown>,
   source?: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; status?: number; body?: string }> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (secret) headers["x-webhook-secret"] = secret;
 
@@ -44,11 +45,9 @@ async function sendToPortal(
       headers,
       body: JSON.stringify({ event, data, source: source ?? "ops" }),
     });
-    if (!res.ok) {
-      const text = await res.text();
-      return { ok: false, error: `HTTP ${res.status}: ${text}` };
-    }
-    return { ok: true };
+    const text = await res.text();
+    if (!res.ok) return { ok: false, status: res.status, body: text, error: `HTTP ${res.status}: ${text}` };
+    return { ok: true, status: res.status, body: text.slice(0, 500) };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "fetch failed" };
   }
@@ -99,7 +98,7 @@ serve(async (req) => {
 
     // ── Monta payload por evento ────────────────────────────────────────
 
-    let event = body.event;
+    let event = String(body.event ?? "").trim().toLowerCase();
     let data: Record<string, unknown> = {};
 
     if (event === "file_approved" && body.assetId) {
