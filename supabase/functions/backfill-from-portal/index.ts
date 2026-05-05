@@ -387,6 +387,17 @@ serve(async (req) => {
               }).eq("id", existWs.id);
               wsId = existWs.id;
               stats.workspaces_updated++;
+            } else if (requestedWorkspaceId) {
+              await ops.from("workspaces").update({
+                name: proj.name,
+                summary: proj.description || null,
+                status: proj.status === "completed" ? "completed" : proj.status === "active" ? "active" : "setup",
+                portal_project_id: proj.id,
+                project_type: inferOpsType(proj.project_type),
+                updated_at: new Date().toISOString(),
+              }).eq("id", requestedWorkspaceId);
+              wsId = requestedWorkspaceId;
+              stats.workspaces_updated++;
             } else {
               const { data: nw, error } = await ops.from("workspaces").insert({
                 client_id: opsClientId,
