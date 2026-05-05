@@ -6,6 +6,7 @@
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { logSync, startTimer } from "../_shared/syncAudit.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -64,6 +65,7 @@ serve(async (req) => {
   const PORTAL_URL_HOOK = Deno.env.get("PORTAL_WEBHOOK_URL") ?? `${PORTAL_BASE}/ops-webhook`;
 
   try {
+    const stopwatch = startTimer();
     const authHeader = req.headers.get("Authorization") ?? "";
     const auth = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
     const { data: userData } = await auth.auth.getUser();
@@ -413,8 +415,27 @@ serve(async (req) => {
       }
     }
 
+    await logSync({
+      direction: "portal_to_ops",
+      event: "pull_portal_tasks",
+      status: "ok",
+      workspaceId,
+      clientId: (ws as any)?.client_id ?? null,
+      portalProjectId: ws.portal_project_id ?? null,
+      durationMs: stopwatch(),
+      message: `pulled ${tasks.length} tasks (created=${created}, updated=${updated})`,
+      payload: { total: tasks.length, created, updated, linked, projects: projectGroupCache.size, milestones: milestoneGroupCache.size },
+      source: "ops",
+    });
     return json({ ok: true, total: tasks.length, created, updated, linked, projects: projectGroupCache.size, milestones: milestoneGroupCache.size });
   } catch (err) {
+    await logSync({
+      direction: "portal_to_ops",
+      event: "pull_portal_tasks",
+      status: "error",
+      message: err instanceof Error ? err.message : "internal error",
+      source: "ops",
+    });
     return json({ error: err instanceof Error ? err.message : "internal error" }, 500);
   }
 });

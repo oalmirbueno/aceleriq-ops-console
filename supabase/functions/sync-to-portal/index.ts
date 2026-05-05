@@ -16,6 +16,7 @@
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { logSync, startTimer } from "../_shared/syncAudit.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -27,6 +28,10 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status, headers: { ...cors, "Content-Type": "application/json" },
   });
+}
+
+function safeJson(text: string): unknown {
+  try { return JSON.parse(text); } catch { return { raw: text.slice(0, 500) }; }
 }
 
 const COMPLETED = new Set(["done", "completed", "concluido"]);
@@ -459,7 +464,27 @@ serve(async (req) => {
     }
 
     // ── Envia ────────────────────────────────────────────────────────────
+    const stopwatch = startTimer();
     const result = await sendToPortal(PORTAL_URL, PORTAL_SECRET, PORTAL_ANON_KEY, event, data, body.source ?? "ops");
+    const elapsed = stopwatch();
+
+    await logSync({
+      direction: "ops_to_portal",
+      event,
+      status: result.ok ? "ok" : "error",
+      workspaceId: body.workspaceId,
+      clientId: body.clientId,
+      nodeId: body.nodeId ?? null,
+      portalProjectId: portalProjectId ?? null,
+      portalTaskId: nodePortalTaskId ?? body.portalTaskId ?? null,
+      portalMilestoneId: nodePortalMilestoneId,
+      httpStatus: result.status ?? null,
+      durationMs: elapsed,
+      message: result.ok ? null : result.error ?? "portal_error",
+      payload: data,
+      response: result.body ? safeJson(result.body) : null,
+      source: body.source ?? "ops",
+    });
 
     if (!result.ok) {
       console.error("[sync-to-portal] Portal error:", result.error);
