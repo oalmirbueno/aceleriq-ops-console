@@ -101,7 +101,11 @@ export default function WorkspaceProjectsLauncher({ workspaceId, clientName, por
     const pullBody: Record<string, string> = { workspaceId };
     if (portalProjectId) pullBody.portalProjectId = portalProjectId;
     const pull = await supabase.functions.invoke("pull-portal-tasks", { body: pullBody });
-    if (pull.error) throw pull.error;
+    if (pull.error) {
+      const stats = (backfill.data as { stats?: { canvas_projects_synced?: number; canvas_milestones_synced?: number; canvas_tasks_synced?: number } } | null)?.stats;
+      setSyncMessage(`Portal sincronizado: ${stats?.canvas_projects_synced ?? 0} projeto(s), ${stats?.canvas_milestones_synced ?? 0} milestone(s), ${stats?.canvas_tasks_synced ?? 0} tarefa(s).`);
+      return;
+    }
 
     const result = (pull.data ?? {}) as { skipped?: boolean; reason?: string; total?: number; projects?: number; milestones?: number };
     if (result.skipped) throw new Error(result.reason ?? "Portal não retornou projetos para este workspace");
