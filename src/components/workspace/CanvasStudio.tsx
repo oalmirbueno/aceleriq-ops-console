@@ -3218,10 +3218,17 @@ function CanvasStudioInner({
             onLinked={async () => {
               try {
                 setBusyAction("portal-sync");
-                const result = await syncPortalNow();
+                // Após vincular, primeiro PUXA do portal (cria project_group/milestones/tasks).
+                // Só depois empurra Ops→Portal — senão sai 0/0 porque ainda não há nodes
+                // vinculados a este portal_project_id.
+                const pullOnly = await syncPortalNow({ pull: true, push: false });
+                const result = pullOnly.pulled > 0
+                  ? await syncPortalNow({ pull: false, push: true })
+                  : pullOnly;
                 toast({
-                  title: "Projeto vinculado e sincronizado",
-                  description: `Ops→Portal ${result.sent}/${result.total} · Portal→Ops ${result.pulled}`,
+                  title: pullOnly.pullFailed ? "Vinculado, mas pull falhou" : "Projeto vinculado e sincronizado",
+                  description: `Portal→Ops ${pullOnly.pulled} · Ops→Portal ${result.sent}/${result.total}`,
+                  variant: pullOnly.pullFailed ? "destructive" : undefined,
                 });
               } catch (err) {
                 toast({
