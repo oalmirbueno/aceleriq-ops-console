@@ -59,21 +59,7 @@ export default function CanvasPage() {
 
   useEffect(() => {
     if (!directWsId) return;
-    supabase
-      .from("workspaces")
-      .select("id, client_id, clients(name)")
-      .eq("id", directWsId)
-      .single()
-      .then(({ data }) => {
-        if (data) {
-          const params = new URLSearchParams({
-            workspaceId: data.id,
-            clientId: data.client_id,
-            clientName: ((data.clients as any)?.name) ?? "Canvas",
-          });
-          navigate(`/ops/canvas/open?${params.toString()}`, { replace: true });
-        }
-      });
+    navigate(`/ops/workspaces/${directWsId}?tab=canvas`, { replace: true });
   }, [directWsId, navigate]);
 
   const [loading, setLoading] = useState(true);
@@ -172,12 +158,7 @@ export default function CanvasPage() {
 
   const openCanvas = (ws: WorkspaceOption, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    const params = new URLSearchParams({
-      workspaceId: ws.id,
-      clientId: ws.client_id,
-      clientName: ws.clients?.name ?? ws.name,
-    });
-    navigate(`/ops/canvas/open?${params.toString()}`);
+    navigate(`/ops/workspaces/${ws.id}?tab=canvas`);
   };
 
   const deleteWorkspace = async (ws: WorkspaceOption) => {
