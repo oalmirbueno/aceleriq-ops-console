@@ -2147,6 +2147,8 @@ function CanvasStudioInner({
         if (error) throw error;
         created[item.ref] = (data as CanvasNodeRow).id;
         rows.push(data as CanvasNodeRow);
+        const r = data as CanvasNodeRow;
+        syncNodeCreated({ workspaceId, clientId, nodeId: r.id, nodeTitle: r.title, nodeType: r.node_type });
       }
       const edges = [
         ["context", "engine", "contexto"], ["instruction", "engine", "regra"], ["engine", "agent", "aciona"],
