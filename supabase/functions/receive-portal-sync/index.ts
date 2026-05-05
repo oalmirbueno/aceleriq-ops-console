@@ -170,14 +170,33 @@ async function resolveOpsClientId(
   return newClient?.id ?? null;
 }
 
-async function ensureWorkspace(supabase: any, opsClientId: string, clientName: string, portalClientId: string | null, projectType = "ai_first") {
+async function ensureWorkspace(supabase: any, opsClientId: string, clientName: string, portalClientId: string | null, projectType = "ai_first", portalProjectId: string | null = null) {
   const { data: existingWs } = await supabase
     .from("workspaces")
-    .select("id")
+    .select("id, portal_project_id, metadata")
     .eq("client_id", opsClientId)
     .limit(1)
     .maybeSingle();
-  if (existingWs) return { workspaceId: existingWs.id, created: false };
+  if (existingWs) {
+    if (portalProjectId && !existingWs.portal_project_id) {
+      const currentMeta = (existingWs.metadata as Record<string, unknown>) ?? {};
+      await supabase.from("workspaces").update({
+        portal_project_id: portalProjectId,
+        metadata: {
+          ...currentMeta,
+          portal_sync: {
+            ...((currentMeta.portal_sync as Record<string, unknown>) ?? {}),
+            portal_project_id: portalProjectId,
+            portal_client_id: portalClientId,
+            linked_from: "portal_task_sync",
+            last_synced_at: new Date().toISOString(),
+          },
+        },
+        updated_at: new Date().toISOString(),
+      }).eq("id", existingWs.id);
+    }
+    return { workspaceId: existingWs.id, created: false };
+  }
 
   const { data: ws, error: wsErr } = await supabase
     .from("workspaces")
@@ -190,11 +209,13 @@ async function ensureWorkspace(supabase: any, opsClientId: string, clientName: s
       metadata: {
         portal_sync: {
           auto_created: true,
+          portal_project_id: portalProjectId,
           portal_client_id: portalClientId,
           source: "portal_sync",
           created_at: new Date().toISOString(),
         },
       },
+      portal_project_id: portalProjectId,
     })
     .select("id")
     .single();
