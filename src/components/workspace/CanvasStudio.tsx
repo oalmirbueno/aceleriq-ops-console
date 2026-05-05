@@ -2257,7 +2257,7 @@ function CanvasStudioInner({
     if (data) {
       const newRow = data as CanvasNodeRow;
       setDbNodes((prev) => [...prev, newRow]);
-      syncNodeCreated({ workspaceId, clientId, nodeId: newRow.id, nodeTitle: newRow.title, nodeType: newRow.node_type });
+      syncNodeCreated({ workspaceId, clientId, nodeId: newRow.id, nodeTitle: newRow.title, nodeType: newRow.node_type, data: newRow.data as Record<string, unknown> | null });
       // Dispara também um node_updated com status=active pro portal mostrar progresso/notificação
       syncNodeUpdated({
         workspaceId,
@@ -2509,7 +2509,7 @@ function CanvasStudioInner({
         createdByRef[spec.ref] = data as CanvasNodeRow;
         createdNodes.push(data as CanvasNodeRow);
         const row = data as CanvasNodeRow;
-        syncNodeCreated({ workspaceId, clientId, nodeId: row.id, nodeTitle: row.title, nodeType: row.node_type });
+        syncNodeCreated({ workspaceId, clientId, nodeId: row.id, nodeTitle: row.title, nodeType: row.node_type, data: row.data as Record<string, unknown> | null });
         syncNodeUpdated({
           workspaceId,
           clientId,
@@ -2709,7 +2709,7 @@ function CanvasStudioInner({
         const row = data as CanvasNodeRow;
         createdNodes.push(row);
         createdByRef[spec.ref] = row;
-        syncNodeCreated({ workspaceId, clientId, nodeId: row.id, nodeTitle: row.title, nodeType: row.node_type });
+        syncNodeCreated({ workspaceId, clientId, nodeId: row.id, nodeTitle: row.title, nodeType: row.node_type, data: row.data as Record<string, unknown> | null });
       }
 
       const resultNode = existingResult ?? createdByRef.result;
@@ -2912,7 +2912,7 @@ function CanvasStudioInner({
           refToId[tn.ref] = (row as CanvasNodeRow).id;
           newRows.push(row as CanvasNodeRow);
           const r = row as CanvasNodeRow;
-          syncNodeCreated({ workspaceId, clientId, nodeId: r.id, nodeTitle: r.title, nodeType: r.node_type });
+          syncNodeCreated({ workspaceId, clientId, nodeId: r.id, nodeTitle: r.title, nodeType: r.node_type, data: r.data as Record<string, unknown> | null });
         }
       }
 
@@ -2978,7 +2978,7 @@ function CanvasStudioInner({
         const tmplNode = template.nodes[i] as any;
         if (tmplNode?.ref) refToId.set(tmplNode.ref, dbNode.id);
         if (dbNode?.node_type !== "client") {
-          syncNodeCreated({ workspaceId, clientId, nodeId: dbNode.id, nodeTitle: dbNode.title, nodeType: dbNode.node_type });
+          syncNodeCreated({ workspaceId, clientId, nodeId: dbNode.id, nodeTitle: dbNode.title, nodeType: dbNode.node_type, data: dbNode.data as Record<string, unknown> | null });
         }
       });
 
@@ -3042,7 +3042,7 @@ function CanvasStudioInner({
         created[item.ref] = (data as CanvasNodeRow).id;
         rows.push(data as CanvasNodeRow);
         const r = data as CanvasNodeRow;
-        syncNodeCreated({ workspaceId, clientId, nodeId: r.id, nodeTitle: r.title, nodeType: r.node_type });
+        syncNodeCreated({ workspaceId, clientId, nodeId: r.id, nodeTitle: r.title, nodeType: r.node_type, data: r.data as Record<string, unknown> | null });
       }
       const edges = [
         ["context", "engine", "contexto"], ["instruction", "engine", "regra"], ["engine", "agent", "aciona"],

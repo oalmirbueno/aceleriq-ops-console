@@ -61,6 +61,7 @@ export function syncNodeUpdated({
 }) {
   if (!clientId) return;
   const progress = computeNodeProgress(status, data);
+  const portalProjectId = typeof data?.portal_project_id === "string" ? data.portal_project_id : undefined;
 
   void supabase.functions.invoke("sync-to-portal", {
     body: {
@@ -73,6 +74,7 @@ export function syncNodeUpdated({
       status: status ?? undefined,
       previousStatus: previousStatus ?? undefined,
       progress,
+      portalProjectId,
     },
   }).catch(() => {});
 }
@@ -87,14 +89,18 @@ export function syncNodeCreated({
   nodeId,
   nodeTitle,
   nodeType,
+  data,
 }: {
   workspaceId: string;
   clientId?: string | null;
   nodeId: string;
   nodeTitle?: string | null;
   nodeType?: string | null;
+  data?: Record<string, unknown> | null;
 }) {
   if (!clientId) return;
+  const progress = computeNodeProgress("active", data);
+  const portalProjectId = typeof data?.portal_project_id === "string" ? data.portal_project_id : undefined;
   void supabase.functions.invoke("sync-to-portal", {
     body: {
       event: "node_created",
@@ -103,6 +109,9 @@ export function syncNodeCreated({
       nodeId,
       nodeTitle: nodeTitle ?? undefined,
       nodeType: nodeType ?? undefined,
+      status: "active",
+      progress,
+      portalProjectId,
     },
   }).catch(() => {});
 }

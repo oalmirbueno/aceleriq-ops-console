@@ -200,13 +200,18 @@ serve(async (req) => {
     const nodePortalFolderId = (nodeData.portal_folder_id as string | undefined) ?? nodePortalMilestoneId;
     if (body.portalProjectId) portalProjectId = body.portalProjectId;
 
-    if (!portalClientId) {
+    const projectScopedEvents = new Set([
+      "node_created", "node_updated", "node_completed", "node_deleted",
+      "stage_advanced", "project_progress", "file_approved", "pull_portal_tasks",
+    ]);
+    const rawEvent = String(body.event ?? "").trim().toLowerCase();
+    if (!portalClientId && !projectScopedEvents.has(rawEvent)) {
       return json({ skipped: true, reason: "portal_client_id not set on client — link the client first" });
     }
 
     // ── Monta payload por evento ────────────────────────────────────────
 
-    let event = String(body.event ?? "").trim().toLowerCase();
+    let event = rawEvent;
     let data: Record<string, unknown> = {};
 
     if (event === "pull_portal_tasks") {
@@ -358,6 +363,7 @@ serve(async (req) => {
 
     else if (event === "node_updated" && body.nodeId) {
       if (!portalProjectId) return json({ skipped: true, reason: "portal_project_id not set on workspace" });
+      const authorId = PORTAL_ADMIN_ID || portalClientId || undefined;
 
       const statusLabels: Record<string, string> = {
         draft: "Não iniciada",
@@ -378,7 +384,8 @@ serve(async (req) => {
 
       data = {
         project_id:  portalProjectId,
-        author_id:   PORTAL_ADMIN_ID || portalClientId,
+        author_id:   authorId,
+        client_id:   portalClientId ?? undefined,
         message,
         update_type: "task_progress",
         // campos para o ops-webhook v2 fazer upsert na tabela tasks
@@ -401,9 +408,11 @@ serve(async (req) => {
     else if (event === "node_created" && body.nodeId) {
       if (!portalProjectId) return json({ skipped: true, reason: "portal_project_id not set on workspace" });
       const node = nodeRow;
+      const authorId = PORTAL_ADMIN_ID || portalClientId || undefined;
       data = {
         project_id: portalProjectId,
-        author_id:  PORTAL_ADMIN_ID || portalClientId,
+        author_id:  authorId,
+        client_id:  portalClientId ?? undefined,
         node_id:    body.nodeId,
         node_title: body.nodeTitle ?? node?.title ?? "node",
         node_type:  body.nodeType ?? node?.node_type ?? null,
