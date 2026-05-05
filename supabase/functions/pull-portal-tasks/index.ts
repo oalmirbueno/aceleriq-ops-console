@@ -473,7 +473,7 @@ serve(async (req) => {
         milestone_title: milestoneTitle,
         portal_status: portalStatus,
         portal_position: Number.isFinite(portalPosition) ? portalPosition : idx,
-        kind: cur.kind ?? inferKind,
+        kind: (cur.kind && cur.kind !== "checklist") ? cur.kind : inferKind,
         checklist: checklist.length > 0 ? checklist : (cur.checklist ?? []),
         priority,
         due_date: dueDate,
