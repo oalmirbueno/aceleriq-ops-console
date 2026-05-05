@@ -1506,7 +1506,7 @@ function CanvasStudioInner({
       }
     }
     const cardNodes = visibleCanvasNodes.map((n): Node => {
-      const owner = n.parent_node_id ? groupMeta[n.parent_node_id] : null;
+      const owner = groupMeta[n.id] ?? (n.parent_node_id ? groupMeta[n.parent_node_id] : null);
       const dataObj = (n.data as Record<string, unknown> | null) ?? {};
       const operationalMeta = (dataObj.operationalMeta ?? dataObj.operational_meta ?? EMPTY_OPERATIONAL_META) as CanvasOperationalMeta;
       const attachmentList = (dataObj.attachments as Array<{ url?: string; type?: string; label?: string }> | undefined) ?? [];
