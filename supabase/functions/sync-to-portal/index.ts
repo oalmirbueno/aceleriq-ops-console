@@ -169,6 +169,7 @@ serve(async (req) => {
     const nodeData = (nodeRow?.data ?? {}) as Record<string, unknown>;
     const nodePortalTaskId = (nodeData.portal_task_id as string | undefined) ?? body.portalTaskId ?? null;
     const nodePortalMilestoneId = (nodeData.portal_milestone_id as string | undefined) ?? null;
+    const nodePortalFolderId = (nodeData.portal_folder_id as string | undefined) ?? nodePortalMilestoneId;
     if (body.portalProjectId) portalProjectId = body.portalProjectId;
 
     if (!portalClientId) {
@@ -359,6 +360,9 @@ serve(async (req) => {
         progress,
         portal_task_id: nodePortalTaskId,
         portal_milestone_id: nodePortalMilestoneId,
+        milestone_id: nodePortalMilestoneId,
+        portal_folder_id: nodePortalFolderId,
+        folder_id: nodePortalFolderId,
       };
       // mantém event="node_updated" — quando portal atualizar o webhook, fará upsert em tasks.
       // Se portal ainda não suporta, ele simplesmente ignora.
@@ -375,6 +379,9 @@ serve(async (req) => {
         node_type:  body.nodeType ?? node?.node_type ?? null,
         portal_task_id: nodePortalTaskId,
         portal_milestone_id: nodePortalMilestoneId,
+        milestone_id: nodePortalMilestoneId,
+        portal_folder_id: nodePortalFolderId,
+        folder_id: nodePortalFolderId,
         status:     body.status ?? node?.status ?? "draft",
         progress:   body.progress ?? computeNodeProgress(node?.status, node?.data as Record<string, unknown> | null),
         message:    `Nova tarefa criada: ${body.nodeTitle ?? node?.title ?? "node"}`,
@@ -392,6 +399,9 @@ serve(async (req) => {
         update_type: "task_deleted",
         portal_task_id: nodePortalTaskId,
         portal_milestone_id: nodePortalMilestoneId,
+        milestone_id: nodePortalMilestoneId,
+        portal_folder_id: nodePortalFolderId,
+        folder_id: nodePortalFolderId,
       };
     }
 
