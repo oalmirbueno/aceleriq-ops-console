@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowDownToLine, ArrowUpFromLine, RefreshCw, Loader2, Pause, Play, Filter, Copy, Check } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, RefreshCw, Loader2, Pause, Play, Filter, Copy, Check, Send } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,6 +116,7 @@ export default function SyncLogsPage() {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [replayingId, setReplayingId] = useState<string | null>(null);
 
   const syncParams = useCallback(() => {
     const next = new URLSearchParams();
@@ -172,6 +173,31 @@ export default function SyncLogsPage() {
     URL.revokeObjectURL(url);
     toast.success(`${entries.length} eventos exportados`);
   };
+
+  const replayEvent = useCallback(async (entry: AuditEntry) => {
+    setReplayingId(entry.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("replay-sync-event", {
+        body: { auditId: entry.id },
+      });
+      if (error) throw error;
+      const r = data as { ok?: boolean; httpStatus?: number; response?: string; error?: string };
+      if (r?.ok) {
+        toast.success(`Reenviado · HTTP ${r.httpStatus ?? "?"}`, {
+          description: typeof r.response === "string" ? r.response.slice(0, 160) : undefined,
+        });
+      } else {
+        toast.error(`Falhou · HTTP ${r?.httpStatus ?? "?"}`, {
+          description: r?.error ?? (typeof r?.response === "string" ? r.response.slice(0, 200) : "Veja o log para detalhes"),
+        });
+      }
+      fetchLogs();
+    } catch (err) {
+      toast.error("Erro ao reenviar", { description: err instanceof Error ? err.message : "Erro inesperado" });
+    } finally {
+      setReplayingId(null);
+    }
+  }, [fetchLogs]);
 
   return (
     <>
@@ -296,6 +322,19 @@ export default function SyncLogsPage() {
                             Abrir workspace
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 text-[11px] ml-2"
+                          disabled={replayingId === e.id}
+                          onClick={(ev) => { ev.stopPropagation(); replayEvent(e); }}
+                          title="Reenvia este evento ao Portal usando o mesmo payload"
+                        >
+                          {replayingId === e.id
+                            ? <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            : <Send className="h-3 w-3 mr-1" />}
+                          Reenviar evento
+                        </Button>
                       </div>
                       <div className="space-y-2">
                         <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Payload enviado</div>
