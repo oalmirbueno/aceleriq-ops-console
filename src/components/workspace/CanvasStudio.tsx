@@ -3123,6 +3123,15 @@ function CanvasStudioInner({
         />
 
         <div className="flex-1 min-w-0 relative">
+          {/* Barra de pastas de milestone — esteira fordista */}
+          {!loading && scopedProjectNodes.length > 0 && (
+            <MilestoneFordismoBar
+              nodes={scopedProjectNodes}
+              selectedMilestoneId={selectedMilestoneId}
+              onSelect={setSelectedMilestoneId}
+              onClear={() => setSelectedMilestoneId(null)}
+            />
+          )}
           {!loading && scopedProjectNodes.length > 0 && (
             <div className="pointer-events-none absolute left-3 top-3 z-10 hidden lg:flex items-center gap-2 rounded-full border border-border/70 bg-card/92 px-3 py-1.5 text-[10px] text-muted-foreground shadow-sm backdrop-blur-sm">
               <span>Entrega {proofTrail.entrega}</span>
