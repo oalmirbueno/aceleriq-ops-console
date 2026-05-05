@@ -258,22 +258,48 @@ serve(async (req) => {
     }
 
     const allOk = steps.every((s) => s.ok);
+    const summary = {
+      node: { id: target.id, title: target.title },
+      portalTaskId,
+      portalProjectId,
+      milestone_done_before: before.milestone?.done ?? null,
+      milestone_done_after: after.milestone?.done ?? null,
+      milestone_total: after.milestone?.total ?? null,
+      project_pct_before: before.project?.pct ?? null,
+      project_pct_after: after.project?.pct ?? null,
+      portal_progress_pushed: !!portalAck,
+    };
+    await logSync({
+      direction: "internal",
+      event: "smoke_test_cycle",
+      status: allOk ? "ok" : "error",
+      workspaceId: target.workspace_id,
+      clientId: target.client_id,
+      nodeId: target.id,
+      portalProjectId,
+      portalTaskId: portalTaskId ?? null,
+      portalMilestoneId,
+      durationMs: stopwatch(),
+      message: allOk ? "smoke cycle passed" : "smoke cycle failed",
+      payload: summary,
+      response: { steps },
+      source: "ops",
+    });
     return json({
       ok: allOk,
-      summary: {
-        node: { id: target.id, title: target.title },
-        portalTaskId,
-        portalProjectId,
-        milestone_done_before: before.milestone?.done ?? null,
-        milestone_done_after: after.milestone?.done ?? null,
-        milestone_total: after.milestone?.total ?? null,
-        project_pct_before: before.project?.pct ?? null,
-        project_pct_after: after.project?.pct ?? null,
-        portal_progress_pushed: !!portalAck,
-      },
+      summary,
       steps,
     });
   } catch (err) {
+    await logSync({
+      direction: "internal",
+      event: "smoke_test_cycle",
+      status: "error",
+      durationMs: stopwatch(),
+      message: err instanceof Error ? err.message : String(err),
+      response: { steps },
+      source: "ops",
+    });
     return json({ ok: false, error: err instanceof Error ? err.message : String(err), steps }, 500);
   }
 });
