@@ -50,11 +50,17 @@ serve(async (req) => {
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
   const PORTAL_URL = Deno.env.get("PORTAL_WEBHOOK_URL") ?? "https://gicbrgagstyvbaaumprj.supabase.co/functions/v1/ops-webhook";
   const PORTAL_SECRET = Deno.env.get("PORTAL_WEBHOOK_SECRET");
   const PORTAL_ADMIN = Deno.env.get("PORTAL_ADMIN_USER_ID") ?? "";
 
   try {
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const auth = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
+    const { data: userData } = await auth.auth.getUser();
+    if (!userData.user) return json({ error: "Unauthorized" }, 401);
+
     const { workspaceId } = await req.json() as { workspaceId: string };
     if (!workspaceId) return json({ error: "workspaceId required" }, 400);
 
