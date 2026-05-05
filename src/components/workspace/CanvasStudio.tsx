@@ -576,7 +576,6 @@ function CanvasStudioInner({
     const allNodes = ((freshNodes ?? dbNodesRef.current) as CanvasNodeRow[]);
     const clientRoot = allNodes.find((node) => node.node_type === "client" && (node.client_id === clientId || node.linked_entity_id === clientId));
     const baseX = Number(clientRoot?.pos_x ?? 60);
-    const baseY = Number(clientRoot?.pos_y ?? 0);
 
     const portalOrder = (node: CanvasNodeRow) => {
       const value = Number((node.data as Record<string, unknown> | null)?.portal_position ?? 9999);
@@ -605,8 +604,7 @@ function CanvasStudioInner({
         const data = (milestone.data as Record<string, unknown> | null) ?? {};
         return portalProjectId && data.portal_project_id === portalProjectId;
       });
-      milestones.forEach((milestone, milestoneIndex) => {
-        const milestoneX = projectX + 32 + milestoneIndex * 360;
+      milestones.forEach((milestone) => {
         if (!milestone.parent_node_id) {
           relationshipUpdates.push({ id: milestone.id, parent_node_id: project.id });
         }
