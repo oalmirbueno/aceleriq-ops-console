@@ -1024,11 +1024,13 @@ function CanvasStudioInner({
       return false;
     };
     return scopedProjectNodes.filter((node) => {
+      // Pastinhas (project_group / milestone_group) saíram do canvas:
+      // agora vivem na barra superior CanvasMilestoneTabs. Os nodes ainda
+      // existem no DB para a sincronia bidirecional com o Portal.
+      const folderKind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
+      if (folderKind === "project_group" || folderKind === "milestone_group") return false;
       if (selectedMilestoneId) {
         const selected = milestoneById.get(selectedMilestoneId);
-        if (node.id === selectedMilestoneId) return true;
-        if (selected?.parent_node_id && node.id === selected.parent_node_id) return true;
-        if (isFolder(node)) return false;
         if (!belongsToMilestone(node, selectedMilestoneId)) return false;
       }
       const meta = readCanvasOperationalMeta(node.data as Record<string, unknown> | null);
