@@ -322,10 +322,10 @@ serve(async (req) => {
       const assignee = (t.assignee_id ?? t.assignee ?? null) as string | null;
       const checklist = Array.isArray(t.checklist) ? t.checklist : [];
       const labels = Array.isArray(t.labels) ? t.labels : [];
-      const portalPosition = Number(t.position ?? t.order ?? t.sort_order ?? t.sequence ?? idx);
       const counterKey = `${taskProjectId}:${milestoneKey}`;
       const idx = taskCounters.get(counterKey) ?? 0;
       taskCounters.set(counterKey, idx + 1);
+      const portalPosition = Number(t.position ?? t.order ?? t.sort_order ?? t.sequence ?? idx);
       const pos_x = clientBaseX + projectIndex * 1760 + 64 + milestoneIndex * 360 + (idx % TASKS_PER_ROW) * 300;
       const pos_y = clientBaseY + 480 + Math.floor(idx / TASKS_PER_ROW) * TASK_GAP_Y;
       const nextTaskData = (cur: Record<string, unknown>) => compactRecord({
