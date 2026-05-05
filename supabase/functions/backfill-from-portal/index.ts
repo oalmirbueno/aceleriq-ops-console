@@ -101,6 +101,7 @@ serve(async (req) => {
       clients_created: 0, clients_updated: 0,
       workspaces_created: 0, workspaces_updated: 0,
       briefings_merged: 0, milestones_synced: 0, tasks_synced: 0, updates_synced: 0,
+      canvas_projects_synced: 0, canvas_milestones_synced: 0, canvas_tasks_synced: 0,
       errors: [] as string[],
     };
 
