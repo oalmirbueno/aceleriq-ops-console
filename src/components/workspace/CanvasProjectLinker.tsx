@@ -104,6 +104,10 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
     () => projects.find((p) => p.id === portalProjectId) ?? null,
     [projects, portalProjectId],
   );
+  const hasStrictClientMatch = useMemo(
+    () => !!client?.portal_client_id || projects.some((p) => projectMatchesClient(p, client)),
+    [projects, client],
+  );
 
   const filtered = useMemo(() => {
     const matched = projects.filter((p) => projectMatchesClient(p, client));
@@ -225,14 +229,14 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 max-h-[60vh] overflow-y-auto">
         <DropdownMenuLabel className="text-xs">
-          {portalClientId
+          {hasStrictClientMatch
             ? `Projetos deste cliente (${filtered.length})`
             : `Todos os projetos do portal (${filtered.length})`}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         {filtered.length === 0 ? (
           <div className="px-3 py-3 text-xs text-muted-foreground">
-            {portalClientId
+            {hasStrictClientMatch
               ? "Nenhum projeto deste cliente no portal."
               : "Nenhum projeto encontrado no portal."}
           </div>
@@ -257,7 +261,7 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
             );
           })
         )}
-        {!portalClientId && filtered.length > 0 && (
+        {!client?.portal_client_id && filtered.length > 0 && (
           <>
             <DropdownMenuSeparator />
             <div className="px-3 py-2 text-[10px] text-muted-foreground">
