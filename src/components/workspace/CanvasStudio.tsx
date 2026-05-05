@@ -487,16 +487,22 @@ function CanvasStudioInner({
     const syncableNodes = dbNodesRef.current.filter((node) => {
       const type = (node.node_type ?? "").toLowerCase();
       const kind = ((node.data as Record<string, unknown> | null)?.kind as string | undefined ?? "").toLowerCase();
-      return !["client", "ai_orb", "chat_node"].includes(type) && kind !== "chat_node";
-    }).slice(0, 30);
+      // Pula client, ai_orb, chat_node e o próprio "project_group" (milestone — não é card kanban)
+      if (["client", "ai_orb", "chat_node"].includes(type)) return false;
+      if (kind === "chat_node" || kind === "project_group") return false;
+      return true;
+    }).slice(0, 60);
 
     let sent = 0;
     let failed = 0;
     for (const node of syncableNodes) {
+      const ndata = (node.data as Record<string, unknown> | null) ?? {};
+      const hasPortalTask = typeof ndata.portal_task_id === "string" && (ndata.portal_task_id as string).length > 0;
       try {
         const { data, error } = await withTimeout(supabase.functions.invoke("sync-to-portal", {
           body: {
-            event: "node_created",
+            // Já vinculado → atualiza (status/progresso). Novo → cria card no portal.
+            event: hasPortalTask ? "node_updated" : "node_created",
             workspaceId,
             clientId: node.client_id ?? clientId,
             nodeId: node.id,
