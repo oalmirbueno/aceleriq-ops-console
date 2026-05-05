@@ -65,10 +65,13 @@ export default function CanvasProjectLinker({ workspaceId, clientId, onLinked }:
       setPortalProjectId(ppid);
       setPortalClientId(pcid);
 
-      const { data, error: fnErr } = await supabase.functions.invoke("portal-proxy", {
-        body: { path: "ops-projects-list" },
+      const { data, error: fnErr } = await supabase.functions.invoke("sync-to-portal", {
+        body: { event: "list_portal_projects", workspaceId, clientId },
       });
       if (fnErr) throw fnErr;
+      if ((data as any)?.ok === false) {
+        throw new Error((data as any)?.error ?? "Falha ao listar projetos");
+      }
       const list = ((data as any)?.projects ?? []) as PortalProject[];
       setProjects(list);
     } catch (err) {
