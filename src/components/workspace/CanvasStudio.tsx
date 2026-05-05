@@ -1388,7 +1388,8 @@ function CanvasStudioInner({
     if (!inst) return;
     if (selectedMilestoneId) {
       if (rfNodes.length === 0) return;
-      const focusKey = `${viewportScope}:${selectedMilestoneId}`;
+      const visibleNodeKey = rfNodes.map((node) => node.id).sort().join("|");
+      const focusKey = `${viewportScope}:${selectedMilestoneId}:${visibleNodeKey}`;
       if (focusedMilestoneViewportRef.current === focusKey) return;
       focusedMilestoneViewportRef.current = focusKey;
       // O milestone/pasta fica oculto no canvas; focar nele deslocava a tela para vazio.
