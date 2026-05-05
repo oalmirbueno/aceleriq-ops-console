@@ -83,9 +83,14 @@ export default function ProjectCanvasPage() {
   // tudo atualizado depois.
   useEffect(() => {
     if (!resolved?.workspaceId || !portalProjectId) return;
-    supabase.functions.invoke("pull-portal-tasks", {
-      body: { workspaceId: resolved.workspaceId, portalProjectId },
-    }).catch(() => {/* silencioso */});
+    (async () => {
+      await supabase.functions.invoke("backfill-from-portal", {
+        body: { source: "project_canvas", workspaceId: resolved.workspaceId, portalProjectId },
+      }).catch(() => null);
+      await supabase.functions.invoke("pull-portal-tasks", {
+        body: { workspaceId: resolved.workspaceId, portalProjectId },
+      }).catch(() => null);
+    })();
   }, [resolved?.workspaceId, portalProjectId]);
 
   const title = useMemo(() => resolved?.projectTitle ?? "Projeto", [resolved]);
