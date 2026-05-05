@@ -2,6 +2,7 @@
  * backfill-from-portal v5 — usa ops-full-export do portal.
  * Puxa TUDO: profiles, projects, briefings, milestones, tasks, updates.
  * Cria clientes, workspaces, timeline events, essential_briefing completo.
+ * (redeploy trigger)
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
