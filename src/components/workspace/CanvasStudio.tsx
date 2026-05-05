@@ -3,7 +3,7 @@ import {
   ReactFlow, ReactFlowProvider, Background,
   applyNodeChanges, applyEdgeChanges,
   ConnectionMode, ConnectionLineType,
-  type Node, type Edge, type NodeChange, type EdgeChange, type Connection,
+  type Node, type Edge, type NodeChange, type EdgeChange, type Connection, type NodeProps,
   type ReactFlowInstance, type Viewport, SelectionMode, MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -30,7 +30,6 @@ import CanvasTemplatesDialog, { type CanvasTemplate, type NodeSnapshot, type Edg
 import ApplyPlaybookButton from "./ApplyPlaybookButton";
 import CanvasProjectLinker from "./CanvasProjectLinker";
 import DeletableEdge from "./DeletableEdge";
-import MilestoneFordismoBar from "./MilestoneFordismoBar";
 import type { EsteiraTemplate } from "./esteiraTemplates";
 import { syncNodeCreated, syncNodeDeleted } from "./syncToPortalEvents";
 import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalMeta } from "./canvasOperationalMeta";
@@ -72,11 +71,24 @@ interface Props {
   initialStatusFilter?: string | null;
 }
 
+function FordismoLaneNode({ data }: NodeProps) {
+  const d = data as { title?: string; total?: number; done?: number };
+  return (
+    <div className="pointer-events-none h-full w-full rounded-lg border border-border/70 bg-card/45 backdrop-blur-sm shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between border-b border-border/60 bg-background/70 px-3 py-2">
+        <span className="text-[11px] font-semibold uppercase text-foreground truncate">{d.title}</span>
+        <span className="text-[10px] text-muted-foreground tabular-nums">{d.done ?? 0}/{d.total ?? 0}</span>
+      </div>
+    </div>
+  );
+}
+
 const nodeTypes = {
   projectCard: ProjectNodeCard,
   canvasGroup: CanvasGroupNode,
   aiOrb: AiOrbNode,
   chatNode: ChatNode,
+  fordismoLane: FordismoLaneNode,
 };
 
 const edgeTypes = {
@@ -991,10 +1003,8 @@ function CanvasStudioInner({
 
   const visibleCanvasNodes = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
-    // ── Modo "Fordismo": com um milestone selecionado, mostramos apenas as tarefas
-    // daquele milestone, organizadas em esteira por status. Sem milestone selecionado,
-    // mostramos só as PASTAS (cliente + project_group + milestone_group) — assim o
-    // canvas não fica empilhado com 170+ nodes ao mesmo tempo.
+    // Fordismo acontece dentro do canvas: sem seleção, nada some; com milestone
+    // selecionado, focamos projeto + pasta do milestone + tarefas reais dele.
     const milestoneById = new Map(scopedProjectNodes.map((n) => [n.id, n] as const));
     const isFolder = (node: CanvasNodeRow) => {
       const type = (node.node_type ?? "").toLowerCase();
@@ -1014,12 +1024,11 @@ function CanvasStudioInner({
     };
     return scopedProjectNodes.filter((node) => {
       if (selectedMilestoneId) {
-        if (node.id === selectedMilestoneId) return false; // a pasta vira o "header"
+        const selected = milestoneById.get(selectedMilestoneId);
+        if (node.id === selectedMilestoneId) return true;
+        if (selected?.parent_node_id && node.id === selected.parent_node_id) return true;
         if (isFolder(node)) return false;
         if (!belongsToMilestone(node, selectedMilestoneId)) return false;
-      } else {
-        // Vista de pastas: mantém pastas; orbs/chats/tarefas ficam ocultos pra evitar bagunça
-        if (!isFolder(node)) return false;
       }
       const meta = readCanvasOperationalMeta(node.data as Record<string, unknown> | null);
       if (typeFilter && nodeKindOf(node) !== typeFilter && node.node_type !== typeFilter) return false;
@@ -1081,12 +1090,16 @@ function CanvasStudioInner({
   useEffect(() => {
     const inst = rfInstanceRef.current;
     if (!inst) return;
+    if (selectedMilestoneId) {
+      inst.fitView({ padding: 0.12, duration: 300 });
+      return;
+    }
     if (restoredScopesRef.current.has(viewportScope)) return;
     const saved = readSavedViewport(viewportScope);
     if (saved) inst.setViewport(saved, { duration: 250 });
     else inst.fitView({ padding: 0.4, duration: 250 });
     restoredScopesRef.current.add(viewportScope);
-  }, [viewportScope, readSavedViewport]);
+  }, [viewportScope, readSavedViewport, selectedMilestoneId]);
 
   // Persiste com debounce no fim de cada pan/zoom
   const handleMoveEnd = useCallback((_e: unknown, vp: Viewport) => {
@@ -1142,21 +1155,32 @@ function CanvasStudioInner({
   const reactFlowNodes = useMemo(() => {
     // Layout fordista: quando um milestone está selecionado, reposicionamos as tarefas
     // em "estações" horizontais (uma coluna por status), mantendo a ordem do portal.
-    const FORDISMO_STAGES: Array<{ key: string; match: (s: string) => boolean }> = [
-      { key: "ideia",       match: (s) => s === "ideia" || s === "planejado" || s === "draft" },
-      { key: "em_producao", match: (s) => s === "em_producao" || s === "active" || s === "ativo" || s === "doing" },
-      { key: "revisao",     match: (s) => s === "revisao" || s === "review" },
-      { key: "bloqueado",   match: (s) => s === "bloqueado" || s === "blocked" },
-      { key: "concluido",   match: (s) => s === "concluido" || s === "done" },
+    const FORDISMO_STAGES: Array<{ key: string; title: string; match: (s: string) => boolean }> = [
+      { key: "ideia", title: "Ideia", match: (s) => s === "ideia" || s === "planejado" || s === "draft" },
+      { key: "em_producao", title: "Em produção", match: (s) => s === "em_producao" || s === "active" || s === "ativo" || s === "doing" },
+      { key: "revisao", title: "Revisão", match: (s) => s === "revisao" || s === "review" },
+      { key: "bloqueado", title: "Bloqueado", match: (s) => s === "bloqueado" || s === "blocked" },
+      { key: "concluido", title: "Concluído", match: (s) => s === "concluido" || s === "done" },
     ];
-    const FORDISMO_COL_W = 340;
+    const FORDISMO_COL_W = 360;
     const FORDISMO_ROW_H = 156;
-    const FORDISMO_ORIGIN_X = 80;
-    const FORDISMO_ORIGIN_Y = 200;
+    const FORDISMO_ORIGIN_X = 120;
+    const FORDISMO_ORIGIN_Y = 330;
     const fordismoOverride = new Map<string, { x: number; y: number }>();
+    const fordismoStageTotals = new Map<string, { total: number; done: number }>();
+    const stageCounts = new Map<string, number>();
     if (selectedMilestoneId) {
-      const stageCounts = new Map<string, number>();
-      const sorted = [...visibleCanvasNodes].sort((a, b) => {
+      const selectedMilestone = visibleCanvasNodes.find((node) => node.id === selectedMilestoneId);
+      const selectedProject = selectedMilestone?.parent_node_id
+        ? visibleCanvasNodes.find((node) => node.id === selectedMilestone.parent_node_id)
+        : null;
+      if (selectedProject) fordismoOverride.set(selectedProject.id, { x: FORDISMO_ORIGIN_X, y: 96 });
+      if (selectedMilestone) fordismoOverride.set(selectedMilestone.id, { x: FORDISMO_ORIGIN_X, y: 210 });
+      const sorted = visibleCanvasNodes.filter((node) => {
+        const kind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
+        const type = (node.node_type ?? "").toLowerCase();
+        return !["client", "ai_orb", "chat_node"].includes(type) && !["project_group", "milestone_group", "chat_node"].includes(kind);
+      }).sort((a, b) => {
         const pa = Number((a.data as Record<string, unknown> | null)?.portal_position ?? 9999);
         const pb = Number((b.data as Record<string, unknown> | null)?.portal_position ?? 9999);
         if (pa !== pb) return pa - pb;
@@ -1169,13 +1193,27 @@ function CanvasStudioInner({
         const key = FORDISMO_STAGES[stageIdx].key;
         const row = stageCounts.get(key) ?? 0;
         stageCounts.set(key, row + 1);
+        const current = fordismoStageTotals.get(key) ?? { total: 0, done: 0 };
+        fordismoStageTotals.set(key, { total: current.total + 1, done: current.done + (key === "concluido" ? 1 : 0) });
         fordismoOverride.set(node.id, {
           x: FORDISMO_ORIGIN_X + stageIdx * FORDISMO_COL_W,
           y: FORDISMO_ORIGIN_Y + row * FORDISMO_ROW_H,
         });
       });
     }
-    return visibleCanvasNodes.map((n): Node => {
+    const laneNodes: Node[] = selectedMilestoneId ? FORDISMO_STAGES.map((stage, index) => {
+      const totals = fordismoStageTotals.get(stage.key) ?? { total: 0, done: 0 };
+      return {
+        id: `fordismo-lane-${selectedMilestoneId}-${stage.key}`,
+        type: "fordismoLane",
+        position: { x: FORDISMO_ORIGIN_X + index * FORDISMO_COL_W - 18, y: FORDISMO_ORIGIN_Y - 58 },
+        draggable: false,
+        selectable: false,
+        data: { title: stage.title, total: totals.total, done: totals.done, __layoutPositionKey: `fordismo-lane:${selectedMilestoneId}:${stage.key}` },
+        style: { width: 316, height: Math.max(520, (stageCounts.get(stage.key) ?? 0) * FORDISMO_ROW_H + 112), zIndex: -1 },
+      } satisfies Node;
+    }) : [];
+    const cardNodes = visibleCanvasNodes.map((n): Node => {
       const owner = n.parent_node_id ? groupMeta[n.parent_node_id] : null;
       const dataObj = (n.data as Record<string, unknown> | null) ?? {};
       const operationalMeta = (dataObj.operationalMeta ?? dataObj.operational_meta ?? EMPTY_OPERATIONAL_META) as CanvasOperationalMeta;
@@ -1234,10 +1272,14 @@ function CanvasStudioInner({
           canExpandHub: nodeKindOf(n) === "engine",
             onExpandHub: stableOnExpandHub,
           typeData: dataObj,
+          __layoutPositionKey: selectedMilestoneId || dataObj.from_portal || dataObj.portal_task_id || dataObj.portal_project_id
+            ? `${n.id}:${Math.round(posX)}:${Math.round(posY)}`
+            : undefined,
           pulse: !!dataObj.from_portal && !dataObj.touched_at,
         } satisfies ProjectNodeData,
       };
     });
+    return [...laneNodes, ...cardNodes];
   }, [visibleCanvasNodes, groupMeta, workspaceId, lockedNodes, stableOnPrefilled, stableOnQuickConnect, stableOnDeleteNode, stableOnExpandHub, connectionsByNodeId, clientId, selectedMilestoneId]);
 
   /** Delete edge — instant local update + DB delete. Usado pelo DeletableEdge e context menu. */
@@ -1349,12 +1391,13 @@ function CanvasStudioInner({
         // Compara conteúdo da data — callbacks estáveis não invalidam render.
         const sameData = canvasNodeDataEqual(existing.data as Record<string, unknown>, newNode.data as Record<string, unknown>);
         const sameConfig = existing.type === newNode.type && existing.draggable === newNode.draggable;
+        const layoutChanged = (existing.data as Record<string, unknown> | undefined)?.__layoutPositionKey !== (newNode.data as Record<string, unknown> | undefined)?.__layoutPositionKey;
         if (sameData && sameConfig) {
           // Sem mudança em data — reusa objeto existente (mantém referência)
           result.push(existing);
         } else {
-          // Data mudou — atualiza mantendo posição local
-          result.push({ ...newNode, position: existing.position });
+          // Data mudou — mantém posição local, exceto quando o modo fordismo recalcula a esteira.
+          result.push(layoutChanged ? newNode : { ...newNode, position: existing.position });
           hasChanges = true;
         }
       }
@@ -1640,10 +1683,14 @@ function CanvasStudioInner({
     // Pasta de milestone → abre a esteira do milestone (modo fordismo)
     const kind = String((found.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
     if (kind === "milestone_group") {
-      setSelectedMilestoneId(found.id);
+      setSelectedMilestoneId((current) => current === found.id ? null : found.id);
       return;
     }
     if (kind === "project_group") {
+      if (selectedMilestoneId) {
+        setSelectedMilestoneId(null);
+        return;
+      }
       // Abre o primeiro milestone do projeto, se houver
       const projectData = (found.data as Record<string, unknown> | null) ?? {};
       const first = dbNodesRef.current.find((m) => {
@@ -1661,7 +1708,7 @@ function CanvasStudioInner({
     // ChatNode handles interactions inline — não abre drawer
     if (nodeKindOf(found) === "chat_node") return;
     setSelectedNode(found);
-  }, []);
+  }, [selectedMilestoneId]);
 
   /** ═══ CONNECTING STATE — ativa classe CSS .connecting durante drag de conexão.
    *   Isso faz todos os 12 handles de TODOS os nodes ficarem visíveis, ajudando
@@ -3127,15 +3174,6 @@ function CanvasStudioInner({
         />
 
         <div className="flex-1 min-w-0 relative">
-          {/* Barra de pastas de milestone — esteira fordista */}
-          {!loading && scopedProjectNodes.length > 0 && (
-            <MilestoneFordismoBar
-              nodes={scopedProjectNodes}
-              selectedMilestoneId={selectedMilestoneId}
-              onSelect={setSelectedMilestoneId}
-              onClear={() => setSelectedMilestoneId(null)}
-            />
-          )}
           {!loading && scopedProjectNodes.length > 0 && (
             <div className="pointer-events-none absolute left-3 top-3 z-10 hidden lg:flex items-center gap-2 rounded-full border border-border/70 bg-card/92 px-3 py-1.5 text-[10px] text-muted-foreground shadow-sm backdrop-blur-sm">
               <span>Entrega {proofTrail.entrega}</span>
