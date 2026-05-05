@@ -475,6 +475,9 @@ function CanvasStudioInner({
   const [gridVisible, setGridVisible] = useState(true);
   const [lockedNodes, setLockedNodes] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+  const [debugOpen, setDebugOpen] = useState<boolean>(() => isCanvasDebugEnabled());
+  const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);
+  const [lastFetchError, setLastFetchError] = useState<string | null>(null);
   const [openDockGroup, setOpenDockGroup] = useState<string | null>(null);
   const milestoneOverlayKey = `canvas:milestone-overlay-dismissed:${workspaceId}:${portalProjectIdProp ?? "all"}`;
   const [milestoneOverlayDismissed, setMilestoneOverlayDismissed] = useState<boolean>(() => {
