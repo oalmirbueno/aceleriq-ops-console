@@ -375,15 +375,6 @@ export default function WorkspaceDetailPage() {
                 <Sparkles className="h-3 w-3" />
                 Prompts IA
               </Button>
-              <Button
-                size="sm"
-                className="h-8 text-xs gap-1.5"
-                style={{ background: "hsl(var(--primary)/0.15)", color: "hsl(var(--primary))", border: "1px solid hsl(var(--primary)/0.3)" }}
-                onClick={openCanvas}
-              >
-                <Network className="h-3 w-3" />
-                Abrir Canvas
-              </Button>
             </div>
           </div>
 
