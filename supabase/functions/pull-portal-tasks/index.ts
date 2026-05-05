@@ -8,7 +8,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-webhook-secret, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
@@ -44,14 +45,18 @@ serve(async (req) => {
     if (!ws) return json({ error: "workspace not found" }, 404);
     if (!ws.portal_project_id) return json({ ok: false, skipped: true, reason: "workspace not linked to portal" });
 
+    const portalHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      "x-webhook-secret": PORTAL_SECRET,
+    };
+    if (PORTAL_ANON) {
+      portalHeaders.apikey = PORTAL_ANON;
+      portalHeaders.Authorization = `Bearer ${PORTAL_ANON}`;
+    }
+
     const res = await fetch(`${PORTAL_BASE}/ops-tasks-list`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-webhook-secret": PORTAL_SECRET,
-        "apikey": PORTAL_ANON,
-        "Authorization": `Bearer ${PORTAL_ANON}`,
-      },
+      headers: portalHeaders,
       body: JSON.stringify({ project_id: ws.portal_project_id, limit: 500 }),
     });
     const text = await res.text();
@@ -89,6 +94,7 @@ serve(async (req) => {
         .select("id, data")
         .eq("workspace_id", workspaceId)
         .contains("data", { portal_task_id: portalTaskId })
+        .limit(1)
         .maybeSingle();
 
       if (existingByTask) {

@@ -170,14 +170,33 @@ async function resolveOpsClientId(
   return newClient?.id ?? null;
 }
 
-async function ensureWorkspace(supabase: any, opsClientId: string, clientName: string, portalClientId: string | null, projectType = "ai_first") {
+async function ensureWorkspace(supabase: any, opsClientId: string, clientName: string, portalClientId: string | null, projectType = "ai_first", portalProjectId: string | null = null) {
   const { data: existingWs } = await supabase
     .from("workspaces")
-    .select("id")
+    .select("id, portal_project_id, metadata")
     .eq("client_id", opsClientId)
     .limit(1)
     .maybeSingle();
-  if (existingWs) return { workspaceId: existingWs.id, created: false };
+  if (existingWs && (!portalProjectId || !existingWs.portal_project_id || existingWs.portal_project_id === portalProjectId)) {
+    if (portalProjectId && !existingWs.portal_project_id) {
+      const currentMeta = (existingWs.metadata as Record<string, unknown>) ?? {};
+      await supabase.from("workspaces").update({
+        portal_project_id: portalProjectId,
+        metadata: {
+          ...currentMeta,
+          portal_sync: {
+            ...((currentMeta.portal_sync as Record<string, unknown>) ?? {}),
+            portal_project_id: portalProjectId,
+            portal_client_id: portalClientId,
+            linked_from: "portal_task_sync",
+            last_synced_at: new Date().toISOString(),
+          },
+        },
+        updated_at: new Date().toISOString(),
+      }).eq("id", existingWs.id);
+    }
+    return { workspaceId: existingWs.id, created: false };
+  }
 
   const { data: ws, error: wsErr } = await supabase
     .from("workspaces")
@@ -190,11 +209,13 @@ async function ensureWorkspace(supabase: any, opsClientId: string, clientName: s
       metadata: {
         portal_sync: {
           auto_created: true,
+          portal_project_id: portalProjectId,
           portal_client_id: portalClientId,
           source: "portal_sync",
           created_at: new Date().toISOString(),
         },
       },
+      portal_project_id: portalProjectId,
     })
     .select("id")
     .single();
@@ -230,11 +251,14 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const rawType = String(body.type ?? "");
+    const event = String(body.event ?? "");
+    const inferredType = event.toLowerCase().startsWith("task_") || event.toLowerCase() === "delete"
+      ? "tasks"
+      : "";
+    const rawType = String(body.type ?? body.table ?? inferredType);
     const type = normalizeType(rawType);
     const data = (body.data ?? {}) as Record<string, unknown>;
     const context = (body.context ?? {}) as Record<string, unknown>;
-    const event = String(body.event ?? "");
     const source = String(body.source ?? "").toLowerCase();
 
     // Anti-loop: ignora eventos que vieram do próprio Ops (ricocheteados pelo portal).
@@ -246,7 +270,7 @@ serve(async (req) => {
       return json({ error: "type e data são obrigatórios" }, 400);
     }
 
-    if (event === "DELETE") {
+    if (event === "DELETE" && type !== "task") {
       return json({ ok: true, action: "delete_ignored", type_received: rawType });
     }
 
@@ -446,24 +470,13 @@ serve(async (req) => {
 
       if (!ws) {
         const clientName = firstString(context.client_full_name, data.client_name) || "Cliente do Portal";
-        const ensured = await ensureWorkspace(supabase, opsClientId, clientName, firstString(data.client_id, data.user_id));
+        const ensured = await ensureWorkspace(supabase, opsClientId, clientName, firstString(data.client_id, data.user_id), "ai_first", portalProjectId);
         ws = { id: ensured.workspaceId, client_id: opsClientId };
       }
 
       const title = firstString(data.title, data.name, data.message) || (type === "update" ? "Update do portal" : `${type} do portal`);
       const description = firstString(data.description, data.message, data.content);
       const happenedAt = firstString(data.target_date, data.created_at, data.updated_at) || new Date().toISOString();
-
-      const { error } = await supabase.from("timeline_events").insert({
-        workspace_id: ws.id,
-        client_id: ws.client_id,
-        event_type: `portal_${type}`,
-        title,
-        description,
-        happened_at: happenedAt,
-        metadata: { source: "portal_sync", portal_id: data.id, raw_type: rawType, event },
-      });
-      if (error) throw error;
 
       // ── TASK: cria/atualiza/remove node correspondente no canvas ────
       if (type === "task") {
@@ -479,7 +492,7 @@ serve(async (req) => {
         };
         const opsStatus = statusMap[portalStatus] ?? portalStatus;
 
-        const isDeleted = event === "task_deleted" || data.deleted === true;
+        const isDeleted = event === "task_deleted" || event === "DELETE" || data.deleted === true;
         if (isDeleted && portalTaskId) {
           await supabase.from("canvas_nodes").delete()
             .eq("workspace_id", ws.id)
@@ -491,6 +504,7 @@ serve(async (req) => {
             .select("id, data")
             .eq("workspace_id", ws.id)
             .contains("data", { portal_task_id: portalTaskId })
+            .limit(1)
             .maybeSingle();
 
           if (existing) {
@@ -517,7 +531,7 @@ serve(async (req) => {
               status: opsStatus,
               pos_x: 80 + (idx % 6) * 320,
               pos_y: 800 + Math.floor(idx / 6) * 220,
-              data: { from_portal: true, portal_task_id: portalTaskId, touched_at: null },
+              data: { from_portal: true, portal_task_id: portalTaskId, kind: "checklist", checklist: [], touched_at: null },
             }).select("id").single();
 
             // Callback de pareamento: avisa o portal que o node foi criado, com portal_task_id.
@@ -544,6 +558,17 @@ serve(async (req) => {
           }
         }
       }
+
+      const { error } = await supabase.from("timeline_events").insert({
+        workspace_id: ws.id,
+        client_id: ws.client_id,
+        event_type: `portal_${type}`,
+        title,
+        description,
+        happened_at: happenedAt,
+        metadata: { source: "portal_sync", portal_id: data.id, raw_type: rawType, event },
+      });
+      if (error) throw error;
 
       return json({ ok: true, action: "timeline_event_created", type });
     }
