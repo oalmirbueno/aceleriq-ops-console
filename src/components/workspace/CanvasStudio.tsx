@@ -2412,10 +2412,13 @@ function CanvasStudioInner({
 
     // Centraliza canvas no chat node
     setTimeout(() => {
-      rfInstanceRef.current?.setCenter(
+      const inst = rfInstanceRef.current;
+      if (!inst) return;
+      const currentZoom = inst.getViewport().zoom;
+      inst.setCenter(
         Number(chatNode!.pos_x ?? 0) + 160,
         Number(chatNode!.pos_y ?? 0) + 200,
-        { zoom: 1.1, duration: 500 },
+        { zoom: Math.max(currentZoom, 0.9), duration: 280 },
       );
     }, 150);
   }, [dbNodes, dbEdges, addChatNode]);
