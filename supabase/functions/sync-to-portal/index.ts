@@ -138,8 +138,25 @@ serve(async (req) => {
       .eq("id", body.workspaceId)
       .single();
 
-    const portalProjectId = ws?.portal_project_id as string | null;
+    let portalProjectId = ws?.portal_project_id as string | null;
     const portalClientId  = (ws?.clients as any)?.portal_client_id as string | null;
+
+    // Quando há nodeId, sobrepõe portal_project_id pelo registrado no node
+    // (suporta múltiplos projetos vinculados no mesmo canvas).
+    let nodeRow: { title?: string; node_type?: string; status?: string; data?: Record<string, unknown> | null } | null = null;
+    if (body.nodeId) {
+      const { data: n } = await db
+        .from("canvas_nodes")
+        .select("title, node_type, status, data")
+        .eq("id", body.nodeId)
+        .maybeSingle();
+      nodeRow = (n as any) ?? null;
+      const ndata = (nodeRow?.data ?? {}) as Record<string, unknown>;
+      const ndPid = (ndata.portal_project_id as string | undefined) ?? null;
+      if (ndPid) portalProjectId = ndPid;
+    }
+    const nodeData = (nodeRow?.data ?? {}) as Record<string, unknown>;
+    const nodePortalTaskId = (nodeData.portal_task_id as string | undefined) ?? body.portalTaskId ?? null;
 
     if (!portalClientId) {
       return json({ skipped: true, reason: "portal_client_id not set on client — link the client first" });
@@ -327,6 +344,7 @@ serve(async (req) => {
         status:      body.status ?? null,
         previous_status: body.previousStatus ?? null,
         progress,
+        portal_task_id: nodePortalTaskId,
       };
       // mantém event="node_updated" — quando portal atualizar o webhook, fará upsert em tasks.
       // Se portal ainda não suporta, ele simplesmente ignora.
@@ -334,18 +352,14 @@ serve(async (req) => {
 
     else if (event === "node_created" && body.nodeId) {
       if (!portalProjectId) return json({ skipped: true, reason: "portal_project_id not set on workspace" });
-      const { data: node } = await db
-        .from("canvas_nodes")
-        .select("title, node_type, status, data")
-        .eq("id", body.nodeId)
-        .maybeSingle();
+      const node = nodeRow;
       data = {
         project_id: portalProjectId,
         author_id:  PORTAL_ADMIN_ID || portalClientId,
         node_id:    body.nodeId,
         node_title: body.nodeTitle ?? node?.title ?? "node",
         node_type:  body.nodeType ?? node?.node_type ?? null,
-        portal_task_id: body.portalTaskId ?? null,
+        portal_task_id: nodePortalTaskId,
         status:     body.status ?? node?.status ?? "draft",
         progress:   body.progress ?? computeNodeProgress(node?.status, node?.data as Record<string, unknown> | null),
         message:    `Nova tarefa criada: ${body.nodeTitle ?? node?.title ?? "node"}`,
@@ -361,6 +375,7 @@ serve(async (req) => {
         node_id:    body.nodeId,
         message:    `Tarefa removida do canvas`,
         update_type: "task_deleted",
+        portal_task_id: nodePortalTaskId,
       };
     }
 
