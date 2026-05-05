@@ -1817,6 +1817,7 @@ function CanvasStudioInner({
         const row = data as CanvasNodeRow;
         createdNodes.push(row);
         createdByRef[spec.ref] = row;
+        syncNodeCreated({ workspaceId, clientId, nodeId: row.id, nodeTitle: row.title, nodeType: row.node_type });
       }
 
       const resultNode = existingResult ?? createdByRef.result;
