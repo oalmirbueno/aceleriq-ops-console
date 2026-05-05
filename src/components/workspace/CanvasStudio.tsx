@@ -483,15 +483,13 @@ function CanvasStudioInner({
     let pulled = 0;
     let pullFailed = false;
     try {
-      const { response, parsed } = await fetchJsonWithTimeout("https://gicbrgagstyvbaaumprj.supabase.co/functions/v1/backfill-tasks-to-ops", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: "ops_canvas_manual_sync" }),
-      }, 8000);
-      pulled = Number(parsed.sent ?? 0);
-      pullFailed = !response.ok || Number(parsed.failed ?? 0) > 0;
+      const { data, error } = await withTimeout(supabase.functions.invoke("sync-to-portal", {
+        body: { event: "pull_portal_tasks", workspaceId, clientId, limit: 300 },
+      }), 9000, "Portal→Ops");
+      pulled = Number(((data as any)?.created ?? 0) + ((data as any)?.updated ?? 0));
+      pullFailed = !!error || (data as any)?.ok === false;
     } catch (error) {
-      console.error("[CanvasStudio] portal backfill-tasks-to-ops failed", error);
+      console.error("[CanvasStudio] pull_portal_tasks failed", error);
       pullFailed = true;
     }
 
