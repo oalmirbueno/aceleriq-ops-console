@@ -32,7 +32,7 @@ import ApplyPlaybookButton from "./ApplyPlaybookButton";
 import CanvasProjectLinker from "./CanvasProjectLinker";
 import DeletableEdge from "./DeletableEdge";
 import type { EsteiraTemplate } from "./esteiraTemplates";
-import { syncNodeCreated, syncNodeDeleted } from "./syncToPortalEvents";
+import { syncNodeCreated, syncNodeDeleted, syncNodeUpdated } from "./syncToPortalEvents";
 import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalMeta } from "./canvasOperationalMeta";
 import {
   ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH,
@@ -2163,7 +2163,14 @@ function CanvasStudioInner({
       pos_y = sameStage.length === 0 ? CONTENT_TOP + 16 : maxY + NODE_VERTICAL;
     }
 
-    const parent = pickParentGroup(resolvedParent);
+    // Se há um milestone selecionado, o novo node entra DENTRO do milestone
+    // (parent = milestone) e herda portal_project_id/portal_milestone_id/milestone_key
+    // pra aparecer no Portal vinculado à mesma fase. Caso contrário, fica solto na pasta do cliente.
+    const milestoneNode = selectedMilestoneId
+      ? scopedProjectNodes.find((n) => n.id === selectedMilestoneId)
+      : null;
+    const milestoneData = (milestoneNode?.data as Record<string, unknown> | null) ?? null;
+    const parent = milestoneNode?.id ?? pickParentGroup(resolvedParent);
     const initialTitle = `${meta.titleTemplate}`;
     let connectionLabel: string | null = null;
 
@@ -2191,6 +2198,12 @@ function CanvasStudioInner({
       }
     }
 
+    const portalMeta: Record<string, unknown> = {};
+    if (milestoneData?.portal_project_id) portalMeta.portal_project_id = milestoneData.portal_project_id;
+    if (milestoneData?.portal_milestone_id) portalMeta.portal_milestone_id = milestoneData.portal_milestone_id;
+    if (milestoneData?.milestone_key) portalMeta.milestone_key = milestoneData.milestone_key;
+    if (milestoneData?.portal_folder_id) portalMeta.portal_folder_id = milestoneData.portal_folder_id;
+
     const { data, error } = await supabase
       .from("canvas_nodes")
       .insert({
@@ -2198,12 +2211,19 @@ function CanvasStudioInner({
         client_id: clientId,
         node_type: dbType,
         title: initialTitle,
-        status: "draft",
+        // Entra "em andamento" pra dar movimento imediato no portal do cliente
+        status: "active",
         description: null,
         pos_x,
         pos_y,
         parent_node_id: parent,
-        data: { kind, stage, checklist: getChecklistTemplate(kind) } as Record<string, unknown>,
+        data: {
+          kind,
+          stage,
+          checklist: getChecklistTemplate(kind),
+          ...portalMeta,
+          created_from: "manual",
+        } as Record<string, unknown>,
       })
       .select()
       .single();
@@ -2216,6 +2236,23 @@ function CanvasStudioInner({
       const newRow = data as CanvasNodeRow;
       setDbNodes((prev) => [...prev, newRow]);
       syncNodeCreated({ workspaceId, clientId, nodeId: newRow.id, nodeTitle: newRow.title, nodeType: newRow.node_type });
+      // Dispara também um node_updated com status=active pro portal mostrar progresso/notificação
+      syncNodeUpdated({
+        workspaceId,
+        clientId,
+        nodeId: newRow.id,
+        nodeTitle: newRow.title,
+        nodeType: newRow.node_type,
+        status: "active",
+        previousStatus: "draft",
+        data: newRow.data as Record<string, unknown> | null,
+      });
+      toast({
+        title: "Node criado",
+        description: milestoneNode
+          ? `Adicionado em "${milestoneNode.title}" e sincronizado com o portal.`
+          : "Adicionado e sincronizado com o portal.",
+      });
 
       // Auto connect from source if requested
       if (opts.sourceId) {
@@ -2242,7 +2279,7 @@ function CanvasStudioInner({
         );
       }, 100);
     }
-  }, [clientId, dbNodes, ensureActiveClient, pickParentGroup, projectNodes, workspaceId]);
+  }, [clientId, dbNodes, ensureActiveClient, pickParentGroup, projectNodes, workspaceId, selectedMilestoneId, scopedProjectNodes]);
 
   const addAiOrb = useCallback(async (orbType: AiOrbType) => {
     const parent = ensureActiveClient();
