@@ -33,7 +33,7 @@ function portalOrder(n: CanvasNodeRow): number {
   return Number.isFinite(v) ? v : 9999;
 }
 
-function CanvasMilestoneTabsComp({ nodes, selectedMilestoneId, onSelectMilestone, groupProgressById }: Props) {
+function CanvasMilestoneTabsComp({ nodes, selectedMilestoneId, onSelectMilestone }: Props) {
   // groupProgressById removed from props; compute locally so the bar stays
   // self-contained. Real-time updates flow via the parent re-rendering with
   // updated `nodes` (canvas_nodes realtime + portal triggers).
@@ -121,7 +121,7 @@ function CanvasMilestoneTabsComp({ nodes, selectedMilestoneId, onSelectMilestone
                 )}
                 {milestones.map((m) => {
                   const active = m.id === selectedMilestoneId;
-                  const progress = groupProgressById?.get(m.id);
+                  const progress = progressById.get(m.id);
                   const pct = progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : null;
                   return (
                     <button
