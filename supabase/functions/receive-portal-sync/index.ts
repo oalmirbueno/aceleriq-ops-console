@@ -56,6 +56,8 @@ function normalizeType(type: string): string {
     briefing: "briefing",
     milestones: "milestone",
     milestone: "milestone",
+    folders: "milestone",
+    folder: "milestone",
     updates: "update",
     update: "update",
     tasks: "task",
@@ -71,6 +73,18 @@ function firstString(...values: unknown[]): string | null {
     if (typeof v === "string" && v.trim()) return v.trim();
   }
   return null;
+}
+
+function portalProjectIdOf(data: Record<string, unknown>): string | null {
+  const milestone = (data.milestone && typeof data.milestone === "object") ? data.milestone as Record<string, unknown> : {};
+  const folder = (data.folder && typeof data.folder === "object") ? data.folder as Record<string, unknown> : {};
+  return firstString(data.project_id, data.portal_project_id, data.workspace_id, milestone.project_id, folder.project_id);
+}
+
+function portalMilestoneIdOf(data: Record<string, unknown>): string | null {
+  const milestone = (data.milestone && typeof data.milestone === "object") ? data.milestone as Record<string, unknown> : {};
+  const folder = (data.folder && typeof data.folder === "object") ? data.folder as Record<string, unknown> : {};
+  return firstString(data.milestone_id, data.portal_milestone_id, data.folder_id, data.portal_folder_id, data.stage_id, data.phase_id, data.column_id, milestone.id, folder.id);
 }
 
 function compactRecord(record: Record<string, unknown>) {
