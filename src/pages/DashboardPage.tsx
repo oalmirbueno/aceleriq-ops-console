@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Activity, ArrowRight, Clock, FolderKanban, Network, Users } from "lucide-react";
+import { Activity, ArrowRight, Clock, FolderKanban, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import AppHeader from "@/components/AppHeader";
 import LoadingState from "@/components/LoadingState";
@@ -92,7 +92,6 @@ export default function DashboardPage() {
             {activeWorkspaces.map((workspace) => {
               const client = workspace.clients;
               const progress = progressFor(workspace.current_stage);
-              const params = new URLSearchParams({ workspaceId: workspace.id, clientId: workspace.client_id, clientName: client?.name ?? workspace.name });
               return (
                 <article key={workspace.id} className="surface-3 rounded-lg p-4">
                   <div className="flex items-center gap-3">
@@ -100,7 +99,7 @@ export default function DashboardPage() {
                     <div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground">{client?.name ?? workspace.name}</p><p className="truncate text-xs text-muted-foreground">{client?.company_name ?? workspace.name}</p></div>
                   </div>
                   <div className="my-4 space-y-2"><div className="flex justify-between text-xs"><span className="text-muted-foreground">{getStagePremiumLabel(workspace.current_stage)}</span><span className="text-primary">{progress}%</span></div><Progress value={progress} className="h-1.5" /></div>
-                  <div className="flex gap-2"><Button size="sm" className="h-8 flex-1" onClick={() => navigate(`/ops/workspaces/${workspace.id}`)}>Abrir</Button><Button size="icon" variant="outline" className="h-8 w-8" onClick={() => navigate(`/ops/canvas?${params.toString()}`)}><Network className="h-3.5 w-3.5" /></Button></div>
+                  <div className="flex gap-2"><Button size="sm" className="h-8 flex-1" onClick={() => navigate(`/ops/workspaces/${workspace.id}`)}>Abrir</Button><Button size="sm" variant="outline" className="h-8" onClick={() => navigate(`/ops/workspaces/${workspace.id}?tab=canvas`)}>Canvas</Button></div>
                 </article>
               );
             })}
