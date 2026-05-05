@@ -179,7 +179,7 @@ serve(async (req) => {
       const projMeta = projectById.get(portalProjectId);
       const projTitle = firstString(projMeta?.name, projMeta?.title, projMeta?.project_name, "Projeto do portal");
       const projStatus = firstString(projMeta?.status, projMeta?.state, "active");
-      const pos_x = clientBaseX + projectIndex * 520;
+      const pos_x = clientBaseX + projectIndex * 1760;
       const pos_y = clientBaseY + 190;
       if (existing?.id) {
         await db.from("canvas_nodes").update({
