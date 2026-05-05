@@ -447,20 +447,18 @@ serve(async (req) => {
         stage: cur.stage ?? "producao",
       });
 
-      const existingQuery = opsNodeId
-        ? db.from("canvas_nodes").select("id, data").eq("id", opsNodeId).maybeSingle()
-        : db.from("canvas_nodes").select("id, data").eq("workspace_id", workspaceId).contains("data", { portal_task_id: portalTaskId }).limit(1).maybeSingle();
-      const { data: existing } = await existingQuery;
+      let existing: any = null;
+      if (opsNodeId) {
+        const { data: byOpsNodeId } = await db.from("canvas_nodes").select("id, title, description, data, parent_node_id, pos_x, pos_y").eq("id", opsNodeId).maybeSingle();
+        existing = byOpsNodeId;
+      }
+      if (!existing) existing = existingTaskByPortalId.get(portalTaskId) ?? existingTaskByTitle.get(normalizeTitle(title));
 
       if (existing) {
         const cur = (existing.data as Record<string, unknown>) ?? {};
         await db.from("canvas_nodes").update({
-          title,
           status: opsStatus,
           parent_node_id: milestoneNodeId,
-          description,
-          pos_x,
-          pos_y,
           updated_at: new Date().toISOString(),
           data: nextTaskData(cur),
         }).eq("id", existing.id);
