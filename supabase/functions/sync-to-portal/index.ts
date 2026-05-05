@@ -253,6 +253,7 @@ serve(async (req) => {
         const portalStatusRaw = String(task.status ?? "backlog").toLowerCase();
         const checklist = Array.isArray(task.checklist) ? task.checklist : [];
         const labels   = Array.isArray(task.labels)   ? task.labels   : [];
+        const inferredKind = inferKind(title, description, labels);
 
         const { data: existing } = opsNodeId
           ? await db.from("canvas_nodes").select("id, data").eq("id", opsNodeId).maybeSingle()
@@ -272,6 +273,7 @@ serve(async (req) => {
               portal_project_id: portalProjectId,
               from_portal: true,
               portal_status: portalStatusRaw,
+              kind: (currentData.kind && currentData.kind !== "checklist") ? currentData.kind : inferredKind,
               priority,
               due_date: dueDate,
               assignee,
@@ -299,7 +301,7 @@ serve(async (req) => {
               portal_task_id: portalTaskId,
               portal_project_id: portalProjectId,
               portal_status: portalStatusRaw,
-              kind: "checklist",
+              kind: inferredKind,
               checklist,
               priority,
               due_date: dueDate,
