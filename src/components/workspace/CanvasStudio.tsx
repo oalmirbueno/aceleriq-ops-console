@@ -25,7 +25,7 @@ import ProjectNodeDrawer from "./ProjectNodeDrawer";
 import CanvasInspector from "./CanvasInspector";
 import CanvasClientPicker from "./CanvasClientPicker";
 import CanvasClientTabs, { type CanvasClientTab } from "./CanvasClientTabs";
-import CanvasMilestoneTabs from "./CanvasMilestoneTabs";
+import CanvasMilestoneTabs, { type SyncStatus, type RealtimeState } from "./CanvasMilestoneTabs";
 import GenerateEsteiraDialog from "./GenerateEsteiraDialog";
 import CanvasTemplatesDialog, { type CanvasTemplate, type NodeSnapshot, type EdgeSnapshot } from "./CanvasTemplatesDialog";
 import ApplyPlaybookButton from "./ApplyPlaybookButton";
@@ -434,6 +434,16 @@ function CanvasStudioInner({
   // portal_progress de um snapshot velho por cima de um mais novo.
   const lastWrittenProgressVersionRef = useRef<Map<string, number>>(new Map());
 
+  // Indicador de sincronização: realtime do Supabase + ida/volta para o Portal.
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({
+    realtimeState: "connecting",
+    realtimeAt: null,
+    portalPushAt: null,
+    portalPullAt: null,
+    portalBusy: false,
+    portalError: null,
+  });
+
   // Active client folder (null = "Todos")
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
   // Plan name of the currently displayed client (fetched from clients table)
@@ -512,6 +522,7 @@ function CanvasStudioInner({
     const shouldPull = options.pull ?? true;
     const shouldPush = options.push ?? true;
     const limit = options.limit ?? 120;
+    setSyncStatus((s) => ({ ...s, portalBusy: true, portalError: null }));
     let pulled = 0;
     let pullFailed = false;
     if (shouldPull) try {
@@ -520,6 +531,7 @@ function CanvasStudioInner({
       }), 20000, "Portal→Ops");
       pulled = Number(((data as any)?.created ?? 0) + ((data as any)?.updated ?? 0));
       pullFailed = !!error || (data as any)?.ok === false;
+      if (!pullFailed) setSyncStatus((s) => ({ ...s, portalPullAt: Date.now() }));
     } catch (error) {
       console.error("[CanvasStudio] pull_portal_tasks failed", error);
       pullFailed = true;
@@ -748,6 +760,12 @@ function CanvasStudioInner({
     }
 
     await fetchDataRef.current?.();
+    setSyncStatus((s) => ({
+      ...s,
+      portalBusy: false,
+      portalPushAt: shouldPush && sent > 0 ? Date.now() : s.portalPushAt,
+      portalError: failed > 0 || pullFailed ? `${failed} push falhos${pullFailed ? " · pull falhou" : ""}` : null,
+    }));
     return { total: syncableNodes.length, sent, failed, pulled, pullFailed };
   }, [clientId, workspaceId]);
 
@@ -913,6 +931,8 @@ function CanvasStudioInner({
   // Realtime: novos nodes (criados pelo portal ou outra sessão) aparecem ao vivo.
   useEffect(() => {
     if (!workspaceId) return;
+    setSyncStatus((s) => ({ ...s, realtimeState: "connecting" }));
+    const markEvent = () => setSyncStatus((s) => ({ ...s, realtimeAt: Date.now(), realtimeState: "connected" }));
     const channel = supabase
       .channel(`canvas-nodes-${workspaceId}`)
       .on("postgres_changes", {
@@ -921,6 +941,7 @@ function CanvasStudioInner({
       }, (payload) => {
         const row = payload.new as CanvasNodeRow;
         setDbNodes((prev) => prev.some((n) => n.id === row.id) ? prev : [...prev, row]);
+        markEvent();
       })
       .on("postgres_changes", {
         event: "UPDATE", schema: "public", table: "canvas_nodes",
@@ -937,6 +958,7 @@ function CanvasStudioInner({
           if (prevTs && newTs && newTs < prevTs) return n; // stale event — ignora
           return { ...n, ...row };
         }));
+        markEvent();
       })
       .on("postgres_changes", {
         event: "DELETE", schema: "public", table: "canvas_nodes",
@@ -945,9 +967,19 @@ function CanvasStudioInner({
         const oldId = (payload.old as { id?: string }).id;
         if (!oldId) return;
         setDbNodes((prev) => prev.filter((n) => n.id !== oldId));
+        markEvent();
       })
-      .subscribe();
-    return () => { void supabase.removeChannel(channel); };
+      .subscribe((status) => {
+        const next: RealtimeState =
+          status === "SUBSCRIBED" ? "connected"
+          : status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED" ? "disconnected"
+          : "connecting";
+        setSyncStatus((s) => ({ ...s, realtimeState: next }));
+      });
+    return () => {
+      void supabase.removeChannel(channel);
+      setSyncStatus((s) => ({ ...s, realtimeState: "disconnected" }));
+    };
   }, [workspaceId]);
 
   // Auto-cria o node "client" quando o canvas vem de um workspace e ainda não tem pasta
@@ -3358,6 +3390,7 @@ function CanvasStudioInner({
           nodes={scopedProjectNodes}
           selectedMilestoneId={selectedMilestoneId}
           onSelectMilestone={(id) => setSelectedMilestoneId(id)}
+          syncStatus={syncStatus}
         />
       )}
 
