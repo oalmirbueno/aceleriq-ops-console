@@ -3,7 +3,7 @@ import {
   ReactFlow, ReactFlowProvider, Background,
   applyNodeChanges, applyEdgeChanges,
   ConnectionMode, ConnectionLineType,
-  type Node, type Edge, type NodeChange, type EdgeChange, type Connection,
+  type Node, type Edge, type NodeChange, type EdgeChange, type Connection, type NodeProps,
   type ReactFlowInstance, type Viewport, SelectionMode, MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -30,7 +30,6 @@ import CanvasTemplatesDialog, { type CanvasTemplate, type NodeSnapshot, type Edg
 import ApplyPlaybookButton from "./ApplyPlaybookButton";
 import CanvasProjectLinker from "./CanvasProjectLinker";
 import DeletableEdge from "./DeletableEdge";
-import MilestoneFordismoBar from "./MilestoneFordismoBar";
 import type { EsteiraTemplate } from "./esteiraTemplates";
 import { syncNodeCreated, syncNodeDeleted } from "./syncToPortalEvents";
 import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalMeta } from "./canvasOperationalMeta";
@@ -77,6 +76,7 @@ const nodeTypes = {
   canvasGroup: CanvasGroupNode,
   aiOrb: AiOrbNode,
   chatNode: ChatNode,
+  fordismoLane: FordismoLaneNode,
 };
 
 const edgeTypes = {
