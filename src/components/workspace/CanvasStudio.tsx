@@ -519,6 +519,65 @@ function CanvasStudioInner({
       }
     }
 
+    // ── Progresso por milestone (project_group) e progresso geral do cliente ──
+    try {
+      const COMPLETED = new Set(["done", "completed", "concluido", "concluída", "concluida"]);
+      const allNodes = dbNodesRef.current;
+      const groups = allNodes.filter((n) => {
+        const k = ((n.data as Record<string, unknown> | null)?.kind as string | undefined) ?? "";
+        return k === "project_group";
+      });
+
+      const tasksByGroup = new Map<string, typeof allNodes>();
+      for (const g of groups) tasksByGroup.set(g.id, [] as any);
+      for (const n of allNodes) {
+        if (!n.parent_node_id) continue;
+        const arr = tasksByGroup.get(n.parent_node_id);
+        if (!arr) continue;
+        const t = (n.node_type ?? "").toLowerCase();
+        const k = ((n.data as Record<string, unknown> | null)?.kind as string | undefined) ?? "";
+        if (["client", "ai_orb", "chat_node"].includes(t) || k === "chat_node" || k === "project_group") continue;
+        arr.push(n);
+      }
+
+      const groupProgress: number[] = [];
+      for (const g of groups) {
+        const tasks = tasksByGroup.get(g.id) ?? [];
+        if (tasks.length === 0) continue;
+        const doneCount = tasks.filter((t) => COMPLETED.has((t.status ?? "").toLowerCase())).length;
+        const pct = Math.round((doneCount / tasks.length) * 100);
+        groupProgress.push(pct);
+        const portalProjectId = ((g.data as Record<string, unknown> | null)?.portal_project_id as string | undefined) ?? null;
+        if (!portalProjectId) continue;
+        await supabase.functions.invoke("sync-to-portal", {
+          body: {
+            event: "project_progress",
+            workspaceId,
+            clientId: g.client_id ?? clientId,
+            portalProjectId,
+            progress: pct,
+            message: `Milestone "${g.title}" — ${doneCount}/${tasks.length} concluídas (${pct}%)`,
+          },
+        }).catch(() => {});
+      }
+
+      // Média geral do cliente (média dos milestones)
+      if (groupProgress.length > 0) {
+        const avg = Math.round(groupProgress.reduce((a, b) => a + b, 0) / groupProgress.length);
+        await supabase.functions.invoke("sync-to-portal", {
+          body: {
+            event: "client_progress",
+            workspaceId,
+            clientId,
+            progress: avg,
+            message: `Progresso geral da conta: ${avg}%`,
+          },
+        }).catch(() => {});
+      }
+    } catch (err) {
+      console.warn("[CanvasStudio] progress rollup failed", err);
+    }
+
     await fetchDataRef.current?.();
     return { total: syncableNodes.length, sent, failed, pulled, pullFailed };
   }, [clientId, workspaceId]);

@@ -111,6 +111,7 @@ serve(async (req) => {
       portalTaskId?: string;
       source?: string;
       limit?: number;
+      portalProjectId?: string;
     };
 
     // ── Listagem de projetos do portal (não exige vínculo de cliente) ─────
@@ -392,6 +393,33 @@ serve(async (req) => {
         author_id:   PORTAL_ADMIN_ID || portalClientId,
         message:     body.message ?? `Projeto avançou para a etapa: ${label}`,
         update_type: "milestone",
+      };
+    }
+
+    else if (event === "project_progress") {
+      const targetProjectId = (body as any).portalProjectId ?? portalProjectId;
+      if (!targetProjectId) return json({ skipped: true, reason: "portal_project_id missing" });
+      const progress = typeof body.progress === "number" ? Math.max(0, Math.min(100, Math.round(body.progress))) : null;
+      if (progress === null) return json({ skipped: true, reason: "progress missing" });
+      data = {
+        project_id:  targetProjectId,
+        author_id:   PORTAL_ADMIN_ID || portalClientId,
+        message:     body.message ?? `Progresso do projeto: ${progress}%`,
+        update_type: "project_progress",
+        progress,
+      };
+    }
+
+    else if (event === "client_progress") {
+      if (!portalClientId) return json({ skipped: true, reason: "portal_client_id missing" });
+      const progress = typeof body.progress === "number" ? Math.max(0, Math.min(100, Math.round(body.progress))) : null;
+      if (progress === null) return json({ skipped: true, reason: "progress missing" });
+      data = {
+        client_id:   portalClientId,
+        author_id:   PORTAL_ADMIN_ID || portalClientId,
+        message:     body.message ?? `Progresso geral da conta: ${progress}%`,
+        update_type: "client_progress",
+        progress,
       };
     }
 
