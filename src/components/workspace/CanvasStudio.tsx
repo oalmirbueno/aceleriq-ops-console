@@ -775,7 +775,7 @@ function CanvasStudioInner({
       portalError: failed > 0 || pullFailed ? `${failed} push falhos${pullFailed ? " · pull falhou" : ""}` : null,
     }));
     return { total: syncableNodes.length, sent, failed, pulled, pullFailed };
-  }, [clientId, workspaceId]);
+  }, [clientId, workspaceId, portalProjectIdProp]);
 
   // Load client plan_name + project_type for ApplyPlaybookButton
   useEffect(() => {
