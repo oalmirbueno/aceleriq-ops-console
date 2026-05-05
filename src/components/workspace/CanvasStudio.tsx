@@ -1164,8 +1164,8 @@ function CanvasStudioInner({
     const FORDISMO_ORIGIN_Y = 330;
     const fordismoOverride = new Map<string, { x: number; y: number }>();
     const fordismoStageTotals = new Map<string, { total: number; done: number }>();
+    const stageCounts = new Map<string, number>();
     if (selectedMilestoneId) {
-      const stageCounts = new Map<string, number>();
       const selectedMilestone = visibleCanvasNodes.find((node) => node.id === selectedMilestoneId);
       const selectedProject = selectedMilestone?.parent_node_id
         ? visibleCanvasNodes.find((node) => node.id === selectedMilestone.parent_node_id)
@@ -1272,6 +1272,7 @@ function CanvasStudioInner({
         } satisfies ProjectNodeData,
       };
     });
+    return [...laneNodes, ...cardNodes];
   }, [visibleCanvasNodes, groupMeta, workspaceId, lockedNodes, stableOnPrefilled, stableOnQuickConnect, stableOnDeleteNode, stableOnExpandHub, connectionsByNodeId, clientId, selectedMilestoneId]);
 
   /** Delete edge — instant local update + DB delete. Usado pelo DeletableEdge e context menu. */
