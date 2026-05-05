@@ -717,6 +717,7 @@ function CanvasStudioInner({
       // Pula pastas/clientes; só tarefas viram cards reais no kanban do portal.
       if (["client", "ai_orb", "chat_node"].includes(type)) return false;
       if (kind === "chat_node" || kind === "project_group" || kind === "milestone_group") return false;
+      if (portalProjectIdProp && portalProjectForNode(node) !== portalProjectIdProp) return false;
       return true;
     }).slice(0, limit) : [];
 
@@ -738,6 +739,7 @@ function CanvasStudioInner({
             nodeType: node.node_type,
             status: node.status ?? "draft",
             portalProjectId: portalProjectId ?? undefined,
+            data: ndata,
           },
         }), 4500, "Ops→Portal");
         if (error || (data as any)?.ok === false || (data as any)?.skipped) failed++;
