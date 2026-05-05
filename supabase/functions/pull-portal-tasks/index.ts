@@ -227,8 +227,8 @@ serve(async (req) => {
         .eq("workspace_id", workspaceId)
         .contains("data", contains)
         .maybeSingle();
-      const pos_x = clientBaseX + args.projectIndex * 520 + 32;
-      const pos_y = clientBaseY + 360 + args.milestoneIndex * 420;
+      const pos_x = clientBaseX + args.projectIndex * 1760 + 32 + args.milestoneIndex * 360;
+      const pos_y = clientBaseY + 350;
       const payload = {
         parent_node_id: args.projectNodeId ?? clientNodeId,
         title: args.title,
@@ -260,6 +260,8 @@ serve(async (req) => {
       return created?.id ?? null;
     }
 
+    const TASKS_PER_ROW = 1;
+    const TASK_GAP_Y = 136;
     let created = 0, updated = 0, linked = 0;
     const projectGroupCache = new Map<string, string | null>();
     const milestoneGroupCache = new Map<string, string | null>();
@@ -319,8 +321,8 @@ serve(async (req) => {
       const counterKey = `${taskProjectId}:${milestoneKey}`;
       const idx = taskCounters.get(counterKey) ?? 0;
       taskCounters.set(counterKey, idx + 1);
-      const pos_x = clientBaseX + projectIndex * 520 + 64 + (idx % 2) * 238;
-      const pos_y = clientBaseY + 430 + milestoneIndex * 420 + Math.floor(idx / 2) * 148;
+      const pos_x = clientBaseX + projectIndex * 1760 + 64 + milestoneIndex * 360 + (idx % TASKS_PER_ROW) * 300;
+      const pos_y = clientBaseY + 480 + Math.floor(idx / TASKS_PER_ROW) * TASK_GAP_Y;
       const nextTaskData = (cur: Record<string, unknown>) => compactRecord({
         ...cur,
         from_portal: true,
