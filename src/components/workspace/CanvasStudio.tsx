@@ -1090,12 +1090,16 @@ function CanvasStudioInner({
   useEffect(() => {
     const inst = rfInstanceRef.current;
     if (!inst) return;
+    if (selectedMilestoneId) {
+      inst.fitView({ padding: 0.12, duration: 300 });
+      return;
+    }
     if (restoredScopesRef.current.has(viewportScope)) return;
     const saved = readSavedViewport(viewportScope);
     if (saved) inst.setViewport(saved, { duration: 250 });
     else inst.fitView({ padding: 0.4, duration: 250 });
     restoredScopesRef.current.add(viewportScope);
-  }, [viewportScope, readSavedViewport]);
+  }, [viewportScope, readSavedViewport, selectedMilestoneId]);
 
   // Persiste com debounce no fim de cada pan/zoom
   const handleMoveEnd = useCallback((_e: unknown, vp: Viewport) => {
