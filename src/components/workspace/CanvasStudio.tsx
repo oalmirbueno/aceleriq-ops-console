@@ -2538,6 +2538,28 @@ function CanvasStudioInner({
             />
           )}
           <div className="h-5 w-px bg-border mx-1" />
+          <CanvasProjectLinker
+            workspaceId={workspaceId}
+            clientId={clientId}
+            onLinked={async () => {
+              try {
+                setBusyAction("portal-sync");
+                const result = await syncPortalNow();
+                toast({
+                  title: "Projeto vinculado e sincronizado",
+                  description: `Ops→Portal ${result.sent}/${result.total} · Portal→Ops ${result.pulled}`,
+                });
+              } catch (err) {
+                toast({
+                  title: "Vinculado, mas sync falhou",
+                  description: err instanceof Error ? err.message : "Tente o botão Sync",
+                  variant: "destructive",
+                });
+              } finally {
+                setBusyAction(null);
+              }
+            }}
+          />
           <Button
             size="sm"
             variant="outline"
