@@ -4197,6 +4197,9 @@ function CanvasStudioInner({
           toast({ title: "Node movido", description: `→ ${targetName}` });
         }}
       />
+      {debugOpen ? (
+        <CanvasDebugOverlay stats={debugStats} onClose={() => setDebugOpen(false)} />
+      ) : null}
     </div>
   );
 }
