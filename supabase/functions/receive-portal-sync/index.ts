@@ -72,6 +72,10 @@ function firstString(...values: unknown[]): string | null {
   return null;
 }
 
+function compactRecord(record: Record<string, unknown>) {
+  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined && value !== ""));
+}
+
 function briefingFromRecord(data: Record<string, unknown>): Record<string, unknown> {
   const keys = [
     "positioning",
@@ -483,6 +487,9 @@ serve(async (req) => {
       // ── TASK: cria/atualiza/remove node correspondente no canvas ────
       if (type === "task") {
         const portalTaskId = firstString(data.id, data.task_id);
+        const portalMilestoneId = firstString(data.milestone_id, data.portal_milestone_id, data.stage_id, data.phase_id, data.column_id);
+        const milestoneKey = portalMilestoneId ?? `no-milestone:${portalProjectId ?? ws.id}`;
+        const milestoneTitle = firstString(data.milestone_title, data.milestone_name, data.stage_title, data.phase_title, data.column_title) ?? "Sem milestone";
         const portalStatus = (firstString(data.status, data.kanban_status) ?? "draft").toLowerCase();
         // mapeia status do kanban → ops
         const statusMap: Record<string, string> = {
@@ -500,6 +507,66 @@ serve(async (req) => {
             .eq("workspace_id", ws.id)
             .contains("data", { portal_task_id: portalTaskId });
         } else if (portalTaskId) {
+          const projectId = portalProjectId ?? firstString(data.project_id, data.workspace_id) ?? "portal-project";
+          let projectGroupId: string | null = null;
+          const { data: projectGroup } = await supabase
+            .from("canvas_nodes")
+            .select("id, data")
+            .eq("workspace_id", ws.id)
+            .contains("data", { kind: "project_group", portal_project_id: projectId })
+            .maybeSingle();
+          if (projectGroup?.id) projectGroupId = projectGroup.id;
+          else {
+            const { data: clientNode } = await supabase
+              .from("canvas_nodes")
+              .select("id, pos_x, pos_y")
+              .eq("workspace_id", ws.id)
+              .eq("node_type", "client")
+              .eq("client_id", ws.client_id)
+              .order("created_at", { ascending: true })
+              .limit(1)
+              .maybeSingle();
+            const { data: createdGroup } = await supabase.from("canvas_nodes").insert({
+              workspace_id: ws.id,
+              client_id: ws.client_id,
+              parent_node_id: clientNode?.id ?? null,
+              node_type: "front",
+              title: firstString(data.project_title, data.project_name) ?? "Projeto do portal",
+              status: "active",
+              pos_x: Number(clientNode?.pos_x ?? 80),
+              pos_y: Number(clientNode?.pos_y ?? 0) + 190,
+              data: { kind: "project_group", from_portal: true, portal_project_id: projectId, stage: "producao" },
+            }).select("id").single();
+            projectGroupId = createdGroup?.id ?? null;
+          }
+
+          let milestoneGroupId: string | null = null;
+          const milestoneContains = portalMilestoneId
+            ? { kind: "milestone_group", portal_milestone_id: portalMilestoneId }
+            : { kind: "milestone_group", portal_project_id: projectId, milestone_key: milestoneKey };
+          const { data: milestoneGroup } = await supabase
+            .from("canvas_nodes")
+            .select("id, data")
+            .eq("workspace_id", ws.id)
+            .contains("data", milestoneContains)
+            .maybeSingle();
+          if (milestoneGroup?.id) milestoneGroupId = milestoneGroup.id;
+          else {
+            const { count } = await supabase.from("canvas_nodes").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id).contains("data", { kind: "milestone_group", portal_project_id: projectId });
+            const { data: createdMilestone } = await supabase.from("canvas_nodes").insert({
+              workspace_id: ws.id,
+              client_id: ws.client_id,
+              parent_node_id: projectGroupId,
+              node_type: "front",
+              title: milestoneTitle,
+              status: "active",
+              pos_x: 112,
+              pos_y: 360 + (count ?? 0) * 420,
+              data: compactRecord({ kind: "milestone_group", from_portal: true, portal_project_id: projectId, portal_milestone_id: portalMilestoneId ?? undefined, milestone_key: milestoneKey, stage: "producao" }),
+            }).select("id").single();
+            milestoneGroupId = createdMilestone?.id ?? null;
+          }
+
           // procura node existente por portal_task_id em data
           const { data: existing } = await supabase
             .from("canvas_nodes")
@@ -510,11 +577,13 @@ serve(async (req) => {
             .maybeSingle();
 
           if (existing) {
+            const currentData = (existing.data as Record<string, unknown>) ?? {};
             await supabase.from("canvas_nodes").update({
               title,
               status: opsStatus,
+              parent_node_id: milestoneGroupId,
               updated_at: new Date().toISOString(),
-              data: { ...((existing.data as Record<string, unknown>) ?? {}), portal_task_id: portalTaskId, from_portal: true },
+              data: compactRecord({ ...currentData, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: portalMilestoneId ?? undefined, milestone_key: milestoneKey, milestone_title: milestoneTitle, from_portal: true }),
             }).eq("id", existing.id);
           } else {
             // posição: empilha verticalmente abaixo do canvas (operador arrasta depois)
@@ -526,14 +595,14 @@ serve(async (req) => {
             const { data: created } = await supabase.from("canvas_nodes").insert({
               workspace_id: ws.id,
               client_id: ws.client_id,
-              parent_node_id: null,
-              node_type: "checklist",
+              parent_node_id: milestoneGroupId,
+              node_type: "task",
               title,
               description,
               status: opsStatus,
               pos_x: 80 + (idx % 6) * 320,
               pos_y: 800 + Math.floor(idx / 6) * 220,
-              data: { from_portal: true, portal_task_id: portalTaskId, kind: "checklist", checklist: [], touched_at: null },
+              data: compactRecord({ from_portal: true, portal_task_id: portalTaskId, portal_project_id: projectId, portal_milestone_id: portalMilestoneId ?? undefined, milestone_key: milestoneKey, milestone_title: milestoneTitle, kind: "checklist", checklist: [], touched_at: null }),
             }).select("id").single();
 
             // Callback de pareamento: avisa o portal que o node foi criado, com portal_task_id.
@@ -550,6 +619,7 @@ serve(async (req) => {
                     nodeType: "checklist",
                     status: opsStatus,
                     portalTaskId,
+                    portalProjectId: projectId,
                     source: "ops",
                   },
                 });
