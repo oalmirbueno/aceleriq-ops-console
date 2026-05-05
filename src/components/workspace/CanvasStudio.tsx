@@ -1626,6 +1626,8 @@ function CanvasStudioInner({
         if (error || !data) throw error ?? new Error("Falha ao criar node gerado pelo Orb.");
         createdByRef[spec.ref] = data as CanvasNodeRow;
         createdNodes.push(data as CanvasNodeRow);
+        const row = data as CanvasNodeRow;
+        syncNodeCreated({ workspaceId, clientId, nodeId: row.id, nodeTitle: row.title, nodeType: row.node_type });
       }
 
       const generatedEdges = [
