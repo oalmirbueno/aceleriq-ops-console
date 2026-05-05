@@ -438,6 +438,19 @@ function CanvasStudioInner({
   }, [workspaceId]);
 
   const syncPortalNow = useCallback(async () => {
+    let pulled = 0;
+    let pullFailed = false;
+    try {
+      const { data, error } = await withTimeout(supabase.functions.invoke("sync-to-portal", {
+        body: { event: "pull_portal_tasks", workspaceId, clientId, limit: 500 },
+      }), 12000, "Portal→Ops");
+      pulled = Number(((data as any)?.created ?? 0) + ((data as any)?.updated ?? 0));
+      pullFailed = !!error || (data as any)?.ok === false;
+    } catch (error) {
+      console.error("[CanvasStudio] pull_portal_tasks failed", error);
+      pullFailed = true;
+    }
+
     const syncableNodes = dbNodesRef.current.filter((node) => {
       const type = (node.node_type ?? "").toLowerCase();
       const kind = ((node.data as Record<string, unknown> | null)?.kind as string | undefined ?? "").toLowerCase();
@@ -465,19 +478,6 @@ function CanvasStudioInner({
         console.error("[CanvasStudio] sync-to-portal node failed", node.id, error);
         failed++;
       }
-    }
-
-    let pulled = 0;
-    let pullFailed = false;
-    try {
-      const { data, error } = await withTimeout(supabase.functions.invoke("sync-to-portal", {
-        body: { event: "pull_portal_tasks", workspaceId, clientId, limit: 300 },
-      }), 9000, "Portal→Ops");
-      pulled = Number(((data as any)?.created ?? 0) + ((data as any)?.updated ?? 0));
-      pullFailed = !!error || (data as any)?.ok === false;
-    } catch (error) {
-      console.error("[CanvasStudio] pull_portal_tasks failed", error);
-      pullFailed = true;
     }
 
     await fetchDataRef.current?.();
