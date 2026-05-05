@@ -884,7 +884,16 @@ function CanvasStudioInner({
         filter: `workspace_id=eq.${workspaceId}`,
       }, (payload) => {
         const row = payload.new as CanvasNodeRow;
-        setDbNodes((prev) => prev.map((n) => n.id === row.id ? { ...n, ...row } : n));
+        // Consistência: descarta updates fora de ordem comparando updated_at.
+        // Realtime do Supabase pode entregar eventos em ordem diferente da real
+        // (ex.: portal e ops escrevem em paralelo). Sempre fica com a versão mais nova.
+        setDbNodes((prev) => prev.map((n) => {
+          if (n.id !== row.id) return n;
+          const prevTs = Date.parse((n.updated_at as string | undefined) ?? "") || 0;
+          const newTs  = Date.parse((row.updated_at as string | undefined) ?? "") || 0;
+          if (prevTs && newTs && newTs < prevTs) return n; // stale event — ignora
+          return { ...n, ...row };
+        }));
       })
       .on("postgres_changes", {
         event: "DELETE", schema: "public", table: "canvas_nodes",
