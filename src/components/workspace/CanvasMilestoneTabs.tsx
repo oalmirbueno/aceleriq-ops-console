@@ -33,37 +33,129 @@ function portalOrder(n: CanvasNodeRow): number {
   return Number.isFinite(v) ? v : 9999;
 }
 
+const COMPLETED_STATUSES = new Set(["done", "completed", "concluido", "concluída", "concluida"]);
+const NON_TASK_TYPES = new Set(["client", "ai_orb", "chat_node"]);
+const NON_TASK_KINDS = new Set(["project_group", "milestone_group", "chat_node"]);
+
+interface MilestoneTabProps {
+  id: string;
+  title: string;
+  active: boolean;
+  done: number;
+  total: number;
+  onSelect: (id: string, active: boolean) => void;
+}
+
+const MilestoneTab = memo(function MilestoneTab({ id, title, active, done, total, onSelect }: MilestoneTabProps) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : null;
+  return (
+    <button
+      onClick={() => onSelect(id, active)}
+      className={`shrink-0 group flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-[11px] font-medium transition-all ${
+        active
+          ? "bg-primary/15 border-primary/50 text-primary shadow-sm"
+          : "border-border bg-background/60 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+      }`}
+      title={pct !== null ? `${title} · ${done}/${total} (${pct}%)` : title}
+    >
+      <Target className={`h-3 w-3 ${active ? "text-primary" : "text-muted-foreground/70"}`} />
+      <span className="truncate max-w-[180px]">{title}</span>
+      {total > 0 && (
+        <span className={`text-[10px] tabular-nums ${active ? "text-primary/80" : "opacity-60"}`}>
+          {done}/{total}
+        </span>
+      )}
+    </button>
+  );
+});
+
 function CanvasMilestoneTabsComp({ nodes, selectedMilestoneId, onSelectMilestone }: Props) {
-  // groupProgressById removed from props; compute locally so the bar stays
-  // self-contained. Real-time updates flow via the parent re-rendering with
-  // updated `nodes` (canvas_nodes realtime + portal triggers).
-  const progressById = useMemo(() => {
-    const COMPLETED = new Set(["done", "completed", "concluido", "concluída", "concluida"]);
-    const isTaskish = (n: CanvasNodeRow) => {
-      const t = (n.node_type ?? "").toLowerCase();
+  // Build a narrow signature so we only recompute when fields that affect the
+  // bar actually change. Unrelated updates (positions, drawer data, etc.) on
+  // canvas_nodes won't invalidate this memo.
+  const progressSignature = useMemo(() => {
+    const parts: string[] = [];
+    for (const n of nodes) {
       const k = kindOf(n);
-      return !["client", "ai_orb", "chat_node"].includes(t) && !["project_group", "milestone_group", "chat_node"].includes(k);
-    };
+      const t = (n.node_type ?? "").toLowerCase();
+      const isMilestone = k === "milestone_group";
+      const isTask = !NON_TASK_TYPES.has(t) && !NON_TASK_KINDS.has(k);
+      if (!isMilestone && !isTask) continue;
+      const d = (n.data as Record<string, unknown> | null) ?? {};
+      parts.push(
+        `${n.id}|${k}|${n.parent_node_id ?? ""}|${(n.status ?? "").toLowerCase()}|${
+          (d.portal_milestone_id as string | undefined) ?? ""
+        }|${(d.milestone_key as string | undefined) ?? ""}|${(d.portal_project_id as string | undefined) ?? ""}`,
+      );
+    }
+    parts.sort();
+    return parts.join("\n");
+  }, [nodes]);
+
+  const progressById = useMemo(() => {
     const map = new Map<string, { total: number; done: number }>();
-    const milestones = nodes.filter((n) => kindOf(n) === "milestone_group");
+    const milestones: CanvasNodeRow[] = [];
+    // Index tasks by parent and by portal milestone keys in a single pass.
+    const byParent = new Map<string, CanvasNodeRow[]>();
+    const byPortalMs = new Map<string, CanvasNodeRow[]>();
+    const byMsKey = new Map<string, CanvasNodeRow[]>();
+    for (const n of nodes) {
+      const k = kindOf(n);
+      if (k === "milestone_group") {
+        milestones.push(n);
+        continue;
+      }
+      const t = (n.node_type ?? "").toLowerCase();
+      if (NON_TASK_TYPES.has(t) || NON_TASK_KINDS.has(k)) continue;
+      if (n.parent_node_id) {
+        const arr = byParent.get(n.parent_node_id);
+        if (arr) arr.push(n); else byParent.set(n.parent_node_id, [n]);
+      }
+      const d = (n.data as Record<string, unknown> | null) ?? {};
+      const pid = d.portal_milestone_id as string | undefined;
+      if (pid) {
+        const arr = byPortalMs.get(pid);
+        if (arr) arr.push(n); else byPortalMs.set(pid, [n]);
+      }
+      const mKey = d.milestone_key as string | undefined;
+      const mProj = d.portal_project_id as string | undefined;
+      if (mKey && mProj) {
+        const key = `${mProj}::${mKey}`;
+        const arr = byMsKey.get(key);
+        if (arr) arr.push(n); else byMsKey.set(key, [n]);
+      }
+    }
     for (const m of milestones) {
       const md = (m.data as Record<string, unknown> | null) ?? {};
       const mPid = md.portal_milestone_id as string | undefined;
       const mKey = md.milestone_key as string | undefined;
       const mProj = md.portal_project_id as string | undefined;
-      const tasks = nodes.filter((n) => {
-        if (!isTaskish(n)) return false;
-        if (n.parent_node_id === m.id) return true;
-        const d = (n.data as Record<string, unknown> | null) ?? {};
-        if (mPid && d.portal_milestone_id === mPid) return true;
-        if (mKey && d.milestone_key === mKey && d.portal_project_id === mProj) return true;
-        return false;
-      });
-      const done = tasks.filter((t) => COMPLETED.has((t.status ?? "").toLowerCase())).length;
-      map.set(m.id, { total: tasks.length, done });
+      const seen = new Set<string>();
+      const collect = (arr?: CanvasNodeRow[]) => {
+        if (!arr) return;
+        for (const n of arr) seen.add(n.id);
+      };
+      collect(byParent.get(m.id));
+      if (mPid) collect(byPortalMs.get(mPid));
+      if (mKey && mProj) collect(byMsKey.get(`${mProj}::${mKey}`));
+      let done = 0;
+      for (const id of seen) {
+        // Re-resolve status via a tight loop avoiding extra map.
+      }
+      // Resolve done count by walking the union once.
+      const idSet = seen;
+      let total = idSet.size;
+      if (total > 0) {
+        for (const n of nodes) {
+          if (!idSet.has(n.id)) continue;
+          if (COMPLETED_STATUSES.has((n.status ?? "").toLowerCase())) done++;
+        }
+      }
+      map.set(m.id, { total, done });
     }
     return map;
-  }, [nodes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progressSignature]);
 
   const grouped = useMemo(() => {
     const projects = nodes
@@ -87,6 +179,11 @@ function CanvasMilestoneTabsComp({ nodes, selectedMilestoneId, onSelectMilestone
       return { project, milestones };
     }).filter((g) => g.milestones.length > 0 || true);
   }, [nodes]);
+
+  const handleSelect = useMemo(
+    () => (id: string, active: boolean) => onSelectMilestone(active ? null : id),
+    [onSelectMilestone],
+  );
 
   return (
     <div className="flex items-stretch gap-3 px-2 py-1.5 border-b border-border bg-card/40 backdrop-blur-sm overflow-hidden">
@@ -127,26 +224,16 @@ function CanvasMilestoneTabsComp({ nodes, selectedMilestoneId, onSelectMilestone
                 {milestones.map((m) => {
                   const active = m.id === selectedMilestoneId;
                   const progress = progressById.get(m.id);
-                  const pct = progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : null;
                   return (
-                    <button
+                    <MilestoneTab
                       key={m.id}
-                      onClick={() => onSelectMilestone(active ? null : m.id)}
-                      className={`shrink-0 group flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-[11px] font-medium transition-all ${
-                        active
-                          ? "bg-primary/15 border-primary/50 text-primary shadow-sm"
-                          : "border-border bg-background/60 text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                      }`}
-                      title={pct !== null ? `${m.title} · ${progress?.done ?? 0}/${progress?.total ?? 0} (${pct}%)` : m.title}
-                    >
-                      <Target className={`h-3 w-3 ${active ? "text-primary" : "text-muted-foreground/70"}`} />
-                      <span className="truncate max-w-[180px]">{m.title}</span>
-                      {progress && progress.total > 0 && (
-                        <span className={`text-[10px] tabular-nums ${active ? "text-primary/80" : "opacity-60"}`}>
-                          {progress.done}/{progress.total}
-                        </span>
-                      )}
-                    </button>
+                      id={m.id}
+                      title={m.title}
+                      active={active}
+                      done={progress?.done ?? 0}
+                      total={progress?.total ?? 0}
+                      onSelect={handleSelect}
+                    />
                   );
                 })}
               </div>
