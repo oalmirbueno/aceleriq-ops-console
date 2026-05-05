@@ -10,7 +10,7 @@
  * dentro do CanvasStudio cuidam disso automaticamente. Se a lista
  * estiver vazia, mostramos um estado neutro com fallback discreto.
  */
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { FolderKanban, RefreshCw, Loader2, Network, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ export default function WorkspaceProjectsLauncher({ workspaceId, clientName }: P
   const [projects, setProjects] = useState<ProjectGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const autoPulledRef = useRef(false);
 
   const load = useCallback(async () => {
     const { data: nodes } = await supabase
@@ -86,6 +87,18 @@ export default function WorkspaceProjectsLauncher({ workspaceId, clientName }: P
     setLoading(false);
   }, [workspaceId]);
 
+  // Roda backfill (vincula portal_project_id ao workspace se faltar) e
+  // depois pull-portal-tasks (cria os project_group/milestone_group/tasks
+  // como canvas_nodes — que é o que esta tela lista). Esse é o sync real.
+  const fullSync = useCallback(async () => {
+    try {
+      await supabase.functions.invoke("backfill-from-portal", { body: { source: "launcher" } });
+    } catch { /* segue mesmo se falhar */ }
+    try {
+      await supabase.functions.invoke("pull-portal-tasks", { body: { workspaceId } });
+    } catch { /* idem */ }
+  }, [workspaceId]);
+
   useEffect(() => {
     load();
     // realtime: novos projetos/milestones do Portal aparecem na hora
@@ -98,10 +111,29 @@ export default function WorkspaceProjectsLauncher({ workspaceId, clientName }: P
     return () => { supabase.removeChannel(ch); };
   }, [workspaceId, load]);
 
+  // Auto-pull silencioso: se ao terminar o load não tiver nenhum projeto,
+  // dispara o fullSync uma vez. Isso cobre o caso "cliente já tem projeto
+  // no Portal mas nunca rodou o pull pra esse workspace".
+  useEffect(() => {
+    if (loading) return;
+    if (projects.length > 0) return;
+    if (autoPulledRef.current) return;
+    autoPulledRef.current = true;
+    (async () => {
+      setSyncing(true);
+      try {
+        await fullSync();
+        await load();
+      } finally {
+        setSyncing(false);
+      }
+    })();
+  }, [loading, projects.length, fullSync, load]);
+
   const triggerSync = async () => {
     setSyncing(true);
     try {
-      await supabase.functions.invoke("backfill-from-portal", { body: { source: "manual" } });
+      await fullSync();
       await load();
     } finally {
       setSyncing(false);
