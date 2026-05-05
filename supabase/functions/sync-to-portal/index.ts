@@ -92,6 +92,32 @@ const TASK_STATUS_TO_OPS: Record<string, string> = {
   done: "done", completed: "done", concluido: "done", concluída: "done", concluida: "done",
 };
 
+function normalizeKindText(value: unknown) {
+  return String(value ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function inferKind(title: string, description: string | null, labels: unknown[] = []) {
+  const text = normalizeKindText(`${title} ${description ?? ""} ${labels.join(" ")}`);
+  if (/case|print|documentar|evidencia|portfolio/.test(text)) return "case";
+  if (/before after|antes depois/.test(text)) return "before_after";
+  if (/landing|linktree|hotsite|pagina de links/.test(text)) return "landing_page";
+  if (/shopify|e commerce|ecommerce|loja|checkout|site/.test(text)) return "site";
+  if (/n8n|automacao|automatizar|fluxo|workflow|webhook/.test(text)) return "automacao";
+  if (/integra|api|conectar|sincroniz/.test(text)) return "integracao";
+  if (/agente|chatbot|bot|atendimento|resposta|prompt|gpt|\bia\b/.test(text)) return "agente";
+  if (/metrica|monitor|dashboard|kpi|relatorio|analytics/.test(text)) return "metrica";
+  if (/acesso|credencial|hostinger|senha|login/.test(text)) return "acessos";
+  if (/email|disparo|newsletter/.test(text)) return "email_mkt";
+  if (/trafego|ads|anuncio|campanha/.test(text)) return "trafego";
+  if (/funil|jornada/.test(text)) return "funil";
+  if (/conteudo|copy|roteiro|texto|post/.test(text)) return "conteudo";
+  if (/video|reels|short/.test(text)) return "video";
+  if (/imagem|criativo|arte|design/.test(text)) return "imagem";
+  if (/social|instagram|whatsapp|telegram/.test(text)) return "social";
+  if (/crm|pipeline|kanban/.test(text)) return "crm";
+  return "resultado";
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
