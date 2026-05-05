@@ -1,4 +1,8 @@
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import CanvasStudio from "./CanvasStudio";
 import WorkspaceProjectsLauncher from "./WorkspaceProjectsLauncher";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   workspaceId: string;
@@ -11,6 +15,32 @@ interface Props {
 }
 
 export default function WorkspaceTabCanvas(props: Props) {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!props.portalProjectId) return;
+    supabase.functions.invoke("backfill-from-portal", {
+      body: { source: "workspace_canvas", workspaceId: props.workspaceId, portalProjectId: props.portalProjectId },
+    }).catch(() => {});
+  }, [props.workspaceId, props.portalProjectId]);
+
+  if (props.portalProjectId) {
+    return (
+      <div className="animate-fade-in">
+        <CanvasStudio
+          workspaceId={props.workspaceId}
+          clientId={props.clientId}
+          clientName={props.clientName}
+          portalProjectId={props.portalProjectId}
+          fullscreen={false}
+          onToggleFullscreen={() => navigate(`/ops/projects/${props.portalProjectId}`)}
+          onTimelineRefresh={props.onTimelineRefresh}
+          initialStatusFilter={props.initialStatusFilter}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in">
       <WorkspaceProjectsLauncher
