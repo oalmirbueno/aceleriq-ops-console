@@ -111,6 +111,7 @@ serve(async (req) => {
       portalTaskId?: string;
       source?: string;
       limit?: number;
+      portalProjectId?: string;
     };
 
     // ── Listagem de projetos do portal (não exige vínculo de cliente) ─────
