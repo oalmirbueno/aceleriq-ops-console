@@ -3634,7 +3634,7 @@ function CanvasStudioInner({
             )
           ) : (
             <>
-            {portalProjectIdProp && !selectedMilestoneId && !milestoneOverlayDismissed && (() => {
+            {false && portalProjectIdProp && !selectedMilestoneId && !milestoneOverlayDismissed && (() => {
               const milestones = scopedProjectNodes
                 .filter((n) => String((n.data as Record<string, unknown> | null)?.kind ?? "") === "milestone_group")
                 .sort((a, b) => {
