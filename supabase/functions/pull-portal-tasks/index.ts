@@ -83,16 +83,24 @@ serve(async (req) => {
     const { data: userData } = await auth.auth.getUser();
     if (!userData.user) return json({ error: "Unauthorized" }, 401);
 
-    const { workspaceId } = await req.json() as { workspaceId: string };
+    const body = (await req.json().catch(() => ({}))) as { workspaceId?: string; portalProjectId?: string };
+    const workspaceId = body.workspaceId;
+    const requestedPortalProjectId = body.portalProjectId ?? null;
     if (!workspaceId) return json({ error: "workspaceId required" }, 400);
 
     const db = createClient(SUPABASE_URL, SERVICE_KEY);
-    const { data: ws } = await db
+    let { data: ws } = await db
       .from("workspaces")
       .select("id, client_id, portal_project_id, clients(portal_client_id)")
       .eq("id", workspaceId)
       .single();
     if (!ws) return json({ error: "workspace not found" }, 404);
+    // Auto-vincula workspace ao portal_project_id quando o caller informa
+    // (fluxo do canvas /ops/projects/:portalProjectId).
+    if (!ws.portal_project_id && requestedPortalProjectId) {
+      await db.from("workspaces").update({ portal_project_id: requestedPortalProjectId, updated_at: new Date().toISOString() }).eq("id", workspaceId);
+      ws = { ...ws, portal_project_id: requestedPortalProjectId } as typeof ws;
+    }
     if (!ws.portal_project_id) return json({ ok: false, skipped: true, reason: "workspace not linked to portal" });
 
     const portalHeaders: Record<string, string> = {
