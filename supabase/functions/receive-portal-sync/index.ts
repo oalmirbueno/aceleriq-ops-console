@@ -72,6 +72,10 @@ function firstString(...values: unknown[]): string | null {
   return null;
 }
 
+function compactRecord(record: Record<string, unknown>) {
+  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined && value !== ""));
+}
+
 function briefingFromRecord(data: Record<string, unknown>): Record<string, unknown> {
   const keys = [
     "positioning",
