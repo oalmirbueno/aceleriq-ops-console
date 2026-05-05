@@ -588,7 +588,7 @@ function CanvasStudioInner({
     const milestoneGroups = allNodes
       .filter((node) => String((node.data as Record<string, unknown> | null)?.kind ?? "") === "milestone_group")
       .sort((a, b) => portalOrder(a) - portalOrder(b) || String(a.title).localeCompare(String(b.title)));
-    const layoutUpdates: Array<{ id: string; pos_x: number; pos_y: number; parent_node_id?: string | null }> = [];
+    const relationshipUpdates: Array<{ id: string; parent_node_id: string | null }> = [];
     const nonGroupTask = (node: CanvasNodeRow) => {
       const type = (node.node_type ?? "").toLowerCase();
       const kind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
@@ -598,15 +598,18 @@ function CanvasStudioInner({
       const projectData = (project.data as Record<string, unknown> | null) ?? {};
       const portalProjectId = typeof projectData.portal_project_id === "string" ? projectData.portal_project_id : null;
       const projectX = baseX + projectIndex * 1760;
-      layoutUpdates.push({ id: project.id, pos_x: projectX, pos_y: baseY + 190, parent_node_id: clientRoot?.id ?? project.parent_node_id ?? null });
+      if (!project.parent_node_id && clientRoot?.id) {
+        relationshipUpdates.push({ id: project.id, parent_node_id: clientRoot.id });
+      }
       const milestones = milestoneGroups.filter((milestone) => {
         const data = (milestone.data as Record<string, unknown> | null) ?? {};
         return portalProjectId && data.portal_project_id === portalProjectId;
       });
       milestones.forEach((milestone, milestoneIndex) => {
         const milestoneX = projectX + 32 + milestoneIndex * 360;
-        const milestoneY = baseY + 350;
-        layoutUpdates.push({ id: milestone.id, pos_x: milestoneX, pos_y: milestoneY, parent_node_id: project.id });
+        if (!milestone.parent_node_id) {
+          relationshipUpdates.push({ id: milestone.id, parent_node_id: project.id });
+        }
         const milestoneData = (milestone.data as Record<string, unknown> | null) ?? {};
         const tasks = allNodes
           .filter((node) => {
@@ -619,22 +622,20 @@ function CanvasStudioInner({
               ));
           })
           .sort((a, b) => portalOrder(a) - portalOrder(b) || String(a.title).localeCompare(String(b.title)));
-        tasks.forEach((task, taskIndex) => {
-          layoutUpdates.push({ id: task.id, pos_x: milestoneX + 32, pos_y: baseY + 480 + taskIndex * 136, parent_node_id: milestone.id });
+        tasks.forEach((task) => {
+          if (!task.parent_node_id) {
+            relationshipUpdates.push({ id: task.id, parent_node_id: milestone.id });
+          }
         });
       });
     });
-    const changedLayoutUpdates = layoutUpdates.filter((item) => {
+    const changedRelationshipUpdates = relationshipUpdates.filter((item) => {
       const current = allNodes.find((node) => node.id === item.id);
       if (!current) return false;
-      return Math.round(Number(current.pos_x ?? 0)) !== Math.round(item.pos_x)
-        || Math.round(Number(current.pos_y ?? 0)) !== Math.round(item.pos_y)
-        || (item.parent_node_id !== undefined && current.parent_node_id !== item.parent_node_id);
+      return current.parent_node_id !== item.parent_node_id;
     });
-    if (changedLayoutUpdates.length > 0) {
-      await Promise.all(changedLayoutUpdates.map((item) => supabase.from("canvas_nodes").update({
-        pos_x: item.pos_x,
-        pos_y: item.pos_y,
+    if (changedRelationshipUpdates.length > 0) {
+      await Promise.all(changedRelationshipUpdates.map((item) => supabase.from("canvas_nodes").update({
         parent_node_id: item.parent_node_id,
         updated_at: new Date().toISOString(),
       }).eq("id", item.id)));
