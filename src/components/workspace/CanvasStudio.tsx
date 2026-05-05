@@ -1206,6 +1206,10 @@ function CanvasStudioInner({
         for (const n of projectNodes) {
           const d = (n.data as Record<string, unknown> | null) ?? {};
           if (d.portal_project_id === portalProjectIdProp) allowedProj.add(n.id);
+          const type = (n.node_type ?? "").toLowerCase();
+          const kind = String(d.kind ?? "").toLowerCase();
+          const isOpsFreeNode = type === "ai_orb" || kind === "ai_orb" || kind === "chat_node" || d.created_from === "manual" || d.created_from === "ai_orb" || d.generatedByAiOrb;
+          if (isOpsFreeNode && activeClientId && n.parent_node_id === activeClientId) allowedProj.add(n.id);
         }
         // Inclui a pasta do cliente como "raiz" visual.
         const clientRoot = projectNodes.find((n) => (n.node_type ?? "").toLowerCase() === "client" && (n.client_id === clientId || n.linked_entity_id === clientId));
