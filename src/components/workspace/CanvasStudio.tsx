@@ -1150,6 +1150,7 @@ function CanvasStudioInner({
   /* Quick lookup: parent group id → { name, logoUrl, seed } */
   const groupMeta = useMemo(() => {
     const map: Record<string, { name: string; logoUrl: string | null; seed: string }> = {};
+    const byId = new Map(projectNodes.map((node) => [node.id, node] as const));
     clientGroups.forEach((c) => {
       map[c.id] = {
         name: c.title,
@@ -1157,8 +1158,21 @@ function CanvasStudioInner({
         seed: c.linked_entity_id ?? c.id,
       };
     });
+    projectNodes.forEach((node) => {
+      let cursor: CanvasNodeRow | undefined = node;
+      const seen = new Set<string>();
+      while (cursor?.parent_node_id && !seen.has(cursor.id)) {
+        seen.add(cursor.id);
+        const parentId = cursor.parent_node_id;
+        if (map[parentId]) {
+          map[node.id] = map[parentId];
+          return;
+        }
+        cursor = byId.get(parentId);
+      }
+    });
     return map;
-  }, [clientGroups, clientLogos]);
+  }, [clientGroups, clientLogos, projectNodes]);
 
   /* Project nodes visible based on active tab */
   const scopedProjectNodes = useMemo(() => {
