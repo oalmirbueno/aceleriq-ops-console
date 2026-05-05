@@ -3223,7 +3223,7 @@ function CanvasStudioInner({
     );
     toast({ title: "Esteira reorganizada", description: `${updates.length} nodes posicionados por etapa ACELERA.` });
     await fetchData();
-    window.setTimeout(() => rfInstanceRef.current?.fitView({ padding: 0.2, duration: 400 }), 200);
+    window.setTimeout(() => rfInstanceRef.current?.fitView({ padding: 0.25, duration: 220, maxZoom: 1 }), 180);
     setBusyAction(null);
   };
 
