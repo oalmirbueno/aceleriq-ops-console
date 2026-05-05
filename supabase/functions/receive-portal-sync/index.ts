@@ -177,7 +177,7 @@ async function ensureWorkspace(supabase: any, opsClientId: string, clientName: s
     .eq("client_id", opsClientId)
     .limit(1)
     .maybeSingle();
-  if (existingWs) {
+  if (existingWs && (!portalProjectId || !existingWs.portal_project_id || existingWs.portal_project_id === portalProjectId)) {
     if (portalProjectId && !existingWs.portal_project_id) {
       const currentMeta = (existingWs.metadata as Record<string, unknown>) ?? {};
       await supabase.from("workspaces").update({
