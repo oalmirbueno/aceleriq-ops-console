@@ -655,6 +655,10 @@ function CanvasStudioInner({
 
     // ── Progresso por milestone (project_group) e progresso geral do cliente ──
     try {
+      // Versionamento: pega número monotônico antes de qualquer cálculo.
+      // Se outra rodada começar enquanto esta está em voo, ela terá versão maior
+      // e nossas writes serão ignoradas via lastWrittenProgressVersionRef.
+      const progressVersion = ++progressVersionRef.current;
       const COMPLETED = new Set(["done", "completed", "concluido", "concluída", "concluida"]);
       const groups = allNodes.filter((n) => {
         const k = ((n.data as Record<string, unknown> | null)?.kind as string | undefined) ?? "";
@@ -683,20 +687,48 @@ function CanvasStudioInner({
         if (!portalProjectId) continue;
         projectProgress.set(portalProjectId, [...(projectProgress.get(portalProjectId) ?? []), pct]);
         const gdata = (g.data as Record<string, unknown> | null) ?? {};
-        await supabase.from("canvas_nodes").update({ data: { ...gdata, portal_progress: pct }, updated_at: new Date().toISOString() }).eq("id", g.id);
+        // Skip se já houve write mais novo neste node OU se chegou outra rodada
+        const lastWritten = lastWrittenProgressVersionRef.current.get(g.id) ?? 0;
+        if (lastWritten >= progressVersion) continue;
+        if (progressVersion < progressVersionRef.current) break; // rodada nova já em curso
+        const newRev = Number(gdata.progress_rev ?? 0) + 1;
+        await supabase.from("canvas_nodes").update({
+          data: {
+            ...gdata,
+            portal_progress: pct,
+            progress_rev: newRev,
+            progress_calculated_at: new Date().toISOString(),
+          },
+          updated_at: new Date().toISOString(),
+        }).eq("id", g.id);
+        lastWrittenProgressVersionRef.current.set(g.id, progressVersion);
       }
 
       const projectAverages: number[] = [];
       for (const [portalProjectId, values] of projectProgress) {
+        if (progressVersion < progressVersionRef.current) break; // descartado
         const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
         projectAverages.push(avg);
         await supabase.functions.invoke("sync-to-portal", {
-          body: { event: "project_progress", workspaceId, clientId, portalProjectId, progress: avg, message: `Progresso do projeto: ${avg}%` },
+          body: {
+            event: "project_progress",
+            workspaceId,
+            clientId,
+            portalProjectId,
+            progress: avg,
+            // Carrega versão pro Portal validar e descartar updates fora de ordem.
+            progress_version: progressVersion,
+            calculated_at: new Date().toISOString(),
+            message: `Progresso do projeto: ${avg}%`,
+          },
         }).catch(() => {});
       }
 
       // Média geral do cliente (média dos projetos/milestones reais)
       if (projectAverages.length > 0) {
+        if (progressVersion < progressVersionRef.current) {
+          // descartado por rodada mais nova
+        } else {
         const avg = Math.round(projectAverages.reduce((a, b) => a + b, 0) / projectAverages.length);
         await supabase.functions.invoke("sync-to-portal", {
           body: {
@@ -704,9 +736,12 @@ function CanvasStudioInner({
             workspaceId,
             clientId,
             progress: avg,
+            progress_version: progressVersion,
+            calculated_at: new Date().toISOString(),
             message: `Progresso geral da conta: ${avg}%`,
           },
         }).catch(() => {});
+        }
       }
     } catch (err) {
       console.warn("[CanvasStudio] progress rollup failed", err);
