@@ -265,7 +265,9 @@ export async function materializePortalTimelineCanvas({
     const status = portalStatusToOps(event.payload?.status);
     const data = {
       ...(existing?.data ?? {}),
-      kind: existing?.data?.kind ?? inferNodeKind(title, event.description, milestone?.title),
+      kind: (existing?.data?.kind && existing.data.kind !== "checklist")
+        ? existing.data.kind
+        : inferNodeKind(title, event.description, milestone?.title),
       from_portal: true,
       portal_task_id: portalTaskId,
       portal_project_id: portalProjectId,
