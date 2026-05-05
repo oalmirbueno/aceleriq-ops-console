@@ -227,11 +227,8 @@ serve(async (req) => {
       const pos_y = clientBaseY + 190;
       if (existing?.id) {
         await db.from("canvas_nodes").update({
-          parent_node_id: clientNodeId,
-          title: projTitle,
+          parent_node_id: clientNodeId ?? undefined,
           status: projStatus === "completed" ? "done" : "active",
-          pos_x,
-          pos_y,
           updated_at: new Date().toISOString(),
           data: { ...((existing.data as Record<string, unknown>) ?? {}), kind: "project_group", from_portal: true, portal_project_id: portalProjectId, portal_status: projStatus, stage: "producao" },
         }).eq("id", existing.id);
@@ -294,7 +291,12 @@ serve(async (req) => {
         }),
       };
       if (existing?.id) {
-        await db.from("canvas_nodes").update(payload).eq("id", existing.id);
+        await db.from("canvas_nodes").update({
+          parent_node_id: args.projectNodeId ?? undefined,
+          status: payload.status,
+          updated_at: payload.updated_at,
+          data: payload.data,
+        }).eq("id", existing.id);
         return existing.id;
       }
       const { data: created } = await db.from("canvas_nodes").insert({
