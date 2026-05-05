@@ -62,6 +62,29 @@ export default function CanvasFullscreenPage() {
     );
   }
 
+  if (projects.length > 1) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4 px-6">
+        <div className="text-sm text-muted-foreground">Escolha o projeto deste workspace:</div>
+        <div className="flex flex-col gap-2 w-full max-w-md">
+          {projects.map((p) => (
+            <button
+              key={p.portalProjectId}
+              onClick={() => navigate(`/ops/projects/${p.portalProjectId}`, { replace: true })}
+              className="flex items-center gap-2 rounded-md border border-border bg-card/40 hover:bg-card px-3 py-2 text-left text-sm"
+            >
+              <FolderOpen className="h-4 w-4 text-primary" />
+              <span className="truncate">{p.title}</span>
+            </button>
+          ))}
+        </div>
+        <button onClick={() => navigate(`/ops/workspaces/${workspaceId}`)} className="text-xs text-muted-foreground underline">
+          Voltar ao workspace
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen w-screen overflow-hidden bg-background">
       <CanvasStudio
