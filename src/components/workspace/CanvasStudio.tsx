@@ -1677,10 +1677,14 @@ function CanvasStudioInner({
     // Pasta de milestone → abre a esteira do milestone (modo fordismo)
     const kind = String((found.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
     if (kind === "milestone_group") {
-      setSelectedMilestoneId(found.id);
+      setSelectedMilestoneId((current) => current === found.id ? null : found.id);
       return;
     }
     if (kind === "project_group") {
+      if (selectedMilestoneId) {
+        setSelectedMilestoneId(null);
+        return;
+      }
       // Abre o primeiro milestone do projeto, se houver
       const projectData = (found.data as Record<string, unknown> | null) ?? {};
       const first = dbNodesRef.current.find((m) => {
@@ -1698,7 +1702,7 @@ function CanvasStudioInner({
     // ChatNode handles interactions inline — não abre drawer
     if (nodeKindOf(found) === "chat_node") return;
     setSelectedNode(found);
-  }, []);
+  }, [selectedMilestoneId]);
 
   /** ═══ CONNECTING STATE — ativa classe CSS .connecting durante drag de conexão.
    *   Isso faz todos os 12 handles de TODOS os nodes ficarem visíveis, ajudando
