@@ -74,7 +74,7 @@ interface Props {
 function FordismoLaneNode({ data }: NodeProps) {
   const d = data as { title?: string; total?: number; done?: number };
   return (
-    <div className="h-full w-full rounded-lg border border-border/70 bg-card/45 backdrop-blur-sm shadow-sm overflow-hidden">
+    <div className="pointer-events-none h-full w-full rounded-lg border border-border/70 bg-card/45 backdrop-blur-sm shadow-sm overflow-hidden">
       <div className="flex items-center justify-between border-b border-border/60 bg-background/70 px-3 py-2">
         <span className="text-[11px] font-semibold uppercase text-foreground truncate">{d.title}</span>
         <span className="text-[10px] text-muted-foreground tabular-nums">{d.done ?? 0}/{d.total ?? 0}</span>
@@ -1268,7 +1268,9 @@ function CanvasStudioInner({
           canExpandHub: nodeKindOf(n) === "engine",
             onExpandHub: stableOnExpandHub,
           typeData: dataObj,
-          __layoutPositionKey: selectedMilestoneId ? `${n.id}:${Math.round(posX)}:${Math.round(posY)}` : undefined,
+          __layoutPositionKey: selectedMilestoneId || dataObj.from_portal || dataObj.portal_task_id || dataObj.portal_project_id
+            ? `${n.id}:${Math.round(posX)}:${Math.round(posY)}`
+            : undefined,
           pulse: !!dataObj.from_portal && !dataObj.touched_at,
         } satisfies ProjectNodeData,
       };
