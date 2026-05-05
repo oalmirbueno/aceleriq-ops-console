@@ -79,7 +79,7 @@ const TASK_STATUS_TO_OPS: Record<string, string> = {
   doing: "active", in_progress: "active",
   review: "in_review",
   blocked: "blocked",
-  done: "done",
+  done: "done", completed: "done", concluido: "done", concluída: "done", concluida: "done",
 };
 
 serve(async (req) => {
@@ -202,12 +202,15 @@ serve(async (req) => {
         if (existing) {
           const currentData = (existing.data as Record<string, unknown>) ?? {};
           await db.from("canvas_nodes").update({
+            client_id: body.clientId,
+            parent_node_id: parentNodeId,
             title,
             status,
             description,
             data: {
               ...currentData,
               portal_task_id: portalTaskId,
+              portal_project_id: portalProjectId,
               from_portal: true,
               portal_status: portalStatusRaw,
               priority,
@@ -225,7 +228,7 @@ serve(async (req) => {
           await db.from("canvas_nodes").insert({
             workspace_id: body.workspaceId,
             client_id: body.clientId,
-            parent_node_id: null,
+            parent_node_id: parentNodeId,
             node_type: "task",
             title,
             status,
@@ -235,6 +238,7 @@ serve(async (req) => {
             data: {
               from_portal: true,
               portal_task_id: portalTaskId,
+              portal_project_id: portalProjectId,
               portal_status: portalStatusRaw,
               kind: "checklist",
               checklist,
