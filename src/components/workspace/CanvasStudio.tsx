@@ -1633,6 +1633,23 @@ function CanvasStudioInner({
     const found = dbNodesRef.current.find((n) => n.id === node.id);
     if (!found) return;
     if (found.node_type === "client") return; // client groups don't open drawer
+    // Pasta de milestone → abre a esteira do milestone (modo fordismo)
+    const kind = String((found.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
+    if (kind === "milestone_group") {
+      setSelectedMilestoneId(found.id);
+      return;
+    }
+    if (kind === "project_group") {
+      // Abre o primeiro milestone do projeto, se houver
+      const projectData = (found.data as Record<string, unknown> | null) ?? {};
+      const first = dbNodesRef.current.find((m) => {
+        const d = (m.data as Record<string, unknown> | null) ?? {};
+        return String(d.kind ?? "").toLowerCase() === "milestone_group"
+          && d.portal_project_id === projectData.portal_project_id;
+      });
+      if (first) setSelectedMilestoneId(first.id);
+      return;
+    }
     if (nodeKindOf(found) === "ai_orb") {
       setAiOrbConfigNode(found);
       return;
