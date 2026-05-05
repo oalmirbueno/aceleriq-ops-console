@@ -2709,7 +2709,7 @@ function CanvasStudioInner({
         const row = data as CanvasNodeRow;
         createdNodes.push(row);
         createdByRef[spec.ref] = row;
-        syncNodeCreated({ workspaceId, clientId, nodeId: row.id, nodeTitle: row.title, nodeType: row.node_type });
+        syncNodeCreated({ workspaceId, clientId, nodeId: row.id, nodeTitle: row.title, nodeType: row.node_type, data: row.data as Record<string, unknown> | null });
       }
 
       const resultNode = existingResult ?? createdByRef.result;
@@ -2912,7 +2912,7 @@ function CanvasStudioInner({
           refToId[tn.ref] = (row as CanvasNodeRow).id;
           newRows.push(row as CanvasNodeRow);
           const r = row as CanvasNodeRow;
-          syncNodeCreated({ workspaceId, clientId, nodeId: r.id, nodeTitle: r.title, nodeType: r.node_type });
+          syncNodeCreated({ workspaceId, clientId, nodeId: r.id, nodeTitle: r.title, nodeType: r.node_type, data: r.data as Record<string, unknown> | null });
         }
       }
 
@@ -2978,7 +2978,7 @@ function CanvasStudioInner({
         const tmplNode = template.nodes[i] as any;
         if (tmplNode?.ref) refToId.set(tmplNode.ref, dbNode.id);
         if (dbNode?.node_type !== "client") {
-          syncNodeCreated({ workspaceId, clientId, nodeId: dbNode.id, nodeTitle: dbNode.title, nodeType: dbNode.node_type });
+          syncNodeCreated({ workspaceId, clientId, nodeId: dbNode.id, nodeTitle: dbNode.title, nodeType: dbNode.node_type, data: dbNode.data as Record<string, unknown> | null });
         }
       });
 
