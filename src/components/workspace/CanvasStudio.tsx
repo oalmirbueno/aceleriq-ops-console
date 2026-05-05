@@ -426,6 +426,52 @@ function CanvasStudioInner({
     });
   }, [workspaceId]);
 
+  const syncPortalNow = useCallback(async () => {
+    const syncableNodes = dbNodesRef.current.filter((node) => {
+      const type = (node.node_type ?? "").toLowerCase();
+      const kind = ((node.data as Record<string, unknown> | null)?.kind as string | undefined ?? "").toLowerCase();
+      return !["client", "ai_orb", "chat_node"].includes(type) && kind !== "chat_node";
+    });
+
+    let sent = 0;
+    let failed = 0;
+    for (const node of syncableNodes) {
+      const { data, error } = await supabase.functions.invoke("sync-to-portal", {
+        body: {
+          event: "node_created",
+          workspaceId,
+          clientId: node.client_id ?? clientId,
+          nodeId: node.id,
+          nodeTitle: node.title,
+          nodeType: node.node_type,
+          status: node.status ?? "draft",
+        },
+      });
+      if (error || (data as any)?.ok === false || (data as any)?.skipped) failed++;
+      else sent++;
+    }
+
+    let pulled = 0;
+    let pullFailed = false;
+    try {
+      const response = await fetch("https://gicbrgagstyvbaaumprj.supabase.co/functions/v1/backfill-tasks-to-ops", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: "ops_canvas_manual_sync" }),
+      });
+      const text = await response.text();
+      const parsed = text ? JSON.parse(text) : {};
+      pulled = Number(parsed.sent ?? 0);
+      pullFailed = !response.ok || Number(parsed.failed ?? 0) > 0;
+    } catch (error) {
+      console.error("[CanvasStudio] portal backfill-tasks-to-ops failed", error);
+      pullFailed = true;
+    }
+
+    await fetchDataRef.current?.();
+    return { total: syncableNodes.length, sent, failed, pulled, pullFailed };
+  }, [clientId, workspaceId]);
+
   // Load client plan_name + project_type for ApplyPlaybookButton
   useEffect(() => {
     if (!clientId) { setClientPlanName(null); setClientProjectType(null); return; }
@@ -516,34 +562,28 @@ function CanvasStudioInner({
     if (!workspaceId || loading) return;
     const sessionKey = `ops:backfill-portal:v2:${workspaceId}`;
     if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) return;
-    void supabase.functions.invoke("backfill-nodes-to-portal", { body: { workspaceId } })
-      .then(({ data, error }) => {
-        if (error || (data as any)?.ok === false) {
-          console.error("[CanvasStudio] backfill-nodes-to-portal failed", error ?? data);
-          return;
-        }
-        try { sessionStorage.setItem(sessionKey, "1"); } catch {}
-      })
-      .catch((error) => console.error("[CanvasStudio] backfill-nodes-to-portal failed", error));
-  }, [workspaceId, loading]);
+    void syncPortalNow()
+      .then(() => { try { sessionStorage.setItem(sessionKey, "1"); } catch {} })
+      .catch((error) => console.error("[CanvasStudio] syncPortalNow failed", error));
+  }, [workspaceId, loading, syncPortalNow]);
 
   // Pull ativo: traz tarefas existentes do portal e cria nodes locais (idempotente).
   useEffect(() => {
     if (!workspaceId || loading) return;
     const sessionKey = `ops:pull-tasks:v2:${workspaceId}`;
     if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(sessionKey)) return;
-    void supabase.functions.invoke("pull-portal-tasks", { body: { workspaceId } })
-      .then(({ data, error }) => {
-        if (error || (data as any)?.ok === false) {
-          console.error("[CanvasStudio] pull-portal-tasks failed", error ?? data);
-          return;
-        }
+    void fetch("https://gicbrgagstyvbaaumprj.supabase.co/functions/v1/backfill-tasks-to-ops", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source: "ops_canvas_auto_pull" }),
+    })
+      .then(async (response) => {
+        const text = await response.text();
+        if (!response.ok) throw new Error(text || `Portal backfill ${response.status}`);
         try { sessionStorage.setItem(sessionKey, "1"); } catch {}
-        if (data && ((data as any).created > 0 || (data as any).updated > 0)) {
-          fetchDataRef.current?.();
-        }
+        fetchDataRef.current?.();
       })
-      .catch((error) => console.error("[CanvasStudio] pull-portal-tasks failed", error));
+      .catch((error) => console.error("[CanvasStudio] portal backfill-tasks-to-ops failed", error));
   }, [workspaceId, loading]);
 
   // Realtime: novos nodes (criados pelo portal ou outra sessão) aparecem ao vivo.
@@ -2518,22 +2558,24 @@ function CanvasStudioInner({
             variant="outline"
             className="h-8 text-xs"
             onClick={async () => {
-              const [push, pull] = await Promise.all([
-                supabase.functions.invoke("backfill-nodes-to-portal", { body: { workspaceId } }),
-                supabase.functions.invoke("pull-portal-tasks", { body: { workspaceId } }),
-              ]);
-              const pushData = (push.data as { sent?: number; total?: number; error?: string } | null) ?? null;
-              const pullData = (pull.data as { created?: number; updated?: number; total?: number; error?: string } | null) ?? null;
-              if (push.error || pull.error || pushData?.error || pullData?.error) {
-                toast({ title: "Sync com portal falhou", description: push.error?.message ?? pull.error?.message ?? pushData?.error ?? pullData?.error, variant: "destructive" });
-                return;
+              try {
+                setBusyAction("portal-sync");
+                const result = await syncPortalNow();
+                toast({
+                  title: result.failed || result.pullFailed ? "Sync com portal parcial" : "Sync com portal",
+                  description: `Ops→Portal ${result.sent}/${result.total} · Portal→Ops ${result.pulled}${result.failed || result.pullFailed ? " · confira vínculos/secrets" : ""}`,
+                  variant: result.sent === 0 && result.pulled === 0 ? "destructive" : undefined,
+                });
+              } catch (error) {
+                toast({ title: "Sync com portal falhou", description: error instanceof Error ? error.message : "Erro inesperado", variant: "destructive" });
+              } finally {
+                setBusyAction(null);
               }
-              if ((pullData?.created ?? 0) > 0 || (pullData?.updated ?? 0) > 0) await fetchData();
-              toast({ title: "Sync com portal", description: `Ops→Portal ${pushData?.sent ?? 0}/${pushData?.total ?? 0} · Portal→Ops ${(pullData?.created ?? 0) + (pullData?.updated ?? 0)}/${pullData?.total ?? 0}` });
             }}
+            disabled={busyAction === "portal-sync"}
             title="Sincronizar nodes existentes com o portal e puxar tasks do kanban"
           >
-            <RefreshCw className="h-3.5 w-3.5 mr-1" />
+            {busyAction === "portal-sync" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
             Sync portal
           </Button>
           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onToggleFullscreen} aria-label="Alternar tela cheia">
