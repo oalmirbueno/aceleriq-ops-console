@@ -1136,6 +1136,41 @@ function CanvasStudioInner({
   }, [dbEdges]);
 
   const reactFlowNodes = useMemo(() => {
+    // Layout fordista: quando um milestone está selecionado, reposicionamos as tarefas
+    // em "estações" horizontais (uma coluna por status), mantendo a ordem do portal.
+    const FORDISMO_STAGES: Array<{ key: string; match: (s: string) => boolean }> = [
+      { key: "ideia",       match: (s) => s === "ideia" || s === "planejado" || s === "draft" },
+      { key: "em_producao", match: (s) => s === "em_producao" || s === "active" || s === "ativo" || s === "doing" },
+      { key: "revisao",     match: (s) => s === "revisao" || s === "review" },
+      { key: "bloqueado",   match: (s) => s === "bloqueado" || s === "blocked" },
+      { key: "concluido",   match: (s) => s === "concluido" || s === "done" },
+    ];
+    const FORDISMO_COL_W = 340;
+    const FORDISMO_ROW_H = 156;
+    const FORDISMO_ORIGIN_X = 80;
+    const FORDISMO_ORIGIN_Y = 200;
+    const fordismoOverride = new Map<string, { x: number; y: number }>();
+    if (selectedMilestoneId) {
+      const stageCounts = new Map<string, number>();
+      const sorted = [...visibleCanvasNodes].sort((a, b) => {
+        const pa = Number((a.data as Record<string, unknown> | null)?.portal_position ?? 9999);
+        const pb = Number((b.data as Record<string, unknown> | null)?.portal_position ?? 9999);
+        if (pa !== pb) return pa - pb;
+        return String(a.title).localeCompare(String(b.title));
+      });
+      sorted.forEach((node) => {
+        const status = mapLegacyStatus(node.status ?? "");
+        let stageIdx = FORDISMO_STAGES.findIndex((s) => s.match(status));
+        if (stageIdx < 0) stageIdx = 0;
+        const key = FORDISMO_STAGES[stageIdx].key;
+        const row = stageCounts.get(key) ?? 0;
+        stageCounts.set(key, row + 1);
+        fordismoOverride.set(node.id, {
+          x: FORDISMO_ORIGIN_X + stageIdx * FORDISMO_COL_W,
+          y: FORDISMO_ORIGIN_Y + row * FORDISMO_ROW_H,
+        });
+      });
+    }
     return visibleCanvasNodes.map((n): Node => {
       const owner = n.parent_node_id ? groupMeta[n.parent_node_id] : null;
       const dataObj = (n.data as Record<string, unknown> | null) ?? {};
@@ -1143,13 +1178,16 @@ function CanvasStudioInner({
       const attachmentList = (dataObj.attachments as Array<{ url?: string; type?: string; label?: string }> | undefined) ?? [];
       const isAiOrb = n.node_type === "ai_orb" || dataObj.kind === "ai_orb";
       const isChatNode = dataObj.kind === "chat_node";
+      const override = fordismoOverride.get(n.id);
+      const posX = override ? override.x : Number(n.pos_x ?? 0);
+      const posY = override ? override.y : Number(n.pos_y ?? CONTENT_TOP);
 
       if (isChatNode) {
         const connectedIds = connectionsByNodeId.get(n.id) ?? [];
         return {
           id: n.id,
           type: "chatNode",
-          position: { x: Number(n.pos_x ?? 0), y: Number(n.pos_y ?? CONTENT_TOP) },
+          position: { x: posX, y: posY },
           draggable: !lockedNodes,
           data: {
             ...(dataObj as ChatNodeData),
@@ -1164,7 +1202,7 @@ function CanvasStudioInner({
       return {
         id: n.id,
         type: isAiOrb ? "aiOrb" : "projectCard",
-        position: { x: Number(n.pos_x ?? 0), y: Number(n.pos_y ?? CONTENT_TOP) },
+        position: { x: posX, y: posY },
         draggable: !lockedNodes,
         data: {
           title: n.title,
@@ -1196,7 +1234,7 @@ function CanvasStudioInner({
         } satisfies ProjectNodeData,
       };
     });
-  }, [visibleCanvasNodes, groupMeta, workspaceId, lockedNodes, stableOnPrefilled, stableOnQuickConnect, stableOnDeleteNode, stableOnExpandHub, connectionsByNodeId, clientId]);
+  }, [visibleCanvasNodes, groupMeta, workspaceId, lockedNodes, stableOnPrefilled, stableOnQuickConnect, stableOnDeleteNode, stableOnExpandHub, connectionsByNodeId, clientId, selectedMilestoneId]);
 
   /** Delete edge — instant local update + DB delete. Usado pelo DeletableEdge e context menu. */
   const deleteEdgeById = useCallback(async (edgeId: string) => {
