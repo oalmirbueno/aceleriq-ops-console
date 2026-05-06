@@ -2300,7 +2300,9 @@ function CanvasStudioInner({
 
     const portalMeta: Record<string, unknown> = {};
     if (milestoneData?.portal_project_id || projectData?.portal_project_id) portalMeta.portal_project_id = milestoneData?.portal_project_id ?? projectData?.portal_project_id;
+    else if (portalProjectIdProp) portalMeta.portal_project_id = portalProjectIdProp;
     if (milestoneData?.portal_milestone_id) portalMeta.portal_milestone_id = milestoneData.portal_milestone_id;
+    else if (selectedMilestoneId && !milestoneNode && portalProjectIdProp) portalMeta.portal_milestone_id = selectedMilestoneId;
     if (milestoneData?.milestone_key) portalMeta.milestone_key = milestoneData.milestone_key;
     if (milestoneData?.portal_folder_id) portalMeta.portal_folder_id = milestoneData.portal_folder_id;
 
@@ -2562,7 +2564,9 @@ function CanvasStudioInner({
       if (!parent) return;
       const portalMeta: Record<string, unknown> = {};
       if (milestoneData?.portal_project_id || projectData?.portal_project_id) portalMeta.portal_project_id = milestoneData?.portal_project_id ?? projectData?.portal_project_id;
+      else if (portalProjectIdProp) portalMeta.portal_project_id = portalProjectIdProp;
       if (milestoneData?.portal_milestone_id) portalMeta.portal_milestone_id = milestoneData.portal_milestone_id;
+      else if (selectedMilestoneId && !milestoneNode && portalProjectIdProp) portalMeta.portal_milestone_id = selectedMilestoneId;
       if (milestoneData?.milestone_key) portalMeta.milestone_key = milestoneData.milestone_key;
       if (milestoneData?.portal_folder_id) portalMeta.portal_folder_id = milestoneData.portal_folder_id;
 
