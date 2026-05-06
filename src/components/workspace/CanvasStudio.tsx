@@ -1358,6 +1358,11 @@ function CanvasStudioInner({
   const restoredScopesRef = useRef<Set<string>>(new Set());
   const focusedMilestoneViewportRef = useRef<string | null>(null);
   const draggingNodesRef = useRef<Set<string>>(new Set());
+  // Quando o usuário acabou de soltar um node arrastado, fixamos a posição
+  // local por alguns segundos pra que eventos realtime concorrentes (Portal
+  // mexendo em `data`/`status` com pos_x antigo) não tirem o card do lugar.
+  const positionLockRef = useRef<Map<string, number>>(new Map());
+  const POSITION_LOCK_MS = 4000;
   const saveTimerRef = useRef<number | null>(null);
 
   const readSavedViewport = useCallback((scope: string): Viewport | null => {
