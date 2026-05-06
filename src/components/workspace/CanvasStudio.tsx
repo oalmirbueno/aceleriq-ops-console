@@ -2352,7 +2352,7 @@ function CanvasStudioInner({
         );
       }, 100);
     }
-  }, [clientId, dbNodes, ensureActiveClient, pickParentGroup, projectNodes, workspaceId, selectedMilestoneId, scopedProjectNodes]);
+  }, [clientId, dbNodes, ensureActiveClient, pickParentGroup, projectNodes, workspaceId, selectedMilestoneId, scopedProjectNodes, portalProjectIdProp]);
 
   const addAiOrb = useCallback(async (orbType: AiOrbType) => {
     const parent = ensureActiveClient();
