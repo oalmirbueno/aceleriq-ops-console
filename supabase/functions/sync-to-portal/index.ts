@@ -510,18 +510,30 @@ serve(async (req) => {
 
     else if (event === "node_completed" && body.nodeId) {
       if (!portalProjectId) return json({ skipped: true, reason: "portal_project_id not set on workspace" });
-      const { data: node } = await db
-        .from("canvas_nodes")
-        .select("title, node_type")
-        .eq("id", body.nodeId)
-        .single();
-
-      data = {
-        project_id:  portalProjectId,
-        author_id:   PORTAL_ADMIN_ID || portalClientId,
-        message:     `Entregável concluído: ${node?.title ?? "node"}`,
-        update_type: "task",
-      };
+      event = "node_updated";
+      const title = body.nodeTitle ?? nodeRow?.title ?? "node";
+      data = cleanObject({
+        id: nodePortalTaskId ?? undefined,
+        project_id: portalProjectId,
+        author_id: PORTAL_ADMIN_ID || portalClientId || undefined,
+        client_id: portalClientId ?? undefined,
+        message: `Tarefa "${title}" — Concluída (100%)`,
+        update_type: "task_progress",
+        node_id: body.nodeId,
+        node_title: title,
+        node_type: body.nodeType ?? nodeRow?.node_type ?? null,
+        status: "done",
+        kanban_status: "done",
+        title,
+        ops_node_id: body.nodeId,
+        previous_status: body.previousStatus ?? null,
+        progress: 100,
+        portal_task_id: nodePortalTaskId,
+        portal_milestone_id: nodePortalMilestoneId,
+        milestone_id: nodePortalMilestoneId,
+        portal_folder_id: nodePortalFolderId,
+        folder_id: nodePortalFolderId,
+      });
     }
 
     else if (event === "node_updated" && body.nodeId) {
