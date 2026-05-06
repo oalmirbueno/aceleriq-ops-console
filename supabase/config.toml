@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.repair-legacy-nodes]
 verify_jwt = false
+
+[functions.legacy-nodes-cleanup]
+verify_jwt = false
