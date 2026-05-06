@@ -2361,7 +2361,10 @@ function CanvasStudioInner({
   }, [clientId, dbNodes, ensureActiveClient, pickParentGroup, projectNodes, workspaceId, selectedMilestoneId, scopedProjectNodes, portalProjectIdProp]);
 
   const addAiOrb = useCallback(async (orbType: AiOrbType) => {
-    const parent = ensureActiveClient();
+    const milestoneNode = selectedMilestoneId
+      ? scopedProjectNodes.find((node) => node.id === selectedMilestoneId)
+      : null;
+    const parent = milestoneNode?.id ?? ensureActiveClient();
     if (!parent) return;
     const sameParentOrbs = dbNodes.filter((node) => node.parent_node_id === parent && node.node_type === "ai_orb");
     const ORB_SPACING_X = 220;
@@ -2380,6 +2383,7 @@ function CanvasStudioInner({
       parentNodeId: parent,
       x: pos_x,
       y: pos_y,
+      data: selectedMilestoneId ? { milestone_node_id: selectedMilestoneId } : undefined,
     })).select().single();
     if (error) {
       if (error.message?.includes("invalid input") && error.message?.includes("ai_orb")) {
@@ -2394,7 +2398,7 @@ function CanvasStudioInner({
       return;
     }
     if (data) setDbNodes((prev) => [...prev, data as CanvasNodeRow]);
-  }, [clientId, dbNodes, ensureActiveClient, workspaceId]);
+  }, [clientId, dbNodes, ensureActiveClient, workspaceId, selectedMilestoneId, scopedProjectNodes]);
 
   const addChatNode = useCallback(async (fn: ChatNodeFunction = "free", opts: { connectToNodeId?: string } = {}) => {
     const parent = ensureActiveClient();
