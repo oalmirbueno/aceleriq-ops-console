@@ -33,6 +33,7 @@ import CanvasProjectLinker from "./CanvasProjectLinker";
 import DeletableEdge from "./DeletableEdge";
 import type { EsteiraTemplate } from "./esteiraTemplates";
 import { syncNodeCreated, syncNodeDeleted, syncNodeUpdated } from "./syncToPortalEvents";
+import { useMilestoneAutoSync } from "./useMilestoneAutoSync";
 import { readCanvasOperationalMeta, type ApprovalStatus, type CanvasOperationalMeta } from "./canvasOperationalMeta";
 import {
   ACELERA_STAGES, PROJECT_TYPES, STAGE_COLUMN_WIDTH,
@@ -457,6 +458,11 @@ function CanvasStudioInner({
   const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState<CanvasNodeRow | null>(null);
   const [aiOrbConfigNode, setAiOrbConfigNode] = useState<CanvasNodeRow | null>(null);
+
+  // Auto-sync milestone OPS → Portal: sempre que aparece um milestone_group sem
+  // portal_milestone_id (criação local ou via realtime), dispara apply_one no
+  // servidor, que faz upsert idempotente e salva o portal_milestone_id no node.
+  useMilestoneAutoSync(workspaceId, dbNodes);
 
   const [rfNodes, setRfNodes] = useState<Node[]>([]);
   const [rfEdges, setRfEdges] = useState<Edge[]>([]);
