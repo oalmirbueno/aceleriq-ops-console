@@ -13,7 +13,7 @@
  */
 import { memo, useEffect, useMemo, useState } from "react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Folder, Layers, Target, Radio, ArrowDownToLine, ArrowUpFromLine, AlertCircle } from "lucide-react";
+import { Folder, Target, Radio, ArrowDownToLine, ArrowUpFromLine, AlertCircle } from "lucide-react";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 
 type CanvasNodeRow = CanvasNodeRecord & { parent_node_id?: string | null };
