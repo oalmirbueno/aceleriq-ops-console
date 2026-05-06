@@ -81,7 +81,7 @@ async function listOpsNodes(db: ReturnType<typeof createClient>, projectId?: str
   while (true) {
     const { data, error } = await db
       .from("canvas_nodes")
-      .select("id, node_type, status, title, data, updated_at, parent_node_id")
+      .select("id, workspace_id, node_type, status, title, data, updated_at, parent_node_id")
       .not("data", "is", null)
       .order("updated_at", { ascending: false })
       .range(from, from + pageSize - 1);
@@ -135,6 +135,7 @@ async function listOpsNodes(db: ReturnType<typeof createClient>, projectId?: str
       milestone_id: inherited.portalMilestoneId || null,
       title: pickNonEmptyString(row.title) || "Sem título",
       status: mappedStatus,
+        kanban_status: opsStatusToPortal(row.status as string | undefined),
       progress: computeNodeProgress(mappedStatus, nodeData),
       node_type: pickNonEmptyString(row.node_type, kind) || "task",
       updated_at: row.updated_at as string,
