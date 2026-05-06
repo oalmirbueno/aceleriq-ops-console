@@ -910,7 +910,7 @@ function CanvasStudioInner({
       setLastFetchError(null);
     }
     const ARCHIVED_SS = new Set(["archived", "deleted", "archived_legacy"]);
-    const lightNodesArrRaw = (nodesRes.data ?? []) as CanvasNodeRow[];
+    const lightNodesArrRaw = (nodesRes.data ?? []) as unknown as CanvasNodeRow[];
     const lightNodesArr = lightNodesArrRaw.filter((n: any) => {
       if (n?.archived_at) return false;
       if (n?.deleted_at) return false;
