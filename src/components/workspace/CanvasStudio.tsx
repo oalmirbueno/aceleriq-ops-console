@@ -724,31 +724,36 @@ function CanvasStudioInner({
 
     let sent = 0;
     let failed = 0;
-    for (const node of syncableNodes) {
-      const ndata = (node.data as Record<string, unknown> | null) ?? {};
-      const hasPortalTask = typeof ndata.portal_task_id === "string" && (ndata.portal_task_id as string).length > 0;
-      const portalProjectId = portalProjectForNode(node);
-      try {
-        const { data, error } = await withTimeout(supabase.functions.invoke("sync-to-portal", {
-          body: {
-            // Já vinculado → atualiza (status/progresso). Novo → cria card no portal.
-            event: hasPortalTask ? "node_updated" : "node_created",
-            workspaceId,
-            clientId: node.client_id ?? clientId,
-            nodeId: node.id,
-            nodeTitle: node.title,
-            nodeType: node.node_type,
-            status: node.status ?? "draft",
-            portalProjectId: portalProjectId ?? undefined,
-            data: ndata,
-          },
-        }), 4500, "Ops→Portal");
-        if (error || (data as any)?.ok === false || (data as any)?.skipped) failed++;
-        else sent++;
-      } catch (error) {
-        console.error("[CanvasStudio] sync-to-portal node failed", node.id, error);
-        failed++;
-      }
+    // Envia tarefas em paralelo (lotes) — antes era sequencial, o que tornava o sync lento.
+    const BATCH = 10;
+    for (let i = 0; i < syncableNodes.length; i += BATCH) {
+      const batch = syncableNodes.slice(i, i + BATCH);
+      const results = await Promise.all(batch.map(async (node) => {
+        const ndata = (node.data as Record<string, unknown> | null) ?? {};
+        const hasPortalTask = typeof ndata.portal_task_id === "string" && (ndata.portal_task_id as string).length > 0;
+        const portalProjectId = portalProjectForNode(node);
+        try {
+          const { data, error } = await withTimeout(supabase.functions.invoke("sync-to-portal", {
+            body: {
+              event: hasPortalTask ? "node_updated" : "node_created",
+              workspaceId,
+              clientId: node.client_id ?? clientId,
+              nodeId: node.id,
+              nodeTitle: node.title,
+              nodeType: node.node_type,
+              status: node.status ?? "draft",
+              portalProjectId: portalProjectId ?? undefined,
+              data: ndata,
+            },
+          }), 6000, "Ops→Portal");
+          if (error || (data as any)?.ok === false || (data as any)?.skipped) return false;
+          return true;
+        } catch (error) {
+          console.error("[CanvasStudio] sync-to-portal node failed", node.id, error);
+          return false;
+        }
+      }));
+      results.forEach((ok) => { if (ok) sent++; else failed++; });
     }
 
     // ── Progresso por milestone (project_group) e progresso geral do cliente ──
