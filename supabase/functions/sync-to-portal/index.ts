@@ -310,12 +310,16 @@ serve(async (req) => {
     // ── Busca IDs do portal vinculados ao workspace/client ──────────────
     const { data: ws } = await db
       .from("workspaces")
-      .select("id, name, current_stage, portal_project_id, clients(id, name, portal_client_id)")
+      .select("id, name, current_stage, client_id, portal_project_id, clients(id, name, email, portal_client_id, created_at)")
       .eq("id", body.workspaceId)
       .single();
 
     let portalProjectId = ws?.portal_project_id as string | null;
-    const portalClientId  = (ws?.clients as any)?.portal_client_id as string | null;
+    let portalClientId  = (ws?.clients as any)?.portal_client_id as string | null;
+    const opsClientId   = (ws as any)?.client_id as string | null;
+    const opsClientName = (ws?.clients as any)?.name as string | null;
+    const opsClientEmail = (ws?.clients as any)?.email as string | null;
+    const opsClientCreatedAt = (ws?.clients as any)?.created_at as string | null;
 
     // Quando há nodeId, sobrepõe portal_project_id pelo registrado no node
     // (suporta múltiplos projetos vinculados no mesmo canvas).
@@ -369,13 +373,46 @@ serve(async (req) => {
       "stage_advanced", "project_progress", "file_approved", "pull_portal_tasks",
     ]);
     // v3: project-scoped events só precisam de portal_project_id; client_id é opcional.
+    // Auto-link tentativa: se faltar portal_client_id e o evento depende disso,
+    // tentamos resolver/criar no Portal usando ops_client_id como chave estável.
+    async function ensurePortalClientId(): Promise<string | null> {
+      if (portalClientId) return portalClientId;
+      if (!opsClientId || !PORTAL_SECRET) return null;
+      try {
+        const res = await fetch(`${PORTAL_BASE}/ops-resolve-client`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-webhook-secret": PORTAL_SECRET,
+            ...(PORTAL_ANON_KEY ? { apikey: PORTAL_ANON_KEY, Authorization: `Bearer ${PORTAL_ANON_KEY}` } : {}),
+          },
+          body: JSON.stringify({
+            ops_client_id: opsClientId,
+            name: opsClientName,
+            email: opsClientEmail,
+            created_at: opsClientCreatedAt,
+          }),
+        });
+        if (!res.ok) return null;
+        const j = await res.json().catch(() => ({})) as { portal_client_id?: string };
+        if (j.portal_client_id) {
+          portalClientId = j.portal_client_id;
+          await db.from("clients").update({ portal_client_id: j.portal_client_id }).eq("id", opsClientId);
+          return j.portal_client_id;
+        }
+      } catch (err) { console.warn("[sync-to-portal] auto-link client failed", err); }
+      return null;
+    }
     if (!portalClientId && !projectScopedEvents.has(rawEvent)) {
-      return json({
-        skipped: true,
-        reason: "portal_client_id not set on client — link the client first",
-        event: rawEvent,
-        debug: "v3-bypass",
-      });
+      const linked = await ensurePortalClientId();
+      if (!linked) {
+        return json({
+          skipped: true,
+          reason: "portal_client_id not set and auto-link failed (missing ops-resolve-client on Portal or insufficient client data)",
+          event: rawEvent,
+          ops_client_id: opsClientId,
+        });
+      }
     }
 
     // ── Monta payload por evento ────────────────────────────────────────
