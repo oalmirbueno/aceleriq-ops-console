@@ -81,7 +81,7 @@ async function listOpsNodes(db: ReturnType<typeof createClient>, projectId?: str
   while (true) {
     const { data, error } = await db
       .from("canvas_nodes")
-      .select("id, node_type, status, title, data, updated_at, parent_node_id")
+      .select("id, workspace_id, node_type, status, title, data, updated_at, parent_node_id")
       .not("data", "is", null)
       .order("updated_at", { ascending: false })
       .range(from, from + pageSize - 1);
@@ -94,6 +94,14 @@ async function listOpsNodes(db: ReturnType<typeof createClient>, projectId?: str
   }
 
   const filterProjectId = pickNonEmptyString(projectId);
+  const fallbackWorkspaceProjects = new Set<string>();
+  if (filterProjectId) {
+    const { data: workspaces } = await db
+      .from("workspaces")
+      .select("id")
+      .eq("portal_project_id", filterProjectId);
+    (workspaces ?? []).forEach((ws: any) => { if (ws?.id) fallbackWorkspaceProjects.add(ws.id as string); });
+  }
   const byId = new Map(collected.map((row) => [row.id as string, row] as const));
   const inheritedPortalMeta = (row: Record<string, unknown>) => {
     let portalProjectId = "";
@@ -109,7 +117,7 @@ async function listOpsNodes(db: ReturnType<typeof createClient>, projectId?: str
       const data = (cursor.data ?? {}) as Record<string, unknown>;
       const kind = pickNonEmptyString((data as any).kind);
       portalProjectId ||= pickNonEmptyString((data as any).portal_project_id);
-      portalMilestoneId ||= pickNonEmptyString((data as any).portal_milestone_id, kind === "milestone_group" ? (data as any).id : undefined);
+      portalMilestoneId ||= pickNonEmptyString((data as any).portal_milestone_id, filterProjectId ? (data as any).milestone_node_id : undefined, kind === "milestone_group" ? (data as any).id : undefined);
       if (portalProjectId && portalMilestoneId) break;
       cursor = byId.get(cursor.parent_node_id as string);
     }
@@ -120,12 +128,14 @@ async function listOpsNodes(db: ReturnType<typeof createClient>, projectId?: str
     const kind = pickNonEmptyString((nodeData as any).kind);
     const mappedStatus = mapOpsKanbanStatus(row.status);
     const inherited = inheritedPortalMeta(row);
+      const fallbackProjectId = filterProjectId && (fallbackWorkspaceProjects.has(row.workspace_id as string) || pickNonEmptyString((nodeData as any).milestone_node_id)) ? filterProjectId : "";
     return {
       ops_node_id: row.id as string,
-      project_id: inherited.portalProjectId,
+        project_id: inherited.portalProjectId || fallbackProjectId,
       milestone_id: inherited.portalMilestoneId || null,
       title: pickNonEmptyString(row.title) || "Sem título",
       status: mappedStatus,
+        kanban_status: opsStatusToPortal(row.status as string | undefined),
       progress: computeNodeProgress(mappedStatus, nodeData),
       node_type: pickNonEmptyString(row.node_type, kind) || "task",
       updated_at: row.updated_at as string,
@@ -261,7 +271,7 @@ serve(async (req) => {
       const candidate = (fromData.node_id ?? fromData.ops_node_id) as string | undefined;
       if (typeof candidate === "string" && candidate) body.nodeId = candidate;
     }
-    console.log("[sync-to-portal v4] event=", rawEvent, "nodeId=", body.nodeId ?? null, "workspaceId=", body.workspaceId, "portalProjectId=", body.portalProjectId);
+    console.log("[sync-to-portal v5] event=", rawEvent, "nodeId=", body.nodeId ?? null, "workspaceId=", body.workspaceId, "portalProjectId=", body.portalProjectId);
 
     // Compatibilidade temporária: enquanto o deploy externo não registra a nova
     // função ops-nodes-list, o Portal pode chamar sync-to-portal com este evento.
@@ -319,7 +329,7 @@ serve(async (req) => {
     const bodyData = (body.data ?? {}) as Record<string, unknown>;
     const nodeData = { ...(bodyData ?? {}), ...((nodeRow?.data ?? {}) as Record<string, unknown>) };
     const nodePortalTaskId = (nodeData.portal_task_id as string | undefined) ?? body.portalTaskId ?? null;
-    const nodePortalMilestoneId = (nodeData.portal_milestone_id as string | undefined) ?? null;
+    const nodePortalMilestoneId = ((nodeData.portal_milestone_id ?? nodeData.milestone_id ?? nodeData.milestone_node_id) as string | undefined) ?? null;
     const nodePortalFolderId = (nodeData.portal_folder_id as string | undefined) ?? nodePortalMilestoneId;
     if (body.portalProjectId) portalProjectId = body.portalProjectId;
     // Fallback: portal_project_id pode estar em body.data (caso o nodeRow não tenha sido lido)
@@ -643,24 +653,10 @@ serve(async (req) => {
     }
 
     else {
-      // v4: nunca degradar node_* sem nodeId para node_completed genérico — isso
-      // mascarava o bug de payloads sem nodeId. Reportar skipped explícito.
-      if (rawEvent === "node_created" || rawEvent === "node_updated" || rawEvent === "node_deleted") {
-        console.warn("[sync-to-portal v4] missing nodeId for", rawEvent, "body=", JSON.stringify(body).slice(0, 500));
-        return json({ skipped: true, reason: `nodeId missing for ${rawEvent}`, debug: "v4-no-degrade" });
-      }
-      // Evento genérico — se tiver project_id envia como update
-      if (portalProjectId && PORTAL_ADMIN_ID) {
-        data = {
-          project_id:  portalProjectId,
-          author_id:   PORTAL_ADMIN_ID,
-          message:     body.message ?? `Atualização operacional: ${event}`,
-          update_type: "system",
-        };
-        event = "node_completed"; // reuse updates endpoint
-      } else {
-        return json({ skipped: true, reason: "unrecognized event and no fallback config" });
-      }
+      // v5: nunca degradar evento desconhecido/node_* para node_completed.
+      // Esse fallback mascarava payload incompleto e criava só timeline, sem card no Kanban.
+      console.warn("[sync-to-portal v5] skipped unhandled event", rawEvent, "body=", JSON.stringify(body).slice(0, 500));
+      return json({ skipped: true, reason: `unhandled event: ${rawEvent}`, debug: "v5-no-generic-node_completed" });
     }
 
     // ── Envia ────────────────────────────────────────────────────────────

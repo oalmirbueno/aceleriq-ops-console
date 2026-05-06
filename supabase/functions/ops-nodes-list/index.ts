@@ -96,7 +96,7 @@ serve(async (req) => {
   while (true) {
     let q = db
       .from("canvas_nodes")
-      .select("id, node_type, status, title, data, updated_at, parent_node_id")
+      .select("id, workspace_id, node_type, status, title, data, updated_at, parent_node_id")
       .not("data", "is", null)
       .order("updated_at", { ascending: false })
       .range(from, from + pageSize - 1);
@@ -109,6 +109,14 @@ serve(async (req) => {
   }
 
   const byId = new Map(collected.map((row) => [row.id as string, row] as const));
+  const fallbackWorkspaceProjects = new Set<string>();
+  if (filterProjectId) {
+    const { data: workspaces } = await db
+      .from("workspaces")
+      .select("id")
+      .eq("portal_project_id", filterProjectId);
+    (workspaces ?? []).forEach((ws: any) => { if (ws?.id) fallbackWorkspaceProjects.add(ws.id as string); });
+  }
   const inheritedPortalMeta = (row: Record<string, unknown>) => {
     let portalProjectId = "";
     let portalMilestoneId = "";
@@ -123,7 +131,7 @@ serve(async (req) => {
       const data = (cursor.data ?? {}) as Record<string, unknown>;
       const kind = pickString((data as any).kind);
       portalProjectId ||= pickString((data as any).portal_project_id);
-      portalMilestoneId ||= pickString((data as any).portal_milestone_id);
+      portalMilestoneId ||= pickString((data as any).portal_milestone_id, filterProjectId ? (data as any).milestone_node_id : undefined);
       if (portalProjectId && portalMilestoneId) break;
       cursor = byId.get(cursor.parent_node_id as string);
     }
@@ -136,9 +144,10 @@ serve(async (req) => {
     const kind = pickString((data as any).kind);
     const status = mapStatus(row.status);
     const inherited = inheritedPortalMeta(row);
+    const fallbackProjectId = filterProjectId && (fallbackWorkspaceProjects.has(row.workspace_id as string) || pickString((data as any).milestone_node_id)) ? filterProjectId : "";
     return {
       ops_node_id: row.id as string,
-      project_id: inherited.portalProjectId,
+      project_id: inherited.portalProjectId || fallbackProjectId,
       milestone_id: inherited.portalMilestoneId || null,
       title: pickString(row.title) || "Sem título",
       status,
