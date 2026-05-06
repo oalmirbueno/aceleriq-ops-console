@@ -245,6 +245,7 @@ function CanvasMilestoneTabsComp({ nodes, selectedMilestoneId, onSelectMilestone
       .sort((a, b) => portalOrder(a) - portalOrder(b) || String(a.title).localeCompare(String(b.title)));
 
     const claimed = new Set<string>();
+    const seenKeys = new Set<string>();
     return projects.map((project) => {
       const pdata = (project.data as Record<string, unknown> | null) ?? {};
       const portalProjectId = typeof pdata.portal_project_id === "string" ? pdata.portal_project_id : null;
@@ -255,11 +256,23 @@ function CanvasMilestoneTabsComp({ nodes, selectedMilestoneId, onSelectMilestone
           const d = (n.data as Record<string, unknown> | null) ?? {};
           const matchesParent = n.parent_node_id === project.id;
           const matchesPortal = !!portalProjectId && d.portal_project_id === portalProjectId;
-          if (matchesParent || matchesPortal) {
+          if (!matchesParent && !matchesPortal) return false;
+          // Dedupe: mesmo portal_milestone_id ou mesmo (project, milestone_key) ou mesmo título normalizado
+          const pmid = typeof d.portal_milestone_id === "string" ? d.portal_milestone_id : "";
+          const mKey = typeof d.milestone_key === "string" ? d.milestone_key : "";
+          const titleKey = String(n.title ?? "").trim().toLowerCase();
+          const dedupeKey = pmid
+            ? `pmid:${pmid}`
+            : mKey && portalProjectId
+              ? `mkey:${portalProjectId}:${mKey}`
+              : `title:${project.id}:${titleKey}`;
+          if (seenKeys.has(dedupeKey)) {
             claimed.add(n.id);
-            return true;
+            return false;
           }
-          return false;
+          seenKeys.add(dedupeKey);
+          claimed.add(n.id);
+          return true;
         })
         .slice()
         .sort((a, b) => portalOrder(a) - portalOrder(b) || String(a.title).localeCompare(String(b.title)));
