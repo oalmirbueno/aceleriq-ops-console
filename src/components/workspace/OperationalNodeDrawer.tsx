@@ -1056,11 +1056,22 @@ Cada campo deve ser ÚNICO e relevante. Node de automação fala de automação.
 
         // Auto-save dos campos preenchidos pela IA
         const currentData = (node.data as Record<string, unknown> | null) ?? {};
+        const nextData = { ...currentData, fields: merged, lastEditedAt: new Date().toISOString() };
         await supabase.from("canvas_nodes").update({
           description: merged.description || node.description,
-          data: { ...currentData, fields: merged, lastEditedAt: new Date().toISOString() },
+          data: nextData,
           updated_at: new Date().toISOString(),
         }).eq("id", node.id);
+        void syncNodeUpdated({
+          workspaceId,
+          clientId,
+          nodeId: node.id,
+          nodeTitle: title,
+          nodeType: node.node_type,
+          status,
+          previousStatus: node.status,
+          data: nextData,
+        });
 
         toast({ title: "Preenchido e salvo com IA ✦", description: "Campos preenchidos e salvos automaticamente." });
         skipNextNodeSync.current = true;
