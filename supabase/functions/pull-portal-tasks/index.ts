@@ -328,15 +328,20 @@ serve(async (req) => {
       .eq("client_id", (ws as any).client_id);
     const existingTaskByPortalId = new Map<string, any>();
     const existingTaskByTitle = new Map<string, any>();
+    const deletedPortalTaskIds = new Set<string>();
     for (const node of currentTaskNodes ?? []) {
       const nodeData = (node.data as Record<string, unknown> | null) ?? {};
       const kind = String(nodeData.kind ?? "").toLowerCase();
       const type = String(node.node_type ?? "").toLowerCase();
       if (["client", "ai_orb", "chat_node"].includes(type) || ["project_group", "milestone_group", "chat_node"].includes(kind)) continue;
       // Não ressuscita nodes soft-deletados pelo portal.
-      if ((node as any).deleted_at) continue;
       const ss = String((node as any).sync_status ?? "").toLowerCase();
-      if (ss === "deleted" || ss === "deleted_from_portal" || ss === "archived") continue;
+      const isSoftDeleted = (node as any).deleted_at || ss === "deleted" || ss === "deleted_from_portal" || ss === "archived";
+      if (isSoftDeleted) {
+        const tid = firstString(nodeData.portal_task_id);
+        if (tid) deletedPortalTaskIds.add(tid);
+        continue;
+      }
       const linkedTaskId = firstString(nodeData.portal_task_id);
       if (linkedTaskId) existingTaskByPortalId.set(linkedTaskId, node);
       const linkedProjectId = firstString(nodeData.portal_project_id);
@@ -380,6 +385,7 @@ serve(async (req) => {
     for (const t of tasks) {
       const portalTaskId = firstString(t.id, t.task_id, t.uuid);
       if (!portalTaskId) continue;
+      if (deletedPortalTaskIds.has(portalTaskId)) continue;
       const taskProjectId = firstString(projectIdOfTask(t), ws.portal_project_id);
       if (!taskProjectId) continue;
       const projectIndex = Math.max(0, projectsInOrder.indexOf(taskProjectId));
