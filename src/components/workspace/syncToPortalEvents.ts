@@ -6,6 +6,22 @@ function isCompletedStatus(status?: string | null) {
   return COMPLETED_STATUSES.has((status ?? "").toLowerCase());
 }
 
+function getPortalRouteContext() {
+  if (typeof window === "undefined") return { portalProjectId: undefined, portalMilestoneId: undefined };
+  const pathProjectId = window.location.pathname.match(/\/ops\/projects\/([^/]+)/)?.[1];
+  const milestoneId = new URLSearchParams(window.location.search).get("milestone") ?? undefined;
+  return { portalProjectId: pathProjectId, portalMilestoneId: milestoneId };
+}
+
+function withPortalRouteMeta(data?: Record<string, unknown> | null) {
+  const route = getPortalRouteContext();
+  return {
+    ...(data ?? {}),
+    ...(data?.portal_project_id ? {} : route.portalProjectId ? { portal_project_id: route.portalProjectId } : {}),
+    ...(data?.portal_milestone_id ? {} : route.portalMilestoneId ? { portal_milestone_id: route.portalMilestoneId } : {}),
+  } as Record<string, unknown>;
+}
+
 /**
  * Progresso híbrido: status define faixa, campos preenchidos refinam dentro da faixa.
  * draft   →  0–33%
@@ -61,8 +77,9 @@ export function syncNodeUpdated({
 }) {
   // Permite sync mesmo sem clientId — o backend aceita eventos project-scoped
   // desde que portal_project_id esteja presente nos dados do node.
-  const progress = computeNodeProgress(status, data);
-  const portalProjectId = typeof data?.portal_project_id === "string" ? data.portal_project_id : undefined;
+  const payloadData = withPortalRouteMeta(data);
+  const progress = computeNodeProgress(status, payloadData);
+  const portalProjectId = typeof payloadData.portal_project_id === "string" ? payloadData.portal_project_id : undefined;
   if (!clientId && !portalProjectId) return Promise.resolve(null);
 
   return supabase.functions.invoke("sync-to-portal", {
@@ -77,7 +94,7 @@ export function syncNodeUpdated({
       previousStatus: previousStatus ?? undefined,
       progress,
       portalProjectId,
-      data: data ?? undefined,
+      data: payloadData,
     },
   }).catch(() => null);
 }
@@ -101,8 +118,9 @@ export function syncNodeCreated({
   nodeType?: string | null;
   data?: Record<string, unknown> | null;
 }) {
-  const progress = computeNodeProgress("active", data);
-  const portalProjectId = typeof data?.portal_project_id === "string" ? data.portal_project_id : undefined;
+  const payloadData = withPortalRouteMeta(data);
+  const progress = computeNodeProgress("active", payloadData);
+  const portalProjectId = typeof payloadData.portal_project_id === "string" ? payloadData.portal_project_id : undefined;
   if (!clientId && !portalProjectId) return Promise.resolve(null);
   return supabase.functions.invoke("sync-to-portal", {
     body: {
@@ -115,7 +133,7 @@ export function syncNodeCreated({
       status: "active",
       progress,
       portalProjectId,
-      data: data ?? undefined,
+      data: payloadData,
     },
   }).catch(() => null);
 }
@@ -132,11 +150,12 @@ export function syncNodeDeleted({
   nodeId: string;
   data?: Record<string, unknown> | null;
 }) {
-  const portalProjectId = typeof data?.portal_project_id === "string" ? data.portal_project_id : undefined;
-  const portalTaskId = typeof data?.portal_task_id === "string" ? data.portal_task_id : undefined;
+  const payloadData = withPortalRouteMeta(data);
+  const portalProjectId = typeof payloadData.portal_project_id === "string" ? payloadData.portal_project_id : undefined;
+  const portalTaskId = typeof payloadData.portal_task_id === "string" ? payloadData.portal_task_id : undefined;
   if (!clientId && !portalProjectId) return Promise.resolve(null);
   return supabase.functions.invoke("sync-to-portal", {
-    body: { event: "node_deleted", workspaceId, clientId: clientId ?? undefined, nodeId, portalProjectId, portalTaskId, data: data ?? undefined },
+    body: { event: "node_deleted", workspaceId, clientId: clientId ?? undefined, nodeId, portalProjectId, portalTaskId, data: payloadData },
   }).catch(() => null);
 }
 
