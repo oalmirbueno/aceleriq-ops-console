@@ -1297,6 +1297,11 @@ function CanvasStudioInner({
       const kind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
       return type === "client" || kind === "project_group" || kind === "milestone_group";
     };
+    const isAiUtilityNode = (node: CanvasNodeRow) => {
+      const type = (node.node_type ?? "").toLowerCase();
+      const kind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
+      return type === "ai_orb" || kind === "ai_orb" || kind === "chat_node";
+    };
     const belongsToMilestone = (node: CanvasNodeRow, milestoneId: string): boolean => {
       if (node.id === milestoneId) return false;
       const milestone = milestoneById.get(milestoneId);
@@ -1325,7 +1330,7 @@ function CanvasStudioInner({
       return true;
     };
     if (!selectedMilestoneId) return scopedProjectNodes.filter(passesUiFilters);
-    return scopedProjectNodes.filter((node) => passesUiFilters(node) && belongsToMilestone(node, selectedMilestoneId));
+    return scopedProjectNodes.filter((node) => passesUiFilters(node) && (belongsToMilestone(node, selectedMilestoneId) || isAiUtilityNode(node)));
   }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter, selectedMilestoneId]);
 
   const scopedProjectIds = useMemo(() => new Set(scopedProjectNodes.map((n) => n.id)), [scopedProjectNodes]);
