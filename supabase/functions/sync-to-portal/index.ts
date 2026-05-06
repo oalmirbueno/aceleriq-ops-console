@@ -285,7 +285,7 @@ serve(async (req) => {
       const receivedSecret = req.headers.get("x-webhook-secret") ?? "";
       const expectedSecret = Deno.env.get("PORTAL_TO_OPS_SECRET") ?? "";
       if (!expectedSecret || receivedSecret !== expectedSecret) return json({ error: "unauthorized" }, 401);
-      const nodes = await listOpsNodes(db, (body.data?.project_id as string | undefined) ?? body.portalProjectId);
+      const nodes = await listOpsNodes(db as any, (body.data?.project_id as string | undefined) ?? body.portalProjectId);
       return json({ nodes });
     }
 
