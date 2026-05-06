@@ -84,6 +84,18 @@ serve(async (req) => {
 
   const SECRET = Deno.env.get("PORTAL_TO_OPS_SECRET") ?? "";
   const received = req.headers.get("x-webhook-secret") ?? "";
+
+  // Diagnóstico seguro: ?debug=1 retorna apenas tamanhos, nunca o valor.
+  const url = new URL(req.url);
+  if (url.searchParams.get("debug") === "1") {
+    return json({
+      env_secret_set: SECRET.length > 0,
+      env_secret_length: SECRET.length,
+      received_header_length: received.length,
+      match: SECRET.length > 0 && received === SECRET,
+    });
+  }
+
   if (!SECRET || received !== SECRET) return json({ error: "unauthorized" }, 401);
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
