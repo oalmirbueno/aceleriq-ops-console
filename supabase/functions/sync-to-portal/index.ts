@@ -844,6 +844,169 @@ serve(async (req) => {
       });
     }
 
+    // ── repair_legacy_nodes_dry_run: READ-ONLY ────────────────────────────
+    // Simula vinculação dos nodes sem milestone a um milestone default
+    // ("Inbox Operacional") por workspace/projeto. Não cria, não altera nada.
+    if (rawEvent === "repair_legacy_nodes_dry_run" || rawEvent === "repair_legacy_nodes_dryrun") {
+      const dbg = createClient(SUPABASE_URL, SERVICE_KEY);
+      const DEFAULT_TITLE = "Inbox Operacional";
+      const pageSize = 1000;
+
+      // 1) carrega todos os nodes (paginado)
+      let from = 0;
+      const nodes: any[] = [];
+      while (true) {
+        const { data, error } = await dbg
+          .from("canvas_nodes")
+          .select("id, workspace_id, client_id, node_type, status, title, data, parent_node_id, deleted_at, archived_at, sync_status, created_at, updated_at")
+          .range(from, from + pageSize - 1);
+        if (error) return json({ ok: false, error: error.message }, 500);
+        if (!data || data.length === 0) break;
+        nodes.push(...data);
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+
+      const { data: wsRows } = await dbg.from("workspaces").select("id, name, client_id, portal_project_id");
+      const { data: clRows } = await dbg.from("clients").select("id, name");
+      const wsById = new Map((wsRows ?? []).map((w: any) => [w.id, w]));
+      const clById = new Map((clRows ?? []).map((c: any) => [c.id, c]));
+      const byNodeId = new Map(nodes.map((n) => [n.id, n]));
+
+      const STRUCT_KIND = new Set(["project_group", "milestone_group", "client_folder", "client", "ai_orb", "chat_node"]);
+      const STRUCT_TYPE = new Set(["project_group", "milestone_group", "client_folder", "client", "ai_orb", "chat_node"]);
+      const TASK_KINDS = new Set([
+        "task", "checklist", "case", "before_after", "landing_page", "site",
+        "automacao", "integracao", "agente", "metrica", "acessos", "email_mkt",
+        "trafego", "funil", "conteudo", "video", "imagem", "social", "crm",
+        "resultado", "reuniao", "decisao", "objetivo", "briefing", "lancamento",
+      ]);
+
+      // herda milestone subindo a árvore
+      const inheritMilestone = (row: any): string => {
+        let mid = "";
+        let cur: any = row;
+        const seen = new Set<string>();
+        for (let d = 0; cur && d < 6; d++) {
+          if (seen.has(cur.id)) break;
+          seen.add(cur.id);
+          const dt = (cur.data ?? {}) as any;
+          if (typeof dt.portal_milestone_id === "string" && dt.portal_milestone_id) { mid = dt.portal_milestone_id; break; }
+          if (typeof dt.milestone_id === "string" && dt.milestone_id) { mid = dt.milestone_id; break; }
+          if (String(dt.kind ?? "").toLowerCase() === "milestone_group") { mid = cur.id; break; }
+          cur = byNodeId.get(cur.parent_node_id);
+        }
+        return mid;
+      };
+
+      // 2) detecta milestone_group "Inbox Operacional" existente por workspace
+      const inboxByWorkspace = new Map<string, { id: string; title: string }>();
+      for (const n of nodes) {
+        const dt = (n.data ?? {}) as any;
+        const kind = String(dt.kind ?? "").toLowerCase();
+        const title = String(n.title ?? "").trim().toLowerCase();
+        if (kind === "milestone_group" && title === DEFAULT_TITLE.toLowerCase() && n.workspace_id) {
+          if (!inboxByWorkspace.has(n.workspace_id)) {
+            inboxByWorkspace.set(n.workspace_id, { id: n.id, title: n.title });
+          }
+        }
+      }
+
+      // 3) coleta candidatos (nodes sem milestone próprio nem herdado)
+      type Cand = {
+        id: string; title: string | null; node_type: string | null; kind: string | null;
+        workspace_id: string | null; created_at: string | null; updated_at: string | null;
+        from_portal: boolean;
+      };
+      const candidates: Cand[] = [];
+      for (const n of nodes) {
+        if (n.deleted_at || n.archived_at || n.sync_status === "deleted" || n.sync_status === "archived") continue;
+        const dt = (n.data ?? {}) as any;
+        const kind = String(dt.kind ?? "").toLowerCase();
+        const nodeType = String(n.node_type ?? "").toLowerCase();
+        if (STRUCT_KIND.has(kind) || STRUCT_TYPE.has(nodeType)) continue;
+        const isTaskish = nodeType === "task" || TASK_KINDS.has(kind) || (!kind && nodeType !== "front");
+        if (!isTaskish) continue;
+        const ownMid = (typeof dt.portal_milestone_id === "string" && dt.portal_milestone_id)
+          || (typeof dt.milestone_id === "string" && dt.milestone_id) || "";
+        if (ownMid) continue;
+        if (inheritMilestone(n)) continue;
+        candidates.push({
+          id: n.id, title: n.title ?? null, node_type: n.node_type ?? null, kind: kind || null,
+          workspace_id: n.workspace_id ?? null,
+          created_at: n.created_at ?? null, updated_at: n.updated_at ?? null,
+          from_portal: dt.from_portal === true || typeof dt.portal_task_id === "string",
+        });
+      }
+
+      // 4) agrupa por workspace
+      const wsAgg = new Map<string, any>();
+      for (const c of candidates) {
+        const key = c.workspace_id ?? "__no_workspace__";
+        if (!wsAgg.has(key)) {
+          const ws = c.workspace_id ? (wsById.get(c.workspace_id) as any) : null;
+          const cl = ws?.client_id ? (clById.get(ws.client_id) as any) : null;
+          const existingInbox = c.workspace_id ? inboxByWorkspace.get(c.workspace_id) ?? null : null;
+          wsAgg.set(key, {
+            workspace_id: c.workspace_id,
+            workspace_name: ws?.name ?? null,
+            client_id: ws?.client_id ?? null,
+            client_name: cl?.name ?? null,
+            portal_project_id: ws?.portal_project_id ?? null,
+            existing_default_milestone_node_id: existingInbox?.id ?? null,
+            would_create_default_milestone: !existingInbox,
+            default_milestone_title: DEFAULT_TITLE,
+            nodes_to_attach: 0,
+            by_kind: {} as Record<string, number>,
+            by_node_type: {} as Record<string, number>,
+            sample: [] as any[],
+          });
+        }
+        const agg = wsAgg.get(key);
+        agg.nodes_to_attach++;
+        const kKey = c.kind || "(none)";
+        const tKey = c.node_type || "(none)";
+        agg.by_kind[kKey] = (agg.by_kind[kKey] ?? 0) + 1;
+        agg.by_node_type[tKey] = (agg.by_node_type[tKey] ?? 0) + 1;
+        if (agg.sample.length < 10) {
+          agg.sample.push({
+            id: c.id, title: c.title, node_type: c.node_type, kind: c.kind,
+            from_portal: c.from_portal, created_at: c.created_at, updated_at: c.updated_at,
+          });
+        }
+      }
+
+      const workspaces = Array.from(wsAgg.values()).sort((a, b) => b.nodes_to_attach - a.nodes_to_attach);
+      const would_create_count = workspaces.filter((w) => w.would_create_default_milestone).length;
+      const would_reuse_count  = workspaces.filter((w) => !w.would_create_default_milestone).length;
+
+      return json({
+        ok: true,
+        version: "standalone-anti-loop-soft-delete-v5",
+        mode: "repair_legacy_nodes_dry_run",
+        read_only: true,
+        nothing_changed: true,
+        default_milestone_title: DEFAULT_TITLE,
+        criteria: {
+          considered: "task-like nodes sem milestone próprio nem herdado (até 6 níveis)",
+          excluded: "structure/visual nodes, deleted/archived",
+        },
+        totals: {
+          scanned_nodes: nodes.length,
+          total_candidates: candidates.length,
+          workspaces_affected: workspaces.length,
+          workspaces_would_create_milestone: would_create_count,
+          workspaces_would_reuse_existing: would_reuse_count,
+        },
+        workspaces,
+        next_steps: [
+          "Revisar workspaces[].sample manualmente.",
+          "Aprovar execução real (evento dedicado, ex: repair_legacy_nodes_apply, com confirm:true e escopo).",
+          "Nada será criado, alterado ou apagado até esse evento existir e ser chamado com confirm:true.",
+        ],
+      });
+    }
+
     // ── Anti-loop / idempotência por event_id ────────────────────────────
     // Se este evento foi originado pelo próprio Portal (source==="portal")
     // e já existe registro inbound em sync_events, NÃO reenviamos pro Portal.
