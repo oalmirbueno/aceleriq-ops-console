@@ -1068,6 +1068,10 @@ function CanvasStudioInner({
           const prevTs = Date.parse((n.updated_at as string | undefined) ?? "") || 0;
           const newTs  = Date.parse((row.updated_at as string | undefined) ?? "") || 0;
           if (prevTs && newTs && newTs < prevTs) return n; // stale event — ignora
+          // Se o usuário acabou de mover este node, ignora pos_x/pos_y do evento.
+          const lockTs = positionLockRef.current.get(row.id) ?? 0;
+          const locked = lockTs && (Date.now() - lockTs) < POSITION_LOCK_MS;
+          if (locked) return { ...n, ...row, pos_x: n.pos_x, pos_y: n.pos_y };
           return { ...n, ...row };
         }));
         markEvent();
