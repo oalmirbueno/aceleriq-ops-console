@@ -371,6 +371,7 @@ serve(async (req) => {
           "diagnostic_v2",
           "workspace_fallback_project_id",
           "cleanup_dryRun",
+          "repair_legacy_nodes_dry_run",
         ],
       });
     }
