@@ -18,9 +18,8 @@ export function usePortalAutoSync(intervalMs = 60_000) {
       if (typeof document !== "undefined" && document.hidden) return;
       running.current = true;
       try {
-        await supabase.functions.invoke("backfill-from-portal", {
-          body: { source: "auto" },
-        });
+        // backfill-from-portal foi removido do auto-sync (causava WORKER_RESOURCE_LIMIT).
+        // Agora só pull leve por workspace, e backfill é manual/protegido.
         const path = window.location.pathname;
         const search = new URLSearchParams(window.location.search);
         const tab = search.get("tab");
