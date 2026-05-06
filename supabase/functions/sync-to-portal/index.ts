@@ -101,6 +101,10 @@ function opsStatusToPortal(status?: string | null): string {
   return "doing";
 }
 
+function cleanObject(record: Record<string, unknown>) {
+  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined && value !== ""));
+}
+
 function normalizeKindText(value: unknown) {
   return String(value ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -421,6 +425,7 @@ serve(async (req) => {
         portal_folder_id: nodePortalFolderId,
         folder_id: nodePortalFolderId,
       };
+      data = cleanObject(data);
       // mantém event="node_updated" — quando portal atualizar o webhook, fará upsert em tasks.
       // Se portal ainda não suporta, ele simplesmente ignora.
     }
@@ -450,6 +455,7 @@ serve(async (req) => {
         message:    `Nova tarefa criada: ${body.nodeTitle ?? node?.title ?? "node"}`,
         update_type: "task_created",
       };
+      data = cleanObject(data);
     }
 
     else if (event === "node_deleted" && body.nodeId) {
@@ -466,6 +472,7 @@ serve(async (req) => {
         portal_folder_id: nodePortalFolderId,
         folder_id: nodePortalFolderId,
       };
+      data = cleanObject(data);
     }
 
     else if (event === "stage_advanced") {
