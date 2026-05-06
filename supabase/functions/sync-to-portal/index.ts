@@ -360,7 +360,7 @@ serve(async (req) => {
       return json({
         ok: true,
         function: "sync-to-portal",
-        version: "standalone-anti-loop-soft-delete-v3",
+        version: "standalone-anti-loop-soft-delete-v4",
         features: [
           "anti_loop",
           "soft_delete",
@@ -368,6 +368,8 @@ serve(async (req) => {
           "portal_source_echo_skip",
           "version_check",
           "diagnostic",
+          "diagnostic_v2",
+          "workspace_fallback_project_id",
         ],
       });
     }
@@ -442,6 +444,188 @@ serve(async (req) => {
         if (sample_syncable.length < 5) sample_syncable.push({ id: n.id, title: n.title, project_id: pid, milestone_id: mid });
       }
       return json({ ok: true, ...counts, sample_syncable, sample_skipped_legacy });
+    }
+
+    // ── diagnostic_v2: agrupado por workspace + classificação 7 categorias ─
+    // Categorias: ready_to_sync | needs_workspace_link | legacy_no_project
+    //           | legacy_no_milestone | structure_node | test_or_noise
+    //           | deleted_or_archived
+    if (rawEvent === "diagnostic_v2") {
+      const dbg = createClient(SUPABASE_URL, SERVICE_KEY);
+      const pageSize = 1000;
+
+      // 1. nodes
+      let from = 0;
+      const nodes: any[] = [];
+      while (true) {
+        const { data, error } = await dbg
+          .from("canvas_nodes")
+          .select("id, workspace_id, client_id, node_type, status, title, data, parent_node_id, deleted_at, archived_at, sync_status")
+          .range(from, from + pageSize - 1);
+        if (error) return json({ ok: false, error: error.message }, 500);
+        if (!data || data.length === 0) break;
+        nodes.push(...data);
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+
+      // 2. workspaces + clients
+      const { data: wsRows, error: wsErr } = await dbg
+        .from("workspaces")
+        .select("id, name, client_id, portal_project_id");
+      if (wsErr) return json({ ok: false, error: wsErr.message }, 500);
+      const { data: clRows } = await dbg.from("clients").select("id, name, portal_client_id");
+      const wsById = new Map((wsRows ?? []).map((w: any) => [w.id, w]));
+      const clById = new Map((clRows ?? []).map((c: any) => [c.id, c]));
+      const byNodeId = new Map(nodes.map((n) => [n.id, n]));
+
+      const STRUCT = new Set(["project_group", "milestone_group", "client_folder"]);
+      const TEST_RE = /^(test|teste|lixo|delete|tmp|temp|x{2,}|asdf|qwer)/i;
+
+      // herda pid/mid subindo a árvore (somente parent ids dos nodes)
+      const inherit = (row: any) => {
+        let pid = "", mid = "";
+        let cur: any = row;
+        const seen = new Set<string>();
+        for (let d = 0; cur && d < 6; d++) {
+          if (seen.has(cur.id)) break;
+          seen.add(cur.id);
+          const dt = (cur.data ?? {}) as any;
+          pid ||= typeof dt.portal_project_id === "string" ? dt.portal_project_id : "";
+          mid ||= typeof dt.portal_milestone_id === "string" ? dt.portal_milestone_id
+               : typeof dt.milestone_id === "string" ? dt.milestone_id : "";
+          if (String(dt.kind ?? "").toLowerCase() === "milestone_group") mid ||= cur.id;
+          if (pid && mid) break;
+          cur = byNodeId.get(cur.parent_node_id);
+        }
+        return { pid, mid };
+      };
+
+      type Cat =
+        | "ready_to_sync"
+        | "needs_workspace_link"
+        | "legacy_no_project"
+        | "legacy_no_milestone"
+        | "structure_node"
+        | "test_or_noise"
+        | "deleted_or_archived";
+
+      const classify = (n: any): { cat: Cat; pid: string; mid: string; via: string } => {
+        if (n.deleted_at || n.archived_at || n.sync_status === "deleted" || n.sync_status === "archived")
+          return { cat: "deleted_or_archived", pid: "", mid: "", via: "" };
+        const data = (n.data ?? {}) as any;
+        const kind = String(data.kind ?? "").toLowerCase();
+        if (STRUCT.has(kind) || STRUCT.has(String(n.node_type ?? "").toLowerCase()))
+          return { cat: "structure_node", pid: "", mid: "", via: "" };
+        const title = String(n.title ?? "").trim();
+        if (!title || TEST_RE.test(title)) return { cat: "test_or_noise", pid: "", mid: "", via: "" };
+
+        const inh = inherit(n);
+        let pid = inh.pid;
+        let via = pid ? "node_or_parent" : "";
+        // Fallback: workspaces.portal_project_id
+        if (!pid && n.workspace_id) {
+          const ws = wsById.get(n.workspace_id) as any;
+          if (ws?.portal_project_id) { pid = ws.portal_project_id; via = "workspace_fallback"; }
+        }
+        if (!pid) {
+          // diferenciamos: workspace existe mas sem portal_project_id ⇒ needs_workspace_link
+          const ws = n.workspace_id ? (wsById.get(n.workspace_id) as any) : null;
+          if (ws && !ws.portal_project_id) return { cat: "needs_workspace_link", pid: "", mid: inh.mid, via: "" };
+          return { cat: "legacy_no_project", pid: "", mid: inh.mid, via: "" };
+        }
+        if (!inh.mid) return { cat: "legacy_no_milestone", pid, mid: "", via };
+        return { cat: "ready_to_sync", pid, mid: inh.mid, via };
+      };
+
+      const categoryTotals: Record<Cat, number> = {
+        ready_to_sync: 0,
+        needs_workspace_link: 0,
+        legacy_no_project: 0,
+        legacy_no_milestone: 0,
+        structure_node: 0,
+        test_or_noise: 0,
+        deleted_or_archived: 0,
+      };
+
+      const wsAgg = new Map<string, any>();
+      const ensureWs = (wsId: string | null) => {
+        const key = wsId ?? "__no_workspace__";
+        if (!wsAgg.has(key)) {
+          const ws = wsId ? (wsById.get(wsId) as any) : null;
+          const cl = ws?.client_id ? (clById.get(ws.client_id) as any) : null;
+          wsAgg.set(key, {
+            workspace_id: wsId,
+            workspace_name: ws?.name ?? null,
+            client_id: ws?.client_id ?? null,
+            client_name: cl?.name ?? null,
+            workspace_portal_project_id: ws?.portal_project_id ?? null,
+            total_nodes: 0,
+            ready_to_sync: 0,
+            needs_workspace_link: 0,
+            legacy_no_project: 0,
+            legacy_no_milestone: 0,
+            structure_node: 0,
+            test_or_noise: 0,
+            deleted_or_archived: 0,
+            sample_no_project: [] as any[],
+          });
+        }
+        return wsAgg.get(key);
+      };
+
+      for (const n of nodes) {
+        const { cat, pid, mid, via } = classify(n);
+        categoryTotals[cat]++;
+        const agg = ensureWs(n.workspace_id ?? null);
+        agg.total_nodes++;
+        agg[cat]++;
+        if ((cat === "legacy_no_project" || cat === "needs_workspace_link") && agg.sample_no_project.length < 5) {
+          agg.sample_no_project.push({ id: n.id, title: n.title, kind: (n.data ?? {}).kind ?? null, parent_id: n.parent_node_id, status: n.status });
+        }
+        // anota via no nó-amostra para clareza (não persiste)
+        void pid; void mid; void via;
+      }
+
+      const workspaces_breakdown = Array.from(wsAgg.values()).sort((a, b) => b.total_nodes - a.total_nodes);
+
+      // Tabela: workspaces que precisam de link
+      const workspaces_needing_link = workspaces_breakdown
+        .filter((w) => w.workspace_id && !w.workspace_portal_project_id && (w.needs_workspace_link + w.legacy_no_project + w.ready_to_sync + w.legacy_no_milestone) > 0)
+        .map((w) => ({
+          workspace_id: w.workspace_id,
+          workspace_name: w.workspace_name,
+          client_id: w.client_id,
+          client_name: w.client_name,
+          nodes_affected: w.needs_workspace_link + w.legacy_no_project + w.legacy_no_milestone,
+          // auto_link_candidate: precisa lookup no Portal — não fazemos aqui (apenas diagnóstico)
+          auto_link_candidate: null,
+          requires_manual_selection: true,
+        }));
+
+      return json({
+        ok: true,
+        version: "standalone-anti-loop-soft-delete-v4",
+        totals: {
+          total_nodes_found: nodes.length,
+          ...categoryTotals,
+        },
+        inheritance_strategy: [
+          "1. node.data.portal_project_id",
+          "2. parent chain (até 6 níveis) portal_project_id",
+          "3. workspaces.portal_project_id (fallback seguro, somente se workspace tiver vínculo único)",
+        ],
+        fallback_used: "workspaces.portal_project_id é aplicado APENAS quando node não tem pid próprio nem herdado",
+        workspaces_breakdown,
+        workspaces_needing_link,
+        notes: [
+          "Nenhum dado foi alterado.",
+          "needs_workspace_link = node sem pid herdável + workspace existe sem portal_project_id.",
+          "legacy_no_project = node sem pid herdável + workspace nem existe (órfão).",
+          "legacy_no_milestone = pid OK mas sem milestone — não fazer backfill cego.",
+          "Para backfill seguro: rodar somente sobre ready_to_sync.",
+        ],
+      });
     }
 
     // ── Anti-loop / idempotência por event_id ────────────────────────────
