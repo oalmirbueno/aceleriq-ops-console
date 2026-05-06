@@ -77,9 +77,12 @@ serve(async (req) => {
     const { data: userData } = await auth.auth.getUser();
     if (!userData.user) return json({ error: "Unauthorized" }, 401);
 
-    const raw = (await req.json().catch(() => ({}))) as { workspaceId?: string; clientId?: string; portalProjectId?: string | null };
+    const raw = (await req.json().catch(() => ({}))) as { workspaceId?: string; clientId?: string; portalProjectId?: string | null; dryRun?: boolean; dry_run?: boolean; limit?: number; milestoneId?: string };
     const requestedPortalProjectId = raw.portalProjectId ?? null;
     const filterClientId = raw.clientId ?? null;
+    const dryRun = raw.dryRun === true || raw.dry_run === true;
+    const limit = Number.isFinite(raw.limit as number) && (raw.limit as number) > 0 ? Math.floor(raw.limit as number) : null;
+    const onlyMilestoneId = typeof raw.milestoneId === "string" && raw.milestoneId ? raw.milestoneId : null;
     const targetWorkspaceIds: string[] = [];
 
     const dbAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
@@ -99,13 +102,14 @@ serve(async (req) => {
       const result = await backfillWorkspace({
         db: dbAdmin, workspaceId, requestedPortalProjectId,
         PORTAL_URL, PORTAL_SECRET, PORTAL_ADMIN, portalClientIdFallback: null,
+        dryRun, limit, onlyMilestoneId,
       });
       aggregate.total += result.total;
       aggregate.sent += result.sent;
       aggregate.skipped += result.skipped;
       aggregate.workspaces.push({ workspace_id: workspaceId, ...result });
     }
-    return json({ ok: true, scope: raw.workspaceId ? "workspace" : (filterClientId ? "client" : "global"), ...aggregate });
+    return json({ ok: true, dry_run: dryRun, scope: raw.workspaceId ? "workspace" : (filterClientId ? "client" : "global"), ...aggregate });
   } catch (err) {
     return json({ error: err instanceof Error ? err.message : "internal error" }, 500);
   }
@@ -113,6 +117,7 @@ serve(async (req) => {
 
 async function backfillWorkspace({
   db, workspaceId, requestedPortalProjectId, PORTAL_URL, PORTAL_SECRET, PORTAL_ADMIN, portalClientIdFallback,
+  dryRun, limit, onlyMilestoneId,
 }: {
   db: any;
   workspaceId: string;
@@ -121,7 +126,10 @@ async function backfillWorkspace({
   PORTAL_SECRET: string | undefined;
   PORTAL_ADMIN: string;
   portalClientIdFallback: string | null;
-}): Promise<{ total: number; sent: number; skipped: number; reason?: string }> {
+  dryRun?: boolean;
+  limit?: number | null;
+  onlyMilestoneId?: string | null;
+}): Promise<{ total: number; sent: number; skipped: number; reason?: string; preview?: any[] }> {
   try {
 
     const { data: ws } = await db
@@ -137,7 +145,7 @@ async function backfillWorkspace({
 
     const { data: nodes } = await db
       .from("canvas_nodes")
-      .select("id, title, node_type, status, data, parent_node_id")
+      .select("id, title, node_type, status, data, parent_node_id, archived_at, deleted_at")
       .eq("workspace_id", workspaceId);
 
     const byId = new Map((nodes ?? []).map((n: any) => [n.id as string, n] as const));
@@ -165,6 +173,13 @@ async function backfillWorkspace({
       const k = String(n.data?.kind ?? "").toLowerCase();
       // ignora client folders, ai_orb e chat_node — não viram tarefa
       if (["client", "ai_orb", "chat_node"].includes(t) || ["project_group", "milestone_group", "chat_node"].includes(k)) return false;
+      // ignora archived/deleted
+      if ((n as any).archived_at || (n as any).deleted_at) return false;
+      if (onlyMilestoneId) {
+        const meta = inheritedMeta(n);
+        const opsM = pickString((n as any).data?.milestone_id);
+        if (opsM !== onlyMilestoneId && meta.portalMilestoneId !== onlyMilestoneId) return false;
+      }
       if (requestedPortalProjectId) {
         const meta = inheritedMeta(n);
         const projectId = meta.portalProjectId || defaultPortalProjectId || "";
@@ -176,8 +191,25 @@ async function backfillWorkspace({
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (PORTAL_SECRET) headers["x-webhook-secret"] = PORTAL_SECRET;
 
+    const sliced = limit && limit > 0 ? list.slice(0, limit) : list;
+
+    if (dryRun) {
+      const preview = sliced.map((n: any) => {
+        const meta = inheritedMeta(n);
+        return {
+          ops_node_id: n.id,
+          title: n.title,
+          node_type: n.node_type,
+          portal_project_id: meta.portalProjectId || defaultPortalProjectId || null,
+          portal_milestone_id: meta.portalMilestoneId || null,
+          ops_milestone_id: (n as any).data?.milestone_id ?? null,
+        };
+      });
+      return { total: sliced.length, sent: 0, skipped: 0, preview };
+    }
+
     let sent = 0, skipped = 0;
-    for (const n of list) {
+    for (const n of sliced) {
       const status: string = (n.status as string | null) ?? "draft";
       const meta = inheritedMeta(n);
       const portalProjectId = meta.portalProjectId || defaultPortalProjectId || "";
