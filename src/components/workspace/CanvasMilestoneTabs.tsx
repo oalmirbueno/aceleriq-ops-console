@@ -13,7 +13,7 @@
  */
 import { memo, useEffect, useMemo, useState } from "react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Folder, Layers, Target, Radio, ArrowDownToLine, ArrowUpFromLine, AlertCircle } from "lucide-react";
+import { Folder, Target, Radio, ArrowDownToLine, ArrowUpFromLine, AlertCircle } from "lucide-react";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 
 type CanvasNodeRow = CanvasNodeRecord & { parent_node_id?: string | null };
@@ -244,15 +244,21 @@ function CanvasMilestoneTabsComp({ nodes, selectedMilestoneId, onSelectMilestone
       .slice()
       .sort((a, b) => portalOrder(a) - portalOrder(b) || String(a.title).localeCompare(String(b.title)));
 
+    const claimed = new Set<string>();
     return projects.map((project) => {
       const pdata = (project.data as Record<string, unknown> | null) ?? {};
       const portalProjectId = typeof pdata.portal_project_id === "string" ? pdata.portal_project_id : null;
       const milestones = nodes
         .filter((n) => {
           if (kindOf(n) !== "milestone_group") return false;
+          if (claimed.has(n.id)) return false;
           const d = (n.data as Record<string, unknown> | null) ?? {};
-          if (n.parent_node_id === project.id) return true;
-          if (portalProjectId && d.portal_project_id === portalProjectId) return true;
+          const matchesParent = n.parent_node_id === project.id;
+          const matchesPortal = !!portalProjectId && d.portal_project_id === portalProjectId;
+          if (matchesParent || matchesPortal) {
+            claimed.add(n.id);
+            return true;
+          }
           return false;
         })
         .slice()
@@ -270,19 +276,6 @@ function CanvasMilestoneTabsComp({ nodes, selectedMilestoneId, onSelectMilestone
     <div className="flex items-stretch gap-3 px-2 py-1.5 border-b border-border bg-card/40 backdrop-blur-sm overflow-hidden">
       <ScrollArea className="flex-1">
         <div className="flex items-stretch gap-3 min-w-0">
-          <button
-            onClick={() => onSelectMilestone(null)}
-            className={`shrink-0 group flex items-center gap-1.5 h-8 px-3 rounded-md border text-[11px] font-medium transition-all ${
-              selectedMilestoneId === null
-                ? "bg-primary/15 border-primary/40 text-primary"
-                : "border-border bg-background/40 text-muted-foreground hover:text-foreground hover:bg-muted/50"
-            }`}
-            title="Visão geral (todos os projetos)"
-          >
-            <Layers className="h-3.5 w-3.5" />
-            <span>Visão geral</span>
-          </button>
-
           {grouped.length === 0 && (
             <div className="shrink-0 flex items-center gap-2 px-3 text-[11px] text-muted-foreground/70 italic">
               <Folder className="h-3 w-3" />
