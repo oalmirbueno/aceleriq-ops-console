@@ -186,7 +186,7 @@ async function sendToPortal(
 }
 
 const PORTAL_BASE = "https://gicbrgagstyvbaaumprj.supabase.co/functions/v1";
-// deploy-bump v2: garante que projectScopedEvents bypassa portal_client_id check
+// deploy-bump v7: garante que projectScopedEvents bypassa portal_client_id check
 const TASK_STATUS_TO_OPS: Record<string, string> = {
   todo: "draft", backlog: "draft",
   doing: "active", in_progress: "active",
