@@ -372,6 +372,7 @@ serve(async (req) => {
           "workspace_fallback_project_id",
           "cleanup_dryRun",
           "repair_legacy_nodes_dry_run",
+          "repair_legacy_nodes_apply",
         ],
       });
     }
@@ -1004,6 +1005,224 @@ serve(async (req) => {
           "Aprovar execução real (evento dedicado, ex: repair_legacy_nodes_apply, com confirm:true e escopo).",
           "Nada será criado, alterado ou apagado até esse evento existir e ser chamado com confirm:true.",
         ],
+      });
+    }
+
+    // ── repair_legacy_nodes_apply: EXECUÇÃO REAL, ESCOPO OBRIGATÓRIO ────
+    // Vincula nodes órfãos (sem milestone próprio nem herdado) ao milestone
+    // default "Inbox Operacional" do workspace informado. Cria o milestone
+    // se ainda não existir. Não apaga, não arquiva, não envia ao Portal.
+    if (rawEvent === "repair_legacy_nodes_apply") {
+      const workspaceId = String((body as any).workspaceId ?? (body as any).workspace_id ?? "").trim();
+      const confirm = (body as any).confirm === true;
+      if (!workspaceId) {
+        return json({ ok: false, error: "workspaceId is required (no global runs allowed)" }, 400);
+      }
+      if (!confirm) {
+        return json({ ok: false, error: "confirm:true is required to run repair_legacy_nodes_apply", workspace_id: workspaceId }, 400);
+      }
+
+      const dbg = createClient(SUPABASE_URL, SERVICE_KEY);
+      const DEFAULT_TITLE = "Inbox Operacional";
+
+      const { data: ws, error: wsErr } = await dbg
+        .from("workspaces")
+        .select("id, name, client_id, portal_project_id")
+        .eq("id", workspaceId)
+        .maybeSingle();
+      if (wsErr) return json({ ok: false, error: wsErr.message }, 500);
+      if (!ws) return json({ ok: false, error: "workspace not found", workspace_id: workspaceId }, 404);
+
+      // 1) carrega TODOS os nodes desse workspace
+      const { data: nodes, error: nodesErr } = await dbg
+        .from("canvas_nodes")
+        .select("id, workspace_id, client_id, node_type, status, title, data, parent_node_id, deleted_at, archived_at, sync_status")
+        .eq("workspace_id", workspaceId);
+      if (nodesErr) return json({ ok: false, error: nodesErr.message }, 500);
+
+      const allNodes = nodes ?? [];
+      const byNodeId = new Map(allNodes.map((n: any) => [n.id, n]));
+
+      const STRUCT_KIND = new Set(["project_group", "milestone_group", "client_folder", "client", "ai_orb", "chat_node"]);
+      const STRUCT_TYPE = new Set(["project_group", "milestone_group", "client_folder", "client", "ai_orb", "chat_node"]);
+      const TASK_KINDS = new Set([
+        "task", "checklist", "case", "before_after", "landing_page", "site",
+        "automacao", "integracao", "agente", "metrica", "acessos", "email_mkt",
+        "trafego", "funil", "conteudo", "video", "imagem", "social", "crm",
+        "resultado", "reuniao", "decisao", "objetivo", "briefing", "lancamento",
+      ]);
+
+      const inheritMilestone = (row: any): string => {
+        let mid = "";
+        let cur: any = row;
+        const seen = new Set<string>();
+        for (let d = 0; cur && d < 6; d++) {
+          if (seen.has(cur.id)) break;
+          seen.add(cur.id);
+          const dt = (cur.data ?? {}) as any;
+          if (typeof dt.portal_milestone_id === "string" && dt.portal_milestone_id) { mid = dt.portal_milestone_id; break; }
+          if (typeof dt.milestone_id === "string" && dt.milestone_id) { mid = dt.milestone_id; break; }
+          if (String(dt.kind ?? "").toLowerCase() === "milestone_group") { mid = cur.id; break; }
+          cur = byNodeId.get(cur.parent_node_id);
+        }
+        return mid;
+      };
+
+      // 2) tenta achar milestone "Inbox Operacional" existente nesse workspace
+      let inboxNodeId: string | null = null;
+      for (const n of allNodes as any[]) {
+        const dt = (n.data ?? {}) as any;
+        const kind = String(dt.kind ?? "").toLowerCase();
+        const title = String(n.title ?? "").trim().toLowerCase();
+        if (kind === "milestone_group" && title === DEFAULT_TITLE.toLowerCase()) {
+          inboxNodeId = n.id;
+          break;
+        }
+      }
+      let createdMilestone = false;
+
+      // 3) se não existe, cria — anexado ao project_group do workspace, se houver
+      if (!inboxNodeId) {
+        let projectGroupId: string | null = null;
+        let projectGroupPosX = 80;
+        let projectGroupPosY = 0;
+        for (const n of allNodes as any[]) {
+          const dt = (n.data ?? {}) as any;
+          const kind = String(dt.kind ?? "").toLowerCase();
+          if (kind === "project_group") {
+            projectGroupId = n.id;
+            break;
+          }
+        }
+        // posição: abaixo do último milestone_group existente no workspace
+        let maxY = 360;
+        let countMs = 0;
+        for (const n of allNodes as any[]) {
+          const dt = (n.data ?? {}) as any;
+          if (String(dt.kind ?? "").toLowerCase() === "milestone_group") {
+            countMs++;
+            const py = Number((n as any).pos_y ?? 0);
+            if (Number.isFinite(py) && py > maxY) maxY = py;
+          }
+        }
+        const newPosY = countMs > 0 ? maxY + 420 : 360;
+
+        const insertPayload: Record<string, unknown> = {
+          workspace_id: workspaceId,
+          client_id: ws.client_id ?? null,
+          parent_node_id: projectGroupId,
+          node_type: "front",
+          title: DEFAULT_TITLE,
+          status: "active",
+          pos_x: 112,
+          pos_y: newPosY,
+          data: {
+            kind: "milestone_group",
+            from_portal: false,
+            stage: "producao",
+            portal_project_id: ws.portal_project_id ?? undefined,
+            milestone_key: `inbox_operacional:${workspaceId}`,
+            inbox_default: true,
+          },
+        };
+        const { data: createdRow, error: createErr } = await dbg
+          .from("canvas_nodes")
+          .insert(insertPayload)
+          .select("id")
+          .single();
+        if (createErr) {
+          return json({ ok: false, error: `failed to create default milestone: ${createErr.message}`, workspace_id: workspaceId }, 500);
+        }
+        inboxNodeId = createdRow?.id ?? null;
+        createdMilestone = true;
+        if (!inboxNodeId) {
+          return json({ ok: false, error: "milestone created but id missing", workspace_id: workspaceId }, 500);
+        }
+      }
+
+      // 4) coleta candidatos órfãos do workspace
+      const candidates: any[] = [];
+      for (const n of allNodes as any[]) {
+        if (n.id === inboxNodeId) continue;
+        if (n.deleted_at || n.archived_at || n.sync_status === "deleted" || n.sync_status === "archived") continue;
+        const dt = (n.data ?? {}) as any;
+        const kind = String(dt.kind ?? "").toLowerCase();
+        const nodeType = String(n.node_type ?? "").toLowerCase();
+        if (STRUCT_KIND.has(kind) || STRUCT_TYPE.has(nodeType)) continue;
+        const isTaskish = nodeType === "task" || TASK_KINDS.has(kind) || (!kind && nodeType !== "front");
+        if (!isTaskish) continue;
+        const ownMid = (typeof dt.portal_milestone_id === "string" && dt.portal_milestone_id)
+          || (typeof dt.milestone_id === "string" && dt.milestone_id) || "";
+        if (ownMid) continue;
+        if (inheritMilestone(n)) continue;
+        candidates.push(n);
+      }
+
+      // 5) anexa cada candidato: parent_node_id = inboxNodeId, e marca data.milestone_id
+      const errors: Array<{ id: string; error: string }> = [];
+      const attached: Array<{ id: string; title: string | null; node_type: string | null; kind: string | null }> = [];
+      for (const n of candidates) {
+        const dt = (n.data ?? {}) as any;
+        const newData = {
+          ...dt,
+          milestone_id: inboxNodeId,
+          attached_by: "repair_legacy_nodes_apply",
+          attached_at: new Date().toISOString(),
+        };
+        const { error: upErr } = await dbg
+          .from("canvas_nodes")
+          .update({
+            parent_node_id: inboxNodeId,
+            data: newData,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", n.id)
+          .eq("workspace_id", workspaceId);
+        if (upErr) {
+          errors.push({ id: n.id, error: upErr.message });
+          continue;
+        }
+        if (attached.length < 20) {
+          attached.push({
+            id: n.id,
+            title: n.title ?? null,
+            node_type: n.node_type ?? null,
+            kind: String((n.data ?? {}).kind ?? "") || null,
+          });
+        }
+      }
+
+      try {
+        await logSync({
+          direction: "internal",
+          event: "repair_legacy_nodes_apply",
+          status: errors.length ? "error" : "ok",
+          workspaceId,
+          clientId: ws.client_id ?? null,
+          portalProjectId: ws.portal_project_id ?? null,
+          message: `attached=${candidates.length - errors.length}/${candidates.length} createdMilestone=${createdMilestone}`,
+          payload: { confirm: true, workspaceId },
+          response: { default_milestone_node_id: inboxNodeId, created_milestone: createdMilestone, nodes_attached: candidates.length - errors.length, errors_count: errors.length },
+          source: "repair",
+        });
+      } catch { /* ignore */ }
+
+      return json({
+        ok: true,
+        version: "standalone-anti-loop-soft-delete-v5",
+        mode: "repair_legacy_nodes_apply",
+        workspace_id: workspaceId,
+        workspace_name: ws.name ?? null,
+        portal_project_id: ws.portal_project_id ?? null,
+        default_milestone_node_id: inboxNodeId,
+        default_milestone_title: DEFAULT_TITLE,
+        created_milestone: createdMilestone,
+        candidates_total: candidates.length,
+        nodes_attached: candidates.length - errors.length,
+        sample_attached: attached,
+        errors,
+        portal_sync_skipped: true,
+        note: "Mudança apenas no OPS. Nada foi enviado ao Portal nem deletado.",
       });
     }
 
