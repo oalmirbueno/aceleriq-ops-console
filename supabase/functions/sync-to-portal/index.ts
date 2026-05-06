@@ -355,6 +355,22 @@ serve(async (req) => {
 
     const rawEvent = String(body.event ?? "").trim().toLowerCase();
 
+    // ── version_check: confirma qual versão está rodando ONLINE ──────────
+    if (rawEvent === "version_check") {
+      return json({
+        ok: true,
+        function: "sync-to-portal",
+        version: "standalone-anti-loop-soft-delete-v2",
+        features: [
+          "anti_loop",
+          "soft_delete",
+          "skip_project_progress",
+          "portal_source_echo_skip",
+          "version_check",
+        ],
+      });
+    }
+
     // ── Anti-loop / idempotência por event_id ────────────────────────────
     // Se este evento foi originado pelo próprio Portal (source==="portal")
     // e já existe registro inbound em sync_events, NÃO reenviamos pro Portal.
