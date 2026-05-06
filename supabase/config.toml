@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.sync-to-portal]
 verify_jwt = false
+
+[functions.ops-full-export]
+verify_jwt = false

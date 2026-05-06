@@ -77,10 +77,53 @@ serve(async (req) => {
     const { data: userData } = await auth.auth.getUser();
     if (!userData.user) return json({ error: "Unauthorized" }, 401);
 
-    const { workspaceId, portalProjectId: requestedPortalProjectId } = await req.json() as { workspaceId: string; portalProjectId?: string | null };
-    if (!workspaceId) return json({ error: "workspaceId required" }, 400);
+    const raw = (await req.json().catch(() => ({}))) as { workspaceId?: string; clientId?: string; portalProjectId?: string | null };
+    const requestedPortalProjectId = raw.portalProjectId ?? null;
+    const filterClientId = raw.clientId ?? null;
+    const targetWorkspaceIds: string[] = [];
 
-    const db = createClient(SUPABASE_URL, SERVICE_KEY);
+    const dbAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
+    if (raw.workspaceId) {
+      targetWorkspaceIds.push(raw.workspaceId);
+    } else {
+      let q = dbAdmin.from("workspaces").select("id");
+      if (filterClientId) q = q.eq("client_id", filterClientId);
+      const { data: list, error } = await q;
+      if (error) return json({ error: error.message }, 500);
+      (list ?? []).forEach((w: any) => { if (w?.id) targetWorkspaceIds.push(w.id as string); });
+    }
+    if (targetWorkspaceIds.length === 0) return json({ ok: true, total: 0, sent: 0, skipped: 0, scope: "empty" });
+
+    const aggregate = { total: 0, sent: 0, skipped: 0, workspaces: [] as Array<Record<string, unknown>> };
+    for (const workspaceId of targetWorkspaceIds) {
+      const result = await backfillWorkspace({
+        db: dbAdmin, workspaceId, requestedPortalProjectId,
+        PORTAL_URL, PORTAL_SECRET, PORTAL_ADMIN, portalClientIdFallback: null,
+      });
+      aggregate.total += result.total;
+      aggregate.sent += result.sent;
+      aggregate.skipped += result.skipped;
+      aggregate.workspaces.push({ workspace_id: workspaceId, ...result });
+    }
+    return json({ ok: true, scope: raw.workspaceId ? "workspace" : (filterClientId ? "client" : "global"), ...aggregate });
+  } catch (err) {
+    return json({ error: err instanceof Error ? err.message : "internal error" }, 500);
+  }
+});
+
+async function backfillWorkspace({
+  db, workspaceId, requestedPortalProjectId, PORTAL_URL, PORTAL_SECRET, PORTAL_ADMIN, portalClientIdFallback,
+}: {
+  db: any;
+  workspaceId: string;
+  requestedPortalProjectId: string | null;
+  PORTAL_URL: string;
+  PORTAL_SECRET: string | undefined;
+  PORTAL_ADMIN: string;
+  portalClientIdFallback: string | null;
+}): Promise<{ total: number; sent: number; skipped: number; reason?: string }> {
+  try {
+
     const { data: ws } = await db
       .from("workspaces")
       .select("id, portal_project_id, clients(portal_client_id)")
@@ -88,10 +131,9 @@ serve(async (req) => {
       .single();
 
     const defaultPortalProjectId = (requestedPortalProjectId || ws?.portal_project_id) as string | null;
-    const portalClientId = (ws?.clients as any)?.portal_client_id as string | null;
-    if (!defaultPortalProjectId && !portalClientId) {
-      return json({ ok: false, skipped: true, reason: "workspace not linked to portal" });
-    }
+    const portalClientId = ((ws?.clients as any)?.portal_client_id as string | null) ?? portalClientIdFallback;
+    // Sem vínculo ainda: tentamos enviar mesmo assim usando ops_workspace_id
+    // como referência externa estável; o Portal pode resolver/criar o vínculo.
 
     const { data: nodes } = await db
       .from("canvas_nodes")
@@ -123,9 +165,12 @@ serve(async (req) => {
       const k = String(n.data?.kind ?? "").toLowerCase();
       // ignora client folders, ai_orb e chat_node — não viram tarefa
       if (["client", "ai_orb", "chat_node"].includes(t) || ["project_group", "milestone_group", "chat_node"].includes(k)) return false;
-      const meta = inheritedMeta(n);
-      const projectId = meta.portalProjectId || defaultPortalProjectId || "";
-      return !!projectId && (!requestedPortalProjectId || projectId === requestedPortalProjectId);
+      if (requestedPortalProjectId) {
+        const meta = inheritedMeta(n);
+        const projectId = meta.portalProjectId || defaultPortalProjectId || "";
+        return projectId === requestedPortalProjectId;
+      }
+      return true;
     });
 
     const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -133,10 +178,9 @@ serve(async (req) => {
 
     let sent = 0, skipped = 0;
     for (const n of list) {
-      const status = n.status ?? "draft";
+      const status: string = (n.status as string | null) ?? "draft";
       const meta = inheritedMeta(n);
       const portalProjectId = meta.portalProjectId || defaultPortalProjectId || "";
-      if (!portalProjectId) { skipped++; continue; }
       const progress = progressOf(status, n.data as Record<string, unknown> | null);
       const label = STATUS_LABELS[status.toLowerCase()] ?? status;
       // 1) garante que existe a tarefa no portal (idempotente via ops_node_id)
@@ -144,7 +188,8 @@ serve(async (req) => {
         event: "node_created",
         source: "ops",
         data: {
-          project_id: portalProjectId,
+          project_id: portalProjectId || undefined,
+          ops_workspace_id: workspaceId,
           author_id: PORTAL_ADMIN || portalClientId,
           node_id: n.id,
           node_title: n.title ?? "node",
@@ -165,7 +210,8 @@ serve(async (req) => {
         event: "node_updated",
         source: "ops",
         data: {
-          project_id: portalProjectId,
+          project_id: portalProjectId || undefined,
+          ops_workspace_id: workspaceId,
           author_id: PORTAL_ADMIN || portalClientId,
           message: `Tarefa "${n.title ?? "node"}" — ${label} (${progress}%)`,
           update_type: "task_progress",
@@ -194,8 +240,8 @@ serve(async (req) => {
       }
     }
 
-    return json({ ok: true, total: list.length, sent, skipped });
+    return { total: list.length, sent, skipped };
   } catch (err) {
-    return json({ error: err instanceof Error ? err.message : "internal error" }, 500);
+    return { total: 0, sent: 0, skipped: 0, reason: err instanceof Error ? err.message : "internal error" };
   }
-});
+}
