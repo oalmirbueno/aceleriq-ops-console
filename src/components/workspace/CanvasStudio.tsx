@@ -796,7 +796,7 @@ function CanvasStudioInner({
         if (lastWritten >= progressVersion) continue;
         if (progressVersion < progressVersionRef.current) break;
         const newRev = Number(gdata.progress_rev ?? 0) + 1;
-        groupUpdates.push(supabase.from("canvas_nodes").update({
+        groupUpdates.push(Promise.resolve(supabase.from("canvas_nodes").update({
           data: {
             ...gdata,
             portal_progress: pct,
@@ -804,7 +804,7 @@ function CanvasStudioInner({
             progress_calculated_at: new Date().toISOString(),
           },
           updated_at: new Date().toISOString(),
-        }).eq("id", g.id));
+        }).eq("id", g.id)));
         lastWrittenProgressVersionRef.current.set(g.id, progressVersion);
       }
       if (groupUpdates.length) await Promise.all(groupUpdates);
