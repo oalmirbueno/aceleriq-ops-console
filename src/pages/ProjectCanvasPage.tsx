@@ -85,9 +85,7 @@ export default function ProjectCanvasPage() {
   useEffect(() => {
     if (!resolved?.workspaceId || !portalProjectId) return;
     (async () => {
-      await supabase.functions.invoke("backfill-from-portal", {
-        body: { source: "project_canvas", workspaceId: resolved.workspaceId, portalProjectId },
-      }).catch(() => null);
+      // backfill-from-portal removido do auto-open (WORKER_RESOURCE_LIMIT).
       await supabase.functions.invoke("pull-portal-tasks", {
         body: { workspaceId: resolved.workspaceId, portalProjectId },
       }).catch(() => null);
