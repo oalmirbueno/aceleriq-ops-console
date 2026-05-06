@@ -2564,6 +2564,7 @@ function CanvasStudioInner({
             generatedByAiOrb: aiOrbConfigNode.id,
             created_from: "ai_orb",
             ...portalMeta,
+            ...(selectedMilestoneId ? { milestone_node_id: selectedMilestoneId } : {}),
             rationale: result.rationale,
             agent_id: opts.agentId,
             ...specData,
