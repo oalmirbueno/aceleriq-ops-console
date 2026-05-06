@@ -489,6 +489,7 @@ serve(async (req) => {
       if (!targetProjectId) return json({ skipped: true, reason: "portal_project_id missing" });
       const progress = typeof body.progress === "number" ? Math.max(0, Math.min(100, Math.round(body.progress))) : null;
       if (progress === null) return json({ skipped: true, reason: "progress missing" });
+      event = "node_completed"; // Portal atual aceita progresso como update do projeto.
       // Versão monotônica enviada pelo Ops; o Portal usa pra descartar
       // updates fora de ordem (out-of-order delivery).
       const progressVersion = typeof body.progress_version === "number" ? body.progress_version : null;
@@ -508,6 +509,7 @@ serve(async (req) => {
       if (!portalClientId) return json({ skipped: true, reason: "portal_client_id missing" });
       const progress = typeof body.progress === "number" ? Math.max(0, Math.min(100, Math.round(body.progress))) : null;
       if (progress === null) return json({ skipped: true, reason: "progress missing" });
+      event = "node_completed"; // Portal atual aceita progresso como update do cliente.
       const progressVersion = typeof body.progress_version === "number" ? body.progress_version : null;
       const calculatedAt = typeof body.calculated_at === "string" ? body.calculated_at : new Date().toISOString();
       data = {
