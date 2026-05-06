@@ -114,7 +114,7 @@ serve(async (req) => {
 async function backfillWorkspace({
   db, workspaceId, requestedPortalProjectId, PORTAL_URL, PORTAL_SECRET, PORTAL_ADMIN, portalClientIdFallback,
 }: {
-  db: ReturnType<typeof createClient>;
+  db: any;
   workspaceId: string;
   requestedPortalProjectId: string | null;
   PORTAL_URL: string;
