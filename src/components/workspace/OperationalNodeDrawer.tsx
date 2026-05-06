@@ -27,7 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Save, Trash2, Sparkles, MessageCircle, Loader2, CheckCircle2, Circle, Workflow, KeyRound, ExternalLink, History } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { syncNodeCompletedWhenDone } from "./syncToPortalEvents";
+import { syncNodeCompletedWhenDone, syncNodeUpdated } from "./syncToPortalEvents";
 import { getProjectTypeMeta, resolveProjectNodeKind, type ProjectNodeKind } from "./canvasProjectTypes";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 import { getNodeIntelligence } from "@/lib/nodeIntelligence";
@@ -968,13 +968,14 @@ export default function OperationalNodeDrawer({
         : null) ??
       node.description ??
       null;
+    const nextData = { ...currentData, fields: values, lastEditedAt: new Date().toISOString() };
     const { error } = await supabase
       .from("canvas_nodes")
       .update({
         title,
         description: nextDescription,
         status,
-        data: { ...currentData, fields: values, lastEditedAt: new Date().toISOString() },
+        data: nextData,
         updated_at: new Date().toISOString(),
       })
       .eq("id", node.id);
@@ -987,6 +988,16 @@ export default function OperationalNodeDrawer({
       clientId,
       nodeId: node.id,
       nodeTitle: title,
+    });
+    void syncNodeUpdated({
+      workspaceId,
+      clientId,
+      nodeId: node.id,
+      nodeTitle: title,
+      nodeType: node.node_type,
+      status,
+      previousStatus: node.status,
+      data: nextData,
     });
     toast({ title: "Salvo", description: `${config.title} atualizado.` });
     skipNextNodeSync.current = true;
