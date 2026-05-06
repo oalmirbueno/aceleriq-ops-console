@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.ops-full-export]
 verify_jwt = false
+
+[functions.repair-legacy-nodes]
+verify_jwt = false
