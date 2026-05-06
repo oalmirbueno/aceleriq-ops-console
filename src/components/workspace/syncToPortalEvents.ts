@@ -174,18 +174,15 @@ export function syncNodeCompletedWhenDone({
   nodeId: string;
   nodeTitle?: string | null;
 }) {
-  if (!clientId) return;
-  if (!isCompletedStatus(nextStatus) || isCompletedStatus(previousStatus)) return;
-
-  void supabase.functions.invoke("sync-to-portal", {
-    body: {
-      event: "node_completed",
-      workspaceId,
-      clientId,
-      nodeId,
-      nodeTitle: nodeTitle ?? undefined,
-    },
-  }).catch(() => {});
+  // Não disparamos mais `node_completed`: no Portal esse evento vira apenas
+  // timeline genérica e mascara o payload real do card. O `syncNodeUpdated`
+  // chamado no mesmo fluxo já envia status/progresso/ops_node_id para o Kanban.
+  void previousStatus;
+  void nextStatus;
+  void workspaceId;
+  void clientId;
+  void nodeId;
+  void nodeTitle;
 }
 
 export function syncBriefingUpdatedForClient(clientId: string) {
