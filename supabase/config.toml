@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.list-sync-audit]
 verify_jwt = true
+
+[functions.ops-nodes-list]
+verify_jwt = false
