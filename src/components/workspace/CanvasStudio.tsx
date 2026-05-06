@@ -1296,15 +1296,6 @@ function CanvasStudioInner({
       const kind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
       return type === "client" || kind === "project_group" || kind === "milestone_group";
     };
-    const isFreeOperationalNode = (node: CanvasNodeRow): boolean => {
-      const type = (node.node_type ?? "").toLowerCase();
-      const data = (node.data as Record<string, unknown> | null) ?? {};
-      const kind = String(data.kind ?? "").toLowerCase();
-      if (isFolder(node)) return false;
-      if (type === "ai_orb" || kind === "ai_orb" || kind === "chat_node") return true;
-      if (data.created_from === "manual" || data.created_from === "ai_orb" || data.generatedByAiOrb) return true;
-      return false;
-    };
     const belongsToMilestone = (node: CanvasNodeRow, milestoneId: string): boolean => {
       if (node.id === milestoneId) return false;
       const milestone = milestoneById.get(milestoneId);
@@ -1333,12 +1324,7 @@ function CanvasStudioInner({
       return true;
     };
     if (!selectedMilestoneId) return scopedProjectNodes.filter(passesUiFilters);
-    const milestoneNodes = scopedProjectNodes.filter((node) => passesUiFilters(node) && (
-      belongsToMilestone(node, selectedMilestoneId) || isFreeOperationalNode(node)
-    ));
-    // Fallback seguro: se o Portal ainda não gravou parent/portal_milestone_id nas tasks,
-    // não deixa o milestone abrir vazio; mostra os nodes já existentes do projeto escopado.
-    return milestoneNodes.length > 0 ? milestoneNodes : scopedProjectNodes.filter(passesUiFilters);
+    return scopedProjectNodes.filter((node) => passesUiFilters(node) && belongsToMilestone(node, selectedMilestoneId));
   }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter, selectedMilestoneId]);
 
   const scopedProjectIds = useMemo(() => new Set(scopedProjectNodes.map((n) => n.id)), [scopedProjectNodes]);
