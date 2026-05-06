@@ -782,6 +782,7 @@ function CanvasStudioInner({
       }
 
       const projectProgress = new Map<string, number[]>();
+      const groupUpdates: Promise<unknown>[] = [];
       for (const g of groups) {
         const tasks = tasksByGroup.get(g.id) ?? [];
         if (tasks.length === 0) continue;
@@ -791,12 +792,11 @@ function CanvasStudioInner({
         if (!portalProjectId) continue;
         projectProgress.set(portalProjectId, [...(projectProgress.get(portalProjectId) ?? []), pct]);
         const gdata = (g.data as Record<string, unknown> | null) ?? {};
-        // Skip se já houve write mais novo neste node OU se chegou outra rodada
         const lastWritten = lastWrittenProgressVersionRef.current.get(g.id) ?? 0;
         if (lastWritten >= progressVersion) continue;
-        if (progressVersion < progressVersionRef.current) break; // rodada nova já em curso
+        if (progressVersion < progressVersionRef.current) break;
         const newRev = Number(gdata.progress_rev ?? 0) + 1;
-        await supabase.from("canvas_nodes").update({
+        groupUpdates.push(supabase.from("canvas_nodes").update({
           data: {
             ...gdata,
             portal_progress: pct,
@@ -804,30 +804,32 @@ function CanvasStudioInner({
             progress_calculated_at: new Date().toISOString(),
           },
           updated_at: new Date().toISOString(),
-        }).eq("id", g.id);
+        }).eq("id", g.id));
         lastWrittenProgressVersionRef.current.set(g.id, progressVersion);
       }
+      if (groupUpdates.length) await Promise.all(groupUpdates);
 
       const projectAverages: number[] = [];
+      const projectInvokes: Promise<unknown>[] = [];
       for (const [portalProjectId, values] of projectProgress) {
         if (portalProjectIdProp && portalProjectId !== portalProjectIdProp) continue;
-        if (progressVersion < progressVersionRef.current) break; // descartado
+        if (progressVersion < progressVersionRef.current) break;
         const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
         projectAverages.push(avg);
-        await supabase.functions.invoke("sync-to-portal", {
+        projectInvokes.push(supabase.functions.invoke("sync-to-portal", {
           body: {
             event: "project_progress",
             workspaceId,
             clientId,
             portalProjectId,
             progress: avg,
-            // Carrega versão pro Portal validar e descartar updates fora de ordem.
             progress_version: progressVersion,
             calculated_at: new Date().toISOString(),
             message: `Progresso do projeto: ${avg}%`,
           },
-        }).catch(() => {});
+        }).catch(() => {}));
       }
+      if (projectInvokes.length) await Promise.all(projectInvokes);
 
       // Média geral do cliente (média dos projetos/milestones reais)
       if (projectAverages.length > 0) {
