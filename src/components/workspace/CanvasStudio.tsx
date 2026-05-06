@@ -1292,6 +1292,7 @@ function CanvasStudioInner({
     // Fordismo acontece dentro do canvas: sem seleção, nada some; com milestone
     // selecionado, focamos projeto + pasta do milestone + tarefas reais dele.
     const milestoneById = new Map(scopedProjectNodes.map((n) => [n.id, n] as const));
+    const selectedMilestone = selectedMilestoneId ? milestoneById.get(selectedMilestoneId) : null;
     const isFolder = (node: CanvasNodeRow) => {
       const type = (node.node_type ?? "").toLowerCase();
       const kind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
@@ -1330,7 +1331,7 @@ function CanvasStudioInner({
       return true;
     };
     if (!selectedMilestoneId) return scopedProjectNodes.filter(passesUiFilters);
-    return scopedProjectNodes.filter((node) => passesUiFilters(node) && (belongsToMilestone(node, selectedMilestoneId) || isAiUtilityNode(node)));
+    return scopedProjectNodes.filter((node) => passesUiFilters(node) && (belongsToMilestone(node, selectedMilestoneId) || (isAiUtilityNode(node) && (!selectedMilestone || node.parent_node_id === selectedMilestone.id || node.parent_node_id === selectedMilestone.parent_node_id))));
   }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter, selectedMilestoneId]);
 
   const scopedProjectIds = useMemo(() => new Set(scopedProjectNodes.map((n) => n.id)), [scopedProjectNodes]);
