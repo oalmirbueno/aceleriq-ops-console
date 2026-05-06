@@ -2,7 +2,7 @@
  * ops-nodes-list — endpoint chamado pelo Portal (pull-ops-nodes) a cada 30s.
  * Retorna TODOS os canvas_nodes (passado, atual, futuro) que tenham
  * portal_project_id setado. Autenticado por header x-webhook-secret.
- * v1.0.1 — deploy bump
+ * v1.0.3 — deploy bump (force redeploy)
  *
  * Body opcional: { project_id?: string | null }
  *   - se vier, filtra por aquele portal_project_id
