@@ -323,8 +323,14 @@ serve(async (req) => {
       "node_created", "node_updated", "node_completed", "node_deleted",
       "stage_advanced", "project_progress", "file_approved", "pull_portal_tasks",
     ]);
+    // v3: project-scoped events só precisam de portal_project_id; client_id é opcional.
     if (!portalClientId && !projectScopedEvents.has(rawEvent)) {
-      return json({ skipped: true, reason: "portal_client_id not set on client — link the client first" });
+      return json({
+        skipped: true,
+        reason: "portal_client_id not set on client — link the client first",
+        event: rawEvent,
+        debug: "v3-bypass",
+      });
     }
 
     // ── Monta payload por evento ────────────────────────────────────────
