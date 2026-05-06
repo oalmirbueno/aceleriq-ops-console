@@ -558,6 +558,8 @@ serve(async (req) => {
       data = cleanObject({
         id: nodePortalTaskId ?? undefined,
         project_id: portalProjectId,
+        ops_workspace_id: body.workspaceId,
+        ops_client_id: opsClientId ?? undefined,
         author_id: PORTAL_ADMIN_ID || portalClientId || undefined,
         client_id: portalClientId ?? undefined,
         message: `Tarefa "${title}" — Concluída (100%)`,
@@ -603,6 +605,8 @@ serve(async (req) => {
       data = {
         id: nodePortalTaskId ?? undefined,
         project_id:  portalProjectId,
+        ops_workspace_id: body.workspaceId,
+        ops_client_id: opsClientId ?? undefined,
         author_id:   authorId,
         client_id:   portalClientId ?? undefined,
         message,
@@ -635,6 +639,8 @@ serve(async (req) => {
       data = {
         id: nodePortalTaskId ?? undefined,
         project_id: portalProjectId,
+        ops_workspace_id: body.workspaceId,
+        ops_client_id: opsClientId ?? undefined,
         author_id:  authorId,
         client_id:  portalClientId ?? undefined,
         node_id:    body.nodeId,
@@ -660,6 +666,8 @@ serve(async (req) => {
       if (!portalProjectId) return json({ skipped: true, reason: "portal_project_id not set on workspace" });
       data = {
         project_id: portalProjectId,
+        ops_workspace_id: body.workspaceId,
+        ops_client_id: opsClientId ?? undefined,
         author_id:  PORTAL_ADMIN_ID || portalClientId,
         node_id:    body.nodeId,
         message:    `Tarefa removida do canvas`,
