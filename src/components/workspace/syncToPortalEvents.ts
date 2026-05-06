@@ -63,9 +63,9 @@ export function syncNodeUpdated({
   // desde que portal_project_id esteja presente nos dados do node.
   const progress = computeNodeProgress(status, data);
   const portalProjectId = typeof data?.portal_project_id === "string" ? data.portal_project_id : undefined;
-  if (!clientId && !portalProjectId) return;
+  if (!clientId && !portalProjectId) return Promise.resolve(null);
 
-  void supabase.functions.invoke("sync-to-portal", {
+  return supabase.functions.invoke("sync-to-portal", {
     body: {
       event: "node_updated",
       workspaceId,
@@ -79,7 +79,7 @@ export function syncNodeUpdated({
       portalProjectId,
       data: data ?? undefined,
     },
-  }).catch(() => {});
+  }).catch(() => null);
 }
 
 /**
@@ -103,8 +103,8 @@ export function syncNodeCreated({
 }) {
   const progress = computeNodeProgress("active", data);
   const portalProjectId = typeof data?.portal_project_id === "string" ? data.portal_project_id : undefined;
-  if (!clientId && !portalProjectId) return;
-  void supabase.functions.invoke("sync-to-portal", {
+  if (!clientId && !portalProjectId) return Promise.resolve(null);
+  return supabase.functions.invoke("sync-to-portal", {
     body: {
       event: "node_created",
       workspaceId,
@@ -117,7 +117,7 @@ export function syncNodeCreated({
       portalProjectId,
       data: data ?? undefined,
     },
-  }).catch(() => {});
+  }).catch(() => null);
 }
 
 /** Remove a task correspondente do portal quando o node é deletado. */
@@ -134,10 +134,10 @@ export function syncNodeDeleted({
 }) {
   const portalProjectId = typeof data?.portal_project_id === "string" ? data.portal_project_id : undefined;
   const portalTaskId = typeof data?.portal_task_id === "string" ? data.portal_task_id : undefined;
-  if (!clientId && !portalProjectId) return;
-  void supabase.functions.invoke("sync-to-portal", {
+  if (!clientId && !portalProjectId) return Promise.resolve(null);
+  return supabase.functions.invoke("sync-to-portal", {
     body: { event: "node_deleted", workspaceId, clientId: clientId ?? undefined, nodeId, portalProjectId, portalTaskId, data: data ?? undefined },
-  }).catch(() => {});
+  }).catch(() => null);
 }
 
 export function syncNodeCompletedWhenDone({
