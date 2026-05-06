@@ -24,7 +24,11 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"] as const;
+const AI_MODELS = [
+  "google/gemini-2.5-flash",
+  "google/gemini-2.5-flash-lite",
+  "google/gemini-3-flash-preview",
+] as const;
 
 type FieldType = "text" | "textarea" | "list" | "kv" | "checklist" | "attachments";
 type PrefillSource =
@@ -195,8 +199,8 @@ serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) return jsonResponse({ error: "GEMINI_API_KEY não configurada" }, 500);
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) return jsonResponse({ error: "LOVABLE_API_KEY não configurada" }, 500);
 
     // Auth é opcional — verify_jwt está OFF. Usamos o service role direto.
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -552,29 +556,28 @@ serve(async (req) => {
     ].join("\n");
 
     let aiResp: Response | null = null;
-    let usedModel = GEMINI_MODELS[0];
+    let usedModel: string = AI_MODELS[0];
     let lastErrText = "";
+    let lastStatus = 0;
 
-    for (const model of GEMINI_MODELS) {
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-      const geminiPayload = {
-        systemInstruction: {
-          parts: [{ text: systemPrompt }],
-        },
-        contents: [
-          { role: "user", parts: [{ text: `${userPrompt}\n\nRetorne APENAS o JSON do tool fill_node_draft com todos os campos preenchidos.` }] },
-        ],
-        generationConfig: {
-          temperature: 0.35,
-          responseMimeType: "application/json",
-        },
-      };
-
+    for (const model of AI_MODELS) {
       try {
-        const r = await fetch(geminiUrl, {
+        const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(geminiPayload),
+          headers: {
+            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `${userPrompt}\n\nRetorne APENAS o JSON do tool fill_node_draft com todos os campos preenchidos.` },
+            ],
+            tools: [toolSchema],
+            tool_choice: { type: "function", function: { name: "fill_node_draft" } },
+            temperature: 0.35,
+          }),
         });
 
         if (r.ok) {
@@ -583,14 +586,18 @@ serve(async (req) => {
           break;
         }
 
-        if (r.status === 503 || r.status === 429) {
-          lastErrText = await r.text();
+        lastStatus = r.status;
+        lastErrText = await r.text();
+
+        if (r.status === 429 || r.status === 402) {
+          // sem sentido tentar outros modelos no gateway — propagar.
+          break;
+        }
+        if (r.status === 503 || r.status >= 500) {
           console.warn(`[prefill-node] ${model} retornou ${r.status}, tentando próximo`);
-          await new Promise((res) => setTimeout(res, 2000));
+          await new Promise((res) => setTimeout(res, 1000));
           continue;
         }
-
-        lastErrText = await r.text();
       } catch (err) {
         lastErrText = (err as Error).message;
         console.error(`[prefill-node] ${model} erro:`, lastErrText);
@@ -598,11 +605,19 @@ serve(async (req) => {
     }
 
     if (!aiResp) {
-      return jsonResponse({ error: "IA falhou após tentar todos os modelos", detail: lastErrText.slice(0, 200) }, 502);
+      if (lastStatus === 429) {
+        return jsonResponse({ error: "Rate limit excedido, tente novamente em alguns segundos." }, 429);
+      }
+      if (lastStatus === 402) {
+        return jsonResponse({ error: "Créditos da Lovable AI esgotados. Adicione créditos em Settings → Workspace → Usage." }, 402);
+      }
+      return jsonResponse({ error: "IA falhou após tentar todos os modelos", detail: lastErrText.slice(0, 300) }, 502);
     }
 
     const aiJson = await aiResp.json();
-    const rawText = aiJson.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    const choice = aiJson.choices?.[0];
+    const toolCall = choice?.message?.tool_calls?.[0];
+    const rawText: string = toolCall?.function?.arguments ?? choice?.message?.content ?? "";
     const clean = rawText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
 
     let parsed: Record<string, any>;
