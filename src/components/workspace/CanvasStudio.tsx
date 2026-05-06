@@ -607,20 +607,13 @@ function CanvasStudioInner({
       pullFailed = !!error || (data as any)?.ok === false;
       if (!pullFailed) setSyncStatus((s) => ({ ...s, portalPullAt: Date.now() }));
       if (pullFailed) {
-        const fallback = await supabase.functions.invoke("backfill-from-portal", {
-          body: { source: "canvas_fallback", workspaceId, portalProjectId: portalProjectIdProp ?? undefined },
-        });
-        pullFailed = !!fallback.error || (fallback.data as any)?.ok === false;
-        if (!pullFailed) setSyncStatus((s) => ({ ...s, portalPullAt: Date.now() }));
+        // fallback para backfill-from-portal removido — função protegida por kill switch.
+        // pullFailed permanece true; UI mostra erro para o usuário tentar manualmente.
       }
       await materializePortalTimelineCanvas({ workspaceId, clientId, clientName, portalProjectId: portalProjectIdProp });
     } catch (error) {
       console.error("[CanvasStudio] pull_portal_tasks failed", error);
-      const fallback = await supabase.functions.invoke("backfill-from-portal", {
-        body: { source: "canvas_fallback", workspaceId, portalProjectId: portalProjectIdProp ?? undefined },
-      }).catch(() => ({ error: true } as const));
-      pullFailed = !!fallback.error;
-      if (!pullFailed) setSyncStatus((s) => ({ ...s, portalPullAt: Date.now() }));
+      pullFailed = true;
       await materializePortalTimelineCanvas({ workspaceId, clientId, clientName, portalProjectId: portalProjectIdProp });
     }
 
