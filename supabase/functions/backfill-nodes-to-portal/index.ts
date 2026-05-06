@@ -45,6 +45,22 @@ const STATUS_LABELS: Record<string, string> = {
   done: "Concluída", completed: "Concluída",
 };
 
+function pickString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function opsStatusToPortal(status?: string | null): string {
+  const s = String(status ?? "active").toLowerCase();
+  if (["done", "completed", "concluido", "concluída", "concluida"].includes(s)) return "done";
+  if (["blocked", "bloqueado", "bloqueada"].includes(s)) return "blocked";
+  if (["in_review", "review", "revisao", "revisão"].includes(s)) return "review";
+  if (["draft", "not_started", "todo", "backlog"].includes(s)) return "todo";
+  return "doing";
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
@@ -61,7 +77,7 @@ serve(async (req) => {
     const { data: userData } = await auth.auth.getUser();
     if (!userData.user) return json({ error: "Unauthorized" }, 401);
 
-    const { workspaceId } = await req.json() as { workspaceId: string };
+    const { workspaceId, portalProjectId: requestedPortalProjectId } = await req.json() as { workspaceId: string; portalProjectId?: string | null };
     if (!workspaceId) return json({ error: "workspaceId required" }, 400);
 
     const db = createClient(SUPABASE_URL, SERVICE_KEY);
@@ -71,21 +87,45 @@ serve(async (req) => {
       .eq("id", workspaceId)
       .single();
 
-    const portalProjectId = ws?.portal_project_id as string | null;
+    const defaultPortalProjectId = (requestedPortalProjectId || ws?.portal_project_id) as string | null;
     const portalClientId = (ws?.clients as any)?.portal_client_id as string | null;
-    if (!portalProjectId || !portalClientId) {
+    if (!defaultPortalProjectId && !portalClientId) {
       return json({ ok: false, skipped: true, reason: "workspace not linked to portal" });
     }
 
     const { data: nodes } = await db
       .from("canvas_nodes")
-      .select("id, title, node_type, status, data")
+      .select("id, title, node_type, status, data, parent_node_id")
       .eq("workspace_id", workspaceId);
 
-    const list = (nodes ?? []).filter((n) => {
+    const byId = new Map((nodes ?? []).map((n: any) => [n.id as string, n] as const));
+    const inheritedMeta = (node: any) => {
+      let portalProjectId = pickString(node.data?.portal_project_id) || "";
+      let portalMilestoneId = pickString(node.data?.portal_milestone_id, node.data?.milestone_id) || "";
+      let parentId = node.parent_node_id as string | null;
+      const seen = new Set<string>();
+      for (let depth = 0; parentId && depth < 6; depth++) {
+        if (seen.has(parentId)) break;
+        seen.add(parentId);
+        const parent = byId.get(parentId) as any;
+        if (!parent) break;
+        const pdata = parent.data ?? {};
+        const kind = String(pdata.kind ?? "").toLowerCase();
+        portalProjectId ||= pickString(pdata.portal_project_id);
+        portalMilestoneId ||= pickString(pdata.portal_milestone_id, pdata.milestone_id, kind === "milestone_group" ? parent.id : undefined);
+        parentId = parent.parent_node_id as string | null;
+      }
+      return { portalProjectId, portalMilestoneId };
+    };
+
+    const list = (nodes ?? []).filter((n: any) => {
       const t = (n.node_type ?? "").toLowerCase();
+      const k = String(n.data?.kind ?? "").toLowerCase();
       // ignora client folders, ai_orb e chat_node — não viram tarefa
-      return !["client", "ai_orb", "chat_node"].includes(t);
+      if (["client", "ai_orb", "chat_node"].includes(t) || ["project_group", "milestone_group", "chat_node"].includes(k)) return false;
+      const meta = inheritedMeta(n);
+      const projectId = meta.portalProjectId || defaultPortalProjectId || "";
+      return !!projectId && (!requestedPortalProjectId || projectId === requestedPortalProjectId);
     });
 
     const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -94,6 +134,9 @@ serve(async (req) => {
     let sent = 0, skipped = 0;
     for (const n of list) {
       const status = n.status ?? "draft";
+      const meta = inheritedMeta(n);
+      const portalProjectId = meta.portalProjectId || defaultPortalProjectId || "";
+      if (!portalProjectId) { skipped++; continue; }
       const progress = progressOf(status, n.data as Record<string, unknown> | null);
       const label = STATUS_LABELS[status.toLowerCase()] ?? status;
       // 1) garante que existe a tarefa no portal (idempotente via ops_node_id)
@@ -107,8 +150,14 @@ serve(async (req) => {
           node_title: n.title ?? "node",
           node_type: n.node_type ?? null,
           status,
+          kanban_status: opsStatusToPortal(status),
           message: `Tarefa "${n.title ?? "node"}"`,
           update_type: "task_created",
+          title: n.title ?? "node",
+          ops_node_id: n.id,
+          progress,
+          portal_milestone_id: meta.portalMilestoneId || undefined,
+          milestone_id: meta.portalMilestoneId || undefined,
         },
       };
       // 2) atualiza progresso/status
@@ -124,7 +173,12 @@ serve(async (req) => {
           node_title: n.title ?? "node",
           node_type: n.node_type ?? null,
           status,
+          kanban_status: opsStatusToPortal(status),
+          title: n.title ?? "node",
+          ops_node_id: n.id,
           progress,
+          portal_milestone_id: meta.portalMilestoneId || undefined,
+          milestone_id: meta.portalMilestoneId || undefined,
         },
       };
       try {
