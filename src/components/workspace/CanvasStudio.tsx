@@ -459,6 +459,11 @@ function CanvasStudioInner({
   const [selectedNode, setSelectedNode] = useState<CanvasNodeRow | null>(null);
   const [aiOrbConfigNode, setAiOrbConfigNode] = useState<CanvasNodeRow | null>(null);
 
+  // Auto-sync milestone OPS → Portal: sempre que aparece um milestone_group sem
+  // portal_milestone_id (criação local ou via realtime), dispara apply_one no
+  // servidor, que faz upsert idempotente e salva o portal_milestone_id no node.
+  useMilestoneAutoSync(workspaceId, dbNodes);
+
   const [rfNodes, setRfNodes] = useState<Node[]>([]);
   const [rfEdges, setRfEdges] = useState<Edge[]>([]);
 
