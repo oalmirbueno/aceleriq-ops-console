@@ -1761,13 +1761,14 @@ function CanvasStudioInner({
         // Compara conteúdo da data — callbacks estáveis não invalidam render.
         const sameData = canvasNodeDataEqual(existing.data as Record<string, unknown>, newNode.data as Record<string, unknown>);
         const sameConfig = existing.type === newNode.type && existing.draggable === newNode.draggable;
-        const layoutChanged = (existing.data as Record<string, unknown> | undefined)?.__layoutPositionKey !== (newNode.data as Record<string, unknown> | undefined)?.__layoutPositionKey;
         if (sameData && sameConfig) {
           // Sem mudança em data — reusa objeto existente (mantém referência)
           result.push(existing);
         } else {
-          // Data mudou — mantém posição local, exceto quando o modo fordismo recalcula a esteira.
-          result.push(layoutChanged ? newNode : { ...newNode, position: existing.position });
+          // Data mudou — SEMPRE preserva a posição local. Reorganizações
+          // explícitas (botão "Reorganizar", drag manual) atualizam pos_x/pos_y
+          // direto via setRfNodes, então este merge nunca precisa mover cards.
+          result.push({ ...newNode, position: existing.position });
           hasChanges = true;
         }
       }
