@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.legacy-nodes-cleanup]
 verify_jwt = false
+
+[functions.sync-milestones-to-portal]
+verify_jwt = false
