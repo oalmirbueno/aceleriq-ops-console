@@ -303,9 +303,12 @@ serve(async (req) => {
   try {
     const body = await req.json();
     const event = String(body.event ?? "");
-    const inferredType = event.toLowerCase().startsWith("task_") || event.toLowerCase() === "delete"
-      ? "tasks"
-      : "";
+    const evLower = event.toLowerCase();
+    let inferredType = "";
+    if (evLower.startsWith("task_") || evLower === "delete") inferredType = "tasks";
+    else if (evLower.startsWith("milestone_") || evLower.startsWith("folder_")) inferredType = "milestones";
+    else if (evLower.startsWith("project_")) inferredType = "projects";
+    else if (evLower.startsWith("client_") || evLower.startsWith("profile_")) inferredType = "profiles";
     const rawType = String(body.type ?? body.table ?? inferredType);
     const type = normalizeType(rawType);
     const data = ((body.data && typeof body.data === "object")
@@ -330,8 +333,12 @@ serve(async (req) => {
 
     const isDeleteEvent =
       event === "DELETE" ||
-      event.toLowerCase().endsWith("_deleted") ||
-      data.deleted === true;
+      evLower.endsWith("_deleted") ||
+      evLower.endsWith("_archived") ||
+      data.deleted === true ||
+      data.archived === true;
+    const SOFT_DELETE_STATUS = "deleted_from_portal";
+    const nowIso = new Date().toISOString();
 
     // ─── DELETE: profile/client/project ───────────────────────
     if (isDeleteEvent && (type === "profile" || type === "project" || type === "milestone" && false)) {
@@ -343,7 +350,7 @@ serve(async (req) => {
       if (!portalClientId) return json({ error: "profile.id obrigatório para delete" }, 400);
       const { data: existingClient } = await supabase
         .from("clients")
-        .select("id")
+        .select("id, deleted_at, sync_status")
         .eq("portal_client_id", portalClientId)
         .maybeSingle();
       if (!existingClient) {
@@ -357,30 +364,36 @@ serve(async (req) => {
         });
         return json({ ok: true, action: "client_not_found", portal_client_id: portalClientId });
       }
-      // Coleta workspaces para limpar canvas/timeline
+      if ((existingClient as any).deleted_at || (existingClient as any).sync_status === SOFT_DELETE_STATUS) {
+        await logSync({ direction: "portal_to_ops", event: "client_deleted", status: "skipped", clientId: existingClient.id, message: "already_deleted", source });
+        return json({ ok: true, action: "already_deleted", client_id: existingClient.id });
+      }
+      // Soft delete: marca clientes, workspaces e canvas_nodes — preserva histórico.
       const { data: wss } = await supabase
-        .from("workspaces")
-        .select("id")
-        .eq("client_id", existingClient.id);
+        .from("workspaces").select("id").eq("client_id", existingClient.id);
       const wsIds = (wss ?? []).map((w: any) => w.id);
       if (wsIds.length) {
-        await supabase.from("canvas_edges").delete().in("workspace_id", wsIds);
-        await supabase.from("canvas_nodes").delete().in("workspace_id", wsIds);
-        await supabase.from("timeline_events").delete().in("workspace_id", wsIds);
-        await supabase.from("workspaces").delete().in("id", wsIds);
+        await supabase.from("canvas_nodes")
+          .update({ deleted_at: nowIso, sync_status: SOFT_DELETE_STATUS, updated_at: nowIso })
+          .in("workspace_id", wsIds).is("deleted_at", null);
+        await supabase.from("workspaces")
+          .update({ deleted_at: nowIso, sync_status: SOFT_DELETE_STATUS, updated_at: nowIso })
+          .in("id", wsIds);
       }
-      const delRes = await supabase.from("clients").delete().eq("id", existingClient.id);
+      const delRes = await supabase.from("clients")
+        .update({ deleted_at: nowIso, sync_status: SOFT_DELETE_STATUS, updated_at: nowIso })
+        .eq("id", existingClient.id);
       await logSync({
         direction: "portal_to_ops",
         event: "client_deleted",
         status: delRes.error ? "error" : "ok",
         clientId: existingClient.id,
-        message: delRes.error ? delRes.error.message : `client_deleted (workspaces=${wsIds.length})`,
+        message: delRes.error ? delRes.error.message : `client_soft_deleted (workspaces=${wsIds.length})`,
         payload: { portal_client_id: portalClientId, workspace_ids: wsIds },
         source,
       });
       if (delRes.error) return json({ error: delRes.error.message }, 500);
-      return json({ ok: true, action: "client_deleted", client_id: existingClient.id, workspaces_removed: wsIds.length });
+      return json({ ok: true, action: "client_soft_deleted", client_id: existingClient.id, workspaces_archived: wsIds.length });
     }
 
     if (isDeleteEvent && type === "project") {
@@ -388,16 +401,22 @@ serve(async (req) => {
       if (!portalProjectId) return json({ error: "project.id obrigatório para delete" }, 400);
       const { data: existingWs } = await supabase
         .from("workspaces")
-        .select("id, client_id")
+        .select("id, client_id, deleted_at, sync_status")
         .eq("portal_project_id", portalProjectId)
         .maybeSingle();
       if (!existingWs) {
         return json({ ok: true, action: "workspace_not_found", portal_project_id: portalProjectId });
       }
-      await supabase.from("canvas_edges").delete().eq("workspace_id", existingWs.id);
-      await supabase.from("canvas_nodes").delete().eq("workspace_id", existingWs.id);
-      await supabase.from("timeline_events").delete().eq("workspace_id", existingWs.id);
-      const delRes = await supabase.from("workspaces").delete().eq("id", existingWs.id);
+      if ((existingWs as any).deleted_at || (existingWs as any).sync_status === SOFT_DELETE_STATUS) {
+        await logSync({ direction: "portal_to_ops", event: "project_deleted", status: "skipped", workspaceId: existingWs.id, portalProjectId, message: "already_deleted", source });
+        return json({ ok: true, action: "already_deleted", workspace_id: existingWs.id });
+      }
+      await supabase.from("canvas_nodes")
+        .update({ deleted_at: nowIso, sync_status: SOFT_DELETE_STATUS, updated_at: nowIso })
+        .eq("workspace_id", existingWs.id).is("deleted_at", null);
+      const delRes = await supabase.from("workspaces")
+        .update({ deleted_at: nowIso, sync_status: SOFT_DELETE_STATUS, updated_at: nowIso })
+        .eq("id", existingWs.id);
       await logSync({
         direction: "portal_to_ops",
         event: "project_deleted",
@@ -405,15 +424,102 @@ serve(async (req) => {
         workspaceId: existingWs.id,
         clientId: existingWs.client_id,
         portalProjectId,
-        message: delRes.error ? delRes.error.message : "workspace_deleted",
+        message: delRes.error ? delRes.error.message : "workspace_soft_deleted",
         source,
       });
       if (delRes.error) return json({ error: delRes.error.message }, 500);
-      return json({ ok: true, action: "workspace_deleted", workspace_id: existingWs.id });
+      return json({ ok: true, action: "workspace_soft_deleted", workspace_id: existingWs.id });
+    }
+
+    // Milestone-level delete (early branch — antes de cair no fluxo de timeline)
+    if (isDeleteEvent && type === "milestone") {
+      const portalMilestoneId = firstString(data.id, data.milestone_id, data.folder_id, data.portal_folder_id);
+      if (!portalMilestoneId) return json({ error: "milestone.id obrigatório para delete" }, 400);
+      const { data: existingMs } = await supabase
+        .from("canvas_nodes")
+        .select("id, workspace_id, client_id, deleted_at, sync_status")
+        .contains("data", { kind: "milestone_group", portal_milestone_id: portalMilestoneId })
+        .maybeSingle();
+      if (!existingMs) {
+        await logSync({ direction: "portal_to_ops", event: "milestone_deleted", status: "skipped", message: "milestone_not_found", payload: { portal_milestone_id: portalMilestoneId }, source });
+        return json({ ok: true, action: "milestone_not_found", portal_milestone_id: portalMilestoneId });
+      }
+      if ((existingMs as any).deleted_at || (existingMs as any).sync_status === SOFT_DELETE_STATUS) {
+        return json({ ok: true, action: "already_deleted", node_id: existingMs.id });
+      }
+      // Soft-delete tasks filhas também (evita órfãs visíveis no canvas).
+      await supabase.from("canvas_nodes")
+        .update({ deleted_at: nowIso, sync_status: SOFT_DELETE_STATUS, updated_at: nowIso })
+        .eq("parent_node_id", existingMs.id).is("deleted_at", null);
+      const delRes = await supabase.from("canvas_nodes")
+        .update({ deleted_at: nowIso, sync_status: SOFT_DELETE_STATUS, updated_at: nowIso })
+        .eq("id", existingMs.id);
+      await logSync({
+        direction: "portal_to_ops", event: "milestone_deleted",
+        status: delRes.error ? "error" : "ok",
+        workspaceId: existingMs.workspace_id, clientId: existingMs.client_id,
+        nodeId: existingMs.id, portalMilestoneId,
+        message: delRes.error ? delRes.error.message : "milestone_soft_deleted",
+        source,
+      });
+      if (delRes.error) return json({ error: delRes.error.message }, 500);
+      return json({ ok: true, action: "milestone_soft_deleted", node_id: existingMs.id });
+    }
+
+    // Task-level delete (early branch — antes do bloco de timeline)
+    if (isDeleteEvent && type === "task") {
+      const portalTaskId = firstString(data.id, data.task_id);
+      if (!portalTaskId) return json({ error: "task.id obrigatório para delete" }, 400);
+      const { data: existingTask } = await supabase
+        .from("canvas_nodes")
+        .select("id, workspace_id, client_id, deleted_at, sync_status")
+        .contains("data", { portal_task_id: portalTaskId })
+        .maybeSingle();
+      if (!existingTask) {
+        await logSync({ direction: "portal_to_ops", event: "task_deleted", status: "skipped", message: "task_not_found", portalTaskId, source });
+        return json({ ok: true, action: "task_not_found", portal_task_id: portalTaskId });
+      }
+      if ((existingTask as any).deleted_at || (existingTask as any).sync_status === SOFT_DELETE_STATUS) {
+        return json({ ok: true, action: "already_deleted", node_id: existingTask.id });
+      }
+      const delRes = await supabase.from("canvas_nodes")
+        .update({ deleted_at: nowIso, sync_status: SOFT_DELETE_STATUS, updated_at: nowIso })
+        .eq("id", existingTask.id);
+      await logSync({
+        direction: "portal_to_ops", event: "task_deleted",
+        status: delRes.error ? "error" : "ok",
+        workspaceId: existingTask.workspace_id, clientId: existingTask.client_id,
+        nodeId: existingTask.id, portalTaskId,
+        message: delRes.error ? delRes.error.message : "task_soft_deleted",
+        source,
+      });
+      if (delRes.error) return json({ error: delRes.error.message }, 500);
+      return json({ ok: true, action: "task_soft_deleted", node_id: existingTask.id });
     }
 
     if (event === "DELETE" && !["task", "profile", "project", "milestone"].includes(type)) {
       return json({ ok: true, action: "delete_ignored", type_received: rawType });
+    }
+
+    // ─── Guard: ignora updates não-delete de entidades já soft-deletadas ──
+    // (evita ressuscitação acidental por update tardio do portal)
+    if (!isDeleteEvent && type === "profile") {
+      const pcid = firstString(data.id, data.client_id, data.user_id);
+      if (pcid) {
+        const { data: c } = await supabase.from("clients").select("id, deleted_at, sync_status").eq("portal_client_id", pcid).maybeSingle();
+        if (c && ((c as any).deleted_at || (c as any).sync_status === SOFT_DELETE_STATUS)) {
+          return json({ ok: true, action: "skipped_already_deleted", entity: "client", client_id: c.id });
+        }
+      }
+    }
+    if (!isDeleteEvent && type === "project") {
+      const ppid = firstString(data.id);
+      if (ppid) {
+        const { data: w } = await supabase.from("workspaces").select("id, deleted_at, sync_status").eq("portal_project_id", ppid).maybeSingle();
+        if (w && ((w as any).deleted_at || (w as any).sync_status === SOFT_DELETE_STATUS)) {
+          return json({ ok: true, action: "skipped_already_deleted", entity: "workspace", workspace_id: w.id });
+        }
+      }
     }
 
     // ─── PROFILE / CLIENT ─────────────────────────────────────
