@@ -827,40 +827,16 @@ serve(async (req) => {
     }
 
     else if (event === "project_progress") {
-      const targetProjectId = (body as any).portalProjectId ?? portalProjectId;
-      if (!targetProjectId) return json({ skipped: true, reason: "portal_project_id missing" });
-      const progress = typeof body.progress === "number" ? Math.max(0, Math.min(100, Math.round(body.progress))) : null;
-      if (progress === null) return json({ skipped: true, reason: "progress missing" });
-      // Versão monotônica enviada pelo Ops; o Portal usa pra descartar
-      // updates fora de ordem (out-of-order delivery).
-      const progressVersion = typeof body.progress_version === "number" ? body.progress_version : null;
-      const calculatedAt = typeof body.calculated_at === "string" ? body.calculated_at : new Date().toISOString();
-      data = {
-        project_id:  targetProjectId,
-        author_id:   PORTAL_ADMIN_ID || portalClientId,
-        message:     body.message ?? `Progresso do projeto: ${progress}%`,
-        update_type: "project_progress",
-        progress,
-        ...(progressVersion !== null ? { progress_version: progressVersion } : {}),
-        calculated_at: calculatedAt,
-      };
-    }
-
-    else if (event === "client_progress") {
-      if (!portalClientId) return json({ skipped: true, reason: "portal_client_id missing" });
-      const progress = typeof body.progress === "number" ? Math.max(0, Math.min(100, Math.round(body.progress))) : null;
-      if (progress === null) return json({ skipped: true, reason: "progress missing" });
-      const progressVersion = typeof body.progress_version === "number" ? body.progress_version : null;
-      const calculatedAt = typeof body.calculated_at === "string" ? body.calculated_at : new Date().toISOString();
-      data = {
-        client_id:   portalClientId,
-        author_id:   PORTAL_ADMIN_ID || portalClientId,
-        message:     body.message ?? `Progresso geral da conta: ${progress}%`,
-        update_type: "client_progress",
-        progress,
-        ...(progressVersion !== null ? { progress_version: progressVersion } : {}),
-        calculated_at: calculatedAt,
-      };
+    else if (event === "project_progress" || event === "client_progress") {
+      // Portal webhook ainda não suporta estes eventos (responde 400 "Unknown event type").
+      // Em vez de quebrar com 502, apenas registramos como skipped — o progresso
+      // do projeto/cliente continua sendo derivado pelo próprio Portal a partir
+      // dos node_updated/node_completed.
+      return json({
+        skipped: true,
+        reason: `portal does not accept ${event} yet`,
+        event,
+      });
     }
 
     else {
