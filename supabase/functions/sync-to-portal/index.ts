@@ -360,15 +360,88 @@ serve(async (req) => {
       return json({
         ok: true,
         function: "sync-to-portal",
-        version: "standalone-anti-loop-soft-delete-v2",
+        version: "standalone-anti-loop-soft-delete-v3",
         features: [
           "anti_loop",
           "soft_delete",
           "skip_project_progress",
           "portal_source_echo_skip",
           "version_check",
+          "diagnostic",
         ],
       });
+    }
+
+    // ── diagnostic: classifica nodes antes de qualquer backfill ─────────
+    if (rawEvent === "diagnostic") {
+      const dbg = createClient(SUPABASE_URL, SERVICE_KEY);
+      const pageSize = 1000;
+      let from = 0;
+      const all: any[] = [];
+      while (true) {
+        const { data, error } = await dbg
+          .from("canvas_nodes")
+          .select("id, workspace_id, client_id, node_type, status, title, data, parent_node_id, deleted_at, archived_at, sync_status")
+          .range(from, from + pageSize - 1);
+        if (error) return json({ ok: false, error: error.message }, 500);
+        if (!data || data.length === 0) break;
+        all.push(...data);
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+      const byId = new Map(all.map((n) => [n.id, n]));
+      const inherit = (row: any) => {
+        let pid = "", mid = "";
+        let cur: any = row;
+        const seen = new Set<string>();
+        for (let d = 0; cur && d < 6; d++) {
+          if (seen.has(cur.id)) break;
+          seen.add(cur.id);
+          const data = (cur.data ?? {}) as any;
+          pid ||= typeof data.portal_project_id === "string" ? data.portal_project_id : "";
+          mid ||= typeof data.portal_milestone_id === "string" ? data.portal_milestone_id
+               : typeof data.milestone_id === "string" ? data.milestone_id : "";
+          if (String(data.kind ?? "").toLowerCase() === "milestone_group") mid ||= cur.id;
+          if (pid && mid) break;
+          cur = byId.get(cur.parent_node_id);
+        }
+        return { pid, mid };
+      };
+      const STRUCT = new Set(["project_group", "milestone_group", "client_folder"]);
+      const counts = {
+        total_nodes_found: all.length,
+        syncable_nodes: 0,
+        skipped_legacy_no_milestone: 0,
+        skipped_missing_project: 0,
+        skipped_deleted: 0,
+        skipped_archived: 0,
+        skipped_structure_nodes: 0,
+      };
+      const sample_syncable: any[] = [];
+      const sample_skipped_legacy: any[] = [];
+      for (const n of all) {
+        const data = (n.data ?? {}) as any;
+        const kind = String(data.kind ?? "").toLowerCase();
+        if (n.deleted_at || n.sync_status === "deleted") { counts.skipped_deleted++; continue; }
+        if (n.archived_at || n.sync_status === "archived") { counts.skipped_archived++; continue; }
+        if (STRUCT.has(kind) || STRUCT.has(String(n.node_type ?? "").toLowerCase())) {
+          counts.skipped_structure_nodes++; continue;
+        }
+        const { pid, mid } = inherit(n);
+        if (!pid) {
+          counts.skipped_missing_project++;
+          if (sample_skipped_legacy.length < 5) sample_skipped_legacy.push({ id: n.id, title: n.title, reason: "no_project" });
+          continue;
+        }
+        if (!mid) {
+          counts.skipped_legacy_no_milestone++;
+          if (sample_skipped_legacy.length < 5) sample_skipped_legacy.push({ id: n.id, title: n.title, reason: "no_milestone", project_id: pid });
+          continue;
+        }
+        counts.syncable_nodes++;
+        if (sample_syncable.length < 5) sample_syncable.push({ id: n.id, title: n.title, project_id: pid, milestone_id: mid });
+      }
+      return json({ ok: true, ...counts, sample_syncable, sample_skipped_legacy });
     }
 
     // ── Anti-loop / idempotência por event_id ────────────────────────────
