@@ -54,6 +54,70 @@ function computeNodeProgress(status?: string | null, data?: Record<string, unkno
   return Math.round(33 + ratio * 33);
 }
 
+const OPS_TO_KANBAN_STATUS: Record<string, string> = {
+  draft: "todo", not_started: "todo", todo: "todo", backlog: "todo",
+  active: "active", doing: "active", in_progress: "active", em_andamento: "active",
+  in_review: "in_review", review: "in_review", revisao: "in_review", revisão: "in_review",
+  blocked: "blocked", bloqueado: "blocked", bloqueada: "blocked",
+  done: "done", completed: "done", concluido: "done", concluída: "done", concluida: "done",
+};
+
+function mapOpsKanbanStatus(raw: unknown): string {
+  return OPS_TO_KANBAN_STATUS[String(raw ?? "").toLowerCase().trim()] ?? "todo";
+}
+
+function pickNonEmptyString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+async function listOpsNodes(db: ReturnType<typeof createClient>, projectId?: string | null) {
+  const pageSize = 1000;
+  let from = 0;
+  const collected: Record<string, unknown>[] = [];
+
+  while (true) {
+    const { data, error } = await db
+      .from("canvas_nodes")
+      .select("id, node_type, status, title, data, updated_at")
+      .not("data", "is", null)
+      .order("updated_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    collected.push(...(data as Record<string, unknown>[]));
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+
+  const filterProjectId = pickNonEmptyString(projectId);
+  return collected.map((row) => {
+    const nodeData = (row.data ?? {}) as Record<string, unknown>;
+    const kind = pickNonEmptyString((nodeData as any).kind);
+    const mappedStatus = mapOpsKanbanStatus(row.status);
+    return {
+      ops_node_id: row.id as string,
+      project_id: pickNonEmptyString((nodeData as any).portal_project_id),
+      milestone_id: pickNonEmptyString((nodeData as any).portal_milestone_id) || null,
+      title: pickNonEmptyString(row.title) || "Sem título",
+      status: mappedStatus,
+      progress: computeNodeProgress(mappedStatus, nodeData),
+      node_type: pickNonEmptyString(row.node_type, kind) || "task",
+      updated_at: row.updated_at as string,
+      kind: kind || null,
+    };
+  }).filter((node) =>
+    node.project_id &&
+    (!filterProjectId || node.project_id === filterProjectId) &&
+    node.kind !== "project_group" &&
+    node.kind !== "milestone_group" &&
+    node.kind !== "client_folder"
+  );
+}
+
 async function sendToPortal(
   url: string,
   secret: string | undefined,
