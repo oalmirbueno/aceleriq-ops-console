@@ -2225,6 +2225,21 @@ function CanvasStudioInner({
     const milestoneData = (milestoneNode?.data as Record<string, unknown> | null) ?? null;
     const projectData = (portalProjectNode?.data as Record<string, unknown> | null) ?? null;
     const parent = milestoneNode?.id ?? portalProjectNode?.id ?? pickParentGroup(resolvedParent);
+    const sameScopeNodes = projectNodes.filter((n) => {
+      if (n.id === selectedMilestoneId || String((n.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase() === "milestone_group") return false;
+      if (milestoneNode) {
+        const d = (n.data as Record<string, unknown> | null) ?? {};
+        return n.parent_node_id === milestoneNode.id
+          || (!!milestoneData?.portal_milestone_id && d.portal_milestone_id === milestoneData.portal_milestone_id)
+          || (!!milestoneData?.milestone_key && d.milestone_key === milestoneData.milestone_key && d.portal_project_id === milestoneData.portal_project_id);
+      }
+      return n.parent_node_id === parent;
+    });
+    if (!opts.sourceId) {
+      const sameStage = sameScopeNodes.filter((n) => nodeStageOf(n) === stage);
+      const maxY = sameStage.length === 0 ? CONTENT_TOP + 16 : Math.max(...sameStage.map((n) => Number(n.pos_y ?? CONTENT_TOP)));
+      pos_y = sameStage.length === 0 ? CONTENT_TOP + 16 : maxY + NODE_VERTICAL;
+    }
     const initialTitle = `${meta.titleTemplate}`;
     let connectionLabel: string | null = null;
 
@@ -2276,6 +2291,7 @@ function CanvasStudioInner({
           stage,
           checklist: getChecklistTemplate(kind),
           ...portalMeta,
+          ...(selectedMilestoneId ? { milestone_node_id: selectedMilestoneId } : {}),
           created_from: "manual",
         } as Record<string, unknown>,
       })
