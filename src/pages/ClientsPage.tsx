@@ -208,16 +208,17 @@ export default function ClientsPage() {
             onClick={async () => {
               setSyncing(true);
               try {
-                const { data, error } = await supabase.functions.invoke("backfill-from-portal");
+                // Backfill global está bloqueado (kill switch + exigência de escopo).
+                // Aqui só fazemos um dryRun para sinalizar ao usuário.
+                const { data, error } = await supabase.functions.invoke("backfill-from-portal", {
+                  body: { dryRun: true, source: "clients_page" },
+                });
                 if (error) throw error;
-                if (data?.stats) {
-                  const s = data.stats;
-                  toast({
-                    title: "Sincronização concluída",
-                    description: `${s.profiles_found} perfis | ${s.clients_created} criados | ${s.clients_updated} atualizados | ${s.workspaces_created} workspaces criados${s.errors?.length ? ` | ${s.errors.length} erros` : ""}`,
-                  });
-                  fetchClients();
-                }
+                toast({
+                  title: "Backfill manual desativado",
+                  description: (data as any)?.reason ?? "Use o backfill por workspace específico (manual e protegido).",
+                });
+                fetchClients();
               } catch (err) {
                 toast({
                   title: "Erro na sincronização",

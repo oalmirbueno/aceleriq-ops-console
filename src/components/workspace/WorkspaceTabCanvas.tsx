@@ -20,14 +20,12 @@ export default function WorkspaceTabCanvas(props: Props) {
 
   useEffect(() => {
     if (!props.portalProjectId) return;
-    let cancelled = false;
-    const materializeMilestonesFromTimeline = async () => {
-      await materializePortalTimelineCanvas({ workspaceId: props.workspaceId, clientId: props.clientId, clientName: props.clientName, portalProjectId: props.portalProjectId });
-    };
-    supabase.functions.invoke("backfill-from-portal", {
-      body: { source: "workspace_canvas", workspaceId: props.workspaceId, portalProjectId: props.portalProjectId },
-    }).catch(() => null).finally(() => { void materializeMilestonesFromTimeline(); });
-    return () => { cancelled = true; };
+    // backfill-from-portal removido do auto-open (era pesado e causava WORKER_RESOURCE_LIMIT).
+    // Materialização leve da timeline continua.
+    void materializePortalTimelineCanvas({
+      workspaceId: props.workspaceId, clientId: props.clientId,
+      clientName: props.clientName, portalProjectId: props.portalProjectId,
+    });
   }, [props.workspaceId, props.portalProjectId, props.clientId, props.clientName]);
 
   if (props.portalProjectId) {

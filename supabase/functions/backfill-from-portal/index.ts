@@ -225,9 +225,73 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   try {
-    const requestBody = (await req.json().catch(() => ({}))) as { workspaceId?: string; portalProjectId?: string };
+    const requestBody = (await req.json().catch(() => ({}))) as {
+      workspaceId?: string; portalProjectId?: string;
+      dryRun?: boolean; confirm?: boolean; limit?: number; cursor?: string; source?: string;
+      event?: string;
+    };
+
+    // ─── version_check: sempre responde sem rodar nada ────────────
+    if (requestBody.event === "version_check") {
+      return new Response(JSON.stringify({
+        ok: true,
+        function: "backfill-from-portal",
+        version: "safe-gated-paginated-v7",
+        features: ["kill_switch_ENABLE_BACKFILL_FROM_PORTAL", "dry_run_default", "limit_max_50", "require_confirm", "require_scope"],
+      }), { headers: { ...cors, "Content-Type": "application/json" } });
+    }
+
+    // ─── KILL SWITCH ──────────────────────────────────────────────
+    const flag = (Deno.env.get("ENABLE_BACKFILL_FROM_PORTAL") ?? "").toLowerCase();
+    const enabled = flag === "true" || flag === "1";
+
     const requestedWorkspaceId = firstString(requestBody.workspaceId);
     const requestedPortalProjectId = firstString(requestBody.portalProjectId);
+    const dryRun = requestBody.dryRun !== false && requestBody.confirm !== true; // default true
+    const confirm = requestBody.confirm === true;
+    const rawLimit = Number(requestBody.limit ?? 20);
+    const limit = Math.max(1, Math.min(Number.isFinite(rawLimit) ? rawLimit : 20, 50));
+
+    // Trava 1: feature flag
+    if (!enabled) {
+      return new Response(JSON.stringify({
+        skipped: true,
+        reason: "backfill disabled by default. Use dryRun or confirm:true with limit.",
+        hint: "Set ENABLE_BACKFILL_FROM_PORTAL=true in Edge Function secrets to allow real runs.",
+        version: "safe-gated-paginated-v7",
+      }), { headers: { ...cors, "Content-Type": "application/json" } });
+    }
+
+    // Trava 2: precisa confirmar para escrever; sem confirm vira dryRun automático
+    if (!confirm && !dryRun) {
+      return new Response(JSON.stringify({
+        skipped: true,
+        reason: "backfill disabled by default. Use dryRun or confirm:true with limit.",
+        version: "safe-gated-paginated-v7",
+      }), { headers: { ...cors, "Content-Type": "application/json" } });
+    }
+
+    // Trava 3: execução real exige escopo
+    if (confirm && !requestedWorkspaceId && !requestedPortalProjectId) {
+      return new Response(JSON.stringify({
+        skipped: true,
+        reason: "confirm:true requires workspaceId or portalProjectId. Global backfill is forbidden.",
+        version: "safe-gated-paginated-v7",
+      }), { headers: { ...cors, "Content-Type": "application/json" } });
+    }
+
+    // dryRun retorna sem chamar Portal nem alterar dados
+    if (dryRun) {
+      return new Response(JSON.stringify({
+        ok: true,
+        dryRun: true,
+        scope: { workspaceId: requestedWorkspaceId || null, portalProjectId: requestedPortalProjectId || null },
+        limit,
+        wouldRun: Boolean(requestedWorkspaceId || requestedPortalProjectId),
+        version: "safe-gated-paginated-v7",
+      }), { headers: { ...cors, "Content-Type": "application/json" } });
+    }
+
     const ops = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const SECRET = Deno.env.get("PORTAL_WEBHOOK_SECRET") ?? "";
 
