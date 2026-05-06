@@ -323,7 +323,7 @@ serve(async (req) => {
 
     const { data: currentTaskNodes } = await db
       .from("canvas_nodes")
-      .select("id, title, description, data, parent_node_id, pos_x, pos_y, node_type")
+      .select("id, title, description, data, parent_node_id, pos_x, pos_y, node_type, deleted_at, sync_status")
       .eq("workspace_id", workspaceId)
       .eq("client_id", (ws as any).client_id);
     const existingTaskByPortalId = new Map<string, any>();
@@ -333,6 +333,10 @@ serve(async (req) => {
       const kind = String(nodeData.kind ?? "").toLowerCase();
       const type = String(node.node_type ?? "").toLowerCase();
       if (["client", "ai_orb", "chat_node"].includes(type) || ["project_group", "milestone_group", "chat_node"].includes(kind)) continue;
+      // Não ressuscita nodes soft-deletados pelo portal.
+      if ((node as any).deleted_at) continue;
+      const ss = String((node as any).sync_status ?? "").toLowerCase();
+      if (ss === "deleted" || ss === "deleted_from_portal" || ss === "archived") continue;
       const linkedTaskId = firstString(nodeData.portal_task_id);
       if (linkedTaskId) existingTaskByPortalId.set(linkedTaskId, node);
       const linkedProjectId = firstString(nodeData.portal_project_id);
