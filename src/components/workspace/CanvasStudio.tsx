@@ -299,7 +299,7 @@ const PROOF_KINDS = new Set(["metrica", "before_after", "case"]);
 const FLOW_GRAMMAR = ["Contexto", "Instrução", "Engine", "Resultado", "Decisão", "Prova"];
 
 export function buildAiOrbNodePayload({
-  orbType, workspaceId, clientId, parentNodeId, x, y,
+  orbType, workspaceId, clientId, parentNodeId, x, y, data: extraData,
 }: {
   orbType: AiOrbType;
   workspaceId: string;
@@ -307,6 +307,7 @@ export function buildAiOrbNodePayload({
   parentNodeId: string;
   x: number;
   y: number;
+  data?: Record<string, unknown>;
 }) {
   const orb = AI_ORBS.find((item) => item.type === orbType) ?? AI_ORBS[0];
   return {
@@ -319,7 +320,7 @@ export function buildAiOrbNodePayload({
     pos_x: x,
     pos_y: y,
     parent_node_id: parentNodeId,
-    data: createAiOrbData(orbType),
+    data: { ...createAiOrbData(orbType), ...(extraData ?? {}) },
   };
 }
 const DOCK_GROUPS = [
