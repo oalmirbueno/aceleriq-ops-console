@@ -230,8 +230,20 @@ serve(async (req) => {
       data?: Record<string, unknown>;
     };
 
+    const rawEvent = String(body.event ?? "").trim().toLowerCase();
+
+    // Compatibilidade temporária: enquanto o deploy externo não registra a nova
+    // função ops-nodes-list, o Portal pode chamar sync-to-portal com este evento.
+    if (rawEvent === "ops_nodes_list" || rawEvent === "ops-nodes-list") {
+      const receivedSecret = req.headers.get("x-webhook-secret") ?? "";
+      const expectedSecret = Deno.env.get("PORTAL_TO_OPS_SECRET") ?? "";
+      if (!expectedSecret || receivedSecret !== expectedSecret) return json({ error: "unauthorized" }, 401);
+      const nodes = await listOpsNodes(db, (body.data?.project_id as string | undefined) ?? body.portalProjectId);
+      return json({ nodes });
+    }
+
     // ── Listagem de projetos do portal (não exige vínculo de cliente) ─────
-    if (String(body.event ?? "").trim().toLowerCase() === "list_portal_projects") {
+    if (rawEvent === "list_portal_projects") {
       if (!PORTAL_SECRET) return json({ ok: false, error: "PORTAL_WEBHOOK_SECRET not configured" }, 500);
       const res = await fetch(`${PORTAL_BASE}/ops-projects-list`, {
         method: "POST",
@@ -288,7 +300,6 @@ serve(async (req) => {
       "node_created", "node_updated", "node_completed", "node_deleted",
       "stage_advanced", "project_progress", "file_approved", "pull_portal_tasks",
     ]);
-    const rawEvent = String(body.event ?? "").trim().toLowerCase();
     if (!portalClientId && !projectScopedEvents.has(rawEvent)) {
       return json({ skipped: true, reason: "portal_client_id not set on client — link the client first" });
     }
