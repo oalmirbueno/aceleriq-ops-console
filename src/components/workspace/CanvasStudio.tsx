@@ -1008,8 +1008,10 @@ function CanvasStudioInner({
         .catch((err) => console.warn("[CanvasStudio] auto portal sync failed", err))
         .finally(() => { state.inFlight = false; });
     };
-    state.timer = window.setTimeout(() => run(true), 900);
-    state.interval = window.setInterval(() => run(true), 15000);
+    state.timer = window.setTimeout(() => run(true), 1500);
+    // 60s é suficiente: realtime cobre criação/edição instantânea; o pull só
+    // serve como rede de segurança pra deleções e mudanças fora do realtime.
+    state.interval = window.setInterval(() => run(true), 60000);
     return () => {
       if (state.timer) window.clearTimeout(state.timer);
       if (state.interval) window.clearInterval(state.interval);
@@ -1068,6 +1070,10 @@ function CanvasStudioInner({
           const prevTs = Date.parse((n.updated_at as string | undefined) ?? "") || 0;
           const newTs  = Date.parse((row.updated_at as string | undefined) ?? "") || 0;
           if (prevTs && newTs && newTs < prevTs) return n; // stale event — ignora
+          // Se o usuário acabou de mover este node, ignora pos_x/pos_y do evento.
+          const lockTs = positionLockRef.current.get(row.id) ?? 0;
+          const locked = lockTs && (Date.now() - lockTs) < POSITION_LOCK_MS;
+          if (locked) return { ...n, ...row, pos_x: n.pos_x, pos_y: n.pos_y };
           return { ...n, ...row };
         }));
         markEvent();
@@ -1358,6 +1364,11 @@ function CanvasStudioInner({
   const restoredScopesRef = useRef<Set<string>>(new Set());
   const focusedMilestoneViewportRef = useRef<string | null>(null);
   const draggingNodesRef = useRef<Set<string>>(new Set());
+  // Quando o usuário acabou de soltar um node arrastado, fixamos a posição
+  // local por alguns segundos pra que eventos realtime concorrentes (Portal
+  // mexendo em `data`/`status` com pos_x antigo) não tirem o card do lugar.
+  const positionLockRef = useRef<Map<string, number>>(new Map());
+  const POSITION_LOCK_MS = 4000;
   const saveTimerRef = useRef<number | null>(null);
 
   const readSavedViewport = useCallback((scope: string): Viewport | null => {
@@ -1752,13 +1763,14 @@ function CanvasStudioInner({
         // Compara conteúdo da data — callbacks estáveis não invalidam render.
         const sameData = canvasNodeDataEqual(existing.data as Record<string, unknown>, newNode.data as Record<string, unknown>);
         const sameConfig = existing.type === newNode.type && existing.draggable === newNode.draggable;
-        const layoutChanged = (existing.data as Record<string, unknown> | undefined)?.__layoutPositionKey !== (newNode.data as Record<string, unknown> | undefined)?.__layoutPositionKey;
         if (sameData && sameConfig) {
           // Sem mudança em data — reusa objeto existente (mantém referência)
           result.push(existing);
         } else {
-          // Data mudou — mantém posição local, exceto quando o modo fordismo recalcula a esteira.
-          result.push(layoutChanged ? newNode : { ...newNode, position: existing.position });
+          // Data mudou — SEMPRE preserva a posição local. Reorganizações
+          // explícitas (botão "Reorganizar", drag manual) atualizam pos_x/pos_y
+          // direto via setRfNodes, então este merge nunca precisa mover cards.
+          result.push({ ...newNode, position: existing.position });
           hasChanges = true;
         }
       }
@@ -1803,6 +1815,11 @@ function CanvasStudioInner({
     if (queue.size === 0) return;
     const entries = Array.from(queue.entries());
     queue.clear();
+    // Marca os ids como "posição local autoritativa" durante 4s pra impedir
+    // que eventos realtime de UPDATE concorrentes (vindos do Portal mexendo
+    // em `data`/`status`) sobrescrevam a posição que o usuário acabou de fixar.
+    const stamp = Date.now();
+    entries.forEach(([id]) => positionLockRef.current.set(id, stamp));
     // Parallel updates — but only one per node, batched
     void Promise.all(
       entries.map(([id, pos]) =>
