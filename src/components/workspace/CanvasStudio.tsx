@@ -3306,7 +3306,7 @@ function CanvasStudioInner({
       setDbEdgesImmediate(previousEdges);
     } else {
       toast({ title: "Node removido" });
-      syncNodeDeleted({ workspaceId, clientId: node?.client_id ?? null, nodeId: id });
+      syncNodeDeleted({ workspaceId, clientId: node?.client_id ?? clientId, nodeId: id, data: node?.data as Record<string, unknown> | null });
     }
   };
 
