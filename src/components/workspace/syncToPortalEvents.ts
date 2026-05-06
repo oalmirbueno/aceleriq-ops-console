@@ -125,14 +125,18 @@ export function syncNodeDeleted({
   workspaceId,
   clientId,
   nodeId,
+  data,
 }: {
   workspaceId: string;
   clientId?: string | null;
   nodeId: string;
+  data?: Record<string, unknown> | null;
 }) {
-  if (!clientId) return;
+  const portalProjectId = typeof data?.portal_project_id === "string" ? data.portal_project_id : undefined;
+  const portalTaskId = typeof data?.portal_task_id === "string" ? data.portal_task_id : undefined;
+  if (!clientId && !portalProjectId) return;
   void supabase.functions.invoke("sync-to-portal", {
-    body: { event: "node_deleted", workspaceId, clientId, nodeId },
+    body: { event: "node_deleted", workspaceId, clientId: clientId ?? undefined, nodeId, portalProjectId, portalTaskId, data: data ?? undefined },
   }).catch(() => {});
 }
 
