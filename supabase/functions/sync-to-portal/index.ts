@@ -16,7 +16,90 @@
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
-import { logSync, startTimer } from "../_shared/syncAudit.ts";
+
+// ── Inline helpers (standalone — sem dependência de _shared) ──────────────
+function startTimer() {
+  const t0 = Date.now();
+  return () => Date.now() - t0;
+}
+
+const _AUDIT_SECRET_KEYS = new Set([
+  "authorization", "apikey", "x-webhook-secret", "service_role_key",
+  "service_role", "password", "token", "access_token", "refresh_token",
+  "secret", "api_key",
+]);
+function _auditSanitize(value: unknown, depth = 0): unknown {
+  if (value == null) return value;
+  if (depth > 4) return "[deep]";
+  if (typeof value === "string") return value.length > 4000 ? `${value.slice(0, 4000)}…[truncated]` : value;
+  if (typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.slice(0, 50).map((v) => _auditSanitize(v, depth + 1));
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (_AUDIT_SECRET_KEYS.has(k.toLowerCase())) { out[k] = "[redacted]"; continue; }
+    out[k] = _auditSanitize(v, depth + 1);
+  }
+  return out;
+}
+
+interface SyncAuditEntry {
+  direction: "portal_to_ops" | "ops_to_portal" | "internal";
+  event: string;
+  status: "ok" | "skipped" | "error";
+  workspaceId?: string | null;
+  clientId?: string | null;
+  nodeId?: string | null;
+  portalProjectId?: string | null;
+  portalTaskId?: string | null;
+  portalMilestoneId?: string | null;
+  httpStatus?: number | null;
+  message?: string | null;
+  payload?: unknown;
+  response?: unknown;
+  durationMs?: number | null;
+  source?: string | null;
+}
+
+let _auditClient: ReturnType<typeof createClient> | null = null;
+function _getAuditClient() {
+  if (_auditClient) return _auditClient;
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) return null;
+  _auditClient = createClient(url, key, { auth: { persistSession: false } });
+  return _auditClient;
+}
+
+async function logSync(entry: SyncAuditEntry): Promise<void> {
+  try {
+    const db = _getAuditClient();
+    if (!db) return;
+    const row = {
+      direction: entry.direction,
+      event: entry.event,
+      status: entry.status,
+      workspace_id: entry.workspaceId ?? null,
+      client_id: entry.clientId ?? null,
+      node_id: entry.nodeId ?? null,
+      portal_project_id: entry.portalProjectId ?? null,
+      portal_task_id: entry.portalTaskId ?? null,
+      portal_milestone_id: entry.portalMilestoneId ?? null,
+      http_status: entry.httpStatus ?? null,
+      message: entry.message ?? null,
+      payload: entry.payload != null ? _auditSanitize(entry.payload) : null,
+      response: entry.response != null ? _auditSanitize(entry.response) : null,
+      duration_ms: entry.durationMs ?? null,
+      source: entry.source ?? null,
+    };
+    // Tenta sync_audit_log (nome usado pelo módulo original); se não existir, tenta sync_audit.
+    const r1 = await db.from("sync_audit_log").insert(row);
+    if ((r1 as any)?.error) {
+      await db.from("sync_audit").insert(row);
+    }
+  } catch (_err) {
+    // Auditoria nunca pode quebrar o fluxo principal.
+  }
+}
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
