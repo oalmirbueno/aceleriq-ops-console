@@ -87,18 +87,19 @@ serve(async (req) => {
   const body = (await req.json().catch(() => ({}))) as { project_id?: string | null };
   const filterProjectId = pickString(body.project_id);
 
-  // Busca em lotes para suportar workspaces grandes
+  // Busca em lotes para suportar workspaces grandes. Não filtramos direto por
+  // data->>portal_project_id porque nodes criados dentro de um milestone podem
+  // herdar o vínculo pelo parent_node_id.
   const pageSize = 1000;
   let from = 0;
   const collected: Record<string, unknown>[] = [];
   while (true) {
     let q = db
       .from("canvas_nodes")
-      .select("id, node_type, status, title, data, updated_at")
-      .not("data->>portal_project_id", "is", null)
+      .select("id, node_type, status, title, data, updated_at, parent_node_id")
+      .not("data", "is", null)
       .order("updated_at", { ascending: false })
       .range(from, from + pageSize - 1);
-    if (filterProjectId) q = q.eq("data->>portal_project_id", filterProjectId);
     const { data, error } = await q;
     if (error) return json({ error: error.message }, 500);
     if (!data || data.length === 0) break;
@@ -107,15 +108,38 @@ serve(async (req) => {
     from += pageSize;
   }
 
+  const byId = new Map(collected.map((row) => [row.id as string, row] as const));
+  const inheritedPortalMeta = (row: Record<string, unknown>) => {
+    let portalProjectId = "";
+    let portalMilestoneId = "";
+    let cursor: Record<string, unknown> | undefined = row;
+    const seen = new Set<string>();
+    for (let depth = 0; cursor && depth < 6; depth++) {
+      const cursorId = cursor.id as string | undefined;
+      if (cursorId) {
+        if (seen.has(cursorId)) break;
+        seen.add(cursorId);
+      }
+      const data = (cursor.data ?? {}) as Record<string, unknown>;
+      const kind = pickString((data as any).kind);
+      portalProjectId ||= pickString((data as any).portal_project_id);
+      portalMilestoneId ||= pickString((data as any).portal_milestone_id);
+      if (portalProjectId && portalMilestoneId) break;
+      cursor = byId.get(cursor.parent_node_id as string);
+    }
+    return { portalProjectId, portalMilestoneId };
+  };
+
   const nodes = collected.map((row) => {
     const data = (row.data ?? {}) as Record<string, unknown>;
     // Não exporta containers/grupos (só tasks reais)
     const kind = pickString((data as any).kind);
     const status = mapStatus(row.status);
+    const inherited = inheritedPortalMeta(row);
     return {
       ops_node_id: row.id as string,
-      project_id: pickString((data as any).portal_project_id),
-      milestone_id: pickString((data as any).portal_milestone_id) || null,
+      project_id: inherited.portalProjectId,
+      milestone_id: inherited.portalMilestoneId || null,
       title: pickString(row.title) || "Sem título",
       status,
       progress: computeProgress(status, data),
@@ -123,7 +147,7 @@ serve(async (req) => {
       updated_at: row.updated_at as string,
       kind: kind || null,
     };
-  }).filter((n) => n.project_id && n.kind !== "project_group" && n.kind !== "milestone_group" && n.kind !== "client_folder");
+  }).filter((n) => n.project_id && (!filterProjectId || n.project_id === filterProjectId) && n.kind !== "project_group" && n.kind !== "milestone_group" && n.kind !== "client_folder");
 
   return json({ nodes });
 });

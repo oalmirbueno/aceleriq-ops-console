@@ -44,3 +44,6 @@ verify_jwt = true
 
 [functions.ops-nodes-list]
 verify_jwt = false
+
+[functions.sync-to-portal]
+verify_jwt = false

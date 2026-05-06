@@ -81,7 +81,7 @@ async function listOpsNodes(db: ReturnType<typeof createClient>, projectId?: str
   while (true) {
     const { data, error } = await db
       .from("canvas_nodes")
-      .select("id, node_type, status, title, data, updated_at")
+      .select("id, node_type, status, title, data, updated_at, parent_node_id")
       .not("data", "is", null)
       .order("updated_at", { ascending: false })
       .range(from, from + pageSize - 1);
@@ -94,14 +94,36 @@ async function listOpsNodes(db: ReturnType<typeof createClient>, projectId?: str
   }
 
   const filterProjectId = pickNonEmptyString(projectId);
+  const byId = new Map(collected.map((row) => [row.id as string, row] as const));
+  const inheritedPortalMeta = (row: Record<string, unknown>) => {
+    let portalProjectId = "";
+    let portalMilestoneId = "";
+    let cursor: Record<string, unknown> | undefined = row;
+    const seen = new Set<string>();
+    for (let depth = 0; cursor && depth < 6; depth++) {
+      const cursorId = cursor.id as string | undefined;
+      if (cursorId) {
+        if (seen.has(cursorId)) break;
+        seen.add(cursorId);
+      }
+      const data = (cursor.data ?? {}) as Record<string, unknown>;
+      const kind = pickNonEmptyString((data as any).kind);
+      portalProjectId ||= pickNonEmptyString((data as any).portal_project_id);
+      portalMilestoneId ||= pickNonEmptyString((data as any).portal_milestone_id, kind === "milestone_group" ? (data as any).id : undefined);
+      if (portalProjectId && portalMilestoneId) break;
+      cursor = byId.get(cursor.parent_node_id as string);
+    }
+    return { portalProjectId, portalMilestoneId };
+  };
   return collected.map((row) => {
     const nodeData = (row.data ?? {}) as Record<string, unknown>;
     const kind = pickNonEmptyString((nodeData as any).kind);
     const mappedStatus = mapOpsKanbanStatus(row.status);
+    const inherited = inheritedPortalMeta(row);
     return {
       ops_node_id: row.id as string,
-      project_id: pickNonEmptyString((nodeData as any).portal_project_id),
-      milestone_id: pickNonEmptyString((nodeData as any).portal_milestone_id) || null,
+      project_id: inherited.portalProjectId,
+      milestone_id: inherited.portalMilestoneId || null,
       title: pickNonEmptyString(row.title) || "Sem título",
       status: mappedStatus,
       progress: computeNodeProgress(mappedStatus, nodeData),
