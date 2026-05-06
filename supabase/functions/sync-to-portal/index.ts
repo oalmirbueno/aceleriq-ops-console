@@ -842,7 +842,6 @@ serve(async (req) => {
       };
     }
 
-    else if (event === "project_progress") {
     else if (event === "project_progress" || event === "client_progress") {
       // Portal webhook ainda não suporta estes eventos (responde 400 "Unknown event type").
       // Em vez de quebrar com 502, apenas registramos como skipped — o progresso
