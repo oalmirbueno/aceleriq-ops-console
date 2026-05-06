@@ -267,9 +267,47 @@ serve(async (req) => {
       limit?: number;
       portalProjectId?: string;
       data?: Record<string, unknown>;
+      event_id?: string;
     };
 
     const rawEvent = String(body.event ?? "").trim().toLowerCase();
+
+    // ── Anti-loop / idempotência por event_id ────────────────────────────
+    // Se este evento foi originado pelo próprio Portal (source==="portal")
+    // e já existe registro inbound em sync_events, NÃO reenviamos pro Portal.
+    // Se já houve outbound para o mesmo event_id, também não reenviamos.
+    const incomingSource = String(body.source ?? "ops").toLowerCase();
+    const eventId =
+      typeof body.event_id === "string" && body.event_id.length > 0
+        ? body.event_id
+        : `ops:${rawEvent}:${body.nodeId ?? body.workspaceId ?? "x"}:${Date.now()}`;
+
+    try {
+      const { data: prior } = await db
+        .from("sync_events")
+        .select("event_id, direction, source")
+        .eq("event_id", eventId)
+        .limit(1);
+      if (prior && prior.length > 0) {
+        return json({ skipped: true, reason: "event_id already processed (anti-loop)", event_id: eventId });
+      }
+    } catch (_e) { /* tabela pode não existir ainda; segue */ }
+    if (incomingSource === "portal") {
+      // O OPS não devolve para o Portal um evento que o Portal originou.
+      try {
+        await db.from("sync_events").insert({
+          event_id: eventId,
+          source: "portal",
+          direction: "inbound",
+          entity_type: "node",
+          entity_id: body.nodeId ?? null,
+          action: rawEvent.replace(/^node_/, "") || "updated",
+          payload: body as unknown as Record<string, unknown>,
+        });
+      } catch (_e) { /* ignore */ }
+      return json({ skipped: true, reason: "echo from portal — not re-sending", event_id: eventId });
+    }
+
     // v4: aceita node_id/ops_node_id vindo dentro de body.data como fallback,
     // garantindo que node_created/node_updated/node_deleted não caiam no else genérico.
     if (!body.nodeId) {
@@ -664,6 +702,13 @@ serve(async (req) => {
 
     else if (event === "node_deleted" && body.nodeId) {
       if (!portalProjectId) return json({ skipped: true, reason: "portal_project_id not set on workspace" });
+      // Soft delete local: marca o node como deletado e preserva o registro
+      // para evitar que o backfill o recrie no Portal.
+      try {
+        await db.from("canvas_nodes")
+          .update({ deleted_at: new Date().toISOString(), sync_status: "deleted" })
+          .eq("id", body.nodeId);
+      } catch (_e) { /* coluna pode não existir antes do SQL; ignora */ }
       data = {
         project_id: portalProjectId,
         ops_workspace_id: body.workspaceId,
@@ -672,6 +717,7 @@ serve(async (req) => {
         node_id:    body.nodeId,
         message:    `Tarefa removida do canvas`,
         update_type: "task_deleted",
+        deleted_at: new Date().toISOString(),
         portal_task_id: nodePortalTaskId,
         portal_milestone_id: nodePortalMilestoneId,
         milestone_id: nodePortalMilestoneId,
@@ -743,8 +789,29 @@ serve(async (req) => {
 
     // ── Envia ────────────────────────────────────────────────────────────
     const stopwatch = startTimer();
+    // Inclui event_id no payload para o Portal também detectar e ignorar eco.
+    (data as Record<string, unknown>).event_id = eventId;
+    (data as Record<string, unknown>).sync_origin = "ops";
     const result = await sendToPortal(PORTAL_URL, PORTAL_SECRET, PORTAL_ANON_KEY, event, data, body.source ?? "ops");
     const elapsed = stopwatch();
+
+    // Registra outbound (idempotente — se já existir, apenas ignora)
+    try {
+      await db.from("sync_events").insert({
+        event_id: eventId,
+        source: "ops",
+        direction: "outbound",
+        entity_type: "node",
+        entity_id: body.nodeId ?? null,
+        action: event.replace(/^node_/, "") || "updated",
+        payload: data,
+      });
+      if (body.nodeId) {
+        await db.from("canvas_nodes")
+          .update({ last_synced_at: new Date().toISOString(), last_event_id: eventId, sync_origin: "ops", sync_status: result.ok ? "ok" : "error", sync_error: result.ok ? null : (result.error ?? null) })
+          .eq("id", body.nodeId);
+      }
+    } catch (_e) { /* ignore */ }
 
     await logSync({
       direction: "ops_to_portal",
