@@ -145,7 +145,7 @@ async function backfillWorkspace({
 
     const { data: nodes } = await db
       .from("canvas_nodes")
-      .select("id, title, node_type, status, data, parent_node_id")
+      .select("id, title, node_type, status, data, parent_node_id, archived_at, deleted_at")
       .eq("workspace_id", workspaceId);
 
     const byId = new Map((nodes ?? []).map((n: any) => [n.id as string, n] as const));
