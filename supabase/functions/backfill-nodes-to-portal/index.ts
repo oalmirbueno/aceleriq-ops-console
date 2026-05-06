@@ -134,6 +134,9 @@ serve(async (req) => {
     let sent = 0, skipped = 0;
     for (const n of list) {
       const status = n.status ?? "draft";
+      const meta = inheritedMeta(n);
+      const portalProjectId = meta.portalProjectId || defaultPortalProjectId || "";
+      if (!portalProjectId) { skipped++; continue; }
       const progress = progressOf(status, n.data as Record<string, unknown> | null);
       const label = STATUS_LABELS[status.toLowerCase()] ?? status;
       // 1) garante que existe a tarefa no portal (idempotente via ops_node_id)
@@ -147,8 +150,14 @@ serve(async (req) => {
           node_title: n.title ?? "node",
           node_type: n.node_type ?? null,
           status,
+          kanban_status: opsStatusToPortal(status),
           message: `Tarefa "${n.title ?? "node"}"`,
           update_type: "task_created",
+          title: n.title ?? "node",
+          ops_node_id: n.id,
+          progress,
+          portal_milestone_id: meta.portalMilestoneId || undefined,
+          milestone_id: meta.portalMilestoneId || undefined,
         },
       };
       // 2) atualiza progresso/status
@@ -164,7 +173,12 @@ serve(async (req) => {
           node_title: n.title ?? "node",
           node_type: n.node_type ?? null,
           status,
+          kanban_status: opsStatusToPortal(status),
+          title: n.title ?? "node",
+          ops_node_id: n.id,
           progress,
+          portal_milestone_id: meta.portalMilestoneId || undefined,
+          milestone_id: meta.portalMilestoneId || undefined,
         },
       };
       try {
