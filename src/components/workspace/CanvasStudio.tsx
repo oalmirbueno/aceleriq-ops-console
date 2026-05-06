@@ -1280,6 +1280,17 @@ function CanvasStudioInner({
     );
   }, [projectNodes, activeClientId, clientGroups, portalProjectIdProp, clientId]);
 
+  useEffect(() => {
+    if (!selectedMilestoneId) return;
+    const localMilestone = scopedProjectNodes.find((node) => node.id === selectedMilestoneId);
+    if (localMilestone) return;
+    const byPortalMilestone = scopedProjectNodes.find((node) => {
+      const data = (node.data as Record<string, unknown> | null) ?? {};
+      return String(data.kind ?? "").toLowerCase() === "milestone_group" && data.portal_milestone_id === selectedMilestoneId;
+    });
+    if (byPortalMilestone) setSelectedMilestoneId(byPortalMilestone.id);
+  }, [scopedProjectNodes, selectedMilestoneId, setSelectedMilestoneId]);
+
   type QuickAddState = { open: boolean; sourceId: string | null; dir: "right" | "bottom" | null };
   const [quickAddState, setQuickAddState] = useState<QuickAddState>({ open: false, sourceId: null, dir: null });
 
