@@ -1803,6 +1803,11 @@ function CanvasStudioInner({
     if (queue.size === 0) return;
     const entries = Array.from(queue.entries());
     queue.clear();
+    // Marca os ids como "posição local autoritativa" durante 4s pra impedir
+    // que eventos realtime de UPDATE concorrentes (vindos do Portal mexendo
+    // em `data`/`status`) sobrescrevam a posição que o usuário acabou de fixar.
+    const stamp = Date.now();
+    entries.forEach(([id]) => positionLockRef.current.set(id, stamp));
     // Parallel updates — but only one per node, batched
     void Promise.all(
       entries.map(([id, pos]) =>
