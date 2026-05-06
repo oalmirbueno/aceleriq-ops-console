@@ -643,6 +643,12 @@ serve(async (req) => {
     }
 
     else {
+      // v4: nunca degradar node_* sem nodeId para node_completed genérico — isso
+      // mascarava o bug de payloads sem nodeId. Reportar skipped explícito.
+      if (rawEvent === "node_created" || rawEvent === "node_updated" || rawEvent === "node_deleted") {
+        console.warn("[sync-to-portal v4] missing nodeId for", rawEvent, "body=", JSON.stringify(body).slice(0, 500));
+        return json({ skipped: true, reason: `nodeId missing for ${rawEvent}`, debug: "v4-no-degrade" });
+      }
       // Evento genérico — se tiver project_id envia como update
       if (portalProjectId && PORTAL_ADMIN_ID) {
         data = {
