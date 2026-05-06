@@ -28,6 +28,7 @@ import NodeQuickActions from "./drawerPrimitives/NodeQuickActions";
 import NodePrefillStatus from "./drawerPrimitives/NodePrefillStatus";
 import AccessVaultDrawer from "./AccessVaultDrawer";
 import CanvasNodeOperationalFields from "./CanvasNodeOperationalFields";
+import { syncNodeUpdated } from "./syncToPortalEvents";
 import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
 import type { PrefillFieldValue } from "./nodePrefillTypes";
 
@@ -147,6 +148,16 @@ export default function SpecializedNodeDrawer({
     }
 
     toast({ title: "Node renomeado" });
+    void syncNodeUpdated({
+      workspaceId,
+      clientId,
+      nodeId: node.id,
+      nodeTitle: nextTitle,
+      nodeType: node.node_type,
+      status: node.status,
+      previousStatus: node.status,
+      data: node.data as Record<string, unknown> | null,
+    });
     await onUpdated?.();
   };
 
