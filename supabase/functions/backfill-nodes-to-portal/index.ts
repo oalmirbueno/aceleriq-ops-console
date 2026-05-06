@@ -178,7 +178,7 @@ async function backfillWorkspace({
 
     let sent = 0, skipped = 0;
     for (const n of list) {
-      const status = n.status ?? "draft";
+      const status: string = (n.status as string | null) ?? "draft";
       const meta = inheritedMeta(n);
       const portalProjectId = meta.portalProjectId || defaultPortalProjectId || "";
       const progress = progressOf(status, n.data as Record<string, unknown> | null);
