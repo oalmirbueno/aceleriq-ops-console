@@ -1,16 +1,22 @@
 /**
- * ops-nodes-list — endpoint chamado pelo Portal (pull-ops-nodes) a cada 30s.
- * Retorna TODOS os canvas_nodes (passado, atual, futuro) que tenham
- * portal_project_id setado. Autenticado por header x-webhook-secret.
- * v1.0.3 — deploy bump (force redeploy)
+ * ops-nodes-list — endpoint global chamado pelo Portal (pull-ops-nodes).
+ * Retorna TODOS os canvas_nodes do OPS, com vínculo ao Portal quando existir.
+ * Autenticado por header x-webhook-secret.
+ * v2.0.0 — global multi-filtro (project_id | workspace_id | client_id | nada)
  *
- * Body opcional: { project_id?: string | null }
- *   - se vier, filtra por aquele portal_project_id
- *   - senão retorna todos os nodes com portal_project_id não-nulo
+ * Body opcional:
+ *   { project_id?: string, workspace_id?: string, client_id?: string,
+ *     include_unlinked?: boolean }
+ *   - se nenhum filtro, retorna TODOS os nodes (export global).
+ *   - include_unlinked=true (padrão quando body vazio) retorna também nodes
+ *     sem portal_project_id, expondo ops_workspace_id/ops_client_id como
+ *     identificadores externos estáveis.
  *
  * Resposta:
- *   { nodes: [{ ops_node_id, project_id, milestone_id, title, status,
- *               progress, node_type, updated_at }] }
+ *   { nodes: [{ ops_node_id, ops_workspace_id, ops_client_id, ops_parent_id,
+ *               project_id, milestone_id, title, status, kanban_status,
+ *               progress, node_type, kind, updated_at }],
+ *     total, scope }
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
