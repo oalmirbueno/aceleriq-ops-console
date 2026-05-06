@@ -893,7 +893,7 @@ function CanvasStudioInner({
     dbg("fetch", "start", { workspaceId, clientId });
     // ── Fase 1: payload leve para renderizar nodes na tela rapidamente.
     // (data jsonb e description podem ser grandes — buscamos depois em paralelo)
-    const lightSel = "id, node_type, title, status, pos_x, pos_y, parent_node_id, linked_entity_id, linked_entity_type, workspace_id, client_id, created_at, updated_at";
+    const lightSel = "id, node_type, title, status, pos_x, pos_y, parent_node_id, linked_entity_id, linked_entity_type, workspace_id, client_id, created_at, updated_at, archived_at, deleted_at, sync_status";
     const [nodesRes, edgesRes] = await Promise.all([
       supabase.from("canvas_nodes").select(lightSel).eq("workspace_id", workspaceId).order("created_at"),
       supabase.from("canvas_edges")
@@ -909,7 +909,15 @@ function CanvasStudioInner({
     } else {
       setLastFetchError(null);
     }
-    const lightNodesArr = (nodesRes.data ?? []) as CanvasNodeRow[];
+    const ARCHIVED_SS = new Set(["archived", "deleted", "archived_legacy"]);
+    const lightNodesArrRaw = (nodesRes.data ?? []) as CanvasNodeRow[];
+    const lightNodesArr = lightNodesArrRaw.filter((n: any) => {
+      if (n?.archived_at) return false;
+      if (n?.deleted_at) return false;
+      const ss = String(n?.sync_status ?? "").toLowerCase();
+      if (ARCHIVED_SS.has(ss)) return false;
+      return true;
+    });
     const edges = (edgesRes.data ?? []) as CanvasEdgeRecord[];
     dbg("fetch", "done", {
       ms: Math.round(performance.now() - t0),
