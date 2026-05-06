@@ -299,7 +299,7 @@ const PROOF_KINDS = new Set(["metrica", "before_after", "case"]);
 const FLOW_GRAMMAR = ["Contexto", "Instrução", "Engine", "Resultado", "Decisão", "Prova"];
 
 export function buildAiOrbNodePayload({
-  orbType, workspaceId, clientId, parentNodeId, x, y,
+  orbType, workspaceId, clientId, parentNodeId, x, y, data: extraData,
 }: {
   orbType: AiOrbType;
   workspaceId: string;
@@ -307,6 +307,7 @@ export function buildAiOrbNodePayload({
   parentNodeId: string;
   x: number;
   y: number;
+  data?: Record<string, unknown>;
 }) {
   const orb = AI_ORBS.find((item) => item.type === orbType) ?? AI_ORBS[0];
   return {
@@ -319,7 +320,7 @@ export function buildAiOrbNodePayload({
     pos_x: x,
     pos_y: y,
     parent_node_id: parentNodeId,
-    data: createAiOrbData(orbType),
+    data: { ...createAiOrbData(orbType), ...(extraData ?? {}) },
   };
 }
 const DOCK_GROUPS = [
@@ -1291,10 +1292,16 @@ function CanvasStudioInner({
     // Fordismo acontece dentro do canvas: sem seleção, nada some; com milestone
     // selecionado, focamos projeto + pasta do milestone + tarefas reais dele.
     const milestoneById = new Map(scopedProjectNodes.map((n) => [n.id, n] as const));
+    const selectedMilestone = selectedMilestoneId ? milestoneById.get(selectedMilestoneId) : null;
     const isFolder = (node: CanvasNodeRow) => {
       const type = (node.node_type ?? "").toLowerCase();
       const kind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
       return type === "client" || kind === "project_group" || kind === "milestone_group";
+    };
+    const isAiUtilityNode = (node: CanvasNodeRow) => {
+      const type = (node.node_type ?? "").toLowerCase();
+      const kind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
+      return type === "ai_orb" || kind === "ai_orb" || kind === "chat_node";
     };
     const belongsToMilestone = (node: CanvasNodeRow, milestoneId: string): boolean => {
       if (node.id === milestoneId) return false;
@@ -1324,7 +1331,7 @@ function CanvasStudioInner({
       return true;
     };
     if (!selectedMilestoneId) return scopedProjectNodes.filter(passesUiFilters);
-    return scopedProjectNodes.filter((node) => passesUiFilters(node) && belongsToMilestone(node, selectedMilestoneId));
+    return scopedProjectNodes.filter((node) => passesUiFilters(node) && (belongsToMilestone(node, selectedMilestoneId) || (isAiUtilityNode(node) && (!selectedMilestone || node.parent_node_id === selectedMilestone.id || node.parent_node_id === selectedMilestone.parent_node_id))));
   }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter, selectedMilestoneId]);
 
   const scopedProjectIds = useMemo(() => new Set(scopedProjectNodes.map((n) => n.id)), [scopedProjectNodes]);
@@ -2355,7 +2362,10 @@ function CanvasStudioInner({
   }, [clientId, dbNodes, ensureActiveClient, pickParentGroup, projectNodes, workspaceId, selectedMilestoneId, scopedProjectNodes, portalProjectIdProp]);
 
   const addAiOrb = useCallback(async (orbType: AiOrbType) => {
-    const parent = ensureActiveClient();
+    const milestoneNode = selectedMilestoneId
+      ? scopedProjectNodes.find((node) => node.id === selectedMilestoneId)
+      : null;
+    const parent = milestoneNode?.id ?? ensureActiveClient();
     if (!parent) return;
     const sameParentOrbs = dbNodes.filter((node) => node.parent_node_id === parent && node.node_type === "ai_orb");
     const ORB_SPACING_X = 220;
@@ -2374,6 +2384,7 @@ function CanvasStudioInner({
       parentNodeId: parent,
       x: pos_x,
       y: pos_y,
+      data: selectedMilestoneId ? { milestone_node_id: selectedMilestoneId } : undefined,
     })).select().single();
     if (error) {
       if (error.message?.includes("invalid input") && error.message?.includes("ai_orb")) {
@@ -2388,7 +2399,7 @@ function CanvasStudioInner({
       return;
     }
     if (data) setDbNodes((prev) => [...prev, data as CanvasNodeRow]);
-  }, [clientId, dbNodes, ensureActiveClient, workspaceId]);
+  }, [clientId, dbNodes, ensureActiveClient, workspaceId, selectedMilestoneId, scopedProjectNodes]);
 
   const addChatNode = useCallback(async (fn: ChatNodeFunction = "free", opts: { connectToNodeId?: string } = {}) => {
     const parent = ensureActiveClient();
@@ -2554,6 +2565,7 @@ function CanvasStudioInner({
             generatedByAiOrb: aiOrbConfigNode.id,
             created_from: "ai_orb",
             ...portalMeta,
+            ...(selectedMilestoneId ? { milestone_node_id: selectedMilestoneId } : {}),
             rationale: result.rationale,
             agent_id: opts.agentId,
             ...specData,
