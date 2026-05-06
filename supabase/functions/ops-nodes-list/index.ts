@@ -131,7 +131,7 @@ serve(async (req) => {
       const data = (cursor.data ?? {}) as Record<string, unknown>;
       const kind = pickString((data as any).kind);
       portalProjectId ||= pickString((data as any).portal_project_id);
-      portalMilestoneId ||= pickString((data as any).portal_milestone_id);
+      portalMilestoneId ||= pickString((data as any).portal_milestone_id, filterProjectId ? (data as any).milestone_node_id : undefined);
       if (portalProjectId && portalMilestoneId) break;
       cursor = byId.get(cursor.parent_node_id as string);
     }
@@ -144,7 +144,7 @@ serve(async (req) => {
     const kind = pickString((data as any).kind);
     const status = mapStatus(row.status);
     const inherited = inheritedPortalMeta(row);
-    const fallbackProjectId = filterProjectId && fallbackWorkspaceProjects.has(row.workspace_id as string) ? filterProjectId : "";
+    const fallbackProjectId = filterProjectId && (fallbackWorkspaceProjects.has(row.workspace_id as string) || pickString((data as any).milestone_node_id)) ? filterProjectId : "";
     return {
       ops_node_id: row.id as string,
       project_id: inherited.portalProjectId || fallbackProjectId,
