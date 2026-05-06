@@ -116,6 +116,12 @@ serve(async (req) => {
       .select("id")
       .eq("portal_project_id", filterProjectId);
     (workspaces ?? []).forEach((ws: any) => { if (ws?.id) fallbackWorkspaceProjects.add(ws.id as string); });
+    collected.forEach((row) => {
+      const data = (row.data ?? {}) as Record<string, unknown>;
+      if (pickString((data as any).portal_project_id) === filterProjectId && row.workspace_id) {
+        fallbackWorkspaceProjects.add(row.workspace_id as string);
+      }
+    });
   }
   const inheritedPortalMeta = (row: Record<string, unknown>) => {
     let portalProjectId = "";
@@ -144,7 +150,7 @@ serve(async (req) => {
     const kind = pickString((data as any).kind);
     const status = mapStatus(row.status);
     const inherited = inheritedPortalMeta(row);
-    const fallbackProjectId = filterProjectId && (fallbackWorkspaceProjects.has(row.workspace_id as string) || pickString((data as any).milestone_node_id)) ? filterProjectId : "";
+    const fallbackProjectId = filterProjectId && fallbackWorkspaceProjects.has(row.workspace_id as string) ? filterProjectId : "";
     return {
       ops_node_id: row.id as string,
       project_id: inherited.portalProjectId || fallbackProjectId,
