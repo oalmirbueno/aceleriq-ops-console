@@ -151,6 +151,7 @@ serve(async (req) => {
       milestone_id: inherited.portalMilestoneId || null,
       title: pickString(row.title) || "Sem título",
       status,
+      kanban_status: status === "active" ? "doing" : status === "in_review" ? "review" : status,
       progress: computeProgress(status, data),
       node_type: pickString(row.node_type, kind) || "task",
       updated_at: row.updated_at as string,
