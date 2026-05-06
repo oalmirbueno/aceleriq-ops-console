@@ -360,7 +360,7 @@ serve(async (req) => {
       return json({
         ok: true,
         function: "sync-to-portal",
-        version: "standalone-anti-loop-soft-delete-v4",
+        version: "standalone-anti-loop-soft-delete-v5",
         features: [
           "anti_loop",
           "soft_delete",
@@ -370,6 +370,7 @@ serve(async (req) => {
           "diagnostic",
           "diagnostic_v2",
           "workspace_fallback_project_id",
+          "cleanup_dryRun",
         ],
       });
     }
