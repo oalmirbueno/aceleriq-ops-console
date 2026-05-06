@@ -254,6 +254,14 @@ serve(async (req) => {
     };
 
     const rawEvent = String(body.event ?? "").trim().toLowerCase();
+    // v4: aceita node_id/ops_node_id vindo dentro de body.data como fallback,
+    // garantindo que node_created/node_updated/node_deleted não caiam no else genérico.
+    if (!body.nodeId) {
+      const fromData = (body.data as Record<string, unknown> | undefined) ?? {};
+      const candidate = (fromData.node_id ?? fromData.ops_node_id) as string | undefined;
+      if (typeof candidate === "string" && candidate) body.nodeId = candidate;
+    }
+    console.log("[sync-to-portal v4] event=", rawEvent, "nodeId=", body.nodeId ?? null, "workspaceId=", body.workspaceId, "portalProjectId=", body.portalProjectId);
 
     // Compatibilidade temporária: enquanto o deploy externo não registra a nova
     // função ops-nodes-list, o Portal pode chamar sync-to-portal com este evento.
