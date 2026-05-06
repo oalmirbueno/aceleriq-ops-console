@@ -271,7 +271,7 @@ serve(async (req) => {
       const candidate = (fromData.node_id ?? fromData.ops_node_id) as string | undefined;
       if (typeof candidate === "string" && candidate) body.nodeId = candidate;
     }
-    console.log("[sync-to-portal v5] event=", rawEvent, "nodeId=", body.nodeId ?? null, "workspaceId=", body.workspaceId, "portalProjectId=", body.portalProjectId);
+    console.log("[sync-to-portal v6] event=", rawEvent, "nodeId=", body.nodeId ?? null, "workspaceId=", body.workspaceId, "portalProjectId=", body.portalProjectId);
 
     // Compatibilidade temporária: enquanto o deploy externo não registra a nova
     // função ops-nodes-list, o Portal pode chamar sync-to-portal com este evento.
@@ -313,21 +313,42 @@ serve(async (req) => {
 
     // Quando há nodeId, sobrepõe portal_project_id pelo registrado no node
     // (suporta múltiplos projetos vinculados no mesmo canvas).
-    let nodeRow: { title?: string; node_type?: string; status?: string; data?: Record<string, unknown> | null } | null = null;
+    let nodeRow: { title?: string; node_type?: string; status?: string; data?: Record<string, unknown> | null; parent_node_id?: string | null } | null = null;
+    let inheritedNodeMeta: Record<string, unknown> = {};
     if (body.nodeId) {
       const { data: n } = await db
         .from("canvas_nodes")
-        .select("title, node_type, status, data")
+        .select("title, node_type, status, data, parent_node_id")
         .eq("id", body.nodeId)
         .maybeSingle();
       nodeRow = (n as any) ?? null;
       const ndata = (nodeRow?.data ?? {}) as Record<string, unknown>;
       const ndPid = (ndata.portal_project_id as string | undefined) ?? null;
       if (ndPid) portalProjectId = ndPid;
+      let parentId = nodeRow?.parent_node_id ?? null;
+      const seenParents = new Set<string>();
+      for (let depth = 0; parentId && depth < 6; depth++) {
+        if (seenParents.has(parentId)) break;
+        seenParents.add(parentId);
+        const { data: parent } = await db
+          .from("canvas_nodes")
+          .select("id, parent_node_id, data")
+          .eq("id", parentId)
+          .maybeSingle();
+        const pdata = ((parent as any)?.data ?? {}) as Record<string, unknown>;
+        const kind = String(pdata.kind ?? "").toLowerCase();
+        if (!inheritedNodeMeta.portal_project_id && typeof pdata.portal_project_id === "string") inheritedNodeMeta.portal_project_id = pdata.portal_project_id;
+        if (!inheritedNodeMeta.portal_milestone_id && typeof pdata.portal_milestone_id === "string") inheritedNodeMeta.portal_milestone_id = pdata.portal_milestone_id;
+        if (!inheritedNodeMeta.portal_folder_id && typeof pdata.portal_folder_id === "string") inheritedNodeMeta.portal_folder_id = pdata.portal_folder_id;
+        if (!inheritedNodeMeta.milestone_key && typeof pdata.milestone_key === "string") inheritedNodeMeta.milestone_key = pdata.milestone_key;
+        if (kind === "milestone_group" && !inheritedNodeMeta.portal_milestone_id && typeof (parent as any)?.id === "string") inheritedNodeMeta.portal_milestone_id = (parent as any).id;
+        parentId = ((parent as any)?.parent_node_id as string | null | undefined) ?? null;
+      }
+      if (!portalProjectId && typeof inheritedNodeMeta.portal_project_id === "string") portalProjectId = inheritedNodeMeta.portal_project_id as string;
     }
     // Combina data do node persistido + body.data (fallback para payload direto)
     const bodyData = (body.data ?? {}) as Record<string, unknown>;
-    const nodeData = { ...(bodyData ?? {}), ...((nodeRow?.data ?? {}) as Record<string, unknown>) };
+    const nodeData = { ...inheritedNodeMeta, ...((nodeRow?.data ?? {}) as Record<string, unknown>), ...(bodyData ?? {}) };
     const nodePortalTaskId = (nodeData.portal_task_id as string | undefined) ?? body.portalTaskId ?? null;
     const nodePortalMilestoneId = ((nodeData.portal_milestone_id ?? nodeData.milestone_id ?? nodeData.milestone_node_id) as string | undefined) ?? null;
     const nodePortalFolderId = (nodeData.portal_folder_id as string | undefined) ?? nodePortalMilestoneId;
