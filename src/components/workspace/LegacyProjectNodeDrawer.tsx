@@ -20,7 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { ACELERA_STAGES, getProjectTypeMeta, getStageMeta, type AceleraStageKey, type ProjectNodeKind } from "./canvasProjectTypes";
 import { ESTEIRA_STATUSES, getEsteiraStatus, mapLegacyStatus, premiumStatusToDb } from "./canvasEsteiraStatus";
-import { syncNodeCompletedWhenDone } from "./syncToPortalEvents";
+import { syncNodeCompletedWhenDone, syncNodeUpdated } from "./syncToPortalEvents";
 import AttachmentUploader, { type AttachmentItem } from "./AttachmentUploader";
 import ClientAvatar from "./ClientAvatar";
 import BriefingConsolidatedView from "./BriefingConsolidatedView";
@@ -149,6 +149,16 @@ export default function ProjectNodeDrawer({
         clientId,
         nodeId: node.id,
         nodeTitle: title.trim() || node.title,
+      });
+      void syncNodeUpdated({
+        workspaceId,
+        clientId,
+        nodeId: node.id,
+        nodeTitle: title.trim() || node.title,
+        nodeType: node.node_type,
+        status: nextStatus,
+        previousStatus: node.status,
+        data: newData,
       });
       toast({ title: "Salvo", description: meta?.label ?? "Node atualizado" });
       await onUpdated();
