@@ -271,7 +271,7 @@ serve(async (req) => {
       const candidate = (fromData.node_id ?? fromData.ops_node_id) as string | undefined;
       if (typeof candidate === "string" && candidate) body.nodeId = candidate;
     }
-    console.log("[sync-to-portal v4] event=", rawEvent, "nodeId=", body.nodeId ?? null, "workspaceId=", body.workspaceId, "portalProjectId=", body.portalProjectId);
+    console.log("[sync-to-portal v5] event=", rawEvent, "nodeId=", body.nodeId ?? null, "workspaceId=", body.workspaceId, "portalProjectId=", body.portalProjectId);
 
     // Compatibilidade temporária: enquanto o deploy externo não registra a nova
     // função ops-nodes-list, o Portal pode chamar sync-to-portal com este evento.
@@ -653,24 +653,10 @@ serve(async (req) => {
     }
 
     else {
-      // v4: nunca degradar node_* sem nodeId para node_completed genérico — isso
-      // mascarava o bug de payloads sem nodeId. Reportar skipped explícito.
-      if (rawEvent === "node_created" || rawEvent === "node_updated" || rawEvent === "node_deleted") {
-        console.warn("[sync-to-portal v4] missing nodeId for", rawEvent, "body=", JSON.stringify(body).slice(0, 500));
-        return json({ skipped: true, reason: `nodeId missing for ${rawEvent}`, debug: "v4-no-degrade" });
-      }
-      // Evento genérico — se tiver project_id envia como update
-      if (portalProjectId && PORTAL_ADMIN_ID) {
-        data = {
-          project_id:  portalProjectId,
-          author_id:   PORTAL_ADMIN_ID,
-          message:     body.message ?? `Atualização operacional: ${event}`,
-          update_type: "system",
-        };
-        event = "node_completed"; // reuse updates endpoint
-      } else {
-        return json({ skipped: true, reason: "unrecognized event and no fallback config" });
-      }
+      // v5: nunca degradar evento desconhecido/node_* para node_completed.
+      // Esse fallback mascarava payload incompleto e criava só timeline, sem card no Kanban.
+      console.warn("[sync-to-portal v5] skipped unhandled event", rawEvent, "body=", JSON.stringify(body).slice(0, 500));
+      return json({ skipped: true, reason: `unhandled event: ${rawEvent}`, debug: "v5-no-generic-node_completed" });
     }
 
     // ── Envia ────────────────────────────────────────────────────────────
