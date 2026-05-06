@@ -360,7 +360,7 @@ serve(async (req) => {
       return json({
         ok: true,
         function: "sync-to-portal",
-        version: "standalone-anti-loop-soft-delete-v4",
+        version: "standalone-anti-loop-soft-delete-v5",
         features: [
           "anti_loop",
           "soft_delete",
@@ -370,6 +370,7 @@ serve(async (req) => {
           "diagnostic",
           "diagnostic_v2",
           "workspace_fallback_project_id",
+          "cleanup_dryRun",
         ],
       });
     }
@@ -624,6 +625,220 @@ serve(async (req) => {
           "legacy_no_project = node sem pid herdável + workspace nem existe (órfão).",
           "legacy_no_milestone = pid OK mas sem milestone — não fazer backfill cego.",
           "Para backfill seguro: rodar somente sobre ready_to_sync.",
+        ],
+      });
+    }
+
+    // ── cleanup_dryRun: READ-ONLY. Lista candidatos para arquivamento. ───
+    // NÃO altera, NÃO apaga, NÃO arquiva. Só agrupa e classifica.
+    if (rawEvent === "cleanup_dry_run" || rawEvent === "cleanup_dryrun") {
+      const dbg = createClient(SUPABASE_URL, SERVICE_KEY);
+      const pageSize = 1000;
+      let from = 0;
+      const nodes: any[] = [];
+      while (true) {
+        const { data, error } = await dbg
+          .from("canvas_nodes")
+          .select("id, workspace_id, client_id, node_type, status, title, data, parent_node_id, deleted_at, archived_at, sync_status, created_at, updated_at")
+          .range(from, from + pageSize - 1);
+        if (error) return json({ ok: false, error: error.message }, 500);
+        if (!data || data.length === 0) break;
+        nodes.push(...data);
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+
+      const { data: wsRows } = await dbg.from("workspaces").select("id, name, client_id, portal_project_id");
+      const { data: clRows } = await dbg.from("clients").select("id, name");
+      const wsById = new Map((wsRows ?? []).map((w: any) => [w.id, w]));
+      const clById = new Map((clRows ?? []).map((c: any) => [c.id, c]));
+      const byNodeId = new Map(nodes.map((n) => [n.id, n]));
+
+      const STRUCT_KIND = new Set(["project_group", "milestone_group", "client_folder", "client", "ai_orb", "chat_node"]);
+      const STRUCT_TYPE = new Set(["project_group", "milestone_group", "client_folder", "client", "ai_orb", "chat_node"]);
+      const TASK_KINDS = new Set([
+        "task", "checklist", "case", "before_after", "landing_page", "site",
+        "automacao", "integracao", "agente", "metrica", "acessos", "email_mkt",
+        "trafego", "funil", "conteudo", "video", "imagem", "social", "crm",
+        "resultado", "reuniao", "decisao", "objetivo", "briefing", "lancamento",
+      ]);
+      const NOISE_RE = /^(test|teste|lixo|delete|tmp|temp|x{2,}|asdf|qwer|aaa+|zzz+|\.+|-+|untitled|sem titulo|sem título)\b/i;
+
+      // herda milestone subindo a árvore
+      const inheritMilestone = (row: any): string => {
+        let mid = "";
+        let cur: any = row;
+        const seen = new Set<string>();
+        for (let d = 0; cur && d < 6; d++) {
+          if (seen.has(cur.id)) break;
+          seen.add(cur.id);
+          const dt = (cur.data ?? {}) as any;
+          mid ||= typeof dt.portal_milestone_id === "string" && dt.portal_milestone_id ? dt.portal_milestone_id : "";
+          if (!mid && typeof dt.milestone_id === "string" && dt.milestone_id) mid = dt.milestone_id;
+          if (String(dt.kind ?? "").toLowerCase() === "milestone_group") mid ||= cur.id;
+          if (mid) break;
+          cur = byNodeId.get(cur.parent_node_id);
+        }
+        return mid;
+      };
+
+      type Cat =
+        | "likely_noise"
+        | "likely_valid_but_unclassified"
+        | "from_portal_without_milestone"
+        | "old_manual_task_without_milestone"
+        | "structure_or_visual_node";
+
+      const OLD_DAYS = 14;
+      const oldThreshold = Date.now() - OLD_DAYS * 24 * 60 * 60 * 1000;
+
+      type Candidate = {
+        id: string;
+        title: string | null;
+        created_at: string | null;
+        updated_at: string | null;
+        node_type: string | null;
+        kind: string | null;
+        from_portal: boolean;
+        portal_project_id: string | null;
+        workspace_id: string | null;
+        category: Cat;
+        reason: string;
+      };
+
+      const candidates: Candidate[] = [];
+
+      for (const n of nodes) {
+        // já apagados/arquivados: ignora (não são candidatos novos)
+        if (n.deleted_at || n.archived_at || n.sync_status === "deleted" || n.sync_status === "archived") continue;
+
+        const data = (n.data ?? {}) as any;
+        const kind = String(data.kind ?? "").toLowerCase();
+        const nodeType = String(n.node_type ?? "").toLowerCase();
+
+        // estrutura/visual: não é candidato a apagar (são esqueleto do canvas)
+        if (STRUCT_KIND.has(kind) || STRUCT_TYPE.has(nodeType)) continue;
+
+        // só consideramos coisas que pareçam task
+        const isTaskish = nodeType === "task" || TASK_KINDS.has(kind) || (!kind && nodeType !== "front");
+        if (!isTaskish) continue;
+
+        // tem milestone próprio?
+        const ownMid = (typeof data.portal_milestone_id === "string" && data.portal_milestone_id)
+          || (typeof data.milestone_id === "string" && data.milestone_id) || "";
+        if (ownMid) continue;
+
+        // herdou milestone dos pais?
+        const inheritedMid = inheritMilestone(n);
+        if (inheritedMid) continue;
+
+        const title = (n.title ?? "").toString().trim();
+        const fromPortal = data.from_portal === true || typeof data.portal_task_id === "string";
+        const ppid = typeof data.portal_project_id === "string" ? data.portal_project_id : null;
+        const updatedTs = n.updated_at ? Date.parse(n.updated_at) : 0;
+        const createdTs = n.created_at ? Date.parse(n.created_at) : 0;
+        const isOld = (updatedTs && updatedTs < oldThreshold) || (createdTs && createdTs < oldThreshold);
+
+        let cat: Cat;
+        let reason: string;
+        if (!title || NOISE_RE.test(title)) {
+          cat = "likely_noise";
+          reason = "title vazio/teste e sem milestone herdável";
+        } else if (fromPortal) {
+          cat = "from_portal_without_milestone";
+          reason = "task originada do Portal mas sem milestone (provável drift histórico)";
+        } else if (isOld) {
+          cat = "old_manual_task_without_milestone";
+          reason = `task manual antiga (>${OLD_DAYS}d) sem milestone`;
+        } else {
+          cat = "likely_valid_but_unclassified";
+          reason = "task recente sem milestone — pode ser válida; revisar manualmente";
+        }
+
+        candidates.push({
+          id: n.id,
+          title: n.title ?? null,
+          created_at: n.created_at ?? null,
+          updated_at: n.updated_at ?? null,
+          node_type: n.node_type ?? null,
+          kind: kind || null,
+          from_portal: fromPortal,
+          portal_project_id: ppid,
+          workspace_id: n.workspace_id ?? null,
+          category: cat,
+          reason,
+        });
+      }
+
+      const totalsByCategory: Record<Cat, number> = {
+        likely_noise: 0,
+        likely_valid_but_unclassified: 0,
+        from_portal_without_milestone: 0,
+        old_manual_task_without_milestone: 0,
+        structure_or_visual_node: 0,
+      };
+      for (const c of candidates) totalsByCategory[c.category]++;
+
+      // agrupa por workspace
+      const wsAgg = new Map<string, any>();
+      for (const c of candidates) {
+        const key = c.workspace_id ?? "__no_workspace__";
+        if (!wsAgg.has(key)) {
+          const ws = c.workspace_id ? (wsById.get(c.workspace_id) as any) : null;
+          const cl = ws?.client_id ? (clById.get(ws.client_id) as any) : null;
+          wsAgg.set(key, {
+            workspace_id: c.workspace_id,
+            workspace_name: ws?.name ?? null,
+            client_id: ws?.client_id ?? null,
+            client_name: cl?.name ?? null,
+            workspace_portal_project_id: ws?.portal_project_id ?? null,
+            total_candidates: 0,
+            by_category: {
+              likely_noise: 0,
+              likely_valid_but_unclassified: 0,
+              from_portal_without_milestone: 0,
+              old_manual_task_without_milestone: 0,
+              structure_or_visual_node: 0,
+            } as Record<Cat, number>,
+            sample: [] as any[],
+          });
+        }
+        const agg = wsAgg.get(key);
+        agg.total_candidates++;
+        agg.by_category[c.category]++;
+        if (agg.sample.length < 10) {
+          agg.sample.push({
+            id: c.id, title: c.title, created_at: c.created_at, updated_at: c.updated_at,
+            node_type: c.node_type, kind: c.kind, from_portal: c.from_portal,
+            portal_project_id: c.portal_project_id, category: c.category, reason: c.reason,
+          });
+        }
+      }
+
+      const workspaces_breakdown = Array.from(wsAgg.values()).sort((a, b) => b.total_candidates - a.total_candidates);
+
+      return json({
+        ok: true,
+        version: "standalone-anti-loop-soft-delete-v5",
+        mode: "cleanup_dry_run",
+        read_only: true,
+        nothing_changed: true,
+        criteria: {
+          considered: "node_type=task ou kind task-like, deleted_at IS NULL, archived_at IS NULL, sync_status NOT IN (deleted,archived)",
+          excluded: "structure/visual nodes (project_group, milestone_group, client_folder, client, ai_orb, chat_node)",
+          milestone_check: "sem portal_milestone_id próprio, sem milestone_id próprio, sem milestone herdado em até 6 níveis de pais",
+          old_threshold_days: OLD_DAYS,
+        },
+        totals: {
+          scanned_nodes: nodes.length,
+          total_candidates: candidates.length,
+          by_category: totalsByCategory,
+        },
+        workspaces_breakdown,
+        next_steps: [
+          "Revisar workspaces_breakdown.sample manualmente.",
+          "Decidir A) arquivar lixo, B) mover válidos para milestone default, C) ignorar histórico antigo.",
+          "Nenhuma ação destrutiva será feita até evento dedicado (ex: cleanup_archive) com confirm:true e escopo.",
         ],
       });
     }
