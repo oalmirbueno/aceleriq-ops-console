@@ -45,6 +45,22 @@ const STATUS_LABELS: Record<string, string> = {
   done: "Concluída", completed: "Concluída",
 };
 
+function pickString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function opsStatusToPortal(status?: string | null): string {
+  const s = String(status ?? "active").toLowerCase();
+  if (["done", "completed", "concluido", "concluída", "concluida"].includes(s)) return "done";
+  if (["blocked", "bloqueado", "bloqueada"].includes(s)) return "blocked";
+  if (["in_review", "review", "revisao", "revisão"].includes(s)) return "review";
+  if (["draft", "not_started", "todo", "backlog"].includes(s)) return "todo";
+  return "doing";
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
