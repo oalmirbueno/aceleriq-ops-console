@@ -1008,8 +1008,10 @@ function CanvasStudioInner({
         .catch((err) => console.warn("[CanvasStudio] auto portal sync failed", err))
         .finally(() => { state.inFlight = false; });
     };
-    state.timer = window.setTimeout(() => run(true), 900);
-    state.interval = window.setInterval(() => run(true), 15000);
+    state.timer = window.setTimeout(() => run(true), 1500);
+    // 60s é suficiente: realtime cobre criação/edição instantânea; o pull só
+    // serve como rede de segurança pra deleções e mudanças fora do realtime.
+    state.interval = window.setInterval(() => run(true), 60000);
     return () => {
       if (state.timer) window.clearTimeout(state.timer);
       if (state.interval) window.clearInterval(state.interval);
