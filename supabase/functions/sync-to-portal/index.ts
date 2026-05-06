@@ -94,6 +94,14 @@ async function listOpsNodes(db: ReturnType<typeof createClient>, projectId?: str
   }
 
   const filterProjectId = pickNonEmptyString(projectId);
+  const fallbackWorkspaceProjects = new Set<string>();
+  if (filterProjectId) {
+    const { data: workspaces } = await db
+      .from("workspaces")
+      .select("id")
+      .eq("portal_project_id", filterProjectId);
+    (workspaces ?? []).forEach((ws: any) => { if (ws?.id) fallbackWorkspaceProjects.add(ws.id as string); });
+  }
   const byId = new Map(collected.map((row) => [row.id as string, row] as const));
   const inheritedPortalMeta = (row: Record<string, unknown>) => {
     let portalProjectId = "";
@@ -120,9 +128,10 @@ async function listOpsNodes(db: ReturnType<typeof createClient>, projectId?: str
     const kind = pickNonEmptyString((nodeData as any).kind);
     const mappedStatus = mapOpsKanbanStatus(row.status);
     const inherited = inheritedPortalMeta(row);
+      const fallbackProjectId = filterProjectId && fallbackWorkspaceProjects.has(row.workspace_id as string) ? filterProjectId : "";
     return {
       ops_node_id: row.id as string,
-      project_id: inherited.portalProjectId,
+        project_id: inherited.portalProjectId || fallbackProjectId,
       milestone_id: inherited.portalMilestoneId || null,
       title: pickNonEmptyString(row.title) || "Sem título",
       status: mappedStatus,
