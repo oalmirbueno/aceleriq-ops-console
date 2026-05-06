@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { CanvasNodeRow } from "./canvasProjectTypes";
+import type { CanvasNodeRecord } from "./CanvasNodeDrawer";
+
+type CanvasNodeRow = CanvasNodeRecord & { parent_node_id?: string | null };
 
 /**
  * Auto-sync de milestones OPS → Portal.
