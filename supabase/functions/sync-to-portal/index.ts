@@ -117,7 +117,7 @@ async function listOpsNodes(db: ReturnType<typeof createClient>, projectId?: str
       const data = (cursor.data ?? {}) as Record<string, unknown>;
       const kind = pickNonEmptyString((data as any).kind);
       portalProjectId ||= pickNonEmptyString((data as any).portal_project_id);
-      portalMilestoneId ||= pickNonEmptyString((data as any).portal_milestone_id, kind === "milestone_group" ? (data as any).id : undefined);
+      portalMilestoneId ||= pickNonEmptyString((data as any).portal_milestone_id, filterProjectId ? (data as any).milestone_node_id : undefined, kind === "milestone_group" ? (data as any).id : undefined);
       if (portalProjectId && portalMilestoneId) break;
       cursor = byId.get(cursor.parent_node_id as string);
     }
@@ -128,7 +128,7 @@ async function listOpsNodes(db: ReturnType<typeof createClient>, projectId?: str
     const kind = pickNonEmptyString((nodeData as any).kind);
     const mappedStatus = mapOpsKanbanStatus(row.status);
     const inherited = inheritedPortalMeta(row);
-      const fallbackProjectId = filterProjectId && fallbackWorkspaceProjects.has(row.workspace_id as string) ? filterProjectId : "";
+      const fallbackProjectId = filterProjectId && (fallbackWorkspaceProjects.has(row.workspace_id as string) || pickNonEmptyString((nodeData as any).milestone_node_id)) ? filterProjectId : "";
     return {
       ops_node_id: row.id as string,
         project_id: inherited.portalProjectId || fallbackProjectId,
@@ -329,7 +329,7 @@ serve(async (req) => {
     const bodyData = (body.data ?? {}) as Record<string, unknown>;
     const nodeData = { ...(bodyData ?? {}), ...((nodeRow?.data ?? {}) as Record<string, unknown>) };
     const nodePortalTaskId = (nodeData.portal_task_id as string | undefined) ?? body.portalTaskId ?? null;
-    const nodePortalMilestoneId = (nodeData.portal_milestone_id as string | undefined) ?? null;
+    const nodePortalMilestoneId = ((nodeData.portal_milestone_id ?? nodeData.milestone_id ?? nodeData.milestone_node_id) as string | undefined) ?? null;
     const nodePortalFolderId = (nodeData.portal_folder_id as string | undefined) ?? nodePortalMilestoneId;
     if (body.portalProjectId) portalProjectId = body.portalProjectId;
     // Fallback: portal_project_id pode estar em body.data (caso o nodeRow não tenha sido lido)
