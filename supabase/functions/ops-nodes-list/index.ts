@@ -91,7 +91,12 @@ serve(async (req) => {
   const db = createClient(SUPABASE_URL, SERVICE_KEY);
 
   const body = (await req.json().catch(() => ({}))) as { project_id?: string | null };
-  const filterProjectId = pickString(body.project_id);
+  const raw = body as { project_id?: string | null; workspace_id?: string | null; client_id?: string | null; include_unlinked?: boolean };
+  const filterProjectId = pickString(raw.project_id);
+  const filterWorkspaceId = pickString(raw.workspace_id);
+  const filterClientId = pickString(raw.client_id);
+  const noFilter = !filterProjectId && !filterWorkspaceId && !filterClientId;
+  const includeUnlinked = raw.include_unlinked ?? noFilter;
 
   // Busca em lotes para suportar workspaces grandes. Não filtramos direto por
   // data->>portal_project_id porque nodes criados dentro de um milestone podem
@@ -102,10 +107,12 @@ serve(async (req) => {
   while (true) {
     let q = db
       .from("canvas_nodes")
-      .select("id, workspace_id, node_type, status, title, data, updated_at, parent_node_id")
+      .select("id, workspace_id, client_id, node_type, status, title, data, updated_at, parent_node_id")
       .not("data", "is", null)
       .order("updated_at", { ascending: false })
       .range(from, from + pageSize - 1);
+    if (filterWorkspaceId) q = q.eq("workspace_id", filterWorkspaceId);
+    if (filterClientId) q = q.eq("client_id", filterClientId);
     const { data, error } = await q;
     if (error) return json({ error: error.message }, 500);
     if (!data || data.length === 0) break;
@@ -159,6 +166,9 @@ serve(async (req) => {
     const fallbackProjectId = filterProjectId && fallbackWorkspaceProjects.has(row.workspace_id as string) ? filterProjectId : "";
     return {
       ops_node_id: row.id as string,
+      ops_workspace_id: row.workspace_id as string,
+      ops_client_id: (row.client_id as string | null) ?? null,
+      ops_parent_id: (row.parent_node_id as string | null) ?? null,
       project_id: inherited.portalProjectId || fallbackProjectId,
       milestone_id: inherited.portalMilestoneId || null,
       title: pickString(row.title) || "Sem título",
@@ -169,7 +179,16 @@ serve(async (req) => {
       updated_at: row.updated_at as string,
       kind: kind || null,
     };
-  }).filter((n) => n.project_id && (!filterProjectId || n.project_id === filterProjectId) && n.kind !== "project_group" && n.kind !== "milestone_group" && n.kind !== "client_folder");
+  }).filter((n) => {
+    if (n.kind === "project_group" || n.kind === "milestone_group" || n.kind === "client_folder") return false;
+    if (filterProjectId && n.project_id !== filterProjectId) return false;
+    if (!includeUnlinked && !n.project_id) return false;
+    return true;
+  });
 
-  return json({ nodes });
+  return json({
+    nodes,
+    total: nodes.length,
+    scope: noFilter ? "global" : { project_id: filterProjectId || null, workspace_id: filterWorkspaceId || null, client_id: filterClientId || null },
+  });
 });
