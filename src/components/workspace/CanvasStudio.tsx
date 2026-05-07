@@ -3613,6 +3613,7 @@ function CanvasStudioInner({
               }
             }}
           />
+          {featureFlags.enableDevSyncTools && (
           <Button
             size="sm"
             variant="outline"
@@ -3638,6 +3639,7 @@ function CanvasStudioInner({
             {busyAction === "portal-sync" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
             Sync portal
           </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
