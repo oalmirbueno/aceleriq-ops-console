@@ -179,7 +179,10 @@ export default function WorkspaceDetailPage() {
     }
     const events = await fetchTimeline(workspaceId);
     setTimeline(events);
-    const { data: nd } = await supabase.from("canvas_nodes").select("id, status").eq("workspace_id", workspaceId);
+    const { data: nd } = await supabase.from("canvas_nodes").select("id, status")
+      .eq("workspace_id", workspaceId)
+      .is("deleted_at", null).is("archived_at", null)
+      .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)");
     if (nd) setNodes(nd as NodeProgress[]);
     setLoading(false);
   };
@@ -191,7 +194,10 @@ export default function WorkspaceDetailPage() {
     const ch = supabase
       .channel(`ws-nodes:${workspaceId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "canvas_nodes", filter: `workspace_id=eq.${workspaceId}` }, async () => {
-        const { data } = await supabase.from("canvas_nodes").select("id, status").eq("workspace_id", workspaceId);
+        const { data } = await supabase.from("canvas_nodes").select("id, status")
+          .eq("workspace_id", workspaceId)
+          .is("deleted_at", null).is("archived_at", null)
+          .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)");
         if (data) setNodes(data as NodeProgress[]);
       }).subscribe();
     return () => { supabase.removeChannel(ch); };
