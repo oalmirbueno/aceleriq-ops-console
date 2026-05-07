@@ -463,7 +463,7 @@ function CanvasStudioInner({
   // Auto-sync milestone OPS → Portal: sempre que aparece um milestone_group sem
   // portal_milestone_id (criação local ou via realtime), dispara apply_one no
   // servidor, que faz upsert idempotente e salva o portal_milestone_id no node.
-  useMilestoneAutoSync(workspaceId, dbNodes);
+  useMilestoneAutoSync(workspaceId, dbNodes, featureFlags.enableAutoPortalSync);
 
   const [rfNodes, setRfNodes] = useState<Node[]>([]);
   const [rfEdges, setRfEdges] = useState<Edge[]>([]);
@@ -1011,6 +1011,7 @@ function CanvasStudioInner({
   useEffect(() => { fetchDataRef.current = fetchData; }, [fetchData]);
 
   useEffect(() => {
+    if (!featureFlags.enableAutoPortalSync) return;
     if (!workspaceId || !clientId) return;
     const state = autoPortalSyncRef.current;
     const run = (pull: boolean) => {
@@ -1033,6 +1034,7 @@ function CanvasStudioInner({
   }, [workspaceId, clientId, syncPortalNow]);
 
   useEffect(() => {
+    if (!featureFlags.enableAutoPortalSync) return;
     if (!workspaceId || !clientId || dbNodes.length === 0) return;
     const signature = dbNodes
       .filter((node) => {
