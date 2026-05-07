@@ -7,4 +7,8 @@ export const featureFlags = {
   enableAutoPortalSync: false,
   enableCanvasAutoMaterialize: false,
   enableDevSyncTools: false,
+  // Etapa 1B — bloqueia criação automática de project_group/milestone_group
+  // dentro de materializePortalTimelineCanvas e qualquer outro caminho
+  // que tente "garantir" a pasta de projeto ao abrir tela.
+  enableAutoProjectGroupCreation: false,
 };
