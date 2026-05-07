@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { featureFlags } from "@/config/featureFlags";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -154,6 +155,12 @@ export async function materializePortalTimelineCanvas({
   clientName,
   portalProjectId,
 }: PortalTimelineMaterializeArgs): Promise<PortalTimelineMaterializeResult> {
+  // Etapa 1B — abrir tela não pode criar canvas_nodes (project_group/milestone_group/task).
+  // A função inteira fica como no-op enquanto a flag estiver desligada. Manter o retorno
+  // estável (zeros) pra não quebrar callers que esperam a forma do resultado.
+  if (!featureFlags.enableAutoProjectGroupCreation) {
+    return { projects: 0, milestones: 0, tasks: 0, createdTasks: 0, updatedTasks: 0 };
+  }
   const now = new Date().toISOString();
   const { data: existingNodes } = await supabase
     .from("canvas_nodes")

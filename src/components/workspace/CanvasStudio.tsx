@@ -1116,6 +1116,8 @@ function CanvasStudioInner({
 
   // Auto-cria o node "client" quando o canvas vem de um workspace e ainda não tem pasta
   useEffect(() => {
+    // Etapa 1B — abrir tela não cria canvas_nodes automaticamente.
+    if (!featureFlags.enableAutoProjectGroupCreation) return;
     if (loading || !workspaceId || !clientId || !clientName) return;
     const hasClientNode = dbNodes.some((n) => n.node_type === "client");
     if (hasClientNode) return;
