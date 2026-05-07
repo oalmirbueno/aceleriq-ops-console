@@ -65,7 +65,15 @@ function normalizeType(type: string): string {
     files: "file",
     file: "file",
   };
-  return map[type.toLowerCase()] ?? type.toLowerCase();
+  const raw = type.toLowerCase();
+  if (map[raw]) return map[raw];
+  // Strip *_deleted / *_archived / *_created / *_updated suffixes used by event-style types.
+  const stripped = raw.replace(/_(deleted|archived|created|updated|removed|soft_deleted)$/u, "");
+  if (map[stripped]) return map[stripped];
+  // Plural forms with suffix (e.g. "tasks_deleted")
+  const singular = stripped.replace(/s$/u, "");
+  if (map[singular]) return map[singular];
+  return raw;
 }
 
 function firstString(...values: unknown[]): string | null {
