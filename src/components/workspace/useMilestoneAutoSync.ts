@@ -19,11 +19,12 @@ type CanvasNodeRow = CanvasNodeRecord & { parent_node_id?: string | null };
  *  - Anti-loop: mantém um Set local de IDs em flight + IDs já tratados na sessão.
  *  - Não mexe em outros workspaces, não mexe em backfill global, não cria task.
  */
-export function useMilestoneAutoSync(workspaceId: string | null | undefined, nodes: CanvasNodeRow[]) {
+export function useMilestoneAutoSync(workspaceId: string | null | undefined, nodes: CanvasNodeRow[], enabled: boolean = true) {
   const inFlightRef = useRef<Set<string>>(new Set());
   const handledRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
+    if (!enabled) return;
     if (!workspaceId) return;
 
     const candidates = nodes.filter((n) => {
@@ -65,5 +66,5 @@ export function useMilestoneAutoSync(workspaceId: string | null | undefined, nod
           inFlightRef.current.delete(ms.id);
         });
     }
-  }, [workspaceId, nodes]);
+  }, [workspaceId, nodes, enabled]);
 }

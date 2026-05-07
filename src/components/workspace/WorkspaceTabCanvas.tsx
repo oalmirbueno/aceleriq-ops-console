@@ -1,8 +1,8 @@
-import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import CanvasStudio from "./CanvasStudio";
 import WorkspaceProjectsLauncher from "./WorkspaceProjectsLauncher";
-import { supabase } from "@/integrations/supabase/client";
+import { featureFlags } from "@/config/featureFlags";
+import { useEffect } from "react";
 import { materializePortalTimelineCanvas } from "@/lib/portalTimelineCanvas";
 
 interface Props {
@@ -19,9 +19,8 @@ export default function WorkspaceTabCanvas(props: Props) {
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (!featureFlags.enableCanvasAutoMaterialize) return;
     if (!props.portalProjectId) return;
-    // backfill-from-portal removido do auto-open (era pesado e causava WORKER_RESOURCE_LIMIT).
-    // Materialização leve da timeline continua.
     void materializePortalTimelineCanvas({
       workspaceId: props.workspaceId, clientId: props.clientId,
       clientName: props.clientName, portalProjectId: props.portalProjectId,

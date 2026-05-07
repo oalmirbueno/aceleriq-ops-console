@@ -49,6 +49,7 @@ import type { AgentId } from "@/lib/aiAgents";
 import { materializePortalTimelineCanvas } from "@/lib/portalTimelineCanvas";
 import { dbg, dbgWarn, isCanvasDebugEnabled, toggleCanvasDebug } from "@/lib/canvasDebug";
 import CanvasDebugOverlay, { type CanvasDebugStats } from "./CanvasDebugOverlay";
+import { featureFlags } from "@/config/featureFlags";
 
 // CanvasStudio é uma camada visual operacional complementar: não substitui o briefing mestre,
 // não cria nova lógica/tabela de sinais estruturados e não usa IA opaca como núcleo decisório.
@@ -462,7 +463,7 @@ function CanvasStudioInner({
   // Auto-sync milestone OPS → Portal: sempre que aparece um milestone_group sem
   // portal_milestone_id (criação local ou via realtime), dispara apply_one no
   // servidor, que faz upsert idempotente e salva o portal_milestone_id no node.
-  useMilestoneAutoSync(workspaceId, dbNodes);
+  useMilestoneAutoSync(workspaceId, dbNodes, featureFlags.enableAutoPortalSync);
 
   const [rfNodes, setRfNodes] = useState<Node[]>([]);
   const [rfEdges, setRfEdges] = useState<Edge[]>([]);
@@ -1010,6 +1011,7 @@ function CanvasStudioInner({
   useEffect(() => { fetchDataRef.current = fetchData; }, [fetchData]);
 
   useEffect(() => {
+    if (!featureFlags.enableAutoPortalSync) return;
     if (!workspaceId || !clientId) return;
     const state = autoPortalSyncRef.current;
     const run = (pull: boolean) => {
@@ -1032,6 +1034,7 @@ function CanvasStudioInner({
   }, [workspaceId, clientId, syncPortalNow]);
 
   useEffect(() => {
+    if (!featureFlags.enableAutoPortalSync) return;
     if (!workspaceId || !clientId || dbNodes.length === 0) return;
     const signature = dbNodes
       .filter((node) => {
@@ -3610,6 +3613,7 @@ function CanvasStudioInner({
               }
             }}
           />
+          {featureFlags.enableDevSyncTools && (
           <Button
             size="sm"
             variant="outline"
@@ -3635,6 +3639,7 @@ function CanvasStudioInner({
             {busyAction === "portal-sync" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
             Sync portal
           </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
