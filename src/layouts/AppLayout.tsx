@@ -5,10 +5,7 @@ import { featureFlags } from "@/config/featureFlags";
 
 export default function AppLayout() {
   // Modo operação limpa: auto-sync global desligado por feature flag.
-  if (featureFlags.enableAutoPortalSync) {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    usePortalAutoSync(60_000);
-  }
+  usePortalAutoSync(60_000, featureFlags.enableAutoPortalSync);
   return (
     <div className="tech-grid-bg min-h-screen flex flex-col">
       <AppTopNav />
