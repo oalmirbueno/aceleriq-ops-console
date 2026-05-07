@@ -98,7 +98,7 @@ export default function ClientsPage() {
       .from("clients")
       .select("id, name, company_name, status, segment, plan_name, portal_client_id, project_type, custom_monthly_value, metadata, workspaces(id, current_stage)")
       .is("deleted_at", null)
-      .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
+      .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
       .order("created_at", { ascending: false });
 
     if (!error && data) setClients(data as Client[]);

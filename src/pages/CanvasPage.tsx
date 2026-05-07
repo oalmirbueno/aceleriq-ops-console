@@ -77,7 +77,7 @@ export default function CanvasPage() {
       .from("workspaces")
       .select("id, name, client_id, current_stage, status, updated_at, clients(id, name, company_name, logo_url, status)")
       .is("deleted_at", null)
-      .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
+      .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
       .order("updated_at", { ascending: false })
       .limit(200);
     const list = (data ?? []) as unknown as WorkspaceOption[];
@@ -92,7 +92,7 @@ export default function CanvasPage() {
         .in("workspace_id", ids)
         .is("deleted_at", null)
         .is("archived_at", null)
-        .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)");
+        .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)");
 
       const counts: Record<string, number> = {};
       const perWsStage: Record<string, Record<string, { active: number; done: number; total: number }>> = {};

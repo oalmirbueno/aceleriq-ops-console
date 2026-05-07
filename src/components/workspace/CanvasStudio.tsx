@@ -904,7 +904,7 @@ function CanvasStudioInner({
       supabase.from("canvas_nodes").select(lightSel).eq("workspace_id", workspaceId)
         .is("deleted_at", null)
         .is("archived_at", null)
-        .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
+        .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
         .order("created_at"),
       supabase.from("canvas_edges")
         .select("id, source_node_id, target_node_id, source_handle, target_handle, edge_type, label, workspace_id")

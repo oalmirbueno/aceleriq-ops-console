@@ -182,7 +182,7 @@ export default function WorkspaceDetailPage() {
     const { data: nd } = await supabase.from("canvas_nodes").select("id, status")
       .eq("workspace_id", workspaceId)
       .is("deleted_at", null).is("archived_at", null)
-      .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)");
+      .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)");
     if (nd) setNodes(nd as NodeProgress[]);
     setLoading(false);
   };
@@ -197,7 +197,7 @@ export default function WorkspaceDetailPage() {
         const { data } = await supabase.from("canvas_nodes").select("id, status")
           .eq("workspace_id", workspaceId)
           .is("deleted_at", null).is("archived_at", null)
-          .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)");
+          .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)");
         if (data) setNodes(data as NodeProgress[]);
       }).subscribe();
     return () => { supabase.removeChannel(ch); };

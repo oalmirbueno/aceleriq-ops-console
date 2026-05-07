@@ -35,7 +35,7 @@ export default function ProjectCanvasPage() {
         .from("canvas_nodes")
         .select("workspace_id, client_id, title, data")
         .is("deleted_at", null).is("archived_at", null)
-        .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
+        .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
         .contains("data", { kind: "project_group", portal_project_id: portalProjectId })
         .order("created_at", { ascending: true })
         .limit(1);
@@ -65,7 +65,7 @@ export default function ProjectCanvasPage() {
         .select("id, name, clients(id, name)")
         .eq("portal_project_id", portalProjectId)
         .is("deleted_at", null)
-        .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
+        .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
         .maybeSingle();
       if (cancelled) return;
       if (ws) {

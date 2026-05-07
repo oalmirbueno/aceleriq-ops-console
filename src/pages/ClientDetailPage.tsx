@@ -63,7 +63,7 @@ export default function ClientDetailPage() {
       supabase.from("workspaces").select("id, name, status, current_stage, updated_at")
         .eq("client_id", id)
         .is("deleted_at", null)
-        .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
+        .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
         .order("updated_at", { ascending: false }),
     ]);
     setClient((c.data as ClientRow) ?? null);

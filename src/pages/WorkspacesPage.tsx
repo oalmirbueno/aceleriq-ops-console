@@ -107,7 +107,7 @@ export default function WorkspacesPage() {
         .from("workspaces")
         .select("id, name, status, current_stage, summary, updated_at, created_at, clients(id, name, company_name, segment, plan_name, logo_url, status)")
         .is("deleted_at", null)
-        .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
+        .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
         .order("updated_at", { ascending: false });
 
       if (!error && data) {
@@ -121,7 +121,7 @@ export default function WorkspacesPage() {
             .in("workspace_id", ids)
             .is("deleted_at", null)
             .is("archived_at", null)
-            .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)");
+            .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)");
           setNodeCounts((nodes ?? []).reduce<Record<string, number>>((acc, node: any) => {
             acc[node.workspace_id] = (acc[node.workspace_id] ?? 0) + 1;
             return acc;
