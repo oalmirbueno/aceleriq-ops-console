@@ -50,6 +50,7 @@ import { materializePortalTimelineCanvas } from "@/lib/portalTimelineCanvas";
 import { dbg, dbgWarn, isCanvasDebugEnabled, toggleCanvasDebug } from "@/lib/canvasDebug";
 import CanvasDebugOverlay, { type CanvasDebugStats } from "./CanvasDebugOverlay";
 import { featureFlags } from "@/config/featureFlags";
+import { shouldShowInOperationMode, useOperationModeToggles } from "@/lib/operationModeFilters";
 
 // CanvasStudio é uma camada visual operacional complementar: não substitui o briefing mestre,
 // não cria nova lógica/tabela de sinais estruturados e não usa IA opaca como núcleo decisório.
