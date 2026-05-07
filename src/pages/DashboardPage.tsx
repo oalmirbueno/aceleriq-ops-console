@@ -40,18 +40,18 @@ export default function DashboardPage() {
         const [clientsRes, workspacesRes, activeRes, tasksRes, eventsRes, activeWorkspacesRes] = await Promise.all([
           supabase.from("clients").select("*", { count: "exact", head: true })
             .is("deleted_at", null)
-            .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)"),
+            .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)"),
           supabase.from("workspaces").select("*", { count: "exact", head: true })
             .is("deleted_at", null)
-            .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)"),
+            .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)"),
           supabase.from("clients").select("*", { count: "exact", head: true }).eq("status", "active")
             .is("deleted_at", null)
-            .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)"),
+            .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)"),
           supabase.from("tasks").select("*", { count: "exact", head: true }).not("status", "in", "(done,canceled)"),
           supabase.from("timeline_events").select("id, title, event_type, happened_at, workspace_id").order("happened_at", { ascending: false }).limit(10),
           supabase.from("workspaces").select("id, name, current_stage, client_id, clients(id, name, company_name, logo_url, plan_name)")
             .is("deleted_at", null)
-            .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
+            .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
             .order("updated_at", { ascending: false }).limit(4),
         ]);
 
