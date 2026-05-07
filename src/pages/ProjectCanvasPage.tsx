@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import CanvasStudio from "@/components/workspace/CanvasStudio";
 import { supabase } from "@/integrations/supabase/client";
 import { materializePortalTimelineCanvas } from "@/lib/portalTimelineCanvas";
+import { featureFlags } from "@/config/featureFlags";
 
 /**
  * Canvas de UM projeto do Portal.
@@ -87,6 +88,7 @@ export default function ProjectCanvasPage() {
   // sem o usuário precisar apertar nada. Realtime + usePortalAutoSync mantêm
   // tudo atualizado depois.
   useEffect(() => {
+    if (!featureFlags.enableCanvasAutoMaterialize) return;
     if (!resolved?.workspaceId || !portalProjectId) return;
     (async () => {
       // backfill-from-portal removido do auto-open (WORKER_RESOURCE_LIMIT).
