@@ -77,6 +77,8 @@ export default function WorkspaceTabTasks({ workspaceId, clientId, planName }: P
 
     if (filter !== "all") {
       q = q.eq("status", filter);
+    } else {
+      q = q.neq("status", "archived");
     }
 
     const { data, error } = await q;
