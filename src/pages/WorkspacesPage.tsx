@@ -236,6 +236,31 @@ export default function WorkspacesPage() {
           <Button variant="outline" onClick={() => navigate("/ops/clients")}>+ Novo cliente</Button>
         </div>
 
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <span className="font-semibold uppercase tracking-wider text-[10px] text-foreground/70">Modo operação:</span>
+          <label className="inline-flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" className="accent-primary"
+              checked={operationToggles.showInternal}
+              onChange={(e) => setOperationToggles({ showInternal: e.target.checked })}
+            />
+            Mostrar internos Ops
+          </label>
+          <label className="inline-flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" className="accent-primary"
+              checked={operationToggles.showLegacy}
+              onChange={(e) => setOperationToggles({ showLegacy: e.target.checked })}
+            />
+            Mostrar legados/lixo
+          </label>
+          <label className="inline-flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" className="accent-primary"
+              checked={operationToggles.showUnlinked}
+              onChange={(e) => setOperationToggles({ showUnlinked: e.target.checked })}
+            />
+            Mostrar sem vínculo Portal
+          </label>
+        </div>
+
         {loading ? <LoadingState /> : filtered.length === 0 ? (
           <EmptyState icon={FolderKanban} title={workspaces.length === 0 ? "Nenhum workspace criado" : "Nenhum workspace encontrado"} description={workspaces.length === 0 ? "Crie ou selecione clientes para iniciar os hubs de projeto." : "Ajuste busca ou filtro de etapa."} />
         ) : viewMode === "folders" ? (
