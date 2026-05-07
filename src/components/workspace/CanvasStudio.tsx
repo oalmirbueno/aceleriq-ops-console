@@ -1366,6 +1366,8 @@ function CanvasStudioInner({
       // existem no DB para a sincronia bidirecional com o Portal.
       const folderKind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
       if (folderKind === "project_group" || folderKind === "milestone_group") return false;
+      // Etapa 2 — modo operação visual.
+      if (!shouldShowInOperationMode(node, operationToggles)) return false;
       const meta = readCanvasOperationalMeta(node.data as Record<string, unknown> | null);
       if (typeFilter && nodeKindOf(node) !== typeFilter && node.node_type !== typeFilter) return false;
       if (statusFilter && mapLegacyStatus(node.status) !== statusFilter) return false;
