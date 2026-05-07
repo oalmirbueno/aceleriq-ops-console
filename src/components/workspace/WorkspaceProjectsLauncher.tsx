@@ -15,6 +15,7 @@ import { useNavigate } from "react-router-dom";
 import { FolderKanban, RefreshCw, Loader2, Network, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { featureFlags } from "@/config/featureFlags";
 
 interface ProjectGroup {
   portalProjectId: string;
@@ -129,6 +130,7 @@ export default function WorkspaceProjectsLauncher({ workspaceId, clientName, por
     if (loading) return;
     if (projects.length > 0) return;
     if (autoPulledRef.current) return;
+    if (!featureFlags.enableAutoPortalSync) return;
     autoPulledRef.current = true;
     (async () => {
       setSyncing(true);
