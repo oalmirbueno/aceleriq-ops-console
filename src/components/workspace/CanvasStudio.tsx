@@ -901,7 +901,11 @@ function CanvasStudioInner({
     // (data jsonb e description podem ser grandes — buscamos depois em paralelo)
     const lightSel = "id, node_type, title, status, pos_x, pos_y, parent_node_id, linked_entity_id, linked_entity_type, workspace_id, client_id, created_at, updated_at, archived_at, deleted_at, sync_status";
     const [nodesRes, edgesRes] = await Promise.all([
-      supabase.from("canvas_nodes").select(lightSel).eq("workspace_id", workspaceId).order("created_at"),
+      supabase.from("canvas_nodes").select(lightSel).eq("workspace_id", workspaceId)
+        .is("deleted_at", null)
+        .is("archived_at", null)
+        .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
+        .order("created_at"),
       supabase.from("canvas_edges")
         .select("id, source_node_id, target_node_id, source_handle, target_handle, edge_type, label, workspace_id")
         .eq("workspace_id", workspaceId),
