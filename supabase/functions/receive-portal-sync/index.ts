@@ -313,15 +313,28 @@ serve(async (req) => {
     const event = String(body.event ?? "");
     const evLower = event.toLowerCase();
     let inferredType = "";
-    if (evLower.startsWith("task_") || evLower === "delete") inferredType = "tasks";
+    if (evLower.startsWith("task_")) inferredType = "tasks";
     else if (evLower.startsWith("milestone_") || evLower.startsWith("folder_")) inferredType = "milestones";
     else if (evLower.startsWith("project_")) inferredType = "projects";
     else if (evLower.startsWith("client_") || evLower.startsWith("profile_")) inferredType = "profiles";
-    const rawType = String(body.type ?? body.table ?? inferredType);
+    // Quando o event tem semântica clara (*_created/_updated/_deleted), ele é a
+    // fonte de verdade do tipo lógico — body.type pode vir como "DELETE"/"UPDATE"
+    // (estilo trigger do Postgres) e enganar o normalizeType, fazendo deletes
+    // caírem no branch "ignored" final.
+    const eventDrivesType = inferredType !== "" && /_(created|updated|deleted|archived|removed|soft_deleted)$/u.test(evLower);
+    const rawType = String(eventDrivesType ? inferredType : (body.type ?? body.table ?? inferredType));
     const type = normalizeType(rawType);
-    const data = ((body.data && typeof body.data === "object")
-      ? body.data
-      : Object.fromEntries(Object.entries(body).filter(([key]) => !["event", "type", "table", "context", "source"].includes(key)))) as Record<string, unknown>;
+    const dataSource = (body.data && typeof body.data === "object") ? body.data
+      : (body.record && typeof body.record === "object") ? body.record
+      : (body.old_record && typeof body.old_record === "object") ? body.old_record
+      : (body.payload && typeof body.payload === "object") ? body.payload
+      : null;
+    const data = (dataSource ?? Object.fromEntries(Object.entries(body).filter(([key]) => !["event", "type", "table", "context", "source", "record", "old_record", "payload"].includes(key)))) as Record<string, unknown>;
+    // Fallback: se ainda não temos id mas veio old_record/record, tenta extrair.
+    if (!data.id) {
+      const alt = (body.old_record ?? body.record ?? {}) as Record<string, unknown>;
+      if (alt && typeof alt === "object" && alt.id) data.id = alt.id;
+    }
     const context = (body.context ?? {}) as Record<string, unknown>;
     const source = String(body.source ?? "").toLowerCase();
 
@@ -1034,6 +1047,20 @@ serve(async (req) => {
       return json({ ok: true, action: "timeline_event_created", type });
     }
 
+    // Safety net final: deletes nunca podem cair em "ignored". Se chegou aqui
+    // com isDeleteEvent=true significa que algo no payload não bateu — devolve
+    // delete_unhandled com debug pra Portal corrigir, mas com status estável.
+    if (isDeleteEvent) {
+      await logSync({
+        direction: "portal_to_ops",
+        event: event || "unknown_delete",
+        status: "skipped",
+        message: "delete_unhandled",
+        payload: { rawType, type, event, has_id: !!data.id },
+        source,
+      });
+      return json({ ok: true, action: "delete_unhandled", type_received: rawType, event, hint: "delete event reached final branch — type/id missing" });
+    }
     // Tipo desconhecido — aceita silenciosamente.
     return json({ ok: true, action: "ignored", type_received: rawType });
   } catch (err) {
