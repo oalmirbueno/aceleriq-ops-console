@@ -13,6 +13,7 @@ import ClientAvatar from "@/components/workspace/ClientAvatar";
 import { getStagePremiumLabel } from "@/components/workspace/aceleraConstants";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { shouldShowInOperationMode, useOperationModeToggles } from "@/lib/operationModeFilters";
 
 interface WorkspaceHubItem {
   id: string;
@@ -99,6 +100,7 @@ export default function WorkspacesPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [collapsedInitialized, setCollapsedInitialized] = useState(false);
+  const [operationToggles, setOperationToggles] = useOperationModeToggles();
 
   useEffect(() => {
     async function fetchWorkspaces() {
@@ -117,12 +119,13 @@ export default function WorkspacesPage() {
         if (ids.length > 0) {
           const { data: nodes } = await supabase
             .from("canvas_nodes")
-            .select("workspace_id")
+            .select("workspace_id, node_type, archived_at, deleted_at, sync_status, data")
             .in("workspace_id", ids)
             .is("deleted_at", null)
             .is("archived_at", null)
             .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)");
-          setNodeCounts((nodes ?? []).reduce<Record<string, number>>((acc, node: any) => {
+          const visible = (nodes ?? []).filter((n: any) => shouldShowInOperationMode(n, operationToggles));
+          setNodeCounts(visible.reduce<Record<string, number>>((acc, node: any) => {
             acc[node.workspace_id] = (acc[node.workspace_id] ?? 0) + 1;
             return acc;
           }, {}));
@@ -131,7 +134,7 @@ export default function WorkspacesPage() {
       setLoading(false);
     }
     fetchWorkspaces();
-  }, []);
+  }, [operationToggles]);
 
   // Pastas recolhidas por padrão (visão limpa)
   useEffect(() => {
@@ -231,6 +234,31 @@ export default function WorkspacesPage() {
             {showArchived ? "Ocultar arquivados" : "Mostrar arquivados"}
           </Button>
           <Button variant="outline" onClick={() => navigate("/ops/clients")}>+ Novo cliente</Button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <span className="font-semibold uppercase tracking-wider text-[10px] text-foreground/70">Modo operação:</span>
+          <label className="inline-flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" className="accent-primary"
+              checked={operationToggles.showInternal}
+              onChange={(e) => setOperationToggles({ showInternal: e.target.checked })}
+            />
+            Mostrar internos Ops
+          </label>
+          <label className="inline-flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" className="accent-primary"
+              checked={operationToggles.showLegacy}
+              onChange={(e) => setOperationToggles({ showLegacy: e.target.checked })}
+            />
+            Mostrar legados/lixo
+          </label>
+          <label className="inline-flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" className="accent-primary"
+              checked={operationToggles.showUnlinked}
+              onChange={(e) => setOperationToggles({ showUnlinked: e.target.checked })}
+            />
+            Mostrar sem vínculo Portal
+          </label>
         </div>
 
         {loading ? <LoadingState /> : filtered.length === 0 ? (

@@ -50,6 +50,7 @@ import { materializePortalTimelineCanvas } from "@/lib/portalTimelineCanvas";
 import { dbg, dbgWarn, isCanvasDebugEnabled, toggleCanvasDebug } from "@/lib/canvasDebug";
 import CanvasDebugOverlay, { type CanvasDebugStats } from "./CanvasDebugOverlay";
 import { featureFlags } from "@/config/featureFlags";
+import { shouldShowInOperationMode, useOperationModeToggles } from "@/lib/operationModeFilters";
 
 // CanvasStudio é uma camada visual operacional complementar: não substitui o briefing mestre,
 // não cria nova lógica/tabela de sinais estruturados e não usa IA opaca como núcleo decisório.
@@ -459,6 +460,11 @@ function CanvasStudioInner({
   const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState<CanvasNodeRow | null>(null);
   const [aiOrbConfigNode, setAiOrbConfigNode] = useState<CanvasNodeRow | null>(null);
+
+  // Etapa 2 — Modo Operação Visual: por padrão só mostra registros vinculados
+  // ao Portal (task/milestone/projeto). Toggles administrativos abaixo são
+  // OFF por padrão.
+  const [operationToggles] = useOperationModeToggles();
 
   // Auto-sync milestone OPS → Portal: sempre que aparece um milestone_group sem
   // portal_milestone_id (criação local ou via realtime), dispara apply_one no
@@ -1360,6 +1366,8 @@ function CanvasStudioInner({
       // existem no DB para a sincronia bidirecional com o Portal.
       const folderKind = String((node.data as Record<string, unknown> | null)?.kind ?? "").toLowerCase();
       if (folderKind === "project_group" || folderKind === "milestone_group") return false;
+      // Etapa 2 — modo operação visual.
+      if (!shouldShowInOperationMode(node, operationToggles)) return false;
       const meta = readCanvasOperationalMeta(node.data as Record<string, unknown> | null);
       if (typeFilter && nodeKindOf(node) !== typeFilter && node.node_type !== typeFilter) return false;
       if (statusFilter && mapLegacyStatus(node.status) !== statusFilter) return false;
@@ -1372,7 +1380,7 @@ function CanvasStudioInner({
     };
     if (!selectedMilestoneId) return scopedProjectNodes.filter(passesUiFilters);
     return scopedProjectNodes.filter((node) => passesUiFilters(node) && (belongsToMilestone(node, selectedMilestoneId) || (isAiUtilityNode(node) && (!selectedMilestone || node.parent_node_id === selectedMilestone.id || node.parent_node_id === selectedMilestone.parent_node_id))));
-  }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter, selectedMilestoneId]);
+  }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter, selectedMilestoneId, operationToggles]);
 
   const scopedProjectIds = useMemo(() => new Set(scopedProjectNodes.map((n) => n.id)), [scopedProjectNodes]);
   const scopedEdges = useMemo(
