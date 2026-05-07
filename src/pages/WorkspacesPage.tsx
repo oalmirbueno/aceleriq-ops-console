@@ -106,6 +106,8 @@ export default function WorkspacesPage() {
       const { data, error } = await supabase
         .from("workspaces")
         .select("id, name, status, current_stage, summary, updated_at, created_at, clients(id, name, company_name, segment, plan_name, logo_url, status)")
+        .is("deleted_at", null)
+        .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
         .order("updated_at", { ascending: false });
 
       if (!error && data) {
@@ -113,7 +115,13 @@ export default function WorkspacesPage() {
         setWorkspaces(rows);
         const ids = rows.map((w) => w.id);
         if (ids.length > 0) {
-          const { data: nodes } = await supabase.from("canvas_nodes").select("workspace_id").in("workspace_id", ids);
+          const { data: nodes } = await supabase
+            .from("canvas_nodes")
+            .select("workspace_id")
+            .in("workspace_id", ids)
+            .is("deleted_at", null)
+            .is("archived_at", null)
+            .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)");
           setNodeCounts((nodes ?? []).reduce<Record<string, number>>((acc, node: any) => {
             acc[node.workspace_id] = (acc[node.workspace_id] ?? 0) + 1;
             return acc;
