@@ -490,7 +490,7 @@ export default function WorkspaceTabDossie({ workspaceId, clientId, planName, cl
       supabase.from("context_entries")
         .select("id,context_type,title,content,is_key_decision,metadata,tags,happened_at,source_label,source_url,created_at")
         .eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
-      supabase.from("tasks").select("id,status").eq("workspace_id", workspaceId),
+      supabase.from("tasks").select("id,status").eq("workspace_id", workspaceId).neq("status", "archived"),
     ]);
     setContexts((cRes.data as ContextEntry[] | null) ?? []);
     const t = tRes.data ?? [];

@@ -60,7 +60,11 @@ export default function ClientDetailPage() {
     setLoading(true);
     const [c, ws] = await Promise.all([
       supabase.from("clients").select("id, name, company_name, status, segment, plan_name, project_type, custom_monthly_value, logo_url, metadata").eq("id", id).maybeSingle(),
-      supabase.from("workspaces").select("id, name, status, current_stage, updated_at").eq("client_id", id).order("updated_at", { ascending: false }),
+      supabase.from("workspaces").select("id, name, status, current_stage, updated_at")
+        .eq("client_id", id)
+        .is("deleted_at", null)
+        .not("sync_status", "in", "(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
+        .order("updated_at", { ascending: false }),
     ]);
     setClient((c.data as ClientRow) ?? null);
     setWorkspaces((ws.data as WorkspaceRow[]) ?? []);

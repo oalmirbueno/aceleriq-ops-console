@@ -93,7 +93,7 @@ export default function WorkspaceTabAssets({ workspaceId, clientId, onTimelineRe
     const [{ data }, { data: frontData }, { data: taskData }] = await Promise.all([
       q,
       supabase.from("operational_fronts").select("id, name").eq("workspace_id", workspaceId).order("name"),
-      supabase.from("tasks").select("id, title").eq("workspace_id", workspaceId).limit(500),
+      supabase.from("tasks").select("id, title").eq("workspace_id", workspaceId).neq("status", "archived").limit(500),
     ]);
 
     setAssets((data ?? []) as Asset[]);
