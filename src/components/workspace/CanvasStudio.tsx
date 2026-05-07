@@ -461,6 +461,11 @@ function CanvasStudioInner({
   const [selectedNode, setSelectedNode] = useState<CanvasNodeRow | null>(null);
   const [aiOrbConfigNode, setAiOrbConfigNode] = useState<CanvasNodeRow | null>(null);
 
+  // Etapa 2 — Modo Operação Visual: por padrão só mostra registros vinculados
+  // ao Portal (task/milestone/projeto). Toggles administrativos abaixo são
+  // OFF por padrão.
+  const [operationToggles] = useOperationModeToggles();
+
   // Auto-sync milestone OPS → Portal: sempre que aparece um milestone_group sem
   // portal_milestone_id (criação local ou via realtime), dispara apply_one no
   // servidor, que faz upsert idempotente e salva o portal_milestone_id no node.
