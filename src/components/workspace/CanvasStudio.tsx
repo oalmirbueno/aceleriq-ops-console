@@ -1380,7 +1380,7 @@ function CanvasStudioInner({
     };
     if (!selectedMilestoneId) return scopedProjectNodes.filter(passesUiFilters);
     return scopedProjectNodes.filter((node) => passesUiFilters(node) && (belongsToMilestone(node, selectedMilestoneId) || (isAiUtilityNode(node) && (!selectedMilestone || node.parent_node_id === selectedMilestone.id || node.parent_node_id === selectedMilestone.parent_node_id))));
-  }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter, selectedMilestoneId]);
+  }, [scopedProjectNodes, deferredSearch, typeFilter, statusFilter, approvalFilter, blockedFilter, ownerFilter, selectedMilestoneId, operationToggles]);
 
   const scopedProjectIds = useMemo(() => new Set(scopedProjectNodes.map((n) => n.id)), [scopedProjectNodes]);
   const scopedEdges = useMemo(
