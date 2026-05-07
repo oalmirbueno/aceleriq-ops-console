@@ -7,10 +7,11 @@ import { supabase } from "@/integrations/supabase/client";
  * que não chegam por webhook). Roda enquanto o usuário estiver com
  * o Ops aberto.
  */
-export function usePortalAutoSync(intervalMs = 60_000) {
+export function usePortalAutoSync(intervalMs = 60_000, enabled = true) {
   const running = useRef(false);
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
 
     const tick = async () => {
@@ -51,5 +52,5 @@ export function usePortalAutoSync(intervalMs = 60_000) {
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [intervalMs]);
+  }, [intervalMs, enabled]);
 }
