@@ -2,6 +2,71 @@
 
 Documento vivo. Fase V2.1 (read-only).
 
+## ⚠️ Bloqueio atual — task→milestone não resolvível pela bridge
+
+Diagnóstico (v2.2.7, `inspectPortalPayload`):
+
+`ops-full-export` retorna tasks **flat**, com apenas:
+
+- `id`
+- `project_id`
+- `title`
+- `description`
+- `status`
+- `priority`
+- `assigned_to`
+- `created_at`
+
+Não existe nenhum dos campos:
+
+- `milestone_id` / `portal_milestone_id`
+- `folder_id` / `portal_folder_id`
+- `parent_id` / `parent_node_id`
+- container / nesting (tasks **não** vêm aninhadas dentro de milestones).
+
+Conclusão: **não é problema de alias na bridge**. É problema de
+contrato do Portal/export. A bridge não tem como resolver
+task→milestone de forma determinística enquanto o Portal não expor
+esse vínculo.
+
+### O que a bridge NÃO deve fazer
+
+- Não inventar fallback baseado em título, ordem, autor, data.
+- Não usar `canvas_nodes` legacy do OPS como fonte.
+- Não criar bucket "Sem milestone" para acomodar tasks órfãs.
+- Não tentar adivinhar relação por heurística.
+- A bridge fica em estado **aguardando contrato** até o Portal
+  expor `milestone_id` real nas tasks.
+
+### Contrato obrigatório (a ser implementado no Portal)
+
+Cada task em `ops-full-export` (e em `ops-tasks-list`) precisa vir
+com pelo menos um destes campos, em ordem de preferência:
+
+1. `milestone_id` (preferencial)
+2. `portal_milestone_id`
+3. `folder_id` (se for o nome real usado pelo Portal)
+
+Formato ideal de task:
+
+```json
+{
+  "id": "task_id",
+  "project_id": "project_id",
+  "milestone_id": "milestone_id",
+  "title": "...",
+  "description": "...",
+  "status": "...",
+  "priority": "...",
+  "assigned_to": "...",
+  "created_at": "..."
+}
+```
+
+Enquanto esse contrato não estiver vigente, o Canvas V2 do OPS
+permanece sem listar tasks por milestone — por design, não por bug.
+Fase 2 (CanvasStudio adapter) **não** começa antes disso.
+
 ## Princípio
 
 OPS V2 não duplica entidades. Cliente, projeto, milestone e task vivem
