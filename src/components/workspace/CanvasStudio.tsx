@@ -3696,7 +3696,7 @@ function CanvasStudioInner({
             Sync portal
           </Button>
           )}
-          <Button
+          {featureFlags.enableCanvasDevTools && (<Button
             size="sm"
             variant="outline"
             className="h-8 text-xs"
@@ -3729,8 +3729,8 @@ function CanvasStudioInner({
           >
             {busyAction === "smoke-test" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5 mr-1" />}
             Smoke test
-          </Button>
-          <Button
+          </Button>)}
+          {featureFlags.enableCanvasDevTools && (<Button
             size="sm"
             variant="outline"
             className="h-8 text-xs"
@@ -3773,7 +3773,7 @@ function CanvasStudioInner({
           >
             {busyAction === "verify-realtime" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Radio className="h-3.5 w-3.5 mr-1" />}
             Verificar realtime
-          </Button>
+          </Button>)}
           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onToggleFullscreen} aria-label="Alternar tela cheia">
             {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
