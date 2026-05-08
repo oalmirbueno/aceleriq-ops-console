@@ -308,10 +308,12 @@ function CanvasV2Inner() {
           {!activeMilestoneId ? (
             <CanvasOverlay icon={Layers} title="Selecione um milestone" text="O Canvas mostra as tarefas reais do milestone selecionado." />
           ) : tasks.loading ? (
-            <div className="absolute inset-0 grid place-items-center">
-              <div className="flex flex-col items-center gap-3">
-                <Skeleton className="h-32 w-64" />
-                <Skeleton className="h-32 w-64" />
+            <div className="absolute inset-0 grid place-items-center pointer-events-none">
+              <div className="grid grid-cols-2 gap-3 opacity-70">
+                <Skeleton className="h-[140px] w-[260px] rounded-xl" />
+                <Skeleton className="h-[140px] w-[260px] rounded-xl" />
+                <Skeleton className="h-[140px] w-[260px] rounded-xl" />
+                <Skeleton className="h-[140px] w-[260px] rounded-xl" />
               </div>
             </div>
           ) : tasks.error ? (
@@ -350,7 +352,8 @@ function CanvasV2Inner() {
             connectionLineStyle={{ stroke: "hsl(145 100% 50%)", strokeWidth: 3, opacity: 1 }}
             connectionRadius={34}
             proOptions={{ hideAttribution: true }}
-            className="bg-background canvas-flow acelera-ops-flow"
+            className="bg-background canvas-flow acelera-ops-flow animate-fade-in"
+            key={activeMilestoneId || "empty"}
             deleteKeyCode={null}
             defaultEdgeOptions={{
               type: "deletable",

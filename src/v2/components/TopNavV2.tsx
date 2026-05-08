@@ -82,9 +82,12 @@ export default function TopNavV2() {
                 <>
                   <item.icon className="h-3.5 w-3.5" />
                   {item.title}
-                  {isActive && (
-                    <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
-                  )}
+                  <span
+                    className={cn(
+                      "absolute -bottom-0.5 left-3 right-3 h-[2px] rounded-full bg-primary origin-center transition-transform duration-300",
+                      isActive ? "scale-x-100" : "scale-x-0"
+                    )}
+                  />
                 </>
               )}
             </NavLink>
