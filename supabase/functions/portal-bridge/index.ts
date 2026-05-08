@@ -410,8 +410,31 @@ serve(async (req) => {
     if (milestonesRaw.length === 0) milestonesRaw = fb.milestones;
   }
 
+  // ---------- Build alias map (milestones) ----------
+  // Mapeia qualquer alias conhecido → id canônico do milestone.
+  const milestoneAliasToId = new Map<string, string>();
+  for (const m of milestonesRaw) {
+    const aliases = milestoneAliasesOf(m);
+    const canonical = aliases[0];
+    if (!canonical) continue;
+    for (const a of aliases) {
+      if (!milestoneAliasToId.has(a)) milestoneAliasToId.set(a, canonical);
+    }
+  }
+
   // ---------- Build derived indexes ----------
-  const tasksNorm = tasksRaw.map(normalizeTask).filter((t) => t.id && t.projectId);
+  let tasksAliasResolved = 0;
+  const tasksNorm = tasksRaw.map((rawT) => {
+    const t = normalizeTask(rawT);
+    if (t.milestoneId) {
+      const canonical = milestoneAliasToId.get(t.milestoneId);
+      if (canonical && canonical !== t.milestoneId) {
+        t.milestoneId = canonical;
+        tasksAliasResolved += 1;
+      }
+    }
+    return t;
+  }).filter((t) => t.id && t.projectId);
   const tasksByMilestone = new Map<string, typeof tasksNorm>();
   const tasksByProject = new Map<string, typeof tasksNorm>();
   for (const t of tasksNorm) {
