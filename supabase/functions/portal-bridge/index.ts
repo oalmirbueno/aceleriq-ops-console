@@ -105,6 +105,7 @@ function projectIdOf(t: Record<string, any>) {
   const meta = (t.metadata ?? {}) as Record<string, any>;
   const data = (t.data ?? {}) as Record<string, any>;
   return firstString(
+    t._containerProjectId,
     t.project_id, t.projectId,
     t.portal_project_id, t.portalProjectId,
     t.workspace_id,
@@ -119,6 +120,7 @@ function milestoneIdOf(t: Record<string, any>) {
   const meta = (t.metadata ?? {}) as Record<string, any>;
   const data = (t.data ?? {}) as Record<string, any>;
   return firstString(
+    t._containerMilestoneId,
     t.milestone_id, t.milestoneId,
     t.portal_milestone_id, t.portalMilestoneId,
     t.folder_id, t.portal_folder_id, t.folderId, t.portalFolderId,
@@ -149,6 +151,7 @@ function resolveTaskMilestone(
   const task = (t.task ?? {}) as Record<string, any>;
   const buckets: { cat: "direct" | "folder" | "parent"; vals: unknown[] }[] = [
     { cat: "direct", vals: [
+      t._containerMilestoneId,
       t.milestone_id, t.milestoneId, t.portal_milestone_id, t.portalMilestoneId,
       t.ops_milestone_id, t.opsMilestoneId,
       t.parent_milestone_id, t.parentMilestoneId,
