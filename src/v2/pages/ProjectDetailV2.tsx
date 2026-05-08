@@ -1,5 +1,7 @@
 import { useParams, NavLink, Outlet, useLocation } from "react-router-dom";
 import HeaderV2 from "@/v2/components/HeaderV2";
+import { usePortalQuery } from "@/v2/data/usePortalQuery";
+import { portalClient } from "@/v2/data/portalClient";
 
 const TABS = [
   { to: "", label: "Visão geral", end: true },
@@ -15,11 +17,18 @@ export default function ProjectDetailV2() {
   const { projectId } = useParams();
   const location = useLocation();
   const base = `/ops-v2/projetos/${projectId}`;
+  const { data: project } = usePortalQuery(
+    () => projectId ? portalClient.getProject(projectId) : Promise.resolve(null),
+    [projectId],
+  );
 
   return (
     <>
-      <HeaderV2 title="Projeto" subtitle={projectId} />
-      <div className="border-b border-border px-8">
+      <HeaderV2
+        title={project?.name ?? "Projeto"}
+        subtitle={project ? `${project.clientName} · ${Math.round(project.progress * 100)}%` : projectId}
+      />
+      <div className="border-b border-border">
         <nav className="flex gap-1 overflow-x-auto">
           {TABS.map((t) => {
             const to = t.to === "canvas" ? `${base}/canvas` : t.to ? `${base}/${t.to}` : base;
@@ -41,7 +50,7 @@ export default function ProjectDetailV2() {
           })}
         </nav>
       </div>
-      <div className="px-8 py-6">
+      <div className="py-6">
         <Outlet />
       </div>
     </>
