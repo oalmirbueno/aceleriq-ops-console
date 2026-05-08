@@ -627,6 +627,25 @@ serve(async (req) => {
     if (milestonesRaw.length === 0) milestonesRaw = fb.milestones;
   }
 
+  // Fetch global clients list (Portal exposes ops-clients-list with names/company).
+  // Used to enrich projects.clientName when the project payload lacks it.
+  const clientsRaw = await fetchClientsList(headers);
+  const clientsMap = new Map<string, { name: string; company: string; email: string }>();
+  for (const c of clientsRaw) {
+    const f = extractClientFields(c);
+    if (!f.id) continue;
+    const prev = clientsMap.get(f.id);
+    if (!prev) {
+      clientsMap.set(f.id, { name: f.name, company: f.company, email: f.email });
+    } else {
+      clientsMap.set(f.id, {
+        name: prev.name || f.name,
+        company: prev.company || f.company,
+        email: prev.email || f.email,
+      });
+    }
+  }
+
   // ---------- Build alias map (milestones) ----------
   // Mapeia qualquer alias conhecido → id canônico do milestone.
   const milestoneAliasToId = new Map<string, string>();
