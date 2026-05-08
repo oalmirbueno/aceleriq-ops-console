@@ -30,6 +30,9 @@ export const V2_SETTINGS = {
   canvasAutoOrganize: { key: "ops-v2:canvas:auto-organize", ...bool(true) } as Setting<boolean>,
   canvasDefaultFullscreen: { key: "ops-v2:canvas:fullscreen", ...bool(false) } as Setting<boolean>,
   canvasDensity: { key: "ops-v2:canvas:density", ...enumStr<"comfortable" | "compact">("comfortable", ["comfortable", "compact"]) } as Setting<"comfortable" | "compact">,
+  canvasShowDock: { key: "ops-v2:canvas:dock", ...bool(true) } as Setting<boolean>,
+  canvasShowIAHub: { key: "ops-v2:canvas:ia-hub", ...bool(true) } as Setting<boolean>,
+  canvasNodeSize: { key: "ops-v2:canvas:node-size", ...enumStr<"sm" | "md" | "lg">("md", ["sm", "md", "lg"]) } as Setting<"sm" | "md" | "lg">,
 };
 
 const EVENT = "ops-v2:settings:changed";
@@ -67,3 +70,14 @@ export function useV2Setting<T>(s: Setting<T>): [T, (v: T) => void] {
 }
 
 export function readV2Setting<T>(s: Setting<T>): T { return read(s); }
+
+/** Reseta todas as preferências visuais V2 para o default. */
+export function resetV2Settings() {
+  if (typeof window === "undefined") return;
+  try {
+    Object.values(V2_SETTINGS).forEach((s) => {
+      window.localStorage.removeItem((s as Setting<unknown>).key);
+      window.dispatchEvent(new CustomEvent(EVENT, { detail: { key: (s as Setting<unknown>).key } }));
+    });
+  } catch { /* noop */ }
+}

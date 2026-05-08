@@ -18,9 +18,9 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
-  RefreshCw, ExternalLink, Sparkles, Layers, ListChecks, Info,
-  PanelRightClose, PanelRightOpen, Plus, Brain, FileText, Lock,
-  Maximize2, Minimize2, ChevronDown, Eye, LayoutGrid,
+  RefreshCw, ExternalLink, Layers, ListChecks,
+  PanelRightClose, PanelRightOpen,
+  Maximize2, Minimize2, ChevronDown,
 } from "lucide-react";
 import { usePortalQuery } from "@/v2/data/usePortalQuery";
 import {
@@ -34,6 +34,10 @@ import CanvasGroupNode from "@/components/workspace/CanvasGroupNode";
 import DeletableEdge from "@/components/workspace/DeletableEdge";
 import { portalTaskToNodeData } from "@/v2/components/canvas/portalToLegacy";
 import { useV2Setting, V2_SETTINGS } from "@/v2/lib/v2Settings";
+import CanvasDockV2 from "@/v2/components/canvas/CanvasDockV2";
+import IAHubV2 from "@/v2/components/canvas/IAHubV2";
+import TaskInspectorV2 from "@/v2/components/canvas/TaskInspectorV2";
+import AddTaskBlockedDialog from "@/v2/components/canvas/AddTaskBlockedDialog";
 
 const NODE_TYPES = {
   projectCard: ProjectNodeCard,
@@ -48,9 +52,6 @@ const LANE_LABEL: Record<PortalTaskStatus, string> = {
 const LANE_COLOR: Record<PortalTaskStatus, string> = {
   todo: "hsl(220 9% 60%)", in_progress: "hsl(145 100% 50%)", blocked: "hsl(0 84% 60%)",
   done: "hsl(145 70% 45%)", archived: "hsl(220 9% 40%)",
-};
-const MILESTONE_STATUS_LABEL: Record<PortalMilestone["status"], string> = {
-  planned: "Planejada", in_progress: "Em curso", done: "Concluída", paused: "Pausada",
 };
 
 /* ───────── Layout ─────────
@@ -123,9 +124,13 @@ function CanvasV2Inner() {
   const [showSidePanel] = useV2Setting(V2_SETTINGS.canvasShowSidePanel);
   const [defaultFullscreen] = useV2Setting(V2_SETTINGS.canvasDefaultFullscreen);
   const [showMinimap] = useV2Setting(V2_SETTINGS.canvasShowMinimap);
+  const [showDock] = useV2Setting(V2_SETTINGS.canvasShowDock);
+  const [showIAHub] = useV2Setting(V2_SETTINGS.canvasShowIAHub);
   const [panelOpen, setPanelOpen] = useState(showSidePanel);
   const [fullscreen, setFullscreen] = useState(defaultFullscreen);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [iaHubOpen, setIaHubOpen] = useState(false);
+  const [hiddenStatuses, setHiddenStatuses] = useState<Set<PortalTaskStatus>>(new Set());
 
   const project = usePortalQuery(
     () => projectId ? portalClient.getProject(projectId) : Promise.resolve(null),
@@ -192,15 +197,27 @@ function CanvasV2Inner() {
 
   const layout = useMemo(() => buildLayout(tasks.data ?? []), [tasks.data]);
 
+  const visibleLayout = useMemo(() => {
+    if (hiddenStatuses.size === 0) return layout;
+    const taskById = new Map((tasks.data ?? []).map((t) => [t.id, t] as const));
+    const visibleNodes = layout.nodes.filter((n) => {
+      const t = taskById.get(n.id);
+      return !t || !hiddenStatuses.has(t.status);
+    });
+    const visibleIds = new Set(visibleNodes.map((n) => n.id));
+    const visibleEdges = layout.edges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target));
+    return { nodes: visibleNodes, edges: visibleEdges };
+  }, [layout, hiddenStatuses, tasks.data]);
+
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>(layout.nodes);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>(layout.edges);
   const [layoutTick, setLayoutTick] = useState(0);
 
   useEffect(() => {
-    setRfNodes(layout.nodes);
-    setRfEdges(layout.edges);
+    setRfNodes(visibleLayout.nodes);
+    setRfEdges(visibleLayout.edges);
     setSelectedTaskId(null);
-  }, [layout, setRfNodes, setRfEdges, layoutTick]);
+  }, [visibleLayout, setRfNodes, setRfEdges, layoutTick]);
 
   const organize = useCallback(() => setLayoutTick((n) => n + 1), []);
 
@@ -222,6 +239,10 @@ function CanvasV2Inner() {
   const selectedTask = useMemo(
     () => tasks.data?.find((t) => t.id === selectedTaskId) ?? null,
     [tasks.data, selectedTaskId],
+  );
+  const upcomingTasks = useMemo(
+    () => (tasks.data ?? []).filter((t) => t.status === "todo" || t.status === "in_progress"),
+    [tasks.data],
   );
 
   const reloadAll = () => {
@@ -270,19 +291,6 @@ function CanvasV2Inner() {
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            onClick={() => setAddDialogOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 h-7 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/30"
-          >
-            <Plus className="h-3.5 w-3.5" /> Adicionar
-          </button>
-          <button
-            onClick={organize}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 h-7 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/30"
-            title="Organizar visualmente (local, não persiste)"
-          >
-            <LayoutGrid className="h-3.5 w-3.5" /> Organizar
-          </button>
           <button
             onClick={reloadAll}
             className="h-7 w-7 grid place-items-center rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:border-foreground/30"
@@ -415,27 +423,61 @@ function CanvasV2Inner() {
               </span>
             </div>
           )}
+
+          {/* Floating dock (bottom center) */}
+          {showDock && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+              <CanvasDockV2
+                onOrganize={organize}
+                onAddBlocked={() => setAddDialogOpen(true)}
+                onToggleIAHub={() => setIaHubOpen((v) => !v)}
+                iaHubOpen={iaHubOpen}
+                iaHubEnabled={showIAHub}
+                hiddenStatuses={hiddenStatuses}
+                onChangeFilters={setHiddenStatuses}
+                portalUrl={portalUrl}
+              />
+            </div>
+          )}
+
+          {/* IA Hub orb (bottom right) */}
+          {showIAHub && (
+            <div className="absolute bottom-4 right-4 z-20">
+              <IAHubV2
+                open={iaHubOpen}
+                onOpenChange={setIaHubOpen}
+                clientName={project.data?.clientName}
+                projectName={project.data?.name}
+                milestone={selectedMilestone}
+                selectedTask={selectedTask}
+                upcomingTasks={upcomingTasks}
+                briefing={briefing}
+              />
+            </div>
+          )}
         </div>
 
         {/* Side panel */}
         {panelOpen && (
-          <aside className="w-[340px] shrink-0 border-l border-border bg-card/40 backdrop-blur-sm overflow-y-auto">
-            <SidePanel
-              project={project.data}
-              milestone={selectedMilestone}
+          <aside className="w-[400px] shrink-0 border-l border-border bg-card/40 backdrop-blur-sm">
+            <TaskInspectorV2
               task={selectedTask}
-              taskCount={tasks.data?.length ?? 0}
-              briefing={briefing}
-              briefingsLoading={briefings.loading}
-              opsClientId={briefing?.opsClientId ?? project.data?.clientId ?? ""}
+              milestone={selectedMilestone}
+              projectName={project.data?.name}
+              clientName={project.data?.clientName}
+              portalUrl={portalUrl}
+              onClose={() => setPanelOpen(false)}
             />
           </aside>
         )}
       </div>
 
-      {addDialogOpen && (
-        <AddTaskNotice onClose={() => setAddDialogOpen(false)} portalUrl={portalUrl} />
-      )}
+      <AddTaskBlockedDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        portalUrl={portalUrl}
+        milestoneTitle={selectedMilestone?.title}
+      />
     </div>
   );
 }
@@ -516,179 +558,6 @@ function CanvasOverlay({
         </div>
         <p className="text-sm font-medium text-foreground">{title}</p>
         <p className="text-xs text-muted-foreground max-w-sm">{text}</p>
-      </div>
-    </div>
-  );
-}
-
-function SidePanel({
-  project, milestone, task, taskCount, briefing, briefingsLoading, opsClientId,
-}: {
-  project: { name: string; clientName: string; progress: number; clientId?: string } | null;
-  milestone: PortalMilestone | null;
-  task: PortalTask | null;
-  taskCount: number;
-  briefing: import("@/v2/data/portalClient").BriefingSummary | null;
-  briefingsLoading: boolean;
-  opsClientId: string;
-}) {
-  return (
-    <div className="p-3 space-y-3">
-      {/* IA Hub */}
-      <div className="rounded-xl border border-border/80 bg-gradient-to-br from-primary/[0.06] to-transparent p-3">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="h-6 w-6 rounded-md bg-primary/15 grid place-items-center">
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
-          </div>
-          <p className="text-xs font-semibold text-foreground">IA Hub</p>
-          <span className="ml-auto text-[9px] uppercase tracking-wider text-muted-foreground/70 font-medium">read-only</span>
-        </div>
-        <p className="text-[11px] text-muted-foreground leading-relaxed mb-2">
-          Próximos passos sugeridos com base no briefing essencial e no estado real do projeto.
-        </p>
-        <div className="space-y-1.5">
-          <SuggestionRow icon={Brain} text="Sugestões em breve" />
-          <SuggestionRow icon={ListChecks} text="Memória do projeto" />
-          <SuggestionRow icon={FileText} text="Decisões registradas" />
-        </div>
-      </div>
-
-      {/* Briefing essencial */}
-      <div className="rounded-xl border border-border/80 bg-card p-3">
-        <div className="flex items-center gap-2 mb-2">
-          <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Briefing essencial</p>
-        </div>
-        {briefingsLoading ? (
-          <Skeleton className="h-16 w-full" />
-        ) : briefing ? (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
-              <span className="text-xs text-foreground font-medium">Preenchido</span>
-              <span className="ml-auto text-[10px] text-muted-foreground tabular-nums font-mono">
-                {briefing.approxFields} campos
-              </span>
-            </div>
-            <Field label="Cliente" value={briefing.clientName} />
-            {briefing.company && <Field label="Empresa" value={briefing.company} />}
-            <Field label="Atualizado" value={briefing.updatedAt ? new Date(briefing.updatedAt).toLocaleDateString("pt-BR") : "—"} />
-            {opsClientId && (
-              <a
-                href={`/clients/${opsClientId}/briefing`}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-primary hover:underline"
-              >
-                <Eye className="h-3 w-3" /> Abrir preview no OPS antigo
-              </a>
-            )}
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">Nenhum briefing essencial disponível para este cliente.</p>
-        )}
-      </div>
-
-      {/* Contexto */}
-      <div className="rounded-xl border border-border/80 bg-card p-3 space-y-1.5">
-        <div className="flex items-center gap-2 mb-1">
-          <Info className="h-3.5 w-3.5 text-muted-foreground" />
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Contexto</p>
-        </div>
-        <Field label="Cliente" value={project?.clientName ?? "—"} />
-        <Field label="Projeto" value={project?.name ?? "—"} />
-        <Field label="Milestone" value={milestone?.title ?? "—"} />
-        <Field label="Status" value={milestone ? MILESTONE_STATUS_LABEL[milestone.status] : "—"} />
-        <Field label="Tarefas" value={milestone ? String(taskCount) : "—"} />
-      </div>
-
-      {/* Detalhe da tarefa */}
-      <div className="rounded-xl border border-border/80 bg-card p-3">
-        <div className="flex items-center gap-2 mb-2">
-          <ListChecks className="h-3.5 w-3.5 text-muted-foreground" />
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Tarefa selecionada</p>
-        </div>
-        {task ? (
-          <div className="space-y-2">
-            <p className="text-sm font-semibold text-foreground leading-snug">{task.title}</p>
-            {task.description && (
-              <p className="text-[11px] text-muted-foreground whitespace-pre-wrap leading-relaxed">{task.description}</p>
-            )}
-            <div className="pt-1 space-y-1.5">
-              <Field label="Status" value={statusLabel(task.status)} />
-              <Field label="Progresso" value={`${Math.round(task.progress * 100)}%`} />
-              <Field label="Responsável" value={task.assigneeName ?? "—"} />
-              <Field label="Prazo" value={task.dueAt ? new Date(task.dueAt).toLocaleDateString("pt-BR") : "—"} />
-            </div>
-            <p className="pt-2 mt-1 border-t border-border text-[10px] text-muted-foreground/70 inline-flex items-center gap-1">
-              <Lock className="h-3 w-3" /> Read-only · edite no Portal.
-            </p>
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">Clique em um node para ver detalhes.</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function SuggestionRow({ icon: Icon, text }: { icon: typeof Brain; text: string }) {
-  return (
-    <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-foreground/[0.02] border border-border/40">
-      <Icon className="h-3 w-3 text-muted-foreground/70" />
-      <span className="text-[11px] text-muted-foreground">{text}</span>
-    </div>
-  );
-}
-
-function statusLabel(s: PortalTaskStatus): string {
-  return ({
-    todo: "A fazer", in_progress: "Em curso", blocked: "Bloqueada", done: "Concluída", archived: "Arquivada",
-  } as const)[s];
-}
-
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-start justify-between gap-2 text-xs">
-      <span className="text-muted-foreground/80 shrink-0 text-[11px]">{label}</span>
-      <span className="text-foreground text-right font-medium truncate text-[11px]">{value}</span>
-    </div>
-  );
-}
-
-function AddTaskNotice({ onClose, portalUrl }: { onClose: () => void; portalUrl: string }) {
-  return (
-    <div className="fixed inset-0 z-[60] grid place-items-center bg-background/70 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="w-[420px] rounded-xl border border-border bg-card shadow-2xl p-5"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <div className="h-8 w-8 rounded-md bg-primary/15 grid place-items-center">
-            <Lock className="h-4 w-4 text-primary" />
-          </div>
-          <p className="text-sm font-semibold text-foreground">Disponível na fase de edição</p>
-        </div>
-        <p className="text-xs text-muted-foreground leading-relaxed mb-4">
-          Adicionar tarefas no Canvas V2 ainda não está disponível. Tarefas são criadas no Portal Aceleriq —
-          quando a fase de edição estiver liberada, este botão criará uma task no Portal automaticamente.
-        </p>
-        <div className="flex items-center justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="rounded-md border border-border bg-background px-3 h-8 text-xs text-muted-foreground hover:text-foreground"
-          >
-            Fechar
-          </button>
-          <a
-            href={portalUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 h-8 text-xs text-primary hover:bg-primary/15"
-          >
-            <ExternalLink className="h-3 w-3" /> Abrir Portal
-          </a>
-        </div>
       </div>
     </div>
   );
