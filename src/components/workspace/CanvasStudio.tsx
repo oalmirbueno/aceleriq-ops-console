@@ -467,7 +467,7 @@ function CanvasStudioInner({
   // OFF por padrão.
   const [operationToggles] = useOperationModeToggles();
   const [devMode] = useDevMode();
-  const showDevTools = devMode || featureFlags.enableCanvasDevTools;
+  const showDevTools = devMode || showDevTools;
 
   // Auto-sync milestone OPS → Portal: sempre que aparece um milestone_group sem
   // portal_milestone_id (criação local ou via realtime), dispara apply_one no
@@ -3605,7 +3605,7 @@ function CanvasStudioInner({
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
             <span className="hidden md:inline ml-1">Recarregar</span>
           </Button>
-          {featureFlags.enableCanvasDevTools && (<>
+          {showDevTools && (<>
           <Button size="sm" variant="ghost" className="h-8" onClick={handleAutoLayout} disabled={busyAction === "layout" || projectNodes.length === 0}>
             {busyAction === "layout" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LayoutGrid className="h-3.5 w-3.5" />}
             <span className="hidden md:inline ml-1 text-xs">Reorganizar</span>
@@ -3672,7 +3672,7 @@ function CanvasStudioInner({
               }
             }}
           />
-          {featureFlags.enableDevSyncTools && (
+          {showDevTools && (
           <Button
             size="sm"
             variant="outline"
@@ -3699,7 +3699,7 @@ function CanvasStudioInner({
             Sync portal
           </Button>
           )}
-          {featureFlags.enableCanvasDevTools && (<Button
+          {showDevTools && (<Button
             size="sm"
             variant="outline"
             className="h-8 text-xs"
@@ -3733,7 +3733,7 @@ function CanvasStudioInner({
             {busyAction === "smoke-test" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5 mr-1" />}
             Smoke test
           </Button>)}
-          {featureFlags.enableCanvasDevTools && (<Button
+          {showDevTools && (<Button
             size="sm"
             variant="outline"
             className="h-8 text-xs"
