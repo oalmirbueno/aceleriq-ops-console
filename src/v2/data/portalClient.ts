@@ -335,6 +335,30 @@ async function invokeBridge<T>(action: string, params?: Record<string, unknown>)
   return data as T;
 }
 
+// ----- Session cache (ttl) para evitar refetch a cada troca de aba -----
+const TTL_MS = 30_000;
+type Entry = { at: number; value: unknown };
+const cache = new Map<string, Entry>();
+const inflight = new Map<string, Promise<unknown>>();
+function ck(action: string, params?: Record<string, unknown>) {
+  return action + ":" + JSON.stringify(params ?? {});
+}
+async function cachedInvoke<T>(action: string, params?: Record<string, unknown>): Promise<T> {
+  const key = ck(action, params);
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.value as T;
+  const pending = inflight.get(key);
+  if (pending) return pending as Promise<T>;
+  const p = invokeBridge<T>(action, params).then((v) => {
+    cache.set(key, { at: Date.now(), value: v });
+    inflight.delete(key);
+    return v;
+  }).catch((e) => { inflight.delete(key); throw e; });
+  inflight.set(key, p);
+  return p;
+}
+export function clearPortalCache() { cache.clear(); inflight.clear(); }
+
 const bridgeClient: PortalClientApi = {
   async listClients() {
     const r = await invokeBridge<{ clients: PortalClient[] }>("listClients");
