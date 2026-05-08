@@ -3638,6 +3638,7 @@ function CanvasStudioInner({
               onApplied={fetchData}
             />
           )}
+          </>)}
           <div className="h-5 w-px bg-border mx-1" />
           <CanvasProjectLinker
             workspaceId={workspaceId}
