@@ -16,11 +16,13 @@ export default function ClientsV2() {
             <ul className="divide-y divide-border">
               {data.map((c) => (
                 <li key={c.id} className="px-4 py-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{c.name}</p>
-                    <p className="text-xs text-muted-foreground">{c.id}</p>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{c.displayName || c.name}</p>
+                    {c.company && c.company !== (c.displayName || c.name) && (
+                      <p className="text-xs text-muted-foreground truncate">{c.company}</p>
+                    )}
                   </div>
-                  <span className="text-xs text-muted-foreground">{c.activeProjectsCount} ativos</span>
+                  <span className="text-xs text-muted-foreground shrink-0">{c.activeProjectsCount} ativos</span>
                 </li>
               ))}
               {data.length === 0 && (
