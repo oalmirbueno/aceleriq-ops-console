@@ -752,11 +752,21 @@ serve(async (req) => {
       if (!c.email && (p as any).clientEmail) c.email = (p as any).clientEmail;
       byClient.set(p.clientId, c);
     }
+    // Merge global clientsMap (from ops-clients-list) — fonte primária de
+    // displayName/company/email quando o payload de projects não traz.
+    for (const [cid, info] of clientsMap.entries()) {
+      const prev = byClient.get(cid) ?? { name: "", company: "", email: "" };
+      byClient.set(cid, {
+        name: prev.name || info.name,
+        company: prev.company || info.company,
+        email: prev.email || info.email,
+      });
+    }
     for (const p of projectsNorm) {
       if (!p.clientId) continue;
-      const c = byClient.get(p.clientId)!;
+      const c = byClient.get(p.clientId) ?? { name: "", company: "", email: "" };
       const { displayName, missing } = resolveClientDisplayName(c.name, c.company, c.email);
-      const operationalName = displayName || c.company || c.email || "Cliente sem nome";
+      const operationalName = displayName || c.company || c.email || "";
       (p as any).clientName = operationalName;
       (p as any).clientDisplayName = operationalName;
       (p as any).clientCompany = c.company || null;
