@@ -339,6 +339,8 @@ function normalizeProject(
     id,
     clientId: clientIdOf(p),
     clientName: clientNameOf(p) || "Cliente",
+    clientCompany: clientCompanyOf(p) || "",
+    clientEmail: clientEmailOf(p) || "",
     name: firstString(p.name, p.title, "Projeto"),
     status: (["active", "paused", "done", "archived"].includes(status)
       ? status : "active") as "active" | "paused" | "done" | "archived",
