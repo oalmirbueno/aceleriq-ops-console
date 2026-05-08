@@ -1,92 +1,119 @@
-
-# Reorganização da entrada do canvas (projeto → milestone → esteira)
-
-Objetivo: fluxo limpo, sem precisar apertar nada. Workspace lista os projetos vindos do Portal, cada projeto abre seu próprio canvas, milestones aparecem como pastas/abas no topo da esteira, tasks são os nodes. Tudo bidirecional em tempo real.
-
-Sem mudanças de SQL. Sem novas edge functions. Apenas frontend + ajustes pontuais nas funções existentes (`pull-portal-tasks` já lida com isso).
-
----
-
-## 1. Workspace agora lista projetos (em vez de "Abrir Canvas" cego)
-
-**Arquivo:** `src/pages/WorkspaceDetailPage.tsx`
-
-- Remover o botão único "Abrir Canvas" que ia para `/ops/canvas/open?...` (que confunde quando há mais de um projeto e abre um canvas vazio quando não há nenhum).
-- Adicionar um pequeno seletor "Projetos do Portal" no header (ou aba `canvas`):
-  - Lê `canvas_nodes` com `data.kind = project_group` do workspace.
-  - Mostra cada projeto como cartão; click → `navigate("/ops/projects/:portalProjectId")` (rota que já existe).
-  - Se a lista estiver vazia, mostra um estado neutro "Aguardando projeto do Portal — sincronizando…" e dispara `pull-portal-tasks` automaticamente em background (nada de botão).
-- Remover botões redundantes "Sync portal" / "Atualizar progresso" do header. Manter um único "Sincronizar" discreto (ícone refresh) escondido num menu, só como fallback.
-
-## 2. Auto-pull ao abrir um projeto (sem clicar em sync)
-
-**Arquivo:** `src/pages/ProjectCanvasPage.tsx`
-
-- Antes de montar o `CanvasStudio`, invocar `supabase.functions.invoke("pull-portal-tasks", { body: { workspaceId, portalProjectId } })` uma vez (silencioso, sem toast). Mostrar `Loader` até resolver.
-- Depois disso, o realtime em `canvas_nodes` mantém tudo atualizado. O `usePortalAutoSync` global continua cobrindo deleções.
-- Resultado: ao entrar no projeto, milestones e tasks já chegam puxados sem nenhum clique.
-
-## 3. Seletor de milestone (pasta) no topo do canvas
-
-Já existe `CanvasMilestoneTabs` — vamos torná-lo a entrada principal:
-
-**Arquivo:** `src/components/workspace/CanvasStudio.tsx`
-
-- Quando `portalProjectIdProp` está definido (rota `/ops/projects/:id`):
-  - Se `selectedMilestoneId` for `null`, NÃO mostrar a esteira completa: mostrar uma tela "Escolha o milestone" com cards grandes (uma pasta por milestone, com contador done/total) + opção "Visão geral" pra ver tudo.
-  - Ao escolher uma pasta, ativa `selectedMilestoneId` e o canvas entra em modo esteira fordista (esse modo já existe — `FordismoLaneNode`).
-  - As outras pastas continuam visíveis como abas no topo (já é o comportamento atual do `CanvasMilestoneTabs`), permitindo trocar sem sair.
-- Quando criar um node novo no canvas com milestone selecionado, propagar `portal_milestone_id` no payload de `sync-to-portal` (já feito), garantindo que aparece no kanban do Portal dentro da coluna/milestone certa.
-
-## 4. Limpeza de botões confusos
-
-- `WorkspaceTabCanvas`: remover o botão "Abrir canvas completo" duplicado e usar apenas o seletor de projetos.
-- `WorkspaceDetailPage` header: tirar "Abrir Canvas" genérico; deixar só ações relevantes (Chat IA, Prompts IA).
-- `CanvasFullscreenPage`: simplificar — se `workspaceId` tem 0 projetos, redireciona pro WorkspaceDetailPage com aviso "Nenhum projeto ainda — crie um no Portal"; se tem 1, abre direto; se tem N, mostra escolha (já faz isso, ok).
-
-## 5. Realtime bidirecional (já funcionando, manter)
-
-Não mexer em:
-- `receive-portal-sync` (Portal → Ops)
-- `sync-to-portal` (Ops → Portal)
-- `usePortalAutoSync` (reconciliação 60s)
-- Triggers do canvas_nodes
-
-Apenas garantir que ao criar um node no modo esteira de um milestone selecionado, o payload Ops→Portal carregue `milestone_id` (verificar `syncToPortalEvents.ts`; ajuste pontual se faltar).
-
----
-
-## Diagrama do fluxo final
+## Hierarquia oficial do produto
 
 ```text
-/ops/workspaces/:wsId
-  └── [Projeto A] [Projeto B]   ← cards (project_group do Portal)
-         │
-         ▼ click
-/ops/projects/:portalProjectId   ← auto-pull dispara
-  └── "Escolha o milestone"
-       [Discovery] [Estratégia] [Produção] [Lançamento]
-              │
-              ▼ click
-       Canvas em modo esteira fordista do milestone
-       ── tabs no topo permitem trocar sem sair ──
-       Tasks = nodes, criados/editados ↔ Portal kanban em tempo real
+Cliente
+  └── Projeto / Workspace
+        └── Milestone        ← frente/tema/missão de execução
+              └── Task        ← ação executável (node no canvas)
 ```
+
+Portal é fonte da verdade. OPS espelha e opera. Milestone é a **camada central** de organização — nada de node solto, nada de "Sem milestone", nada de `project_group`/`front` legado, nada de milestone criado automaticamente ao abrir tela.
 
 ---
 
-## Detalhes técnicos
+## A) Diagnóstico das telas atuais (revisado com foco em milestone)
 
-- Nenhum SQL novo. Schema atual (`canvas_nodes` com `data.kind` em `project_group`/`milestone_group`, `portal_project_id`, `portal_milestone_id`) já cobre tudo.
-- Nenhuma edge function nova. `pull-portal-tasks` já cria os groups de projeto/milestone idempotentemente (visto em `ensureProjectGroupNode` / `ensureMilestoneGroupNode`).
-- Mudanças isoladas em 4 arquivos React: `WorkspaceDetailPage.tsx`, `ProjectCanvasPage.tsx`, `CanvasStudio.tsx`, `WorkspaceTabCanvas.tsx`. Não toca em sync, realtime, drawers, IA, métricas.
-- Risco: baixo. Removemos apenas botões e adicionamos um gate visual antes da esteira. Se o usuário não escolher milestone, ainda há "Visão geral" para o comportamento legado.
+| Tela | Problema |
+|---|---|
+| Dashboard | Não menciona milestones. Cards focam em workspaces e eventos crus. |
+| Clientes | Não mostra milestone atual nem próxima ação. |
+| Workspace | Não tem aba Milestones. Milestones só existem como abas dentro do canvas. |
+| Canvas | Já filtra server-side, mas pode entrar sem milestone selecionado e tentar renderizar tudo. |
+| Tarefas | Não existe como aba dedicada. Tasks só vivem dentro do canvas. |
+| Histórico/Feed | Sem filtro por milestone, mistura eventos técnicos. |
+| Settings | Modo Dev existe mas não centraliza ferramentas técnicas. |
+| Sidebar | ADMIN sempre visível, polui modo operação. |
 
-## Como você verifica depois
+---
 
-1. Apaga um milestone no Portal → some da barra e da tela de escolha em ≤60s.
-2. Cria task no Portal dentro de um milestone → aparece como node já no milestone certo (sem refresh).
-3. Cria node no Ops com um milestone selecionado → vira task no kanban do Portal naquele milestone.
-4. Workspace sem projeto: mostra "aguardando projeto do Portal", sem botão Sync visível.
+## B) Arquitetura de navegação (milestone-first)
 
-Aprova para eu aplicar?
+```text
+/ops (Modo Operação — padrão)
+├── Dashboard
+│     KPIs: projetos ativos · milestones em andamento ·
+│            tasks abertas · tasks vencidas · progresso por milestone
+├── Clientes
+│     Linha: cliente · projeto ativo · milestone atual · progresso · próxima ação
+│     └── Cliente
+├── Workspaces
+│     └── Workspace (abas fixas)
+│           ├── Visão geral     KPIs do projeto + milestone atual + próximas tasks
+│           ├── Milestones       lista visual (status, progresso, #tasks, abrir Canvas/Portal)
+│           ├── Tarefas          agrupadas por milestone, filtros por status
+│           ├── Canvas           inicia com seleção de milestone obrigatória
+│           ├── Contexto         memória/decisões/observações/próximos passos
+│           ├── Arquivos         drive/assets
+│           └── Histórico        feed útil, filtrável por milestone
+└── Configurações
+      └── [Modo Dev ON revela]
+            ├── IA / Agentes
+            ├── Sync logs
+            ├── Sync manual / Smoke test / Verify realtime
+            ├── Templates / Playbook / Repair legacy
+            └── Toggles "mostrar internos / legados / sem vínculo"
+```
+
+Sidebar: seção ADMIN (IA, Sync logs, Configurações avançadas) só aparece com Modo Dev ON.
+
+---
+
+## C) Componentes a criar / simplificar
+
+Novos (frontend only):
+- `src/lib/milestoneModel.ts` — derivar projetos/milestones/tasks a partir de `canvas_nodes` Portal-bound (já bound pela query server-side da Etapa 3). Funções: `listMilestones(projectId)`, `listTasksByMilestone(milestoneId)`, `milestoneProgress(milestone, tasks)`.
+- `src/lib/operationalEvents.ts` — predicado para esconder `sync_*`/`e2e_*`/`smoke_*`/`fake_*` no feed.
+- `src/components/workspace/MilestonesTab.tsx` — aba dedicada.
+- `src/components/workspace/TasksTab.tsx` — aba dedicada, agrupada por milestone.
+- `src/components/workspace/ContextTab.tsx` — consolidar leitura/edição de memória/decisões/próximos passos.
+- `src/components/workspace/HistoryTab.tsx` — feed filtrado + filtro por milestone.
+- `src/components/DevOnly.tsx` — wrapper de renderização condicional.
+
+Simplificar:
+- `DashboardPage` → KPIs milestone-aware (projetos ativos, milestones em andamento, tasks abertas/vencidas, progresso médio por milestone).
+- `WorkspacesPage` → cards com milestone atual + progresso. Toggles dev movem-se para Settings.
+- `ClientsPage` → colunas: cliente · projeto · milestone atual · progresso · próxima ação · CTAs.
+- `WorkspaceDetailPage` → 7 abas fixas (acima); resto (Briefing, Funis, Playbook, Templates) só em Modo Dev.
+- `CanvasStudio` → exigir milestone selecionado. Sem milestone = tela "Escolha um milestone" (cards grandes com progresso). Render carrega apenas tasks do milestone ativo.
+- `AppSidebar` → esconder ADMIN sem Modo Dev.
+- `SettingsPage` → hub Modo Dev com cards para cada ferramenta técnica.
+- `EmptyState` → variantes "sem milestone", "sem tasks neste milestone".
+
+---
+
+## D) Plano de implementação — 3 etapas
+
+### Etapa 4 — Shell, Modo Dev e gating de Canvas por milestone
+Alvo: experiência de operação consistente sem mudar o conteúdo das telas grandes ainda.
+- `AppSidebar`: ocultar ADMIN quando Modo Dev OFF.
+- `<DevOnly>` wrapper.
+- `SettingsPage`: virar hub Modo Dev (toggle em destaque + cards para IA, Sync logs, Sync manual, Smoke test, Verify realtime, Templates, Playbook, toggles de visibilidade).
+- `CanvasStudio`: gate obrigatório de milestone. Se nenhum milestone selecionado, mostrar tela "Escolha um milestone" (cards: título, status, #tasks, progresso). "Visão geral" só em Modo Dev. Render carrega apenas tasks do milestone selecionado.
+- `AppHeader`: respiro/tipografia.
+- Sem mudanças em dados/edge/sync.
+
+### Etapa 5 — Workspace com abas milestone-first
+Alvo: introduzir Milestones e Tarefas como cidadãos de primeira classe.
+- `milestoneModel.ts` (helpers de derivação).
+- `WorkspaceDetailPage`: reorganizar para 7 abas (Visão geral · Milestones · Tarefas · Canvas · Contexto · Arquivos · Histórico).
+- Aba **Milestones**: lista visual, status, progresso, #tasks, [Abrir no Canvas] [Abrir no Portal].
+- Aba **Tarefas**: agrupadas por milestone, filtro por status, ações rápidas (abrir, marcar concluída via Portal).
+- Aba **Visão geral**: KPIs do projeto + milestone atual + próximas tasks.
+- Aba **Contexto**: leitura/edição consolidada (reuso de `ContextEntryDialog`).
+- Aba **Histórico**: feed filtrado por `isOperationalEvent` + filtro por milestone.
+- Briefing/Funis/Playbook/Templates só em Modo Dev.
+
+### Etapa 6 — Dashboard, Clientes e Feed milestone-aware
+Alvo: KPIs e listas espelham milestones.
+- `DashboardPage`: stats reescritos (projetos ativos, milestones em andamento, tasks abertas, tasks vencidas). Feed filtrado.
+- `WorkspacesPage`: cards mostram milestone atual + progresso; toggles dev removidos da toolbar.
+- `ClientsPage`: linha enxuta (cliente · projeto · milestone atual · progresso · próxima ação · CTAs Abrir/Portal).
+- `operationalEvents.ts` em uso global no feed.
+
+Cada etapa entrega: arquivos alterados, typecheck verde, checklist visual. Zero impacto em banco/edge/sync/migrations.
+
+---
+
+## E) Próximo passo
+
+Aguardo aprovação da **Etapa 4** para começar. Nada será refatorado antes.
