@@ -1,7 +1,12 @@
 /**
  * portal-bridge — leitura read-only do Portal Aceleriq para o OPS V2.
  *
- * Deploy tag: v2.2.6 — Robust task→milestone resolution + audit debug.
+ * Deploy tag: v2.2.7 — inspectPortalPayload + nested task→milestone resolver.
+ *  - inspectPortalPayload: diagnóstico seguro do payload real do Portal.
+ *  - extrai tasks aninhadas em projects[].milestones[].tasks[] etc., injetando
+ *    _containerMilestoneId / _containerProjectId / _jsonPath na task.
+ *  - audit com tasksWithDetectedContainerMilestone, tasksWithDirectMilestoneField,
+ *    tasksWithNoRelation, tasksDroppedBecauseNoMilestone.
  *  - resolução task→milestone via direct/folder/parent/opsFallback;
  *  - auditPortalSources com contadores por categoria + debug seguro;
  *  - listClients devolve primaryProjectId para CTAs clicáveis.
@@ -44,6 +49,7 @@ const json = (body: unknown, status = 200) =>
   });
 
 const PORTAL_BASE = "https://gicbrgagstyvbaaumprj.supabase.co/functions/v1";
+const DEPLOY_TAG = "v2.2.7";
 
 const STATUS_TASK: Record<string, string> = {
   todo: "todo", backlog: "todo", "to-do": "todo", to_do: "todo", draft: "todo",
