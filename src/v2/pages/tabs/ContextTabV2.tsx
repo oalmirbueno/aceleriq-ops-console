@@ -333,3 +333,43 @@ function renderValue(val: unknown): React.ReactNode {
     </pre>
   );
 }
+
+/**
+ * Resolve qual briefing essencial corresponde ao projeto.
+ * Ordem (read-only, sem mutation):
+ *   1. portalClientId === project.clientId
+ *   2. clientId === project.clientId
+ *   3. opsClientId === project.clientId
+ *   4. match único por nome (clientName/company), só se não houver ambiguidade.
+ */
+function resolveEssentialBriefing(
+  briefings: BriefingSummary[],
+  projectClientId: string | undefined,
+  projectClientName: string | undefined,
+): BriefingSummary | null {
+  const essentials = briefings.filter((b) => b.kind === "essential");
+  if (essentials.length === 0) return null;
+
+  if (projectClientId) {
+    const byPortal = essentials.find((b) => b.portalClientId && b.portalClientId === projectClientId);
+    if (byPortal) return byPortal;
+    const byClientId = essentials.find((b) => b.clientId === projectClientId);
+    if (byClientId) return byClientId;
+    const byOps = essentials.find((b) => b.opsClientId === projectClientId);
+    if (byOps) return byOps;
+  }
+
+  if (projectClientName) {
+    const target = projectClientName.trim().toLowerCase();
+    if (target && target !== "cliente") {
+      const matches = essentials.filter((b) => {
+        const a = (b.clientName ?? "").trim().toLowerCase();
+        const c = (b.company ?? "").trim().toLowerCase();
+        return a === target || c === target;
+      });
+      if (matches.length === 1) return matches[0];
+    }
+  }
+
+  return null;
+}
