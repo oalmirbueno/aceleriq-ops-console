@@ -1,29 +1,96 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import {
-  RefreshCw, ExternalLink, Sparkles, Layers, ListChecks,
-  Clock, CheckCircle2, Circle, Pause, Archive, AlertCircle,
-  ChevronRight, Info,
+  ReactFlow, ReactFlowProvider, Background, BackgroundVariant, Controls, MiniMap,
+  useNodesState, useEdgesState, MarkerType,
+  type Node, type Edge, type NodeMouseHandler,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import {
+  RefreshCw, ExternalLink, Sparkles, Layers, ListChecks, Info,
 } from "lucide-react";
 import HeaderV2 from "@/v2/components/HeaderV2";
 import { usePortalQuery } from "@/v2/data/usePortalQuery";
-import { portalClient, type PortalTask, type PortalTaskStatus, type PortalMilestone } from "@/v2/data/portalClient";
-import { QueryError, LoadingState } from "@/v2/components/QueryState";
+import {
+  portalClient,
+  type PortalTask, type PortalTaskStatus, type PortalMilestone,
+} from "@/v2/data/portalClient";
+import { QueryError } from "@/v2/components/QueryState";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TaskNodeV2 } from "@/v2/components/canvas/TaskNodeV2";
 
-const STATUS_META: Record<PortalTaskStatus, { label: string; icon: typeof Circle; cls: string; dot: string }> = {
-  todo:        { label: "A fazer",     icon: Circle,        cls: "text-muted-foreground border-border",                           dot: "bg-muted-foreground/60" },
-  in_progress: { label: "Em curso",    icon: Clock,         cls: "text-primary border-primary/40 bg-primary/10",                  dot: "bg-primary" },
-  blocked:     { label: "Bloqueada",   icon: AlertCircle,   cls: "text-destructive border-destructive/40 bg-destructive/10",      dot: "bg-destructive" },
-  done:        { label: "Concluída",   icon: CheckCircle2,  cls: "text-emerald-300 border-emerald-400/30 bg-emerald-400/10",      dot: "bg-emerald-400" },
-  archived:    { label: "Arquivada",   icon: Archive,       cls: "text-muted-foreground border-border opacity-60",                dot: "bg-muted-foreground/40" },
+const NODE_TYPES = { task: TaskNodeV2 };
+
+const STATUS_LANES: PortalTaskStatus[] = ["todo", "in_progress", "blocked", "done", "archived"];
+const LANE_LABEL: Record<PortalTaskStatus, string> = {
+  todo: "A fazer", in_progress: "Em curso", blocked: "Bloqueadas", done: "Concluídas", archived: "Arquivadas",
 };
-
 const MILESTONE_STATUS_LABEL: Record<PortalMilestone["status"], string> = {
   planned: "Planejada", in_progress: "Em curso", done: "Concluída", paused: "Pausada",
 };
 
+const NODE_W = 260;
+const NODE_H = 168;
+const COL_GAP = 80;
+const ROW_GAP = 28;
+const COL_X_START = 40;
+const ROW_Y_START = 40;
+
+function buildLayout(tasks: PortalTask[]): { nodes: Node[]; edges: Edge[] } {
+  // Lanes by status — only lanes with at least one task
+  const grouped = new Map<PortalTaskStatus, PortalTask[]>();
+  for (const t of tasks) {
+    const arr = grouped.get(t.status) ?? [];
+    arr.push(t);
+    grouped.set(t.status, arr);
+  }
+  const activeLanes = STATUS_LANES.filter((s) => grouped.has(s));
+
+  const nodes: Node[] = [];
+  activeLanes.forEach((status, colIdx) => {
+    const x = COL_X_START + colIdx * (NODE_W + COL_GAP);
+    const arr = grouped.get(status) ?? [];
+    arr.forEach((task, rowIdx) => {
+      nodes.push({
+        id: task.id,
+        type: "task",
+        position: { x, y: ROW_Y_START + rowIdx * (NODE_H + ROW_GAP) },
+        data: { task },
+        draggable: true,
+      });
+    });
+  });
+
+  // Visual flow: connect lanes left → right (first node of each lane)
+  const edges: Edge[] = [];
+  for (let i = 0; i < activeLanes.length - 1; i++) {
+    const from = grouped.get(activeLanes[i])?.[0];
+    const to = grouped.get(activeLanes[i + 1])?.[0];
+    if (from && to) {
+      edges.push({
+        id: `lane-${from.id}-${to.id}`,
+        source: from.id,
+        target: to.id,
+        type: "smoothstep",
+        animated: activeLanes[i + 1] === "in_progress",
+        style: { stroke: "hsl(var(--foreground) / 0.35)", strokeWidth: 1.5, strokeDasharray: "4 4" },
+        markerEnd: { type: MarkerType.ArrowClosed, color: "hsl(var(--foreground) / 0.5)", width: 14, height: 14 },
+      });
+    }
+  }
+
+  return { nodes, edges };
+}
+
 export default function CanvasV2() {
+  return (
+    <ReactFlowProvider>
+      <CanvasV2Inner />
+    </ReactFlowProvider>
+  );
+}
+
+function CanvasV2Inner() {
   const { projectId = "" } = useParams();
   const [milestoneId, setMilestoneId] = useState<string>("");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -32,7 +99,6 @@ export default function CanvasV2() {
     () => projectId ? portalClient.getProject(projectId) : Promise.resolve(null),
     [projectId],
   );
-
   const milestones = usePortalQuery(
     () => projectId ? portalClient.listMilestones(projectId) : Promise.resolve([]),
     [projectId],
@@ -47,7 +113,7 @@ export default function CanvasV2() {
   const tasks = usePortalQuery(
     () => activeMilestoneId
       ? portalClient.listTasks({ projectId, milestoneId: activeMilestoneId })
-      : Promise.resolve([]),
+      : Promise.resolve<PortalTask[]>([]),
     [projectId, activeMilestoneId],
   );
 
@@ -55,6 +121,25 @@ export default function CanvasV2() {
     () => milestones.data?.find((m) => m.id === activeMilestoneId) ?? null,
     [milestones.data, activeMilestoneId],
   );
+
+  const layout = useMemo(
+    () => buildLayout(tasks.data ?? []),
+    [tasks.data],
+  );
+
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>(layout.nodes);
+  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>(layout.edges);
+
+  // Re-seed canvas when underlying tasks change
+  useEffect(() => {
+    setRfNodes(layout.nodes);
+    setRfEdges(layout.edges);
+    setSelectedTaskId(null);
+  }, [layout, setRfNodes, setRfEdges]);
+
+  const onNodeClick: NodeMouseHandler = useCallback((_e, node) => {
+    setSelectedTaskId(node.id);
+  }, []);
 
   const selectedTask = useMemo(
     () => tasks.data?.find((t) => t.id === selectedTaskId) ?? null,
@@ -98,91 +183,112 @@ export default function CanvasV2() {
         }
       />
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4 py-6">
-        <div className="space-y-4 min-w-0">
-          {/* Milestone selector */}
-          <section className="rounded-xl border border-border bg-card p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Layers className="h-3.5 w-3.5 text-muted-foreground" />
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
-                Milestone
-              </p>
-              <span className="text-[10px] text-muted-foreground/70">obrigatório</span>
-            </div>
-            {milestones.loading ? (
-              <div className="flex gap-2">
-                <Skeleton className="h-8 w-40" /><Skeleton className="h-8 w-40" />
-              </div>
-            ) : milestones.error ? (
-              <QueryError error={milestones.error} onRetry={milestones.reload} />
-            ) : milestones.data && milestones.data.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {milestones.data.map((m) => {
-                  const active = m.id === activeMilestoneId;
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={() => { setMilestoneId(m.id); setSelectedTaskId(null); }}
-                      className={`group rounded-md border px-3 py-1.5 text-xs transition-colors ${
-                        active
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"
-                      }`}
-                    >
-                      <span className="font-medium">{m.title}</span>
-                      <span className="ml-2 text-[10px] opacity-70">
-                        {m.tasksDoneCount}/{m.tasksCount}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">Nenhum milestone neste projeto.</p>
-            )}
-          </section>
+      {/* Milestone selector */}
+      <div className="border-b border-border bg-card/30 px-2 py-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground font-medium px-2">
+            <Layers className="h-3.5 w-3.5" /> Milestone
+          </span>
+          {milestones.loading ? (
+            <><Skeleton className="h-7 w-40" /><Skeleton className="h-7 w-40" /></>
+          ) : milestones.error ? (
+            <span className="text-xs text-destructive">{milestones.error.message}</span>
+          ) : milestones.data && milestones.data.length > 0 ? (
+            milestones.data.map((m) => {
+              const active = m.id === activeMilestoneId;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setMilestoneId(m.id)}
+                  className={`rounded-md border px-2.5 py-1 text-xs transition-colors ${
+                    active
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"
+                  }`}
+                >
+                  <span className="font-medium">{m.title}</span>
+                  <span className="ml-2 text-[10px] opacity-70">{m.tasksDoneCount}/{m.tasksCount}</span>
+                </button>
+              );
+            })
+          ) : (
+            <span className="text-xs text-muted-foreground">Nenhum milestone disponível.</span>
+          )}
+        </div>
+      </div>
 
-          {/* Canvas board */}
-          <section className="rounded-xl border border-border bg-card/40 min-h-[480px] p-4">
-            {!activeMilestoneId ? (
-              <EmptyHint
-                icon={Layers}
-                title="Selecione um milestone"
-                text="O Canvas mostra as tarefas reais do milestone selecionado."
-              />
-            ) : tasks.loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-32" />)}
+      {/* Canvas surface + inspector */}
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-0 h-[calc(100vh-220px)] min-h-[520px]">
+        <div className="relative bg-background border-r border-border overflow-hidden">
+          {!activeMilestoneId ? (
+            <CanvasOverlay icon={Layers} title="Selecione um milestone" text="O Canvas mostra as tarefas reais do milestone selecionado." />
+          ) : tasks.loading ? (
+            <div className="absolute inset-0 grid place-items-center">
+              <div className="flex flex-col items-center gap-3">
+                <Skeleton className="h-32 w-64" />
+                <Skeleton className="h-32 w-64" />
               </div>
-            ) : tasks.error ? (
+            </div>
+          ) : tasks.error ? (
+            <div className="absolute inset-0 grid place-items-center p-6">
               <QueryError error={tasks.error} onRetry={tasks.reload} />
-            ) : tasks.data && tasks.data.length > 0 ? (
-              <>
-                <CanvasHeader milestone={selectedMilestone} taskCount={tasks.data.length} />
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {tasks.data.map((t) => (
-                    <TaskNode
-                      key={t.id}
-                      task={t}
-                      selected={t.id === selectedTaskId}
-                      onSelect={() => setSelectedTaskId(t.id)}
-                    />
-                  ))}
-                </div>
-              </>
-            ) : (
-              <EmptyHint
-                icon={ListChecks}
-                title="Sem tarefas neste milestone"
-                text="As tarefas vivem no Portal. Quando forem criadas, aparecem aqui automaticamente."
-              />
-            )}
-          </section>
+            </div>
+          ) : (tasks.data?.length ?? 0) === 0 ? (
+            <CanvasOverlay icon={ListChecks} title="Sem tarefas neste milestone" text="As tarefas vivem no Portal. Quando forem criadas, aparecem aqui." />
+          ) : null}
+
+          <ReactFlow
+            nodes={rfNodes}
+            edges={rfEdges}
+            nodeTypes={NODE_TYPES}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onNodeClick={onNodeClick}
+            fitView
+            fitViewOptions={{ padding: 0.3 }}
+            minZoom={0.2}
+            maxZoom={2}
+            nodesDraggable
+            nodesConnectable={false}
+            elementsSelectable
+            zoomOnScroll
+            zoomOnPinch
+            zoomOnDoubleClick={false}
+            panOnDrag
+            proOptions={{ hideAttribution: true }}
+            className="bg-background"
+            deleteKeyCode={null}
+          >
+            <Background variant={BackgroundVariant.Dots} gap={32} size={1} color="hsl(var(--foreground) / 0.08)" />
+            <Controls
+              showInteractive={false}
+              className="!bg-card !border !border-border !rounded-md overflow-hidden"
+            />
+            <MiniMap
+              pannable
+              zoomable
+              maskColor="hsl(var(--background) / 0.85)"
+              className="!bg-card !border !border-border !rounded-md"
+              nodeColor={(n) => {
+                const t = (n.data as { task?: PortalTask } | undefined)?.task;
+                if (!t) return "hsl(var(--muted))";
+                if (t.status === "done") return "hsl(145 70% 45%)";
+                if (t.status === "in_progress") return "hsl(var(--primary))";
+                if (t.status === "blocked") return "hsl(var(--destructive))";
+                return "hsl(var(--muted-foreground) / 0.5)";
+              }}
+            />
+          </ReactFlow>
+
+          {/* Lane labels */}
+          {(tasks.data?.length ?? 0) > 0 && (
+            <LaneLegend tasks={tasks.data ?? []} />
+          )}
         </div>
 
-        {/* Side panel — IA Hub / contexto (read-only) */}
-        <aside className="space-y-3 min-w-0">
-          <SidePanel
+        {/* Inspector */}
+        <aside className="bg-card/30 border-t xl:border-t-0 border-border overflow-y-auto">
+          <Inspector
             project={project.data}
             milestone={selectedMilestone}
             task={selectedTask}
@@ -194,76 +300,45 @@ export default function CanvasV2() {
   );
 }
 
-function CanvasHeader({ milestone, taskCount }: { milestone: PortalMilestone | null; taskCount: number }) {
-  if (!milestone) return null;
+function LaneLegend({ tasks }: { tasks: PortalTask[] }) {
+  const counts = useMemo(() => {
+    const c = new Map<PortalTaskStatus, number>();
+    tasks.forEach((t) => c.set(t.status, (c.get(t.status) ?? 0) + 1));
+    return c;
+  }, [tasks]);
+  const lanes = STATUS_LANES.filter((s) => counts.has(s));
+  if (lanes.length === 0) return null;
   return (
-    <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">{milestone.title}</p>
-        <p className="text-[11px] text-muted-foreground">
-          {MILESTONE_STATUS_LABEL[milestone.status]} ·{" "}
-          {milestone.tasksDoneCount}/{milestone.tasksCount} concluídas ·{" "}
-          {taskCount} {taskCount === 1 ? "tarefa carregada" : "tarefas carregadas"}
-        </p>
-      </div>
-      <div className="flex items-center gap-2">
-        <ProgressBar value={milestone.progress} />
-        <span className="text-[11px] text-muted-foreground tabular-nums">
-          {Math.round(milestone.progress * 100)}%
+    <div className="absolute top-3 left-3 z-10 flex gap-2 pointer-events-none">
+      {lanes.map((s) => (
+        <span
+          key={s}
+          className="rounded-full border border-border bg-card/80 backdrop-blur px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground"
+        >
+          {LANE_LABEL[s]} · {counts.get(s)}
         </span>
-      </div>
+      ))}
     </div>
   );
 }
 
-function ProgressBar({ value }: { value: number }) {
-  const pct = Math.max(0, Math.min(1, value)) * 100;
+function CanvasOverlay({
+  icon: Icon, title, text,
+}: { icon: typeof Layers; title: string; text: string }) {
   return (
-    <div className="h-1.5 w-32 rounded-full bg-muted overflow-hidden">
-      <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
-    </div>
-  );
-}
-
-function TaskNode({
-  task, selected, onSelect,
-}: { task: PortalTask; selected: boolean; onSelect: () => void }) {
-  const meta = STATUS_META[task.status];
-  const Icon = meta.icon;
-  return (
-    <button
-      onClick={onSelect}
-      className={`group text-left rounded-xl border bg-card p-3 transition-all hover:border-foreground/30 ${
-        selected ? "border-primary ring-1 ring-primary/40" : "border-border"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className={`h-2 w-2 rounded-full ${meta.dot}`} aria-hidden />
-          <p className="text-sm font-medium text-foreground line-clamp-2">{task.title}</p>
+    <div className="absolute inset-0 z-10 grid place-items-center bg-background/80 backdrop-blur-sm">
+      <div className="flex flex-col items-center gap-2 text-center px-6">
+        <div className="rounded-xl border border-border bg-card p-3">
+          <Icon className="h-5 w-5 text-muted-foreground" />
         </div>
-        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
+        <p className="text-sm font-medium text-foreground">{title}</p>
+        <p className="text-xs text-muted-foreground max-w-sm">{text}</p>
       </div>
-
-      <div className="mt-3 flex items-center justify-between gap-2">
-        <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${meta.cls}`}>
-          <Icon className="h-3 w-3" /> {meta.label}
-        </span>
-        {task.progress > 0 && task.status !== "done" && (
-          <span className="text-[10px] text-muted-foreground tabular-nums">
-            {Math.round(task.progress * 100)}%
-          </span>
-        )}
-      </div>
-
-      {task.description && (
-        <p className="mt-2 text-[11px] text-muted-foreground line-clamp-2">{task.description}</p>
-      )}
-    </button>
+    </div>
   );
 }
 
-function SidePanel({
+function Inspector({
   project, milestone, task, taskCount,
 }: {
   project: { name: string; clientName: string; progress: number } | null;
@@ -272,70 +347,60 @@ function SidePanel({
   taskCount: number;
 }) {
   return (
-    <>
+    <div className="p-3 space-y-3">
       <div className="rounded-xl border border-border bg-card p-3">
         <div className="flex items-center gap-2 mb-2">
           <Sparkles className="h-3.5 w-3.5 text-primary" />
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
-            IA Hub
-          </p>
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">IA Hub</p>
         </div>
         <p className="text-xs text-muted-foreground leading-relaxed">
-          Em breve: sugestões de próximos passos baseadas no briefing essencial e no estado real do projeto. Por ora, esta visão é apenas leitura.
+          Em breve: sugestões e próximos passos baseados no briefing essencial e no estado real do projeto.
         </p>
       </div>
 
       <div className="rounded-xl border border-border bg-card p-3 space-y-2">
         <div className="flex items-center gap-2">
           <Info className="h-3.5 w-3.5 text-muted-foreground" />
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
-            Contexto do canvas
-          </p>
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Contexto</p>
         </div>
         <Field label="Cliente" value={project?.clientName ?? "—"} />
         <Field label="Projeto" value={project?.name ?? "—"} />
         <Field label="Milestone" value={milestone?.title ?? "—"} />
-        <Field
-          label="Tarefas carregadas"
-          value={milestone ? String(taskCount) : "—"}
-        />
+        <Field label="Status milestone" value={milestone ? MILESTONE_STATUS_LABEL[milestone.status] : "—"} />
+        <Field label="Tarefas no canvas" value={milestone ? String(taskCount) : "—"} />
       </div>
 
       <div className="rounded-xl border border-border bg-card p-3">
         <div className="flex items-center gap-2 mb-2">
           <ListChecks className="h-3.5 w-3.5 text-muted-foreground" />
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
-            Detalhe da tarefa
-          </p>
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Tarefa selecionada</p>
         </div>
         {task ? (
           <div className="space-y-2">
             <p className="text-sm font-medium text-foreground">{task.title}</p>
-            <div className="flex items-center gap-2">
-              <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${STATUS_META[task.status].cls}`}>
-                {STATUS_META[task.status].label}
-              </span>
-              <span className="text-[11px] text-muted-foreground tabular-nums">
-                {Math.round(task.progress * 100)}%
-              </span>
-            </div>
             {task.description && (
               <p className="text-[11px] text-muted-foreground whitespace-pre-wrap">{task.description}</p>
             )}
+            <Field label="Status" value={statusLabel(task.status)} />
+            <Field label="Progresso" value={`${Math.round(task.progress * 100)}%`} />
             <Field label="Responsável" value={task.assigneeName ?? "—"} />
             <Field label="Prazo" value={task.dueAt ? new Date(task.dueAt).toLocaleDateString("pt-BR") : "—"} />
-            <p className="text-[10px] text-muted-foreground/70 pt-1 border-t border-border">
+            <p className="pt-2 mt-1 border-t border-border text-[10px] text-muted-foreground/70">
               Read-only. Para editar, use o Portal.
             </p>
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">
-            Selecione uma tarefa no canvas para ver detalhes.
-          </p>
+          <p className="text-xs text-muted-foreground">Clique em um node no canvas para ver detalhes.</p>
         )}
       </div>
-    </>
+    </div>
   );
+}
+
+function statusLabel(s: PortalTaskStatus): string {
+  return ({
+    todo: "A fazer", in_progress: "Em curso", blocked: "Bloqueada", done: "Concluída", archived: "Arquivada",
+  } as const)[s];
 }
 
 function Field({ label, value }: { label: string; value: string }) {
@@ -343,20 +408,6 @@ function Field({ label, value }: { label: string; value: string }) {
     <div className="flex items-start justify-between gap-2 text-xs">
       <span className="text-muted-foreground shrink-0">{label}</span>
       <span className="text-foreground text-right font-medium truncate">{value}</span>
-    </div>
-  );
-}
-
-function EmptyHint({
-  icon: Icon, title, text,
-}: { icon: typeof Layers; title: string; text: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center text-center py-16 gap-2">
-      <div className="rounded-xl border border-border bg-background p-3">
-        <Icon className="h-5 w-5 text-muted-foreground" />
-      </div>
-      <p className="text-sm font-medium text-foreground">{title}</p>
-      <p className="text-xs text-muted-foreground max-w-sm">{text}</p>
     </div>
   );
 }
