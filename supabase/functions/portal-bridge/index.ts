@@ -508,16 +508,47 @@ serve(async (req) => {
   // ---------- Dispatch ----------
   switch (action) {
     case "listClients": {
-      const map = new Map<string, { id: string; name: string; activeProjectsCount: number }>();
+      const includeAll = (params as any).includeAll === true || (params as any).includeAll === "1";
+      type Agg = {
+        id: string;
+        name: string;
+        company: string;
+        email: string;
+        activeProjectsCount: number;
+      };
+      const map = new Map<string, Agg>();
       for (const p of projectsNorm) {
         if (!p.clientId) continue;
-        const c = map.get(p.clientId)
-          ?? { id: p.clientId, name: p.clientName, activeProjectsCount: 0 };
+        const c = map.get(p.clientId) ?? {
+          id: p.clientId, name: "", company: "", email: "", activeProjectsCount: 0,
+        };
         if (p.status === "active") c.activeProjectsCount += 1;
-        if (!c.name && p.clientName) c.name = p.clientName;
+        if (!c.name && p.clientName && !isUuidLike(p.clientName)) c.name = p.clientName;
+        if (!c.company && (p as any).clientCompany) c.company = (p as any).clientCompany;
+        if (!c.email && (p as any).clientEmail) c.email = (p as any).clientEmail;
         map.set(p.clientId, c);
       }
-      return json({ ok: true, clients: [...map.values()].sort((a, b) => a.name.localeCompare(b.name)) });
+      const clients = [...map.values()].map((c) => {
+        const { displayName, missing } = resolveClientDisplayName(c.name, c.company, c.email);
+        const problems: string[] = [];
+        if (missing) problems.push("missing_display_name");
+        if (c.activeProjectsCount === 0) problems.push("client_without_active_project");
+        const included = !missing && (includeAll || c.activeProjectsCount > 0);
+        return {
+          id: c.id,
+          name: displayName || "Cliente sem nome",
+          displayName: displayName || "Cliente sem nome",
+          company: c.company || null,
+          email: c.email || null,
+          activeProjectsCount: c.activeProjectsCount,
+          source: full ? "ops-full-export" : "fallback",
+          included,
+          problems,
+        };
+      });
+      const visible = includeAll ? clients : clients.filter((c) => c.included);
+      visible.sort((a, b) => a.displayName.localeCompare(b.displayName));
+      return json({ ok: true, clients: visible });
     }
     case "listProjects": {
       const clientId = firstString((params as any).clientId);
