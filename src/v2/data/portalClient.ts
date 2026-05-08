@@ -111,6 +111,45 @@ export interface PortalClientApi {
   updateTask(taskId: string, input: UpdateTaskInput): Promise<PortalTask>;
   createTask(input: CreateTaskInput): Promise<PortalTask>;
   archiveTask(taskId: string): Promise<void>;
+  // OPS context (read-only) — separadas das portal actions
+  listBriefings(opts?: { clientId?: string; projectId?: string }): Promise<BriefingSummary[]>;
+  getBriefing(opts: { briefingId?: string; clientId?: string; kind?: string }): Promise<BriefingDetail | null>;
+}
+
+// ---------- OPS context types ----------
+
+export type BriefingSource = "essential_briefing" | "context_entries";
+export type BriefingKind = "essential" | "enterprise_structuring" | "ai_automation" | string;
+
+export interface BriefingSummary {
+  briefingId: string;
+  clientId: string;
+  clientName: string;
+  source: BriefingSource;
+  kind: BriefingKind;
+  updatedAt: string | null;
+  approxFields: number;
+  contentLength: number;
+  hasRawPortalResponses: boolean;
+  hasStructuredSignals: boolean;
+  publicStatus: string | null;
+  reviewStatus: string | null;
+  isFilled: boolean;
+}
+
+export interface BriefingDetail {
+  briefingId: string;
+  clientId: string;
+  clientName?: string;
+  source: BriefingSource;
+  kind: BriefingKind;
+  updatedAt: string | null;
+  rawPortalResponses?: unknown;
+  lastPortalBriefingSync?: string | null;
+  publicBriefingStatus?: string | null;
+  importReviewStatus?: string | null;
+  structuredSignals?: unknown;
+  content: unknown;
 }
 
 // ---------- Mock implementation (Fase V2.0) ----------
@@ -236,6 +275,27 @@ const mockClient: PortalClientApi = {
     const t = MOCK_TASKS.find((x) => x.id === taskId);
     if (t) t.status = "archived";
   },
+  async listBriefings() {
+    await delay();
+    return [
+      {
+        briefingId: "essential:c-stop",
+        clientId: "c-stop",
+        clientName: "Stop Informática",
+        source: "essential_briefing",
+        kind: "essential",
+        updatedAt: new Date().toISOString(),
+        approxFields: 24,
+        contentLength: 4364,
+        hasRawPortalResponses: true,
+        hasStructuredSignals: false,
+        publicStatus: null,
+        reviewStatus: null,
+        isFilled: true,
+      },
+    ];
+  },
+  async getBriefing() { await delay(); return null; },
 };
 
 // ---------- Bridge implementation (read-only via edge `portal-bridge`) ----------
@@ -289,6 +349,16 @@ const bridgeClient: PortalClientApi = {
   async updateTask() { return NOT_IMPLEMENTED("updateTask"); },
   async createTask() { return NOT_IMPLEMENTED("createTask"); },
   async archiveTask() { return NOT_IMPLEMENTED("archiveTask"); },
+  async listBriefings(opts) {
+    const r = await invokeBridge<{ briefings: BriefingSummary[] }>(
+      "listBriefings", opts ?? {},
+    );
+    return r.briefings ?? [];
+  },
+  async getBriefing(opts) {
+    const r = await invokeBridge<{ briefing: BriefingDetail | null }>("getBriefing", opts);
+    return r.briefing ?? null;
+  },
 };
 
 // ---------- Selector ----------
@@ -365,6 +435,8 @@ function withBridgeErrorReporting<T extends PortalClientApi>(client: T): T {
     updateTask: wrap("updateTask", client.updateTask.bind(client)),
     createTask: wrap("createTask", client.createTask.bind(client)),
     archiveTask: wrap("archiveTask", client.archiveTask.bind(client)),
+    listBriefings: wrap("listBriefings", client.listBriefings.bind(client)),
+    getBriefing: wrap("getBriefing", client.getBriefing.bind(client)),
   } as T;
 }
 
