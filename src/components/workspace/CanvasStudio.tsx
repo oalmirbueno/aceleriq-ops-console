@@ -7,7 +7,7 @@ import {
   type ReactFlowInstance, type Viewport, SelectionMode, MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow, MousePointer2, Hand, Lock, Grid3X3, Camera, Type, Image, FileStack, Bot, Megaphone, Trophy, MessageCircle, Focus, Eye, LayoutTemplate, RefreshCw, FlaskConical, Radio } from "lucide-react";
+import { Plus, Sparkles, LayoutGrid, Maximize2, Minimize2, Loader2, Building2, Search, Workflow, MousePointer2, Hand, Lock, Grid3X3, Camera, Type, Image, FileStack, Bot, Megaphone, Trophy, MessageCircle, Focus, Eye, LayoutTemplate, RefreshCw, FlaskConical, Radio, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -50,6 +50,7 @@ import { materializePortalTimelineCanvas } from "@/lib/portalTimelineCanvas";
 import { dbg, dbgWarn, isCanvasDebugEnabled, toggleCanvasDebug } from "@/lib/canvasDebug";
 import CanvasDebugOverlay, { type CanvasDebugStats } from "./CanvasDebugOverlay";
 import { featureFlags } from "@/config/featureFlags";
+import { useDevMode } from "@/lib/devMode";
 import { shouldShowInOperationMode, useOperationModeToggles } from "@/lib/operationModeFilters";
 
 // CanvasStudio é uma camada visual operacional complementar: não substitui o briefing mestre,
@@ -465,6 +466,8 @@ function CanvasStudioInner({
   // ao Portal (task/milestone/projeto). Toggles administrativos abaixo são
   // OFF por padrão.
   const [operationToggles] = useOperationModeToggles();
+  const [devMode] = useDevMode();
+  const showDevTools = devMode || featureFlags.enableCanvasDevTools;
 
   // Auto-sync milestone OPS → Portal: sempre que aparece um milestone_group sem
   // portal_milestone_id (criação local ou via realtime), dispara apply_one no
@@ -3602,7 +3605,19 @@ function CanvasStudioInner({
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
             <span className="hidden md:inline ml-1">Recarregar</span>
           </Button>
-          {featureFlags.enableCanvasDevTools && (<>
+          {portalProjectIdProp && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              onClick={() => window.open(`https://aceleriq.online/portal/projects/${portalProjectIdProp}`, "_blank", "noopener,noreferrer")}
+              title="Abrir este projeto no Portal"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              <span className="hidden md:inline ml-1">Portal</span>
+            </Button>
+          )}
+          {showDevTools && (<>
           <Button size="sm" variant="ghost" className="h-8" onClick={handleAutoLayout} disabled={busyAction === "layout" || projectNodes.length === 0}>
             {busyAction === "layout" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LayoutGrid className="h-3.5 w-3.5" />}
             <span className="hidden md:inline ml-1 text-xs">Reorganizar</span>
@@ -3669,7 +3684,7 @@ function CanvasStudioInner({
               }
             }}
           />
-          {featureFlags.enableDevSyncTools && (
+          {showDevTools && (
           <Button
             size="sm"
             variant="outline"
@@ -3696,7 +3711,7 @@ function CanvasStudioInner({
             Sync portal
           </Button>
           )}
-          {featureFlags.enableCanvasDevTools && (<Button
+          {showDevTools && (<Button
             size="sm"
             variant="outline"
             className="h-8 text-xs"
@@ -3730,7 +3745,7 @@ function CanvasStudioInner({
             {busyAction === "smoke-test" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5 mr-1" />}
             Smoke test
           </Button>)}
-          {featureFlags.enableCanvasDevTools && (<Button
+          {showDevTools && (<Button
             size="sm"
             variant="outline"
             className="h-8 text-xs"

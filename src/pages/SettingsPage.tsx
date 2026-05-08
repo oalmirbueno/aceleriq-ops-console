@@ -30,6 +30,8 @@ import {
 import PlanDetailsCard from "@/components/workspace/PlanDetailsCard";
 import { PIPELINE_STAGE_LABELS, PIPELINE_STAGES_ORDERED } from "@/components/workspace/aceleraConstants";
 import { cn } from "@/lib/utils";
+import { useDevMode } from "@/lib/devMode";
+import { Switch } from "@/components/ui/switch";
 
 const PLAN_KEYS = getPlanOrder();
 
@@ -39,6 +41,7 @@ export default function SettingsPage() {
   const [config, setConfig] = useState<Record<PlanKey, PlanConfig>>(getPlanConfig);
   const [activePlan, setActivePlan] = useState<PlanKey>("starter");
   const [mode, setMode] = useState<"preview" | "edit">("preview");
+  const [devMode, setDevMode] = useDevMode();
 
   useEffect(() => {
     if (!isAdmin(userRole)) navigate("/ops", { replace: true });
@@ -122,6 +125,22 @@ export default function SettingsPage() {
               <Save className="h-3.5 w-3.5" /> Salvar alterações
             </Button>
           </div>
+        </div>
+
+        {/* Modo Dev — toggle único pra mostrar ferramentas técnicas no canvas */}
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card/40 px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-amber-400/10 border border-amber-400/30">
+              <Settings className="h-4 w-4 text-amber-400" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs font-medium text-foreground">Modo Dev</span>
+              <span className="text-[10px] text-muted-foreground">
+                Mostra sync manual, smoke test, verificar realtime, reorganizar, fluxo ops, gerar esteira, templates, playbook e nodes internos. OFF por padrão.
+              </span>
+            </div>
+          </div>
+          <Switch checked={devMode} onCheckedChange={setDevMode} />
         </div>
 
         {/* Section title */}
