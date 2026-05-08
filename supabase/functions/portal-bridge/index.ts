@@ -1,7 +1,9 @@
 /**
  * portal-bridge — leitura read-only do Portal Aceleriq para o OPS V2.
  *
- * Deploy tag: v2.2.2 — resolução robusta cliente Portal↔OPS (opsClientId/portalClientId).
+ * Deploy tag: v2.2.3 — normalização robusta de milestoneId em tasks
+ * (camelCase, metadata.*, data.*) + filtragem de placeholders "Sem milestone"
+ * + dedupe + debug seguro opcional.
  *
  * REGRAS:
  *   - Apenas leitura. Sem insert/update/delete. Sem backfill. Sem materialização.
@@ -88,16 +90,33 @@ function mapMilestoneStatus(s: unknown) {
 }
 
 function projectIdOf(t: Record<string, any>) {
+  const meta = (t.metadata ?? {}) as Record<string, any>;
+  const data = (t.data ?? {}) as Record<string, any>;
   return firstString(
-    t.project_id, t.portal_project_id, t.workspace_id,
+    t.project_id, t.projectId,
+    t.portal_project_id, t.portalProjectId,
+    t.workspace_id,
     t.project?.id, t.milestone?.project_id, t.folder?.project_id,
+    meta.project_id, meta.projectId,
+    meta.portal_project_id, meta.portalProjectId,
+    data.project_id, data.projectId,
+    data.portal_project_id, data.portalProjectId,
   );
 }
 function milestoneIdOf(t: Record<string, any>) {
+  const meta = (t.metadata ?? {}) as Record<string, any>;
+  const data = (t.data ?? {}) as Record<string, any>;
   return firstString(
-    t.milestone_id, t.portal_milestone_id, t.folder_id,
-    t.portal_folder_id, t.stage_id, t.phase_id, t.column_id,
-    t.milestone?.id, t.folder?.id,
+    t.milestone_id, t.milestoneId,
+    t.portal_milestone_id, t.portalMilestoneId,
+    t.folder_id, t.portal_folder_id, t.folderId, t.portalFolderId,
+    t.stage_id, t.phase_id, t.column_id,
+    t.milestone?.id, t.milestone?.uuid,
+    t.folder?.id,
+    meta.milestone_id, meta.milestoneId,
+    meta.portal_milestone_id, meta.portalMilestoneId,
+    data.milestone_id, data.milestoneId,
+    data.portal_milestone_id, data.portalMilestoneId,
   );
 }
 function clientIdOf(p: Record<string, any>) {
@@ -189,14 +208,28 @@ function normalizeMilestone(
   m: Record<string, any>,
   tasksByMilestone: Map<string, ReturnType<typeof normalizeTask>[]>,
 ) {
-  const id = firstString(m.id, m.milestone_id, m.folder_id, m.portal_folder_id);
+  const meta = (m.metadata ?? {}) as Record<string, any>;
+  const data = (m.data ?? {}) as Record<string, any>;
+  const id = firstString(
+    m.id, m.milestone_id, m.milestoneId,
+    m.portal_milestone_id, m.portalMilestoneId,
+    m.folder_id, m.portal_folder_id, m.uuid,
+    meta.milestone_id, meta.portal_milestone_id,
+    data.milestone_id, data.portal_milestone_id,
+  );
   const tasks = tasksByMilestone.get(id) ?? [];
   const tasksDoneCount = tasks.filter((t) => t.status === "done").length;
   const explicit = normalizeProgress(m.progress, m.completion, m.percent);
   const derived = tasks.length === 0 ? 0 : tasksDoneCount / tasks.length;
   return {
     id,
-    projectId: firstString(m.project_id, m.portal_project_id, m.workspace_id, m.project?.id),
+    projectId: firstString(
+      m.project_id, m.projectId,
+      m.portal_project_id, m.portalProjectId,
+      m.workspace_id, m.project?.id,
+      meta.project_id, meta.portal_project_id,
+      data.project_id, data.portal_project_id,
+    ),
     title: firstString(m.title, m.name, m.folder_name, "Milestone"),
     description: m.description ?? null,
     status: mapMilestoneStatus(m.status ?? m.state),
@@ -205,6 +238,8 @@ function normalizeMilestone(
     tasksDoneCount,
     order: numberOr(m.position ?? m.order ?? m.sort_order ?? m.sequence, 9999),
     dueAt: firstString(m.due_at, m.deadline, m.due_date) || null,
+    _deletedAt: firstString(m.deleted_at, m.deletedAt) || null,
+    _archived: Boolean(m.archived || m.is_archived),
   };
 }
 
@@ -309,7 +344,22 @@ serve(async (req) => {
 
   const milestonesNorm = milestonesRaw
     .map((m) => normalizeMilestone(m, tasksByMilestone))
-    .filter((m) => m.id && m.projectId);
+    .filter((m) => {
+      if (!m.id || !m.projectId) return false;
+      if ((m as any)._deletedAt) return false;
+      if ((m as any)._archived) return false;
+      const t = m.title.trim().toLowerCase();
+      if (t === "sem milestone" || t === "no milestone" || t === "milestone") return false;
+      return true;
+    });
+  // Dedupe by id
+  {
+    const seenMs = new Set<string>();
+    for (let i = milestonesNorm.length - 1; i >= 0; i--) {
+      if (seenMs.has(milestonesNorm[i].id)) milestonesNorm.splice(i, 1);
+      else seenMs.add(milestonesNorm[i].id);
+    }
+  }
   const milestonesByProject = new Map<string, typeof milestonesNorm>();
   for (const m of milestonesNorm) {
     const lp = milestonesByProject.get(m.projectId) ?? [];
@@ -351,7 +401,8 @@ serve(async (req) => {
       const projectId = firstString((params as any).projectId);
       if (!projectId) return json({ error: "missing_projectId" }, 400);
       const list = (milestonesByProject.get(projectId) ?? [])
-        .slice().sort((a, b) => a.order - b.order);
+        .slice().sort((a, b) => a.order - b.order)
+        .map(({ _deletedAt: _d, _archived: _a, ...rest }: any) => rest);
       return json({ ok: true, milestones: list });
     }
     case "listTasks": {
@@ -360,7 +411,20 @@ serve(async (req) => {
       if (!projectId) return json({ error: "missing_projectId" }, 400);
       let list = tasksByProject.get(projectId) ?? [];
       if (milestoneId) list = list.filter((t) => t.milestoneId === milestoneId);
-      return json({ ok: true, tasks: list });
+      const debug = (params as any).debug === 1 || (params as any).debug === "1";
+      const payload: Record<string, unknown> = { ok: true, tasks: list };
+      if (debug) {
+        const sampleRaw = tasksRaw.find((t) => projectIdOf(t) === projectId) ?? tasksRaw[0] ?? {};
+        payload.debug = {
+          tasksRawCount: tasksRaw.length,
+          milestonesRawCount: milestonesRaw.length,
+          tasksProjectCount: (tasksByProject.get(projectId) ?? []).length,
+          tasksWithoutMilestone: (tasksByProject.get(projectId) ?? []).filter((t) => !t.milestoneId).length,
+          sampleTaskKeys: Object.keys(sampleRaw),
+          sampleMilestoneKeys: Object.keys(milestonesRaw[0] ?? {}),
+        };
+      }
+      return json(payload);
     }
     default:
       return json({ error: "unknown_action", action }, 400);
