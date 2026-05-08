@@ -117,6 +117,34 @@ function CanvasV2Inner() {
     [projectId, activeMilestoneId],
   );
 
+  // Debug seguro (Modo Dev): expõe contagens e diagnósticos no console
+  // sem vazar dados sensíveis. Ative com:
+  //   localStorage.setItem("ops:dev-mode:v1","1") ou "canvas:debug","1"
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const dev =
+      window.localStorage.getItem("ops:dev-mode:v1") === "1" ||
+      window.localStorage.getItem("canvas:debug") === "1";
+    if (!dev) return;
+    if (milestones.loading || tasks.loading) return;
+    // eslint-disable-next-line no-console
+    console.groupCollapsed(`%c[canvas-v2:debug] project=${projectId.slice(0, 8)}…`, "color:#22c55e");
+    // eslint-disable-next-line no-console
+    console.log("milestones recebidos:", milestones.data?.length ?? 0,
+      milestones.data?.map((m) => ({ id: m.id.slice(0, 8), title: m.title, t: `${m.tasksDoneCount}/${m.tasksCount}` })));
+    // eslint-disable-next-line no-console
+    console.log("activeMilestoneId:", activeMilestoneId.slice(0, 8) || "(nenhum)");
+    // eslint-disable-next-line no-console
+    console.log("tasks recebidas:", tasks.data?.length ?? 0);
+    const sem = (tasks.data ?? []).filter((t) => !t.milestoneId);
+    if (sem.length > 0) {
+      // eslint-disable-next-line no-console
+      console.warn("tasks sem milestoneId:", sem.length, sem.map((t) => t.id.slice(0, 8)));
+    }
+    // eslint-disable-next-line no-console
+    console.groupEnd();
+  }, [projectId, activeMilestoneId, milestones.loading, milestones.data, tasks.loading, tasks.data]);
+
   const selectedMilestone = useMemo(
     () => milestones.data?.find((m) => m.id === activeMilestoneId) ?? null,
     [milestones.data, activeMilestoneId],
