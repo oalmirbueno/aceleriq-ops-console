@@ -143,7 +143,13 @@ function milestoneIdOf(t: Record<string, any>) {
 function resolveTaskMilestone(
   t: Record<string, any>,
   aliasToId: Map<string, string>,
-): { id: string; category: "direct" | "folder" | "parent" | "" } {
+): { id: string; category: "container" | "direct" | "folder" | "parent" | "" } {
+  // 0) Container (task aninhada em milestone no payload)
+  const containerId = typeof t._containerMilestoneId === "string" ? t._containerMilestoneId.trim() : "";
+  if (containerId) {
+    const hit = aliasToId.get(containerId) ?? containerId;
+    return { id: hit, category: "container" };
+  }
   const meta = (t.metadata ?? {}) as Record<string, any>;
   const data = (t.data ?? {}) as Record<string, any>;
   const raw = (t.raw ?? {}) as Record<string, any>;
