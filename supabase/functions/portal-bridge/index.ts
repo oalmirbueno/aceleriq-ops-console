@@ -49,7 +49,7 @@ const json = (body: unknown, status = 200) =>
   });
 
 const PORTAL_BASE = "https://gicbrgagstyvbaaumprj.supabase.co/functions/v1";
-const DEPLOY_TAG = "v2.3.0";
+const DEPLOY_TAG = "v2.4.0";
 
 const STATUS_TASK: Record<string, string> = {
   todo: "todo", backlog: "todo", "to-do": "todo", to_do: "todo", draft: "todo",
@@ -430,6 +430,48 @@ async function fetchTasksFallback(headers: Record<string, string>) {
   } catch { return { tasks: [], milestones: [] }; }
 }
 
+async function fetchClientsList(headers: Record<string, string>): Promise<Record<string, any>[]> {
+  try {
+    const res = await fetch(`${PORTAL_BASE}/ops-clients-list`, {
+      method: "POST", headers, body: JSON.stringify({}),
+    });
+    if (!res.ok) return [];
+    const body = await res.json().catch(() => null) as any;
+    if (!body) return [];
+    if (Array.isArray(body)) return body;
+    if (Array.isArray(body.clients)) return body.clients;
+    if (Array.isArray(body.profiles)) return body.profiles;
+    if (Array.isArray(body.data)) return body.data;
+    return [];
+  } catch { return []; }
+}
+
+/** Extrai displayName/company/email/clientId de um registro bruto do Portal
+ *  (cliente ou profile). Cobre cascata extensa de campos. */
+function extractClientFields(raw: Record<string, any>): { id: string; name: string; company: string; email: string } {
+  const meta = (raw.metadata ?? {}) as Record<string, any>;
+  const rum = (raw.raw_user_meta_data ?? {}) as Record<string, any>;
+  const id = firstString(
+    raw.id, raw.client_id, raw.profile_id, raw.user_id, raw.uuid,
+    meta.client_id, meta.profile_id,
+  );
+  const company = firstString(
+    raw.company, raw.companyName, raw.company_name, raw.business_name, raw.businessName,
+    meta.company, meta.companyName, meta.company_name, meta.business_name,
+    rum.company, rum.companyName, rum.company_name,
+  );
+  const name = firstString(
+    raw.name, raw.full_name, raw.fullName, raw.display_name, raw.displayName,
+    raw.client_name, raw.profile_name,
+    meta.name, meta.full_name, meta.fullName, meta.display_name, meta.displayName, meta.client_name,
+    rum.name, rum.full_name, rum.fullName, rum.display_name,
+  );
+  const email = firstString(
+    raw.email, raw.contact_email, meta.email, rum.email,
+  );
+  return { id, name, company, email };
+}
+
 // ---------- Normalizers ----------
 
 function normalizeTask(t: Record<string, any>) {
@@ -585,6 +627,25 @@ serve(async (req) => {
     if (milestonesRaw.length === 0) milestonesRaw = fb.milestones;
   }
 
+  // Fetch global clients list (Portal exposes ops-clients-list with names/company).
+  // Used to enrich projects.clientName when the project payload lacks it.
+  const clientsRaw = await fetchClientsList(headers);
+  const clientsMap = new Map<string, { name: string; company: string; email: string }>();
+  for (const c of clientsRaw) {
+    const f = extractClientFields(c);
+    if (!f.id) continue;
+    const prev = clientsMap.get(f.id);
+    if (!prev) {
+      clientsMap.set(f.id, { name: f.name, company: f.company, email: f.email });
+    } else {
+      clientsMap.set(f.id, {
+        name: prev.name || f.name,
+        company: prev.company || f.company,
+        email: prev.email || f.email,
+      });
+    }
+  }
+
   // ---------- Build alias map (milestones) ----------
   // Mapeia qualquer alias conhecido → id canônico do milestone.
   const milestoneAliasToId = new Map<string, string>();
@@ -691,11 +752,21 @@ serve(async (req) => {
       if (!c.email && (p as any).clientEmail) c.email = (p as any).clientEmail;
       byClient.set(p.clientId, c);
     }
+    // Merge global clientsMap (from ops-clients-list) — fonte primária de
+    // displayName/company/email quando o payload de projects não traz.
+    for (const [cid, info] of clientsMap.entries()) {
+      const prev = byClient.get(cid) ?? { name: "", company: "", email: "" };
+      byClient.set(cid, {
+        name: prev.name || info.name,
+        company: prev.company || info.company,
+        email: prev.email || info.email,
+      });
+    }
     for (const p of projectsNorm) {
       if (!p.clientId) continue;
-      const c = byClient.get(p.clientId)!;
+      const c = byClient.get(p.clientId) ?? { name: "", company: "", email: "" };
       const { displayName, missing } = resolveClientDisplayName(c.name, c.company, c.email);
-      const operationalName = displayName || c.company || c.email || "Cliente sem nome";
+      const operationalName = displayName || c.company || c.email || "";
       (p as any).clientName = operationalName;
       (p as any).clientDisplayName = operationalName;
       (p as any).clientCompany = c.company || null;
@@ -761,6 +832,14 @@ serve(async (req) => {
           c.primaryProjectUpdatedAt = p.updatedAt || "";
         }
         map.set(p.clientId, c);
+      }
+      // Reforça com global clientsMap.
+      for (const [cid, info] of clientsMap.entries()) {
+        const prev = map.get(cid);
+        if (!prev) continue; // só clientes com projetos válidos entram
+        if (!prev.name) prev.name = info.name;
+        if (!prev.company) prev.company = info.company;
+        if (!prev.email) prev.email = info.email;
       }
       const clients = [...map.values()].map((c) => {
         const { displayName, missing } = resolveClientDisplayName(c.name, c.company, c.email);
@@ -871,6 +950,9 @@ serve(async (req) => {
         totals: {
           projectsRaw: projectsRaw.length,
           projectsValid: projectsNorm.length,
+          clientsRaw: clientsRaw.length,
+          clientsWithDisplayName: clientRows.filter((c) => c.displayName).length,
+          clientsMissingDisplayName: clientRows.filter((c) => !c.displayName).length,
           milestonesRaw: milestonesRaw.length,
           milestonesValid: validMilestoneIds.size,
           tasksRaw: tasksRaw.length,
