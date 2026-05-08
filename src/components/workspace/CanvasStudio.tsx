@@ -3605,6 +3605,18 @@ function CanvasStudioInner({
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
             <span className="hidden md:inline ml-1">Recarregar</span>
           </Button>
+          {portalProjectIdProp && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              onClick={() => window.open(`https://aceleriq.online/portal/projects/${portalProjectIdProp}`, "_blank", "noopener,noreferrer")}
+              title="Abrir este projeto no Portal"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              <span className="hidden md:inline ml-1">Portal</span>
+            </Button>
+          )}
           {showDevTools && (<>
           <Button size="sm" variant="ghost" className="h-8" onClick={handleAutoLayout} disabled={busyAction === "layout" || projectNodes.length === 0}>
             {busyAction === "layout" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LayoutGrid className="h-3.5 w-3.5" />}
