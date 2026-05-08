@@ -186,7 +186,7 @@ async function fetchTasksFallback(headers: Record<string, string>) {
 
 function normalizeTask(t: Record<string, any>) {
   return {
-    id: firstString(t.id, t.task_id, t.portal_task_id, t.uuid),
+    id: firstString(t.id, t.task_id, t.portal_task_id, t.ops_node_id, t.uuid),
     projectId: projectIdOf(t),
     milestoneId: milestoneIdOf(t),
     title: firstString(t.title, t.name, "Tarefa"),
