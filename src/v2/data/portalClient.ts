@@ -370,10 +370,11 @@ const bridgeClient: PortalClientApi = {
 // ---------- Selector ----------
 
 const FLAG_KEY = "ops-v2:use-real-bridge";
+const MOCK_FLAG_KEY = "ops-v2:use-mock";
 
-function isBridgeEnabled(): boolean {
+function isMockEnabled(): boolean {
   if (typeof window === "undefined") return false;
-  try { return window.localStorage.getItem(FLAG_KEY) === "1"; } catch { return false; }
+  try { return window.localStorage.getItem(MOCK_FLAG_KEY) === "1"; } catch { return false; }
 }
 
 export function setUseRealBridge(on: boolean) {
@@ -383,10 +384,18 @@ export function setUseRealBridge(on: boolean) {
     else window.localStorage.removeItem(FLAG_KEY);
   } catch { /* noop */ }
 }
+export function setUseMock(on: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    if (on) window.localStorage.setItem(MOCK_FLAG_KEY, "1");
+    else window.localStorage.removeItem(MOCK_FLAG_KEY);
+  } catch { /* noop */ }
+}
 
 export type PortalMode = "mock" | "bridge";
 
-export const PORTAL_MODE: PortalMode = isBridgeEnabled() ? "bridge" : "mock";
+// Bridge real é o default em produção. Mock só com flag explícita de dev.
+export const PORTAL_MODE: PortalMode = isMockEnabled() ? "mock" : "bridge";
 export const PORTAL_CLIENT_IS_MOCK = PORTAL_MODE === "mock";
 
 // ---------- Bridge error bus ----------
