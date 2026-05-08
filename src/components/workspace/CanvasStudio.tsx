@@ -907,16 +907,56 @@ function CanvasStudioInner({
     // ── Fase 1: payload leve para renderizar nodes na tela rapidamente.
     // (data jsonb e description podem ser grandes — buscamos depois em paralelo)
     const lightSel = "id, node_type, title, status, pos_x, pos_y, parent_node_id, linked_entity_id, linked_entity_type, workspace_id, client_id, created_at, updated_at, archived_at, deleted_at, sync_status";
-    const [nodesRes, edgesRes] = await Promise.all([
-      supabase.from("canvas_nodes").select(lightSel).eq("workspace_id", workspaceId)
-        .is("deleted_at", null)
-        .is("archived_at", null)
-        .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
-        .order("created_at"),
-      supabase.from("canvas_edges")
-        .select("id, source_node_id, target_node_id, source_handle, target_handle, edge_type, label, workspace_id")
-        .eq("workspace_id", workspaceId),
-    ]);
+    // Etapa 3 — Modo Operação: a query já busca somente o necessário.
+    // Pega só pasta de cliente (node_type=client) + nodes vinculados ao Portal
+    // (portal_task_id / portal_milestone_id / portal_project_id). Sem
+    // project_group, sem internos, sem órfãos. Se algum toggle administrativo
+    // estiver ON, relaxa o filtro pra deixar a UI decidir.
+    const operationModeActive =
+      featureFlags.canvasOperationMode &&
+      !operationToggles.showInternal &&
+      !operationToggles.showLegacy &&
+      !operationToggles.showUnlinked;
+    let nodesQuery = supabase
+      .from("canvas_nodes")
+      .select(lightSel)
+      .eq("workspace_id", workspaceId)
+      .is("deleted_at", null)
+      .is("archived_at", null)
+      .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)");
+    if (operationModeActive) {
+      nodesQuery = nodesQuery.or(
+        [
+          "node_type.eq.client",
+          "data->>portal_task_id.not.is.null",
+          "data->>portal_milestone_id.not.is.null",
+          "data->>portal_project_id.not.is.null",
+        ].join(","),
+      );
+    }
+    nodesQuery = nodesQuery.order("created_at");
+    // Watchdog: nunca deixa loading infinito. Se demorar >10s, aborta com erro.
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("Tempo limite ao carregar canvas (10s).")), 10_000);
+    });
+    let nodesRes: any; let edgesRes: any;
+    try {
+      [nodesRes, edgesRes] = await Promise.race([
+        Promise.all([
+          nodesQuery,
+          supabase.from("canvas_edges")
+            .select("id, source_node_id, target_node_id, source_handle, target_handle, edge_type, label, workspace_id")
+            .eq("workspace_id", workspaceId),
+        ]),
+        timeoutPromise,
+      ]);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro inesperado";
+      console.error("[CanvasStudio] fetchData failed", err);
+      setLastFetchError(msg);
+      setLoading(false);
+      return;
+    }
     if (nodesRes.error) {
       dbgWarn("fetch", "nodes error", nodesRes.error);
       setLastFetchError(nodesRes.error.message);
@@ -1009,7 +1049,7 @@ function CanvasStudioInner({
       setClientLogos({});
       cacheRef.current.set(workspaceId, { nodes: merged, edges, logos: {} });
     }
-  }, [workspaceId]);
+  }, [workspaceId, operationToggles.showInternal, operationToggles.showLegacy, operationToggles.showUnlinked]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -3558,6 +3598,11 @@ function CanvasStudioInner({
               Limpar filtros
             </Button>
           )}
+          <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => fetchData()} disabled={loading} title="Recarregar canvas">
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            <span className="hidden md:inline ml-1">Recarregar</span>
+          </Button>
+          {featureFlags.enableCanvasDevTools && (<>
           <Button size="sm" variant="ghost" className="h-8" onClick={handleAutoLayout} disabled={busyAction === "layout" || projectNodes.length === 0}>
             {busyAction === "layout" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LayoutGrid className="h-3.5 w-3.5" />}
             <span className="hidden md:inline ml-1 text-xs">Reorganizar</span>
@@ -3593,6 +3638,7 @@ function CanvasStudioInner({
               onApplied={fetchData}
             />
           )}
+          </>)}
           <div className="h-5 w-px bg-border mx-1" />
           <CanvasProjectLinker
             workspaceId={workspaceId}
@@ -3650,7 +3696,7 @@ function CanvasStudioInner({
             Sync portal
           </Button>
           )}
-          <Button
+          {featureFlags.enableCanvasDevTools && (<Button
             size="sm"
             variant="outline"
             className="h-8 text-xs"
@@ -3683,8 +3729,8 @@ function CanvasStudioInner({
           >
             {busyAction === "smoke-test" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5 mr-1" />}
             Smoke test
-          </Button>
-          <Button
+          </Button>)}
+          {featureFlags.enableCanvasDevTools && (<Button
             size="sm"
             variant="outline"
             className="h-8 text-xs"
@@ -3727,7 +3773,7 @@ function CanvasStudioInner({
           >
             {busyAction === "verify-realtime" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Radio className="h-3.5 w-3.5 mr-1" />}
             Verificar realtime
-          </Button>
+          </Button>)}
           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onToggleFullscreen} aria-label="Alternar tela cheia">
             {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
@@ -3907,9 +3953,25 @@ function CanvasStudioInner({
               <span>Use “Hub” no Engine para montar o fluxo central</span>
             </div>
           )}
-          {loading ? (
+          {lastFetchError ? (
+            <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center">
+              <div className="h-12 w-12 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center">
+                <RefreshCw className="h-6 w-6 text-destructive" />
+              </div>
+              <div>
+                <p className="text-base font-semibold text-foreground mb-1">Não consegui carregar o canvas</p>
+                <p className="text-xs text-muted-foreground max-w-md">{lastFetchError}</p>
+              </div>
+              <Button size="sm" onClick={() => fetchData()}>
+                <RefreshCw className="h-3.5 w-3.5 mr-1" /> Tentar de novo
+              </Button>
+            </div>
+          ) : loading ? (
             <div className="h-full flex items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <Button size="sm" variant="ghost" className="text-xs" onClick={() => fetchData()}>Recarregar</Button>
+              </div>
             </div>
           ) : clientGroups.length === 0 ? (
             clientId && clientName ? (
@@ -3943,24 +4005,21 @@ function CanvasStudioInner({
             </div>
             )
           ) : scopedProjectNodes.length === 0 ? (
-            portalProjectIdProp ? (
+            featureFlags.canvasOperationMode ? (
             <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center relative">
-              <Loader2 className="h-10 w-10 text-muted-foreground animate-spin" />
+              <div className="h-12 w-12 rounded-full bg-muted border border-border flex items-center justify-center">
+                <Sparkles className="h-6 w-6 text-muted-foreground" />
+              </div>
               <div>
-                <p className="text-base font-semibold text-foreground mb-1">Trazendo esteira do Portal…</p>
+                <p className="text-base font-semibold text-foreground mb-1">Nenhuma task real do Portal encontrada neste projeto.</p>
                 <p className="text-xs text-muted-foreground max-w-md">
-                  Buscando milestones, tarefas concluídas e em andamento deste projeto.
+                  O Modo Operação só mostra milestones e tarefas vinculadas ao Portal.
+                  Use “Recarregar” após sincronizar pelo Portal.
                 </p>
               </div>
-              <div className="flex gap-2 mt-2 flex-wrap justify-center">
-                <Button size="sm" variant="outline" onClick={() => syncPortalNow({ pull: true, push: false })} disabled={syncStatus.portalBusy}>
-                  {syncStatus.portalBusy ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
-                  Sincronizar agora
-                </Button>
-              </div>
-              {syncStatus.portalError && (
-                <p className="text-[11px] text-destructive">{syncStatus.portalError}</p>
-              )}
+              <Button size="sm" variant="outline" onClick={() => fetchData()}>
+                <RefreshCw className="h-3.5 w-3.5 mr-1" /> Recarregar
+              </Button>
             </div>
             ) : (
             <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center relative">
