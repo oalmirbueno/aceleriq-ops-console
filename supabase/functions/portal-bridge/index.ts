@@ -113,15 +113,48 @@ function milestoneIdOf(t: Record<string, any>) {
     t.milestone_id, t.milestoneId,
     t.portal_milestone_id, t.portalMilestoneId,
     t.folder_id, t.portal_folder_id, t.folderId, t.portalFolderId,
+    t.ops_milestone_id, t.opsMilestoneId,
+    t.parent_milestone_id, t.parentMilestoneId,
     t.stage_id, t.phase_id, t.column_id,
     t.milestone?.id, t.milestone?.uuid,
     t.folder?.id,
     meta.milestone_id, meta.milestoneId,
     meta.portal_milestone_id, meta.portalMilestoneId,
+    meta.folder_id, meta.portal_folder_id,
     data.milestone_id, data.milestoneId,
     data.portal_milestone_id, data.portalMilestoneId,
+    data.folder_id, data.portal_folder_id,
   );
 }
+
+/** Coleta TODOS os ids/aliases possíveis de um milestone bruto. */
+function milestoneAliasesOf(m: Record<string, any>): string[] {
+  const meta = (m.metadata ?? {}) as Record<string, any>;
+  const data = (m.data ?? {}) as Record<string, any>;
+  const raw = [
+    m.id, m.milestone_id, m.milestoneId,
+    m.portal_milestone_id, m.portalMilestoneId,
+    m.ops_milestone_id, m.opsMilestoneId,
+    m.folder_id, m.portal_folder_id, m.folderId, m.portalFolderId,
+    m.node_id, m.nodeId, m.uuid,
+    meta.id, meta.milestone_id, meta.milestoneId,
+    meta.portal_milestone_id, meta.portalMilestoneId,
+    meta.folder_id, meta.portal_folder_id,
+    meta.node_id,
+    data.id, data.milestone_id, data.milestoneId,
+    data.portal_milestone_id, data.portalMilestoneId,
+    data.folder_id, data.portal_folder_id,
+    data.node_id,
+  ];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const v of raw) {
+    const s = typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim();
+    if (s && !seen.has(s)) { seen.add(s); out.push(s); }
+  }
+  return out;
+}
+
 function clientIdOf(p: Record<string, any>) {
   return firstString(
     p.client_id, p.profile_id, p.customer_id, p.user_id,
@@ -129,10 +162,48 @@ function clientIdOf(p: Record<string, any>) {
   );
 }
 function clientNameOf(p: Record<string, any>) {
+  const c = (p.client ?? {}) as Record<string, any>;
+  const pr = (p.profile ?? {}) as Record<string, any>;
+  const cMeta = (c.metadata ?? {}) as Record<string, any>;
+  const cRum = (c.raw_user_meta_data ?? {}) as Record<string, any>;
+  const prMeta = (pr.metadata ?? {}) as Record<string, any>;
   return firstString(
-    p.client_name, p.client?.name, p.client?.full_name,
-    p.profile?.name, p.profile?.full_name, p.customer_name,
+    p.client_name, p.customer_name,
+    c.name, c.full_name, c.fullName, c.display_name, c.displayName,
+    c.company, c.company_name, c.companyName, c.business_name,
+    pr.name, pr.full_name, pr.fullName, pr.display_name, pr.displayName,
+    cMeta.name, cMeta.client_name, cMeta.full_name, cMeta.fullName,
+    cMeta.company, cMeta.company_name, cMeta.companyName,
+    cRum.name, cRum.full_name, cRum.fullName,
+    prMeta.name, prMeta.full_name,
   );
+}
+function clientCompanyOf(p: Record<string, any>): string {
+  const c = (p.client ?? {}) as Record<string, any>;
+  const cMeta = (c.metadata ?? {}) as Record<string, any>;
+  return firstString(
+    p.client_company, c.company, c.company_name, c.companyName, c.business_name,
+    cMeta.company, cMeta.company_name, cMeta.companyName, cMeta.business_name,
+  );
+}
+function clientEmailOf(p: Record<string, any>): string {
+  const c = (p.client ?? {}) as Record<string, any>;
+  const pr = (p.profile ?? {}) as Record<string, any>;
+  const cMeta = (c.metadata ?? {}) as Record<string, any>;
+  return firstString(
+    p.client_email, c.email, pr.email, cMeta.email,
+  );
+}
+function isUuidLike(s: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+}
+function resolveClientDisplayName(name: string, company: string, email: string): { displayName: string; missing: boolean } {
+  const candidates = [name, company, email].map((s) => (s || "").trim()).filter(Boolean);
+  for (const cand of candidates) {
+    if (isUuidLike(cand)) continue;
+    return { displayName: cand, missing: false };
+  }
+  return { displayName: "", missing: true };
 }
 
 // ---------- Portal fetch (read-only) ----------
