@@ -907,16 +907,56 @@ function CanvasStudioInner({
     // ── Fase 1: payload leve para renderizar nodes na tela rapidamente.
     // (data jsonb e description podem ser grandes — buscamos depois em paralelo)
     const lightSel = "id, node_type, title, status, pos_x, pos_y, parent_node_id, linked_entity_id, linked_entity_type, workspace_id, client_id, created_at, updated_at, archived_at, deleted_at, sync_status";
-    const [nodesRes, edgesRes] = await Promise.all([
-      supabase.from("canvas_nodes").select(lightSel).eq("workspace_id", workspaceId)
-        .is("deleted_at", null)
-        .is("archived_at", null)
-        .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)")
-        .order("created_at"),
-      supabase.from("canvas_edges")
-        .select("id, source_node_id, target_node_id, source_handle, target_handle, edge_type, label, workspace_id")
-        .eq("workspace_id", workspaceId),
-    ]);
+    // Etapa 3 — Modo Operação: a query já busca somente o necessário.
+    // Pega só pasta de cliente (node_type=client) + nodes vinculados ao Portal
+    // (portal_task_id / portal_milestone_id / portal_project_id). Sem
+    // project_group, sem internos, sem órfãos. Se algum toggle administrativo
+    // estiver ON, relaxa o filtro pra deixar a UI decidir.
+    const operationModeActive =
+      featureFlags.canvasOperationMode &&
+      !operationToggles.showInternal &&
+      !operationToggles.showLegacy &&
+      !operationToggles.showUnlinked;
+    let nodesQuery = supabase
+      .from("canvas_nodes")
+      .select(lightSel)
+      .eq("workspace_id", workspaceId)
+      .is("deleted_at", null)
+      .is("archived_at", null)
+      .or("sync_status.is.null,sync_status.not.in.(deleted_from_portal,archived_legacy,archived_test_data,deleted,archived)");
+    if (operationModeActive) {
+      nodesQuery = nodesQuery.or(
+        [
+          "node_type.eq.client",
+          "data->>portal_task_id.not.is.null",
+          "data->>portal_milestone_id.not.is.null",
+          "data->>portal_project_id.not.is.null",
+        ].join(","),
+      );
+    }
+    nodesQuery = nodesQuery.order("created_at");
+    // Watchdog: nunca deixa loading infinito. Se demorar >10s, aborta com erro.
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("Tempo limite ao carregar canvas (10s).")), 10_000);
+    });
+    let nodesRes: any; let edgesRes: any;
+    try {
+      [nodesRes, edgesRes] = await Promise.race([
+        Promise.all([
+          nodesQuery,
+          supabase.from("canvas_edges")
+            .select("id, source_node_id, target_node_id, source_handle, target_handle, edge_type, label, workspace_id")
+            .eq("workspace_id", workspaceId),
+        ]),
+        timeoutPromise,
+      ]);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro inesperado";
+      console.error("[CanvasStudio] fetchData failed", err);
+      setLastFetchError(msg);
+      setLoading(false);
+      return;
+    }
     if (nodesRes.error) {
       dbgWarn("fetch", "nodes error", nodesRes.error);
       setLastFetchError(nodesRes.error.message);
