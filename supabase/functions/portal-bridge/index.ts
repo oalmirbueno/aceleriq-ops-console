@@ -674,6 +674,36 @@ serve(async (req) => {
       return true;
     });
 
+  // ---------- Enriquecimento de cliente por projeto ----------
+  // Resolve displayName real (cascata name/company/email) por clientId,
+  // agregando dados de TODOS os projetos do mesmo cliente. Aplica de volta
+  // em cada projectNorm para garantir que getProject/listProjects nunca
+  // retornem clientName genérico ("Cliente").
+  {
+    type CAgg = { name: string; company: string; email: string };
+    const byClient = new Map<string, CAgg>();
+    for (const p of projectsNorm) {
+      if (!p.clientId) continue;
+      const c = byClient.get(p.clientId) ?? { name: "", company: "", email: "" };
+      const candName = (p.clientName || "").trim();
+      if (!c.name && candName && candName.toLowerCase() !== "cliente" && !isUuidLike(candName)) c.name = candName;
+      if (!c.company && (p as any).clientCompany) c.company = (p as any).clientCompany;
+      if (!c.email && (p as any).clientEmail) c.email = (p as any).clientEmail;
+      byClient.set(p.clientId, c);
+    }
+    for (const p of projectsNorm) {
+      if (!p.clientId) continue;
+      const c = byClient.get(p.clientId)!;
+      const { displayName, missing } = resolveClientDisplayName(c.name, c.company, c.email);
+      const operationalName = displayName || c.company || c.email || "Cliente sem nome";
+      (p as any).clientName = operationalName;
+      (p as any).clientDisplayName = operationalName;
+      (p as any).clientCompany = c.company || null;
+      (p as any).clientEmail = c.email || null;
+      (p as any).clientProblems = missing ? ["missing_display_name"] : [];
+    }
+  }
+
   // Set de project ids válidos — usado para filtrar milestones/tasks órfãs.
   const validProjectIds = new Set(projectsNorm.map((p) => p.id));
   // Reduz milestones a apenas projetos válidos.
