@@ -1049,7 +1049,7 @@ function CanvasStudioInner({
       setClientLogos({});
       cacheRef.current.set(workspaceId, { nodes: merged, edges, logos: {} });
     }
-  }, [workspaceId]);
+  }, [workspaceId, operationToggles.showInternal, operationToggles.showLegacy, operationToggles.showUnlinked]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
