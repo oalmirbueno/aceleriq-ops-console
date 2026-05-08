@@ -467,7 +467,7 @@ function CanvasStudioInner({
   // OFF por padrão.
   const [operationToggles] = useOperationModeToggles();
   const [devMode] = useDevMode();
-  const showDevTools = devMode || showDevTools;
+  const showDevTools = devMode || featureFlags.enableCanvasDevTools;
 
   // Auto-sync milestone OPS → Portal: sempre que aparece um milestone_group sem
   // portal_milestone_id (criação local ou via realtime), dispara apply_one no
