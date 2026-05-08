@@ -57,8 +57,8 @@ export function portalTaskToNodeData(task: PortalTask): PortalNodeData {
     coverAttachment: null,
     operationalMeta: {
       ownerName: task.assigneeName ?? null,
-      dueAt: task.dueAt ?? null,
-    } as ProjectNodeData["operationalMeta"],
+      dueDate: task.dueAt ?? null,
+    },
     nodeId: task.id,
     workspaceId: task.projectId,
     typeData: {
