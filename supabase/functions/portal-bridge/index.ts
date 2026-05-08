@@ -1,7 +1,12 @@
 /**
  * portal-bridge — leitura read-only do Portal Aceleriq para o OPS V2.
  *
- * Deploy tag: v2.2.6 — Robust task→milestone resolution + audit debug.
+ * Deploy tag: v2.2.7 — inspectPortalPayload + nested task→milestone resolver.
+ *  - inspectPortalPayload: diagnóstico seguro do payload real do Portal.
+ *  - extrai tasks aninhadas em projects[].milestones[].tasks[] etc., injetando
+ *    _containerMilestoneId / _containerProjectId / _jsonPath na task.
+ *  - audit com tasksWithDetectedContainerMilestone, tasksWithDirectMilestoneField,
+ *    tasksWithNoRelation, tasksDroppedBecauseNoMilestone.
  *  - resolução task→milestone via direct/folder/parent/opsFallback;
  *  - auditPortalSources com contadores por categoria + debug seguro;
  *  - listClients devolve primaryProjectId para CTAs clicáveis.
@@ -44,6 +49,7 @@ const json = (body: unknown, status = 200) =>
   });
 
 const PORTAL_BASE = "https://gicbrgagstyvbaaumprj.supabase.co/functions/v1";
+const DEPLOY_TAG = "v2.2.7";
 
 const STATUS_TASK: Record<string, string> = {
   todo: "todo", backlog: "todo", "to-do": "todo", to_do: "todo", draft: "todo",
@@ -99,6 +105,7 @@ function projectIdOf(t: Record<string, any>) {
   const meta = (t.metadata ?? {}) as Record<string, any>;
   const data = (t.data ?? {}) as Record<string, any>;
   return firstString(
+    t._containerProjectId,
     t.project_id, t.projectId,
     t.portal_project_id, t.portalProjectId,
     t.workspace_id,
@@ -113,6 +120,7 @@ function milestoneIdOf(t: Record<string, any>) {
   const meta = (t.metadata ?? {}) as Record<string, any>;
   const data = (t.data ?? {}) as Record<string, any>;
   return firstString(
+    t._containerMilestoneId,
     t.milestone_id, t.milestoneId,
     t.portal_milestone_id, t.portalMilestoneId,
     t.folder_id, t.portal_folder_id, t.folderId, t.portalFolderId,
@@ -135,7 +143,13 @@ function milestoneIdOf(t: Record<string, any>) {
 function resolveTaskMilestone(
   t: Record<string, any>,
   aliasToId: Map<string, string>,
-): { id: string; category: "direct" | "folder" | "parent" | "" } {
+): { id: string; category: "container" | "direct" | "folder" | "parent" | "" } {
+  // 0) Container (task aninhada em milestone no payload)
+  const containerId = typeof t._containerMilestoneId === "string" ? t._containerMilestoneId.trim() : "";
+  if (containerId) {
+    const hit = aliasToId.get(containerId) ?? containerId;
+    return { id: hit, category: "container" };
+  }
   const meta = (t.metadata ?? {}) as Record<string, any>;
   const data = (t.data ?? {}) as Record<string, any>;
   const raw = (t.raw ?? {}) as Record<string, any>;
@@ -143,6 +157,7 @@ function resolveTaskMilestone(
   const task = (t.task ?? {}) as Record<string, any>;
   const buckets: { cat: "direct" | "folder" | "parent"; vals: unknown[] }[] = [
     { cat: "direct", vals: [
+      t._containerMilestoneId,
       t.milestone_id, t.milestoneId, t.portal_milestone_id, t.portalMilestoneId,
       t.ops_milestone_id, t.opsMilestoneId,
       t.parent_milestone_id, t.parentMilestoneId,
@@ -293,11 +308,91 @@ async function fetchFullExport(headers: Record<string, string>) {
     if (!res.ok) return null;
     const body = await res.json().catch(() => null) as Record<string, unknown> | null;
     if (!body) return null;
-    return {
-      projects: Array.isArray(body.projects) ? body.projects as Record<string, any>[] : [],
-      tasks: Array.isArray(body.tasks) ? body.tasks as Record<string, any>[] : [],
-      milestones: Array.isArray(body.milestones) ? body.milestones as Record<string, any>[] : [],
-    };
+    const projects = Array.isArray(body.projects) ? body.projects as Record<string, any>[] : [];
+    const tasksTop = Array.isArray(body.tasks) ? body.tasks as Record<string, any>[] : [];
+    const milestonesTop = Array.isArray(body.milestones) ? body.milestones as Record<string, any>[] : [];
+
+    // ---- Extrai estruturas aninhadas (projects[].milestones[].tasks[] etc.) ----
+    // Ao iterar, injeta no objeto task:
+    //   _containerMilestoneId — id detectado do milestone pai
+    //   _containerProjectId   — id detectado do project pai
+    //   _jsonPath             — caminho no JSON (ex: projects[0].milestones[1].tasks[3])
+    const nestedMilestones: Record<string, any>[] = [];
+    const nestedTasks: Record<string, any>[] = [];
+    const TASK_KEYS = ["tasks", "items", "cards", "nodes", "children"];
+    const MS_KEYS = ["milestones", "folders", "stages", "phases", "columns", "groups", "sections"];
+
+    function pickId(o: Record<string, any>): string {
+      return firstString(o?.id, o?.uuid, o?.milestone_id, o?.portal_milestone_id, o?.folder_id, o?.project_id);
+    }
+    function walkMilestone(ms: Record<string, any>, projectId: string, path: string) {
+      if (!ms || typeof ms !== "object") return;
+      const msId = pickId(ms);
+      // marca o ms com projectId do container se ausente
+      if (projectId && !ms.project_id && !ms.projectId) (ms as any)._containerProjectId = projectId;
+      nestedMilestones.push(ms);
+      for (const tk of TASK_KEYS) {
+        const arr = (ms as any)[tk];
+        if (!Array.isArray(arr)) continue;
+        arr.forEach((t: any, i: number) => {
+          if (!t || typeof t !== "object") return;
+          if (msId) (t as any)._containerMilestoneId = msId;
+          if (projectId) (t as any)._containerProjectId = projectId;
+          (t as any)._jsonPath = `${path}.${tk}[${i}]`;
+          nestedTasks.push(t);
+        });
+      }
+      // Sub-milestones (raras, mas defensivo)
+      for (const mk of MS_KEYS) {
+        const arr = (ms as any)[mk];
+        if (!Array.isArray(arr)) continue;
+        arr.forEach((sub: any, i: number) => {
+          walkMilestone(sub, projectId, `${path}.${mk}[${i}]`);
+        });
+      }
+    }
+    projects.forEach((p, pi) => {
+      const projectId = firstString(p.id, p.project_id, p.uuid);
+      const ppath = `projects[${pi}]`;
+      // Tasks soltas direto no projeto
+      for (const tk of TASK_KEYS) {
+        const arr = (p as any)[tk];
+        if (!Array.isArray(arr)) continue;
+        arr.forEach((t: any, i: number) => {
+          if (!t || typeof t !== "object") return;
+          if (projectId) (t as any)._containerProjectId = projectId;
+          (t as any)._jsonPath = `${ppath}.${tk}[${i}]`;
+          nestedTasks.push(t);
+        });
+      }
+      // Milestones aninhados
+      for (const mk of MS_KEYS) {
+        const arr = (p as any)[mk];
+        if (!Array.isArray(arr)) continue;
+        arr.forEach((ms: any, i: number) => {
+          walkMilestone(ms, projectId, `${ppath}.${mk}[${i}]`);
+        });
+      }
+    });
+
+    // Merge dedupe por id (top-level vence se conflitar)
+    const msSeen = new Set<string>();
+    const milestones: Record<string, any>[] = [];
+    for (const m of [...milestonesTop, ...nestedMilestones]) {
+      const id = pickId(m);
+      if (!id) { milestones.push(m); continue; }
+      if (msSeen.has(id)) continue;
+      msSeen.add(id); milestones.push(m);
+    }
+    const tSeen = new Set<string>();
+    const tasks: Record<string, any>[] = [];
+    for (const t of [...tasksTop, ...nestedTasks]) {
+      const id = firstString(t.id, t.task_id, t.uuid, t.portal_task_id);
+      if (!id) { tasks.push(t); continue; }
+      if (tSeen.has(id)) continue;
+      tSeen.add(id); tasks.push(t);
+    }
+    return { projects, tasks, milestones };
   } catch {
     return null;
   }
@@ -378,6 +473,7 @@ function normalizeMilestone(
   return {
     id,
     projectId: firstString(
+      m._containerProjectId,
       m.project_id, m.projectId,
       m.portal_project_id, m.portalProjectId,
       m.workspace_id, m.project?.id,
@@ -505,19 +601,25 @@ serve(async (req) => {
   let tasksResolvedByDirectMilestoneId = 0;
   let tasksResolvedByFolderId = 0;
   let tasksResolvedByParentId = 0;
-  const tasksNormPairs: { task: ReturnType<typeof normalizeTask>; raw: Record<string, any>; resolvedBy: "direct" | "folder" | "parent" | "" }[] = [];
+  let tasksResolvedByContainer = 0;
+  const tasksNormPairs: { task: ReturnType<typeof normalizeTask>; raw: Record<string, any>; resolvedBy: "container" | "direct" | "folder" | "parent" | "" }[] = [];
   for (const rawT of tasksRaw) {
     const t = normalizeTask(rawT);
     if (!t.id || !t.projectId) continue;
-    let resolvedBy: "direct" | "folder" | "parent" | "" = "";
-    if (t.milestoneId && milestoneAliasToId.has(t.milestoneId)) {
+    let resolvedBy: "container" | "direct" | "folder" | "parent" | "" = "";
+    const containerId = typeof (rawT as any)._containerMilestoneId === "string" ? (rawT as any)._containerMilestoneId.trim() : "";
+    if (containerId) {
+      t.milestoneId = milestoneAliasToId.get(containerId) ?? containerId;
+      resolvedBy = "container";
+    } else if (t.milestoneId && milestoneAliasToId.has(t.milestoneId)) {
       t.milestoneId = milestoneAliasToId.get(t.milestoneId)!;
       resolvedBy = "direct";
     } else {
       const r = resolveTaskMilestone(rawT, milestoneAliasToId);
       if (r.id) { t.milestoneId = r.id; resolvedBy = r.category; }
     }
-    if (resolvedBy === "direct") tasksResolvedByDirectMilestoneId++;
+    if (resolvedBy === "container") tasksResolvedByContainer++;
+    else if (resolvedBy === "direct") tasksResolvedByDirectMilestoneId++;
     else if (resolvedBy === "folder") tasksResolvedByFolderId++;
     else if (resolvedBy === "parent") tasksResolvedByParentId++;
     tasksNormPairs.push({ task: t, raw: rawT, resolvedBy });
@@ -735,7 +837,7 @@ serve(async (req) => {
 
       return json({
         ok: true,
-        deployTag: "v2.2.5",
+        deployTag: DEPLOY_TAG,
         totals: {
           projectsRaw: projectsRaw.length,
           projectsValid: projectsNorm.length,
@@ -743,7 +845,12 @@ serve(async (req) => {
           milestonesValid: validMilestoneIds.size,
           tasksRaw: tasksRaw.length,
           tasksValid: tasksFiltered.length,
+          tasksWithDetectedContainerMilestone: tasksResolvedByContainer,
+          tasksWithDirectMilestoneField: tasksResolvedByDirectMilestoneId,
+          tasksWithNoRelation: tasksNormPairs.filter((p) => !p.resolvedBy).length,
+          tasksDroppedBecauseNoMilestone: tasksNorm.length - tasksFiltered.length,
           tasksResolvedByDirectMilestoneId,
+          tasksResolvedByContainer,
           tasksResolvedByFolderId,
           tasksResolvedByParentId,
           tasksStillUnresolved: tasksWithoutValidMilestone.length,
@@ -753,6 +860,10 @@ serve(async (req) => {
           clientsTotal: clientRows.length,
           clientsIncluded: clientRows.filter((c) => c.included).length,
         },
+        message:
+          tasksRaw.length > 0 && tasksFiltered.length === 0
+            ? "Relação task→milestone não encontrada no payload atual. Use action inspectPortalPayload para diagnóstico."
+            : undefined,
         problemsLegend: [
           "missing_display_name",
           "client_without_active_project",
@@ -821,6 +932,129 @@ serve(async (req) => {
         };
       }
       return json(payload);
+    }
+    case "inspectPortalPayload": {
+      // Diagnóstico read-only do payload bruto. Mascara dados sensíveis.
+      const RELATION_PATTERNS = [
+        /milestone/i, /folder/i, /parent/i, /stage/i, /phase/i,
+        /column/i, /node/i, /^task/i, /project/i, /group/i, /section/i,
+      ];
+      const mask = (v: unknown): unknown => {
+        if (v == null) return v;
+        if (typeof v === "string") {
+          if (isUuidLike(v)) return v; // ids ajudam diagnóstico
+          return v.length > 80 ? v.slice(0, 80) + "…" : v;
+        }
+        if (typeof v === "number" || typeof v === "boolean") return v;
+        return Array.isArray(v) ? `[array len=${(v as any[]).length}]` : "[object]";
+      };
+      const safeSample = (o: Record<string, any>) => {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(o)) out[k] = mask(v);
+        return out;
+      };
+      const collectRelationFields = (o: Record<string, any>): Record<string, unknown> => {
+        const found: Record<string, unknown> = {};
+        const walk = (obj: any, prefix = "") => {
+          if (!obj || typeof obj !== "object" || Array.isArray(obj)) return;
+          for (const [k, v] of Object.entries(obj)) {
+            const path = prefix ? `${prefix}.${k}` : k;
+            if (RELATION_PATTERNS.some((re) => re.test(k))) {
+              if (v != null && (typeof v === "string" || typeof v === "number")) {
+                found[path] = String(v).slice(0, 80);
+              }
+            }
+            if (v && typeof v === "object" && !Array.isArray(v) && prefix.split(".").length < 2) {
+              walk(v, path);
+            }
+          }
+        };
+        walk(o);
+        return found;
+      };
+
+      const projectSample = projectsRaw[0]
+        ? { keys: Object.keys(projectsRaw[0]), sample: safeSample(projectsRaw[0]) }
+        : null;
+
+      const idFieldsOf = (arr: Record<string, any>[]) => {
+        const ids = new Set<string>();
+        const projIds = new Set<string>();
+        for (const o of arr.slice(0, 50)) {
+          for (const k of Object.keys(o)) {
+            if (/(^|_)id$/i.test(k) || /uuid/i.test(k)) ids.add(k);
+            if (/project/i.test(k) && /id/i.test(k)) projIds.add(k);
+          }
+        }
+        return { possibleIdFields: [...ids], possibleProjectIdFields: [...projIds] };
+      };
+
+      const milestoneInfo = {
+        totalRaw: milestonesRaw.length,
+        keys: milestonesRaw[0] ? Object.keys(milestonesRaw[0]) : [],
+        sample: milestonesRaw.slice(0, 3).map((m) => safeSample(m)),
+        ...idFieldsOf(milestonesRaw),
+      };
+
+      // Tasks unresolved sample
+      const unresolvedPairs = tasksNormPairs.filter(
+        (p) => validProjectIds.has(p.task.projectId) &&
+          (!p.task.milestoneId || !validMilestoneIds.has(p.task.milestoneId)),
+      );
+      const tasksSampleSource = unresolvedPairs.length > 0 ? unresolvedPairs : tasksNormPairs;
+      const taskSamples = tasksSampleSource.slice(0, 5).map((p) => {
+        const raw = p.raw;
+        const meta = (raw.metadata ?? {}) as Record<string, any>;
+        const data = (raw.data ?? {}) as Record<string, any>;
+        const rawInner = (raw.raw ?? {}) as Record<string, any>;
+        return {
+          id: p.task.id,
+          title: (p.task.title || "").slice(0, 40),
+          detectedProjectId: p.task.projectId,
+          containerMilestoneId: (raw as any)._containerMilestoneId ?? null,
+          containerProjectId: (raw as any)._containerProjectId ?? null,
+          jsonPath: (raw as any)._jsonPath ?? null,
+          relationFields: collectRelationFields(raw),
+          structure: (raw as any)._jsonPath
+            ? `nested at ${(raw as any)._jsonPath}`
+            : "flat (top-level array)",
+          metadataKeys: Object.keys(meta),
+          dataKeys: Object.keys(data),
+          rawKeys: Object.keys(rawInner),
+        };
+      });
+
+      const taskInfo = {
+        totalRaw: tasksRaw.length,
+        keys: tasksRaw[0] ? Object.keys(tasksRaw[0]) : [],
+        metadataKeys: tasksRaw[0]?.metadata ? Object.keys(tasksRaw[0].metadata) : [],
+        dataKeys: tasksRaw[0]?.data ? Object.keys(tasksRaw[0].data) : [],
+        rawKeys: tasksRaw[0]?.raw ? Object.keys(tasksRaw[0].raw) : [],
+        nestedDetected: tasksRaw.filter((t) => (t as any)._jsonPath).length,
+        flatDetected: tasksRaw.filter((t) => !(t as any)._jsonPath).length,
+        unresolvedSample: taskSamples,
+      };
+
+      return json({
+        ok: true,
+        deployTag: DEPLOY_TAG,
+        source: full ? "ops-full-export" : "fallback",
+        projects: {
+          totalRaw: projectsRaw.length,
+          keys: projectSample?.keys ?? [],
+          sample: projectSample?.sample ?? null,
+        },
+        milestones: milestoneInfo,
+        tasks: taskInfo,
+        resolution: {
+          tasksWithDetectedContainerMilestone: tasksResolvedByContainer,
+          tasksWithDirectMilestoneField: tasksResolvedByDirectMilestoneId,
+          tasksResolvedByFolderId,
+          tasksResolvedByParentId,
+          tasksWithNoRelation: tasksNormPairs.filter((p) => !p.resolvedBy).length,
+          tasksDroppedBecauseNoMilestone: tasksNorm.length - tasksFiltered.length,
+        },
+      });
     }
     default:
       return json({ error: "unknown_action", action }, 400);
