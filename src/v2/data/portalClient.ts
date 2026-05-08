@@ -361,25 +361,25 @@ export function clearPortalCache() { cache.clear(); inflight.clear(); }
 
 const bridgeClient: PortalClientApi = {
   async listClients() {
-    const r = await invokeBridge<{ clients: PortalClient[] }>("listClients");
+    const r = await cachedInvoke<{ clients: PortalClient[] }>("listClients");
     return r.clients ?? [];
   },
   async listProjects(opts) {
-    const r = await invokeBridge<{ projects: PortalProject[] }>(
+    const r = await cachedInvoke<{ projects: PortalProject[] }>(
       "listProjects", opts?.clientId ? { clientId: opts.clientId } : undefined,
     );
     return r.projects ?? [];
   },
   async getProject(projectId) {
-    const r = await invokeBridge<{ project: PortalProject | null }>("getProject", { projectId });
+    const r = await cachedInvoke<{ project: PortalProject | null }>("getProject", { projectId });
     return r.project ?? null;
   },
   async listMilestones(projectId) {
-    const r = await invokeBridge<{ milestones: PortalMilestone[] }>("listMilestones", { projectId });
+    const r = await cachedInvoke<{ milestones: PortalMilestone[] }>("listMilestones", { projectId });
     return r.milestones ?? [];
   },
   async listTasks({ projectId, milestoneId }) {
-    const r = await invokeBridge<{ tasks: PortalTask[] }>(
+    const r = await cachedInvoke<{ tasks: PortalTask[] }>(
       "listTasks", milestoneId ? { projectId, milestoneId } : { projectId },
     );
     return r.tasks ?? [];
@@ -388,13 +388,13 @@ const bridgeClient: PortalClientApi = {
   async createTask() { return NOT_IMPLEMENTED("createTask"); },
   async archiveTask() { return NOT_IMPLEMENTED("archiveTask"); },
   async listBriefings(opts) {
-    const r = await invokeBridge<{ briefings: BriefingSummary[] }>(
+    const r = await cachedInvoke<{ briefings: BriefingSummary[] }>(
       "listBriefings", opts ?? {},
     );
     return r.briefings ?? [];
   },
   async getBriefing(opts) {
-    const r = await invokeBridge<{ briefing: BriefingDetail | null }>("getBriefing", opts);
+    const r = await cachedInvoke<{ briefing: BriefingDetail | null }>("getBriefing", opts);
     return r.briefing ?? null;
   },
 };
