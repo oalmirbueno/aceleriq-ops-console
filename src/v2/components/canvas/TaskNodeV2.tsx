@@ -2,82 +2,145 @@ import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import {
   CheckCircle2, Circle, Clock, AlertCircle, Archive, User, Calendar,
+  GripVertical, Eye, ExternalLink,
 } from "lucide-react";
 import type { PortalTask, PortalTaskStatus } from "@/v2/data/portalClient";
 
-const STATUS_META: Record<PortalTaskStatus, { label: string; icon: typeof Circle; cls: string; ring: string; dot: string }> = {
-  todo:        { label: "A fazer",   icon: Circle,       cls: "text-muted-foreground border-border bg-card",                          ring: "ring-border",            dot: "bg-muted-foreground/60" },
-  in_progress: { label: "Em curso",  icon: Clock,        cls: "text-primary border-primary/40 bg-primary/5",                          ring: "ring-primary/40",        dot: "bg-primary" },
-  blocked:     { label: "Bloqueada", icon: AlertCircle,  cls: "text-destructive border-destructive/40 bg-destructive/5",              ring: "ring-destructive/40",    dot: "bg-destructive" },
-  done:        { label: "Concluída", icon: CheckCircle2, cls: "text-emerald-300 border-emerald-400/30 bg-emerald-400/[0.04]",         ring: "ring-emerald-400/40",    dot: "bg-emerald-400" },
-  archived:    { label: "Arquivada", icon: Archive,      cls: "text-muted-foreground border-border bg-card opacity-60",               ring: "ring-border",            dot: "bg-muted-foreground/40" },
+const STATUS_META: Record<PortalTaskStatus, {
+  label: string; icon: typeof Circle; accent: string; textCls: string;
+}> = {
+  todo:        { label: "A fazer",   icon: Circle,       accent: "hsl(220 9% 60%)",   textCls: "text-muted-foreground" },
+  in_progress: { label: "Em curso",  icon: Clock,        accent: "hsl(145 100% 50%)", textCls: "text-primary" },
+  blocked:     { label: "Bloqueada", icon: AlertCircle,  accent: "hsl(0 84% 60%)",    textCls: "text-destructive" },
+  done:        { label: "Concluída", icon: CheckCircle2, accent: "hsl(145 70% 45%)",  textCls: "text-emerald-300" },
+  archived:    { label: "Arquivada", icon: Archive,      accent: "hsl(220 9% 40%)",   textCls: "text-muted-foreground" },
 };
 
 export interface TaskNodeData extends Record<string, unknown> {
   task: PortalTask;
-  selected?: boolean;
+  onOpenDetail?: (id: string) => void;
 }
 
 function TaskNodeV2Comp({ data, selected }: NodeProps) {
-  const { task } = data as TaskNodeData;
+  const { task, onOpenDetail } = data as TaskNodeData;
   const meta = STATUS_META[task.status];
   const Icon = meta.icon;
   const pct = Math.round(task.progress * 100);
 
   return (
     <div
-      className={`relative w-[260px] rounded-xl border ${meta.cls} backdrop-blur-sm shadow-[0_8px_24px_-12px_rgba(0,0,0,0.5)] transition-all ${
-        selected ? `ring-2 ${meta.ring} border-primary` : ""
+      className={`group relative w-[320px] rounded-2xl border bg-card/95 backdrop-blur-md transition-all ${
+        selected
+          ? "border-primary/60 shadow-[0_20px_60px_-20px_hsl(145_100%_50%/0.45),0_0_0_1px_hsl(145_100%_50%/0.5)]"
+          : "border-border/80 shadow-[0_12px_40px_-16px_rgba(0,0,0,0.7)] hover:border-foreground/30"
       }`}
+      style={{
+        background: `linear-gradient(180deg, hsl(0 0% 8%/0.95) 0%, hsl(0 0% 6%/0.98) 100%)`,
+      }}
     >
+      {/* Accent stripe */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-2xl"
+        style={{ background: meta.accent }}
+        aria-hidden
+      />
+
       <Handle
         type="target"
         position={Position.Left}
-        className="!h-2 !w-2 !border-border !bg-background"
+        className="!h-3 !w-3 !-left-1.5 !border-2 !border-background !bg-foreground/40 hover:!bg-primary transition-colors"
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!h-3 !w-3 !-right-1.5 !border-2 !border-background !bg-foreground/40 hover:!bg-primary transition-colors"
       />
 
-      <div className="px-3 pt-3 pb-2 flex items-start gap-2">
-        <span className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${meta.dot}`} aria-hidden />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-foreground line-clamp-2 leading-snug">{task.title}</p>
-          <span className={`mt-1.5 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${meta.cls}`}>
-            <Icon className="h-3 w-3" /> {meta.label}
-          </span>
+      {/* Header */}
+      <div className="px-4 pt-3.5 pb-2.5 flex items-start gap-2.5">
+        <div
+          className="mt-0.5 grid place-items-center h-6 w-6 rounded-md shrink-0"
+          style={{ background: `${meta.accent}1f`, color: meta.accent }}
+        >
+          <Icon className="h-3.5 w-3.5" />
         </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] ${meta.textCls}`}
+              style={{ borderColor: `${meta.accent}40`, background: `${meta.accent}12` }}
+            >
+              {meta.label}
+            </span>
+            <span className="text-[9px] text-muted-foreground/70 tabular-nums font-mono">#{task.id.slice(0, 6)}</span>
+          </div>
+          <p className="text-[13px] font-semibold text-foreground leading-snug line-clamp-2">{task.title}</p>
+        </div>
+        <GripVertical className="h-3.5 w-3.5 text-muted-foreground/30 mt-1 shrink-0 cursor-grab opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
 
+      {/* Description */}
       {task.description && (
-        <p className="px-3 text-[11px] text-muted-foreground line-clamp-2">{task.description}</p>
+        <div className="px-4 pb-2">
+          <p className="text-[11px] text-muted-foreground/90 line-clamp-2 leading-relaxed">
+            {task.description}
+          </p>
+        </div>
       )}
 
-      <div className="px-3 pt-2">
-        <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
-          <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+      {/* Progress */}
+      <div className="px-4 pt-1">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[9px] uppercase tracking-wider text-muted-foreground/70 font-medium">Progresso</span>
+          <span className="text-[10px] font-mono tabular-nums text-foreground/90">{pct}%</span>
+        </div>
+        <div className="h-1 w-full rounded-full bg-foreground/5 overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all"
+            style={{ width: `${pct}%`, background: meta.accent }}
+          />
         </div>
       </div>
 
-      <div className="px-3 pt-2 pb-3 flex items-center justify-between text-[10px] text-muted-foreground">
-        <span className="inline-flex items-center gap-1 truncate max-w-[140px]">
-          <User className="h-3 w-3 shrink-0" />
-          <span className="truncate">{task.assigneeName ?? "—"}</span>
+      {/* Meta row */}
+      <div className="px-4 pt-2.5 pb-3 flex items-center justify-between text-[10px] text-muted-foreground gap-2">
+        <span className="inline-flex items-center gap-1 truncate max-w-[160px]">
+          <User className="h-3 w-3 shrink-0 opacity-70" />
+          <span className="truncate">{task.assigneeName ?? "Sem responsável"}</span>
         </span>
-        <span className="inline-flex items-center gap-1 tabular-nums">
+        <span className="inline-flex items-center gap-1 tabular-nums shrink-0">
           {task.dueAt ? (
             <>
-              <Calendar className="h-3 w-3" />
+              <Calendar className="h-3 w-3 opacity-70" />
               {new Date(task.dueAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
             </>
           ) : (
-            <span>{pct}%</span>
+            <span className="opacity-50">sem prazo</span>
           )}
         </span>
       </div>
 
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="!h-2 !w-2 !border-border !bg-background"
-      />
+      {/* Hover actions */}
+      <div className="absolute -top-2 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onOpenDetail?.(task.id); }}
+          className="h-6 w-6 grid place-items-center rounded-md border border-border bg-card hover:border-primary/50 hover:text-primary text-muted-foreground"
+          title="Ver detalhes"
+        >
+          <Eye className="h-3 w-3" />
+        </button>
+        <a
+          href={`https://portal.aceleriq.com.br/tasks/${task.id}`}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="h-6 w-6 grid place-items-center rounded-md border border-border bg-card hover:border-primary/50 hover:text-primary text-muted-foreground"
+          title="Abrir no Portal"
+        >
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      </div>
     </div>
   );
 }
