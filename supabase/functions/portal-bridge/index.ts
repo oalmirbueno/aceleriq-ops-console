@@ -467,6 +467,7 @@ function normalizeMilestone(
   return {
     id,
     projectId: firstString(
+      m._containerProjectId,
       m.project_id, m.projectId,
       m.portal_project_id, m.portalProjectId,
       m.workspace_id, m.project?.id,
