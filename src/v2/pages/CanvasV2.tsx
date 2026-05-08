@@ -20,7 +20,7 @@ import "@xyflow/react/dist/style.css";
 import {
   RefreshCw, ExternalLink, Sparkles, Layers, ListChecks, Info,
   PanelRightClose, PanelRightOpen, Plus, Brain, FileText, Lock,
-  Maximize2, Minimize2, ChevronDown, Eye,
+  Maximize2, Minimize2, ChevronDown, Eye, LayoutGrid,
 } from "lucide-react";
 import { usePortalQuery } from "@/v2/data/usePortalQuery";
 import {
@@ -33,6 +33,7 @@ import ProjectNodeCard from "@/components/workspace/ProjectNodeCard";
 import CanvasGroupNode from "@/components/workspace/CanvasGroupNode";
 import DeletableEdge from "@/components/workspace/DeletableEdge";
 import { portalTaskToNodeData } from "@/v2/components/canvas/portalToLegacy";
+import { useV2Setting, V2_SETTINGS } from "@/v2/lib/v2Settings";
 
 const NODE_TYPES = {
   projectCard: ProjectNodeCard,
@@ -119,8 +120,11 @@ function CanvasV2Inner() {
   const { projectId = "" } = useParams();
   const [milestoneId, setMilestoneId] = useState<string>("");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [panelOpen, setPanelOpen] = useState(true);
-  const [fullscreen, setFullscreen] = useState(false);
+  const [showSidePanel] = useV2Setting(V2_SETTINGS.canvasShowSidePanel);
+  const [defaultFullscreen] = useV2Setting(V2_SETTINGS.canvasDefaultFullscreen);
+  const [showMinimap] = useV2Setting(V2_SETTINGS.canvasShowMinimap);
+  const [panelOpen, setPanelOpen] = useState(showSidePanel);
+  const [fullscreen, setFullscreen] = useState(defaultFullscreen);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
 
   const project = usePortalQuery(
@@ -190,12 +194,15 @@ function CanvasV2Inner() {
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>(layout.nodes);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>(layout.edges);
+  const [layoutTick, setLayoutTick] = useState(0);
 
   useEffect(() => {
     setRfNodes(layout.nodes);
     setRfEdges(layout.edges);
     setSelectedTaskId(null);
-  }, [layout, setRfNodes, setRfEdges]);
+  }, [layout, setRfNodes, setRfEdges, layoutTick]);
+
+  const organize = useCallback(() => setLayoutTick((n) => n + 1), []);
 
   const onNodeClick: NodeMouseHandler = useCallback((_e, node) => {
     setSelectedTaskId(node.id);
@@ -268,6 +275,13 @@ function CanvasV2Inner() {
             className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 h-7 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/30"
           >
             <Plus className="h-3.5 w-3.5" /> Adicionar
+          </button>
+          <button
+            onClick={organize}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 h-7 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/30"
+            title="Organizar visualmente (local, não persiste)"
+          >
+            <LayoutGrid className="h-3.5 w-3.5" /> Organizar
           </button>
           <button
             onClick={reloadAll}
@@ -366,7 +380,7 @@ function CanvasV2Inner() {
               showInteractive={false}
               className="!bg-card !border !border-border !rounded-lg overflow-hidden !shadow-xl"
             />
-            <MiniMap
+            {showMinimap && <MiniMap
               pannable
               zoomable
               maskColor="hsl(var(--background) / 0.85)"
@@ -376,7 +390,7 @@ function CanvasV2Inner() {
                 if (!portalTask) return "hsl(var(--muted))";
                 return LANE_COLOR[portalTask.status];
               }}
-            />
+            />}
           </ReactFlow>
 
           {/* Lane legend */}
