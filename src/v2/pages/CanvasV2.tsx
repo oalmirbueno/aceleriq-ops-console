@@ -1,15 +1,26 @@
+/**
+ * Canvas V2 — Legacy UI Adapter
+ *
+ * - Fonte de dados: Portal bridge (getProject, listMilestones, listTasks).
+ * - UI/UX: componentes oficiais do canvas antigo (ProjectNodeCard, DeletableEdge,
+ *   CSS .canvas-flow.acelera-ops-flow, multi-handles flex-handle).
+ * - Read-only: nenhum callback de mutação é passado aos nodes/edges.
+ * - Drag local + conexões locais permitidos (não persistem).
+ * - Sem canvas_nodes, sem auto-sync, sem materialize.
+ */
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import {
   ReactFlow, ReactFlowProvider, Background, BackgroundVariant, Controls, MiniMap,
-  useNodesState, useEdgesState, MarkerType, addEdge,
+  useNodesState, useEdgesState, MarkerType, addEdge, ConnectionMode, ConnectionLineType,
+  SelectionMode,
   type Node, type Edge, type NodeMouseHandler, type Connection,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
   RefreshCw, ExternalLink, Sparkles, Layers, ListChecks, Info,
   PanelRightClose, PanelRightOpen, Plus, Brain, FileText, Lock,
-  Maximize2, Minimize2, ChevronDown,
+  Maximize2, Minimize2, ChevronDown, Eye,
 } from "lucide-react";
 import { usePortalQuery } from "@/v2/data/usePortalQuery";
 import {
@@ -18,9 +29,16 @@ import {
 } from "@/v2/data/portalClient";
 import { QueryError } from "@/v2/components/QueryState";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TaskNodeV2 } from "@/v2/components/canvas/TaskNodeV2";
+import ProjectNodeCard from "@/components/workspace/ProjectNodeCard";
+import CanvasGroupNode from "@/components/workspace/CanvasGroupNode";
+import DeletableEdge from "@/components/workspace/DeletableEdge";
+import { portalTaskToNodeData } from "@/v2/components/canvas/portalToLegacy";
 
-const NODE_TYPES = { task: TaskNodeV2 };
+const NODE_TYPES = {
+  projectCard: ProjectNodeCard,
+  canvasGroup: CanvasGroupNode,
+};
+const EDGE_TYPES = { deletable: DeletableEdge };
 
 const STATUS_LANES: PortalTaskStatus[] = ["todo", "in_progress", "blocked", "done", "archived"];
 const LANE_LABEL: Record<PortalTaskStatus, string> = {
@@ -34,12 +52,17 @@ const MILESTONE_STATUS_LABEL: Record<PortalMilestone["status"], string> = {
   planned: "Planejada", in_progress: "Em curso", done: "Concluída", paused: "Pausada",
 };
 
-const NODE_W = 320;
-const NODE_H = 200;
-const COL_GAP = 100;
-const ROW_GAP = 32;
-const COL_X_START = 60;
-const ROW_Y_START = 60;
+/* ───────── Layout ─────────
+   Posiciona nodes do Portal em colunas por status (lanes), com largura
+   compatível com o ProjectNodeCard (280px) e gaps suficientes para
+   conexões livres. Não reaproveitamos ACELERA_STAGES para evitar inferência
+   sobre dados do Portal. */
+const NODE_W = 280;
+const NODE_H = 220;
+const COL_GAP = 120;
+const ROW_GAP = 40;
+const COL_X_START = 80;
+const ROW_Y_START = 80;
 
 function buildLayout(tasks: PortalTask[]): { nodes: Node[]; edges: Edge[] } {
   const grouped = new Map<PortalTaskStatus, PortalTask[]>();
@@ -56,14 +79,15 @@ function buildLayout(tasks: PortalTask[]): { nodes: Node[]; edges: Edge[] } {
     arr.forEach((task, rowIdx) => {
       nodes.push({
         id: task.id,
-        type: "task",
+        type: "projectCard",
         position: { x, y: ROW_Y_START + rowIdx * (NODE_H + ROW_GAP) },
-        data: { task },
+        data: portalTaskToNodeData(task) as unknown as Record<string, unknown>,
         draggable: true,
       });
     });
   });
 
+  // Sugestão visual de fluxo: liga primeira task de cada lane à da próxima.
   const edges: Edge[] = [];
   for (let i = 0; i < activeLanes.length - 1; i++) {
     const from = grouped.get(activeLanes[i])?.[0];
@@ -72,10 +96,11 @@ function buildLayout(tasks: PortalTask[]): { nodes: Node[]; edges: Edge[] } {
       edges.push({
         id: `lane-${from.id}-${to.id}`,
         source: from.id, target: to.id,
-        type: "smoothstep",
+        sourceHandle: "r2", targetHandle: "l2",
+        type: "deletable",
         animated: activeLanes[i + 1] === "in_progress",
-        style: { stroke: "hsl(var(--foreground) / 0.25)", strokeWidth: 1.5, strokeDasharray: "4 4" },
-        markerEnd: { type: MarkerType.ArrowClosed, color: "hsl(var(--foreground) / 0.4)", width: 14, height: 14 },
+        style: { stroke: "hsl(var(--foreground) / 0.55)", strokeWidth: 2, strokeDasharray: "5 5" },
+        markerEnd: { type: MarkerType.ArrowClosed, color: "hsl(var(--foreground) / 0.7)", width: 16, height: 16 },
       });
     }
   }
@@ -120,7 +145,6 @@ function CanvasV2Inner() {
     [projectId, activeMilestoneId],
   );
 
-  // Briefing essencial — read-only
   const briefings = usePortalQuery(
     () => portalClient.listBriefings(),
     [],
@@ -153,11 +177,6 @@ function CanvasV2Inner() {
     console.log("active milestone:", activeMilestoneId.slice(0, 8) || "(nenhum)");
     // eslint-disable-next-line no-console
     console.log("tasks:", tasks.data?.length ?? 0);
-    const sem = (tasks.data ?? []).filter((t) => !t.milestoneId);
-    if (sem.length > 0) {
-      // eslint-disable-next-line no-console
-      console.warn("tasks sem milestoneId:", sem.length);
-    }
     // eslint-disable-next-line no-console
     console.groupEnd();
   }, [projectId, activeMilestoneId, milestones.loading, milestones.data, tasks.loading, tasks.data]);
@@ -167,17 +186,7 @@ function CanvasV2Inner() {
     [milestones.data, activeMilestoneId],
   );
 
-  const handleOpenDetail = useCallback((id: string) => setSelectedTaskId(id), []);
-
-  const layout = useMemo(() => {
-    const built = buildLayout(tasks.data ?? []);
-    // inject onOpenDetail into node data
-    const nodes = built.nodes.map((n) => ({
-      ...n,
-      data: { ...(n.data as object), onOpenDetail: handleOpenDetail },
-    }));
-    return { nodes, edges: built.edges };
-  }, [tasks.data, handleOpenDetail]);
+  const layout = useMemo(() => buildLayout(tasks.data ?? []), [tasks.data]);
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>(layout.nodes);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>(layout.edges);
@@ -193,13 +202,13 @@ function CanvasV2Inner() {
     if (!panelOpen) setPanelOpen(true);
   }, [panelOpen]);
 
-  // Free local connections (não persiste)
+  // Conexões locais (não persistem)
   const onConnect = useCallback((connection: Connection) => {
     setRfEdges((eds) => addEdge({
       ...connection,
-      type: "smoothstep",
-      style: { stroke: "hsl(145 100% 50% / 0.6)", strokeWidth: 2 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: "hsl(145 100% 50% / 0.7)", width: 16, height: 16 },
+      type: "deletable",
+      style: { stroke: "hsl(145 100% 50% / 0.85)", strokeWidth: 2.4 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: "hsl(145 100% 50%)", width: 18, height: 18 },
     }, eds));
   }, [setRfEdges]);
 
@@ -239,7 +248,6 @@ function CanvasV2Inner() {
           </div>
         </div>
 
-        {/* Milestone dropdown */}
         <div className="flex-1 min-w-0 flex justify-center">
           {milestones.loading ? (
             <Skeleton className="h-7 w-56" />
@@ -254,7 +262,6 @@ function CanvasV2Inner() {
           )}
         </div>
 
-        {/* Right actions */}
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={() => setAddDialogOpen(true)}
@@ -319,12 +326,13 @@ function CanvasV2Inner() {
             nodes={rfNodes}
             edges={rfEdges}
             nodeTypes={NODE_TYPES}
+            edgeTypes={EDGE_TYPES}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onNodeClick={onNodeClick}
             onConnect={onConnect}
             fitView
-            fitViewOptions={{ padding: 0.25 }}
+            fitViewOptions={{ padding: 0.32, maxZoom: 1 }}
             minZoom={0.15}
             maxZoom={2.5}
             nodesDraggable
@@ -335,16 +343,22 @@ function CanvasV2Inner() {
             zoomOnPinch
             zoomOnDoubleClick={false}
             panOnDrag
+            selectionOnDrag={false}
+            selectionMode={SelectionMode.Partial}
+            connectionMode={ConnectionMode.Loose}
+            connectionLineType={ConnectionLineType.Bezier}
+            connectionLineStyle={{ stroke: "hsl(145 100% 50%)", strokeWidth: 3, opacity: 1 }}
+            connectionRadius={34}
             proOptions={{ hideAttribution: true }}
-            className="bg-background"
+            className="bg-background canvas-flow acelera-ops-flow"
             deleteKeyCode={null}
             defaultEdgeOptions={{
-              type: "smoothstep",
-              style: { stroke: "hsl(145 100% 50% / 0.5)", strokeWidth: 1.75 },
-              markerEnd: { type: MarkerType.ArrowClosed, color: "hsl(145 100% 50% / 0.6)", width: 16, height: 16 },
+              type: "deletable",
+              markerEnd: { type: MarkerType.ArrowClosed, color: "hsl(var(--foreground) / 0.82)", width: 18, height: 18 },
+              style: { stroke: "hsl(var(--foreground) / 0.82)", strokeWidth: 2.6 },
             }}
           >
-            <Background variant={BackgroundVariant.Dots} gap={36} size={1} color="hsl(var(--foreground) / 0.06)" />
+            <Background variant={BackgroundVariant.Dots} gap={48} size={1} color="hsl(var(--foreground) / 0.08)" />
             <Controls
               showInteractive={false}
               className="!bg-card !border !border-border !rounded-lg overflow-hidden !shadow-xl"
@@ -355,9 +369,9 @@ function CanvasV2Inner() {
               maskColor="hsl(var(--background) / 0.85)"
               className="!bg-card !border !border-border !rounded-lg !shadow-xl"
               nodeColor={(n) => {
-                const t = (n.data as { task?: PortalTask } | undefined)?.task;
-                if (!t) return "hsl(var(--muted))";
-                return LANE_COLOR[t.status];
+                const portalTask = (n.data as { __portalTask?: PortalTask } | undefined)?.__portalTask;
+                if (!portalTask) return "hsl(var(--muted))";
+                return LANE_COLOR[portalTask.status];
               }}
             />
           </ReactFlow>
@@ -377,7 +391,6 @@ function CanvasV2Inner() {
             </div>
           )}
 
-          {/* Connection hint */}
           {(tasks.data?.length ?? 0) > 0 && (
             <div className="absolute bottom-3 left-3 z-10 pointer-events-none">
               <span className="rounded-full border border-border bg-card/80 backdrop-blur px-2.5 py-1 text-[10px] text-muted-foreground/80">
@@ -661,13 +674,5 @@ function AddTaskNotice({ onClose, portalUrl }: { onClose: () => void; portalUrl:
         </div>
       </div>
     </div>
-  );
-}
-
-function Eye({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" />
-    </svg>
   );
 }
