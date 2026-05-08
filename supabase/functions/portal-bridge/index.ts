@@ -49,7 +49,7 @@ const json = (body: unknown, status = 200) =>
   });
 
 const PORTAL_BASE = "https://gicbrgagstyvbaaumprj.supabase.co/functions/v1";
-const DEPLOY_TAG = "v2.2.7";
+const DEPLOY_TAG = "v2.3.0";
 
 const STATUS_TASK: Record<string, string> = {
   todo: "todo", backlog: "todo", "to-do": "todo", to_do: "todo", draft: "todo",
