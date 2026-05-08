@@ -429,7 +429,8 @@ serve(async (req) => {
         ? projectsNorm.filter((p) => p.clientId === clientId)
         : projectsNorm;
       if (!includeAll) list = list.filter((p) => p.status === "active");
-      return json({ ok: true, projects: list });
+      const clean = list.map(({ _deletedAt: _d, _archived: _a, _rawStatus: _r, ...rest }: any) => rest);
+      return json({ ok: true, projects: clean });
     }
     case "auditPortalSources": {
       const rows = projectsRaw.map((rawP) => {
