@@ -4074,7 +4074,7 @@ function CanvasStudioInner({
             )
           ) : (
             <>
-            {false && portalProjectIdProp && !selectedMilestoneId && !milestoneOverlayDismissed && (() => {
+            {portalProjectIdProp && !selectedMilestoneId && (() => {
               const milestones = scopedProjectNodes
                 .filter((n) => String((n.data as Record<string, unknown> | null)?.kind ?? "") === "milestone_group")
                 .sort((a, b) => {
@@ -4100,22 +4100,24 @@ function CanvasStudioInner({
                       </p>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      <button
-                        type="button"
-                        onClick={dismissMilestoneOverlay}
-                        className="group flex flex-col gap-2 rounded-xl border border-border bg-card/40 hover:border-primary/40 hover:bg-card/70 transition-all p-4 text-left"
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="h-8 w-8 rounded-md border border-border bg-background/60 flex items-center justify-center">
-                            <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+                      {(devMode || featureFlags.enableCanvasDevTools) && (
+                        <button
+                          type="button"
+                          onClick={dismissMilestoneOverlay}
+                          className="group flex flex-col gap-2 rounded-xl border border-dashed border-border bg-card/30 hover:border-primary/40 hover:bg-card/70 transition-all p-4 text-left"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="h-8 w-8 rounded-md border border-border bg-background/60 flex items-center justify-center">
+                              <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">Visão geral</p>
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">todos os milestones (dev)</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">Visão geral</p>
-                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">todos os milestones</p>
-                          </div>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground">{allTasks.length} tarefas no projeto</p>
-                      </button>
+                          <p className="text-[11px] text-muted-foreground">{allTasks.length} tarefas no projeto</p>
+                        </button>
+                      )}
                       {milestones.map((m) => {
                         const md = (m.data as Record<string, unknown> | null) ?? {};
                         const mPid = md.portal_milestone_id as string | undefined;
