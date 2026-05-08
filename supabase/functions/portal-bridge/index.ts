@@ -860,6 +860,10 @@ serve(async (req) => {
           clientsTotal: clientRows.length,
           clientsIncluded: clientRows.filter((c) => c.included).length,
         },
+        message:
+          tasksRaw.length > 0 && tasksFiltered.length === 0
+            ? "Relação task→milestone não encontrada no payload atual. Use action inspectPortalPayload para diagnóstico."
+            : undefined,
         problemsLegend: [
           "missing_display_name",
           "client_without_active_project",
