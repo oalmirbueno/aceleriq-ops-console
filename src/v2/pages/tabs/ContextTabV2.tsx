@@ -2,13 +2,17 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   FileText, Brain, Scale, ArrowRight, ExternalLink, Eye,
-  CheckCircle2, Clock, Database, Hash,
+  CheckCircle2, Clock, Database, Hash, ListChecks, Lock, Loader2, AlertTriangle, Archive,
 } from "lucide-react";
 import { usePortalQuery } from "@/v2/data/usePortalQuery";
-import { portalClient, type BriefingSummary, type BriefingDetail } from "@/v2/data/portalClient";
+import {
+  portalClient,
+  type BriefingSummary, type BriefingDetail, type PortalTask, type PortalTaskStatus,
+} from "@/v2/data/portalClient";
 import { QueryError, LoadingState } from "@/v2/components/QueryState";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useDevMode } from "@/lib/devMode";
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -23,6 +27,7 @@ function formatDate(iso: string | null | undefined): string {
 export default function ContextTabV2() {
   const { projectId = "" } = useParams();
   const [openDetail, setOpenDetail] = useState<BriefingSummary | null>(null);
+  const [devMode] = useDevMode();
 
   const { data: project } = usePortalQuery(
     () => projectId ? portalClient.getProject(projectId) : Promise.resolve(null),
@@ -43,6 +48,20 @@ export default function ContextTabV2() {
     projectClientName,
   );
   const opsClientIdForLink = essential?.opsClientId ?? essential?.clientId ?? projectClientId ?? "";
+  const portalProjectUrl = projectId ? `https://portal.aceleriq.com.br/projects/${projectId}` : "";
+
+  // Próximos passos: tasks abertas reais do projeto inteiro.
+  const tasksQuery = usePortalQuery<PortalTask[]>(
+    () => projectId ? portalClient.listTasks({ projectId }) : Promise.resolve([] as PortalTask[]),
+    [projectId],
+  );
+  const upcoming = (tasksQuery.data ?? [])
+    .filter((t) => t.status === "todo" || t.status === "in_progress" || t.status === "blocked")
+    .sort((a, b) => {
+      const order: Record<PortalTaskStatus, number> = { in_progress: 0, blocked: 1, todo: 2, done: 3, archived: 4 };
+      return order[a.status] - order[b.status];
+    })
+    .slice(0, 8);
 
   return (
     <div className="space-y-8">
@@ -62,6 +81,8 @@ export default function ContextTabV2() {
               opsClientId={opsClientIdForLink}
               summary={essential}
               onView={() => essential && setOpenDetail(essential)}
+              portalProjectUrl={portalProjectUrl}
+              devMode={devMode}
             />
             <FutureBriefingCard
               icon={Scale}
@@ -77,16 +98,24 @@ export default function ContextTabV2() {
         )}
       </Section>
 
+      <Section title="Próximos passos" description="Tarefas abertas reais do projeto, vindas do Portal.">
+        <UpcomingBlock loading={tasksQuery.loading} error={tasksQuery.error} tasks={upcoming} />
+      </Section>
+
       <Section title="Memória" description="Histórico vivo do projeto.">
-        <PendingBlock icon={Database} text="Memória estruturada chega na próxima fase." />
+        <EmptyBlock
+          icon={Database}
+          title="Sem memória estruturada"
+          text="Quando registros de memória forem persistidos no Portal, aparecem aqui automaticamente."
+        />
       </Section>
 
       <Section title="Decisões" description="Registros de decisões tomadas no projeto.">
-        <PendingBlock icon={Scale} text="Registro de decisões chega na próxima fase." />
-      </Section>
-
-      <Section title="Próximos passos" description="O que vem agora neste projeto.">
-        <PendingBlock icon={ArrowRight} text="Próximos passos chegam na próxima fase." />
+        <EmptyBlock
+          icon={Scale}
+          title="Nenhuma decisão registrada"
+          text="Decisões formais do projeto serão exibidas aqui em ordem cronológica."
+        />
       </Section>
 
       <BriefingDetailDialog
@@ -113,8 +142,14 @@ function Section({
 }
 
 function EssentialBriefingCard({
-  opsClientId, summary, onView,
-}: { opsClientId: string; summary: BriefingSummary | null; onView: () => void }) {
+  opsClientId, summary, onView, portalProjectUrl, devMode,
+}: {
+  opsClientId: string;
+  summary: BriefingSummary | null;
+  onView: () => void;
+  portalProjectUrl: string;
+  devMode: boolean;
+}) {
   const filled = !!summary?.isFilled;
   return (
     <div className="rounded-xl border border-border bg-card p-4 flex flex-col">
@@ -153,12 +188,29 @@ function EssentialBriefingCard({
         >
           <Eye className="h-3.5 w-3.5" /> Ver detalhes
         </button>
-        <a
-          href={`/ops/clients/${opsClientId}`}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted"
-        >
-          <ExternalLink className="h-3.5 w-3.5" /> Abrir no OPS antigo
-        </a>
+        {portalProjectUrl ? (
+          <a
+            href={portalProjectUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/15"
+          >
+            <ExternalLink className="h-3.5 w-3.5" /> Abrir no Portal
+          </a>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-muted-foreground/70">
+            <Lock className="h-3.5 w-3.5" /> Link não disponível
+          </span>
+        )}
+        {devMode && opsClientId && (
+          <a
+            href={`/ops-legacy/clients/${opsClientId}`}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted"
+            title="Apenas Modo Dev — edição legacy"
+          >
+            <ExternalLink className="h-3.5 w-3.5" /> OPS antigo
+          </a>
+        )}
       </div>
     </div>
   );
@@ -211,12 +263,98 @@ function Row({
   );
 }
 
-function PendingBlock({ icon: Icon, text }: { icon: typeof FileText; text: string }) {
+function EmptyBlock({
+  icon: Icon, title, text,
+}: { icon: typeof FileText; title: string; text: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-8 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-      <Icon className="h-4 w-4" /> {text}
+    <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-8 flex flex-col items-center justify-center gap-2 text-center">
+      <div className="h-9 w-9 rounded-full border border-border bg-card grid place-items-center">
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <p className="text-xs font-medium text-foreground">{title}</p>
+      <p className="text-[11px] text-muted-foreground max-w-sm">{text}</p>
     </div>
   );
+}
+
+function UpcomingBlock({
+  loading, error, tasks,
+}: { loading: boolean; error: Error | null; tasks: PortalTask[] }) {
+  if (loading) {
+    return (
+      <div className="space-y-2">
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-12 w-full" />
+      </div>
+    );
+  }
+  if (error) {
+    return <p className="text-xs text-destructive">{error.message}</p>;
+  }
+  if (tasks.length === 0) {
+    return (
+      <EmptyBlock
+        icon={ArrowRight}
+        title="Sem tarefas pendentes"
+        text="Não há tarefas a fazer, em curso ou bloqueadas neste projeto."
+      />
+    );
+  }
+  return (
+    <ul className="space-y-2">
+      {tasks.map((t) => (
+        <li
+          key={t.id}
+          className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5 hover:border-foreground/20 transition-colors"
+        >
+          <StatusDot status={t.status} />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-foreground truncate">{t.title}</p>
+            <p className="text-[10px] text-muted-foreground inline-flex items-center gap-1.5">
+              <span>{statusLabel(t.status)}</span>
+              {t.assigneeName && <><span>·</span><span>{t.assigneeName}</span></>}
+              {t.dueAt && <><span>·</span><span>vence {formatShort(t.dueAt)}</span></>}
+            </p>
+          </div>
+          <span className="text-[10px] text-muted-foreground tabular-nums font-mono shrink-0">
+            {Math.round(t.progress * 100)}%
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function StatusDot({ status }: { status: PortalTaskStatus }) {
+  const Icon = (
+    { todo: ListChecks, in_progress: Loader2, blocked: AlertTriangle, done: CheckCircle2, archived: Archive } as const
+  )[status];
+  const cls = (
+    {
+      todo: "border-muted-foreground/40 text-muted-foreground bg-muted/40",
+      in_progress: "border-primary/40 text-primary bg-primary/10",
+      blocked: "border-destructive/40 text-destructive bg-destructive/10",
+      done: "border-emerald-400/40 text-emerald-300 bg-emerald-400/10",
+      archived: "border-muted-foreground/30 text-muted-foreground/60 bg-muted/30",
+    } as const
+  )[status];
+  return (
+    <span className={`h-7 w-7 rounded-md border grid place-items-center shrink-0 ${cls}`}>
+      <Icon className={`h-3.5 w-3.5 ${status === "in_progress" ? "animate-spin" : ""}`} />
+    </span>
+  );
+}
+
+function statusLabel(s: PortalTaskStatus): string {
+  return ({
+    todo: "A fazer", in_progress: "Em curso", blocked: "Bloqueada", done: "Concluída", archived: "Arquivada",
+  } as const)[s];
+}
+
+function formatShort(iso: string): string {
+  try { return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }); }
+  catch { return iso; }
 }
 
 function BriefingDetailDialog({
