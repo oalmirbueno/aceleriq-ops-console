@@ -16,7 +16,9 @@ import { useDevMode } from "@/lib/devMode";
 import {
   useV2Setting,
   V2_SETTINGS,
+  resetV2Settings,
 } from "@/v2/lib/v2Settings";
+import { RotateCcw } from "lucide-react";
 
 function Section({
   icon: Icon, title, description, children,
@@ -90,6 +92,9 @@ export default function SettingsV2() {
   const [autoOrganize, setAutoOrganize] = useV2Setting(V2_SETTINGS.canvasAutoOrganize);
   const [defaultFullscreen, setDefaultFullscreen] = useV2Setting(V2_SETTINGS.canvasDefaultFullscreen);
   const [density, setDensity] = useV2Setting(V2_SETTINGS.canvasDensity);
+  const [showDock, setShowDock] = useV2Setting(V2_SETTINGS.canvasShowDock);
+  const [showIAHub, setShowIAHub] = useV2Setting(V2_SETTINGS.canvasShowIAHub);
+  const [nodeSize, setNodeSize] = useV2Setting(V2_SETTINGS.canvasNodeSize);
 
   useEffect(() => subscribeBridgeError(setErr), []);
 
@@ -199,6 +204,18 @@ export default function SettingsV2() {
             onChange={setShowSidePanel}
           />
           <ToggleRow
+            label="Dock flutuante"
+            description="Barra inferior com organizar, zoom, filtros, IA Hub e mais."
+            checked={showDock}
+            onChange={setShowDock}
+          />
+          <ToggleRow
+            label="IA Hub"
+            description="Orb flutuante com briefing, milestone atual e próximas ações."
+            checked={showIAHub}
+            onChange={setShowIAHub}
+          />
+          <ToggleRow
             label="Auto-organizar ao abrir"
             description="Aplica layout por status/milestone automaticamente."
             checked={autoOrganize}
@@ -219,6 +236,29 @@ export default function SettingsV2() {
               { value: "compact", label: "Compacto" },
             ]}
           />
+          <SelectRow
+            label="Tamanho do node"
+            description="Tamanho visual dos cards no Canvas."
+            value={nodeSize}
+            onChange={(v) => setNodeSize(v as "sm" | "md" | "lg")}
+            options={[
+              { value: "sm", label: "Pequeno" },
+              { value: "md", label: "Médio" },
+              { value: "lg", label: "Grande" },
+            ]}
+          />
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-background/40 px-3 py-2.5">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-foreground">Resetar preferências visuais</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">Volta minimap, dock, IA Hub, densidade e tamanho ao padrão.</p>
+            </div>
+            <button
+              onClick={() => resetV2Settings()}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 h-7 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/30 shrink-0"
+            >
+              <RotateCcw className="h-3 w-3" /> Resetar
+            </button>
+          </div>
         </Section>
 
         {/* Segurança */}
