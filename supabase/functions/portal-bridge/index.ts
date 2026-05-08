@@ -299,11 +299,91 @@ async function fetchFullExport(headers: Record<string, string>) {
     if (!res.ok) return null;
     const body = await res.json().catch(() => null) as Record<string, unknown> | null;
     if (!body) return null;
-    return {
-      projects: Array.isArray(body.projects) ? body.projects as Record<string, any>[] : [],
-      tasks: Array.isArray(body.tasks) ? body.tasks as Record<string, any>[] : [],
-      milestones: Array.isArray(body.milestones) ? body.milestones as Record<string, any>[] : [],
-    };
+    const projects = Array.isArray(body.projects) ? body.projects as Record<string, any>[] : [];
+    const tasksTop = Array.isArray(body.tasks) ? body.tasks as Record<string, any>[] : [];
+    const milestonesTop = Array.isArray(body.milestones) ? body.milestones as Record<string, any>[] : [];
+
+    // ---- Extrai estruturas aninhadas (projects[].milestones[].tasks[] etc.) ----
+    // Ao iterar, injeta no objeto task:
+    //   _containerMilestoneId — id detectado do milestone pai
+    //   _containerProjectId   — id detectado do project pai
+    //   _jsonPath             — caminho no JSON (ex: projects[0].milestones[1].tasks[3])
+    const nestedMilestones: Record<string, any>[] = [];
+    const nestedTasks: Record<string, any>[] = [];
+    const TASK_KEYS = ["tasks", "items", "cards", "nodes", "children"];
+    const MS_KEYS = ["milestones", "folders", "stages", "phases", "columns", "groups", "sections"];
+
+    function pickId(o: Record<string, any>): string {
+      return firstString(o?.id, o?.uuid, o?.milestone_id, o?.portal_milestone_id, o?.folder_id, o?.project_id);
+    }
+    function walkMilestone(ms: Record<string, any>, projectId: string, path: string) {
+      if (!ms || typeof ms !== "object") return;
+      const msId = pickId(ms);
+      // marca o ms com projectId do container se ausente
+      if (projectId && !ms.project_id && !ms.projectId) (ms as any)._containerProjectId = projectId;
+      nestedMilestones.push(ms);
+      for (const tk of TASK_KEYS) {
+        const arr = (ms as any)[tk];
+        if (!Array.isArray(arr)) continue;
+        arr.forEach((t: any, i: number) => {
+          if (!t || typeof t !== "object") return;
+          if (msId) (t as any)._containerMilestoneId = msId;
+          if (projectId) (t as any)._containerProjectId = projectId;
+          (t as any)._jsonPath = `${path}.${tk}[${i}]`;
+          nestedTasks.push(t);
+        });
+      }
+      // Sub-milestones (raras, mas defensivo)
+      for (const mk of MS_KEYS) {
+        const arr = (ms as any)[mk];
+        if (!Array.isArray(arr)) continue;
+        arr.forEach((sub: any, i: number) => {
+          walkMilestone(sub, projectId, `${path}.${mk}[${i}]`);
+        });
+      }
+    }
+    projects.forEach((p, pi) => {
+      const projectId = firstString(p.id, p.project_id, p.uuid);
+      const ppath = `projects[${pi}]`;
+      // Tasks soltas direto no projeto
+      for (const tk of TASK_KEYS) {
+        const arr = (p as any)[tk];
+        if (!Array.isArray(arr)) continue;
+        arr.forEach((t: any, i: number) => {
+          if (!t || typeof t !== "object") return;
+          if (projectId) (t as any)._containerProjectId = projectId;
+          (t as any)._jsonPath = `${ppath}.${tk}[${i}]`;
+          nestedTasks.push(t);
+        });
+      }
+      // Milestones aninhados
+      for (const mk of MS_KEYS) {
+        const arr = (p as any)[mk];
+        if (!Array.isArray(arr)) continue;
+        arr.forEach((ms: any, i: number) => {
+          walkMilestone(ms, projectId, `${ppath}.${mk}[${i}]`);
+        });
+      }
+    });
+
+    // Merge dedupe por id (top-level vence se conflitar)
+    const msSeen = new Set<string>();
+    const milestones: Record<string, any>[] = [];
+    for (const m of [...milestonesTop, ...nestedMilestones]) {
+      const id = pickId(m);
+      if (!id) { milestones.push(m); continue; }
+      if (msSeen.has(id)) continue;
+      msSeen.add(id); milestones.push(m);
+    }
+    const tSeen = new Set<string>();
+    const tasks: Record<string, any>[] = [];
+    for (const t of [...tasksTop, ...nestedTasks]) {
+      const id = firstString(t.id, t.task_id, t.uuid, t.portal_task_id);
+      if (!id) { tasks.push(t); continue; }
+      if (tSeen.has(id)) continue;
+      tSeen.add(id); tasks.push(t);
+    }
+    return { projects, tasks, milestones };
   } catch {
     return null;
   }
