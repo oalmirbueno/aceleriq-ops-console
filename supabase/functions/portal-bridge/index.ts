@@ -601,19 +601,25 @@ serve(async (req) => {
   let tasksResolvedByDirectMilestoneId = 0;
   let tasksResolvedByFolderId = 0;
   let tasksResolvedByParentId = 0;
-  const tasksNormPairs: { task: ReturnType<typeof normalizeTask>; raw: Record<string, any>; resolvedBy: "direct" | "folder" | "parent" | "" }[] = [];
+  let tasksResolvedByContainer = 0;
+  const tasksNormPairs: { task: ReturnType<typeof normalizeTask>; raw: Record<string, any>; resolvedBy: "container" | "direct" | "folder" | "parent" | "" }[] = [];
   for (const rawT of tasksRaw) {
     const t = normalizeTask(rawT);
     if (!t.id || !t.projectId) continue;
-    let resolvedBy: "direct" | "folder" | "parent" | "" = "";
-    if (t.milestoneId && milestoneAliasToId.has(t.milestoneId)) {
+    let resolvedBy: "container" | "direct" | "folder" | "parent" | "" = "";
+    const containerId = typeof (rawT as any)._containerMilestoneId === "string" ? (rawT as any)._containerMilestoneId.trim() : "";
+    if (containerId) {
+      t.milestoneId = milestoneAliasToId.get(containerId) ?? containerId;
+      resolvedBy = "container";
+    } else if (t.milestoneId && milestoneAliasToId.has(t.milestoneId)) {
       t.milestoneId = milestoneAliasToId.get(t.milestoneId)!;
       resolvedBy = "direct";
     } else {
       const r = resolveTaskMilestone(rawT, milestoneAliasToId);
       if (r.id) { t.milestoneId = r.id; resolvedBy = r.category; }
     }
-    if (resolvedBy === "direct") tasksResolvedByDirectMilestoneId++;
+    if (resolvedBy === "container") tasksResolvedByContainer++;
+    else if (resolvedBy === "direct") tasksResolvedByDirectMilestoneId++;
     else if (resolvedBy === "folder") tasksResolvedByFolderId++;
     else if (resolvedBy === "parent") tasksResolvedByParentId++;
     tasksNormPairs.push({ task: t, raw: rawT, resolvedBy });
