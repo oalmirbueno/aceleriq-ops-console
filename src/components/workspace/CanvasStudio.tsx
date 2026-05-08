@@ -3598,6 +3598,11 @@ function CanvasStudioInner({
               Limpar filtros
             </Button>
           )}
+          <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => fetchData()} disabled={loading} title="Recarregar canvas">
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            <span className="hidden md:inline ml-1">Recarregar</span>
+          </Button>
+          {featureFlags.enableCanvasDevTools && (<>
           <Button size="sm" variant="ghost" className="h-8" onClick={handleAutoLayout} disabled={busyAction === "layout" || projectNodes.length === 0}>
             {busyAction === "layout" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LayoutGrid className="h-3.5 w-3.5" />}
             <span className="hidden md:inline ml-1 text-xs">Reorganizar</span>
