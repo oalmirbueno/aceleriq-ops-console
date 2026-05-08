@@ -1,7 +1,10 @@
 /**
  * portal-bridge — leitura read-only do Portal Aceleriq para o OPS V2.
  *
- * Deploy tag: v2.2.5 — Portal-only global cascade + alias resolution.
+ * Deploy tag: v2.2.6 — Robust task→milestone resolution + audit debug.
+ *  - resolução task→milestone via direct/folder/parent/opsFallback;
+ *  - auditPortalSources com contadores por categoria + debug seguro;
+ *  - listClients devolve primaryProjectId para CTAs clicáveis.
  *  - projects: requerem id + clientId; filtram deleted/archived/trash.
  *  - milestones: só de projects válidos; filtram deleted/archived/placeholders.
  *  - tasks: só de milestones válidos; resolve milestoneId via alias map robusto.
@@ -125,6 +128,82 @@ function milestoneIdOf(t: Record<string, any>) {
     data.portal_milestone_id, data.portalMilestoneId,
     data.folder_id, data.portal_folder_id,
   );
+}
+
+/** Tenta resolver milestoneId de uma task em categorias.
+ *  Retorna o primeiro hit + a categoria que resolveu. */
+function resolveTaskMilestone(
+  t: Record<string, any>,
+  aliasToId: Map<string, string>,
+): { id: string; category: "direct" | "folder" | "parent" | "" } {
+  const meta = (t.metadata ?? {}) as Record<string, any>;
+  const data = (t.data ?? {}) as Record<string, any>;
+  const raw = (t.raw ?? {}) as Record<string, any>;
+  const node = (t.node ?? {}) as Record<string, any>;
+  const task = (t.task ?? {}) as Record<string, any>;
+  const buckets: { cat: "direct" | "folder" | "parent"; vals: unknown[] }[] = [
+    { cat: "direct", vals: [
+      t.milestone_id, t.milestoneId, t.portal_milestone_id, t.portalMilestoneId,
+      t.ops_milestone_id, t.opsMilestoneId,
+      t.parent_milestone_id, t.parentMilestoneId,
+      t.milestone?.id, t.milestone?.uuid,
+      meta.milestone_id, meta.milestoneId, meta.portal_milestone_id, meta.portalMilestoneId,
+      data.milestone_id, data.milestoneId, data.portal_milestone_id, data.portalMilestoneId,
+      raw.milestone_id, raw.portal_milestone_id,
+      node.milestone_id, node.portal_milestone_id,
+      task.milestone_id, task.portal_milestone_id,
+    ]},
+    { cat: "folder", vals: [
+      t.folder_id, t.portal_folder_id, t.folderId, t.portalFolderId,
+      t.folder?.id, t.folder?.uuid,
+      meta.folder_id, meta.portal_folder_id, meta.folderId, meta.portalFolderId,
+      data.folder_id, data.portal_folder_id, data.folderId, data.portalFolderId,
+      raw.folder_id, raw.portal_folder_id,
+      node.folder_id, node.portal_folder_id,
+    ]},
+    { cat: "parent", vals: [
+      t.parent_id, t.parentId, t.parent_node_id, t.parentNodeId,
+      t.stage_id, t.phase_id, t.column_id,
+      meta.parent_id, meta.parentId, meta.parent_node_id, meta.parentNodeId,
+      data.parent_id, data.parentId, data.parent_node_id, data.parentNodeId,
+      raw.parent_id, raw.parent_node_id,
+      node.parent_id, node.parent_node_id,
+    ]},
+  ];
+  for (const b of buckets) {
+    for (const v of b.vals) {
+      const s = typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim();
+      if (!s) continue;
+      const hit = aliasToId.get(s);
+      if (hit) return { id: hit, category: b.cat };
+    }
+  }
+  return { id: "", category: "" };
+}
+
+/** Coleta keys interessantes do payload da task para debug audit. */
+function debugTaskShape(t: Record<string, any>) {
+  const meta = (t.metadata ?? {}) as Record<string, any>;
+  const data = (t.data ?? {}) as Record<string, any>;
+  const interesting = [
+    "milestone_id", "milestoneId", "portal_milestone_id", "portalMilestoneId",
+    "ops_milestone_id", "opsMilestoneId",
+    "folder_id", "folderId", "portal_folder_id", "portalFolderId",
+    "parent_id", "parentId", "parent_node_id", "parentNodeId",
+    "stage_id", "phase_id", "column_id",
+    "node_id", "ops_node_id",
+  ];
+  const found: Record<string, string> = {};
+  for (const k of interesting) {
+    const v = (t as any)[k] ?? meta[k] ?? data[k];
+    if (v != null && v !== "") found[k] = String(v).slice(0, 60);
+  }
+  return {
+    keys: Object.keys(t),
+    metadataKeys: Object.keys(meta),
+    dataKeys: Object.keys(data),
+    candidates: found,
+  };
 }
 
 /** Coleta TODOS os ids/aliases possíveis de um milestone bruto. */
