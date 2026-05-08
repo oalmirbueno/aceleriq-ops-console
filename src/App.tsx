@@ -51,9 +51,12 @@ const App = () => (
             <Route path="/briefing/:token" element={<ClientBriefingPage />} />
             <Route path="/ops/canvas/open" element={<ProtectedRoute><CanvasFullscreenPage /></ProtectedRoute>} />
             <Route path="/ops/projects/:portalProjectId" element={<ProtectedRoute><ProjectCanvasPage /></ProtectedRoute>} />
-            <Route path="/" element={<Navigate to="/ops" replace />} />
+            {/* Sistema principal: domínio raiz e /ops abrem o OPS V2. */}
+            <Route path="/" element={<Navigate to="/ops-v2" replace />} />
+            {/* Legado fica acessível em /ops/* para entrada técnica (Modo Dev). */}
+            <Route path="/ops-legacy" element={<Navigate to="/ops/clients" replace />} />
             <Route path="/ops" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-              <Route index element={<DashboardPage />} />
+              <Route index element={<Navigate to="/ops-v2" replace />} />
               <Route path="clients" element={<ClientsPage />} />
               <Route path="clients/:id" element={<ClientDetailPage />} />
               <Route path="clients/:id/vault" element={<ClientVaultPage />} />

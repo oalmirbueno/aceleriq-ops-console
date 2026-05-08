@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useParams, NavLink, Outlet, useLocation, Link } from "react-router-dom";
 import HeaderV2 from "@/v2/components/HeaderV2";
 import { usePortalQuery } from "@/v2/data/usePortalQuery";
@@ -21,6 +22,22 @@ export default function ProjectDetailV2() {
     () => projectId ? portalClient.getProject(projectId) : Promise.resolve(null),
     [projectId],
   );
+
+  // Prefetch paralelo: aquece o cache para que trocar de aba seja instantâneo.
+  useEffect(() => {
+    if (!projectId) return;
+    portalClient.listMilestones(projectId).catch(() => {});
+    portalClient.listBriefings({ projectId }).catch(() => {});
+  }, [projectId]);
+
+  // Quando milestones chegarem, pré-carrega tasks do milestone atual/primeiro.
+  useEffect(() => {
+    if (!projectId || !project) return;
+    portalClient.listMilestones(projectId).then((ms) => {
+      const id = project.currentMilestoneId || ms[0]?.id;
+      if (id) portalClient.listTasks({ projectId, milestoneId: id }).catch(() => {});
+    }).catch(() => {});
+  }, [projectId, project]);
 
   if (!loading && !error && project === null) {
     return (
