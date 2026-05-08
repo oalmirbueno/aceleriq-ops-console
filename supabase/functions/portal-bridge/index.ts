@@ -561,17 +561,31 @@ serve(async (req) => {
       return json({ ok: true, projects: clean });
     }
     case "auditPortalSources": {
-      const rows = projectsRaw.map((rawP) => {
+      const tasksWithoutValidMilestone = tasksNorm.filter(
+        (t) => validProjectIds.has(t.projectId) && (!t.milestoneId || !validMilestoneIds.has(t.milestoneId)),
+      );
+      const placeholderMilestonesRemoved = milestonesRaw
+        .map((m) => normalizeMilestone(m, tasksByMilestone))
+        .filter((m) => {
+          const t = m.title.trim().toLowerCase();
+          return t === "sem milestone" || t === "no milestone" || t === "milestone";
+        }).length;
+
+      const projectRows = projectsRaw.map((rawP) => {
         const id = firstString(rawP.id, rawP.project_id, rawP.uuid);
         const norm = projectsNorm.find((p) => p.id === id);
         const ms = id ? (milestonesByProject.get(id) ?? []) : [];
         const ts = id ? (tasksByProject.get(id) ?? []) : [];
         const problems: string[] = [];
         if (!id) problems.push("missing_id");
+        const cid = firstString(clientIdOf(rawP));
+        if (!cid) problems.push("project_without_valid_client");
         if (!norm) {
-          if (!firstString(clientIdOf(rawP))) problems.push("missing_clientId");
+          if (!cid) problems.push("missing_clientId");
           if (firstString(rawP.deleted_at, rawP.archived_at)) problems.push("deleted_or_archived");
           if (rawP.archived || rawP.is_archived) problems.push("archived_flag");
+          const rs = firstString(rawP.status, rawP.state).toLowerCase();
+          if (rs && rs !== "active") problems.push("non_active_project_filtered");
         }
         return {
           projectId: id,
@@ -584,9 +598,40 @@ serve(async (req) => {
           problems,
         };
       });
+
+      // Clients (mesma lógica do listClients) para audit.
+      type Agg = { id: string; name: string; company: string; email: string; activeProjectsCount: number };
+      const cmap = new Map<string, Agg>();
+      for (const p of projectsNorm) {
+        if (!p.clientId) continue;
+        const c = cmap.get(p.clientId) ?? {
+          id: p.clientId, name: "", company: "", email: "", activeProjectsCount: 0,
+        };
+        if (p.status === "active") c.activeProjectsCount += 1;
+        if (!c.name && p.clientName && !isUuidLike(p.clientName)) c.name = p.clientName;
+        if (!c.company && (p as any).clientCompany) c.company = (p as any).clientCompany;
+        if (!c.email && (p as any).clientEmail) c.email = (p as any).clientEmail;
+        cmap.set(p.clientId, c);
+      }
+      const clientRows = [...cmap.values()].map((c) => {
+        const { displayName, missing } = resolveClientDisplayName(c.name, c.company, c.email);
+        const problems: string[] = [];
+        if (missing) problems.push("missing_display_name");
+        if (c.activeProjectsCount === 0) problems.push("client_without_active_project");
+        return {
+          clientId: c.id,
+          displayName: displayName || null,
+          company: c.company || null,
+          email: c.email || null,
+          activeProjectsCount: c.activeProjectsCount,
+          included: !missing && c.activeProjectsCount > 0,
+          problems,
+        };
+      });
+
       return json({
         ok: true,
-        deployTag: "v2.2.4",
+        deployTag: "v2.2.5",
         totals: {
           projectsRaw: projectsRaw.length,
           projectsValid: projectsNorm.length,
@@ -594,9 +639,32 @@ serve(async (req) => {
           milestonesValid: validMilestoneIds.size,
           tasksRaw: tasksRaw.length,
           tasksValid: tasksFiltered.length,
+          tasksAliasResolved,
+          tasksWithoutValidMilestone: tasksWithoutValidMilestone.length,
+          placeholderMilestonesRemoved,
+          clientsTotal: clientRows.length,
+          clientsIncluded: clientRows.filter((c) => c.included).length,
         },
-        rows,
+        problemsLegend: [
+          "missing_display_name",
+          "client_without_active_project",
+          "task_without_valid_milestone",
+          "task_milestone_alias_resolved",
+          "project_without_valid_client",
+          "placeholder_milestone_removed",
+          "non_active_project_filtered",
+        ],
+        clients: clientRows,
+        rows: projectRows,
+        tasksWithoutValidMilestone: tasksWithoutValidMilestone.slice(0, 50).map((t) => ({
+          taskId: t.id,
+          projectId: t.projectId,
+          milestoneIdRaw: t.milestoneId || null,
+          title: t.title,
+          problems: ["task_without_valid_milestone"],
+        })),
       });
+    }
     }
     case "getProject": {
       const id = firstString((params as any).projectId);
