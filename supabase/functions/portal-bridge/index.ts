@@ -603,17 +603,31 @@ serve(async (req) => {
         company: string;
         email: string;
         activeProjectsCount: number;
+        primaryProjectId: string;
+        primaryProjectName: string;
+        primaryProjectUpdatedAt: string;
       };
       const map = new Map<string, Agg>();
       for (const p of projectsNorm) {
         if (!p.clientId) continue;
         const c = map.get(p.clientId) ?? {
           id: p.clientId, name: "", company: "", email: "", activeProjectsCount: 0,
+          primaryProjectId: "", primaryProjectName: "", primaryProjectUpdatedAt: "",
         };
         if (p.status === "active") c.activeProjectsCount += 1;
         if (!c.name && p.clientName && !isUuidLike(p.clientName)) c.name = p.clientName;
         if (!c.company && (p as any).clientCompany) c.company = (p as any).clientCompany;
         if (!c.email && (p as any).clientEmail) c.email = (p as any).clientEmail;
+        const isActive = p.status === "active";
+        const beats = isActive && (
+          !c.primaryProjectId ||
+          (p.updatedAt && p.updatedAt > c.primaryProjectUpdatedAt)
+        );
+        if (beats) {
+          c.primaryProjectId = p.id;
+          c.primaryProjectName = p.name;
+          c.primaryProjectUpdatedAt = p.updatedAt || "";
+        }
         map.set(p.clientId, c);
       }
       const clients = [...map.values()].map((c) => {
@@ -629,6 +643,8 @@ serve(async (req) => {
           company: c.company || null,
           email: c.email || null,
           activeProjectsCount: c.activeProjectsCount,
+          primaryProjectId: c.primaryProjectId || null,
+          primaryProjectName: c.primaryProjectName || null,
           source: full ? "ops-full-export" : "fallback",
           included,
           problems,
