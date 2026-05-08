@@ -2,14 +2,15 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import {
   ReactFlow, ReactFlowProvider, Background, BackgroundVariant, Controls, MiniMap,
-  useNodesState, useEdgesState, MarkerType,
-  type Node, type Edge, type NodeMouseHandler,
+  useNodesState, useEdgesState, MarkerType, addEdge,
+  type Node, type Edge, type NodeMouseHandler, type Connection,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
   RefreshCw, ExternalLink, Sparkles, Layers, ListChecks, Info,
+  PanelRightClose, PanelRightOpen, Plus, Brain, FileText, Lock,
+  Maximize2, Minimize2, ChevronDown,
 } from "lucide-react";
-import HeaderV2 from "@/v2/components/HeaderV2";
 import { usePortalQuery } from "@/v2/data/usePortalQuery";
 import {
   portalClient,
@@ -25,24 +26,26 @@ const STATUS_LANES: PortalTaskStatus[] = ["todo", "in_progress", "blocked", "don
 const LANE_LABEL: Record<PortalTaskStatus, string> = {
   todo: "A fazer", in_progress: "Em curso", blocked: "Bloqueadas", done: "Concluídas", archived: "Arquivadas",
 };
+const LANE_COLOR: Record<PortalTaskStatus, string> = {
+  todo: "hsl(220 9% 60%)", in_progress: "hsl(145 100% 50%)", blocked: "hsl(0 84% 60%)",
+  done: "hsl(145 70% 45%)", archived: "hsl(220 9% 40%)",
+};
 const MILESTONE_STATUS_LABEL: Record<PortalMilestone["status"], string> = {
   planned: "Planejada", in_progress: "Em curso", done: "Concluída", paused: "Pausada",
 };
 
-const NODE_W = 260;
-const NODE_H = 168;
-const COL_GAP = 80;
-const ROW_GAP = 28;
-const COL_X_START = 40;
-const ROW_Y_START = 40;
+const NODE_W = 320;
+const NODE_H = 200;
+const COL_GAP = 100;
+const ROW_GAP = 32;
+const COL_X_START = 60;
+const ROW_Y_START = 60;
 
 function buildLayout(tasks: PortalTask[]): { nodes: Node[]; edges: Edge[] } {
-  // Lanes by status — only lanes with at least one task
   const grouped = new Map<PortalTaskStatus, PortalTask[]>();
   for (const t of tasks) {
     const arr = grouped.get(t.status) ?? [];
-    arr.push(t);
-    grouped.set(t.status, arr);
+    arr.push(t); grouped.set(t.status, arr);
   }
   const activeLanes = STATUS_LANES.filter((s) => grouped.has(s));
 
@@ -61,7 +64,6 @@ function buildLayout(tasks: PortalTask[]): { nodes: Node[]; edges: Edge[] } {
     });
   });
 
-  // Visual flow: connect lanes left → right (first node of each lane)
   const edges: Edge[] = [];
   for (let i = 0; i < activeLanes.length - 1; i++) {
     const from = grouped.get(activeLanes[i])?.[0];
@@ -69,16 +71,14 @@ function buildLayout(tasks: PortalTask[]): { nodes: Node[]; edges: Edge[] } {
     if (from && to) {
       edges.push({
         id: `lane-${from.id}-${to.id}`,
-        source: from.id,
-        target: to.id,
+        source: from.id, target: to.id,
         type: "smoothstep",
         animated: activeLanes[i + 1] === "in_progress",
-        style: { stroke: "hsl(var(--foreground) / 0.35)", strokeWidth: 1.5, strokeDasharray: "4 4" },
-        markerEnd: { type: MarkerType.ArrowClosed, color: "hsl(var(--foreground) / 0.5)", width: 14, height: 14 },
+        style: { stroke: "hsl(var(--foreground) / 0.25)", strokeWidth: 1.5, strokeDasharray: "4 4" },
+        markerEnd: { type: MarkerType.ArrowClosed, color: "hsl(var(--foreground) / 0.4)", width: 14, height: 14 },
       });
     }
   }
-
   return { nodes, edges };
 }
 
@@ -94,6 +94,9 @@ function CanvasV2Inner() {
   const { projectId = "" } = useParams();
   const [milestoneId, setMilestoneId] = useState<string>("");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
 
   const project = usePortalQuery(
     () => projectId ? portalClient.getProject(projectId) : Promise.resolve(null),
@@ -117,9 +120,23 @@ function CanvasV2Inner() {
     [projectId, activeMilestoneId],
   );
 
-  // Debug seguro (Modo Dev): expõe contagens e diagnósticos no console
-  // sem vazar dados sensíveis. Ative com:
-  //   localStorage.setItem("ops:dev-mode:v1","1") ou "canvas:debug","1"
+  // Briefing essencial — read-only
+  const briefings = usePortalQuery(
+    () => portalClient.listBriefings(),
+    [],
+  );
+  const briefing = useMemo(() => {
+    const list = briefings.data ?? [];
+    const cid = project.data?.clientId;
+    const cname = project.data?.clientName;
+    return (
+      list.find((b) => cid && (b.opsClientId === cid || b.portalClientId === cid || b.clientId === cid)) ||
+      list.find((b) => cname && b.clientName?.toLowerCase() === cname.toLowerCase()) ||
+      null
+    );
+  }, [briefings.data, project.data]);
+
+  // Debug seguro (Modo Dev)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const dev =
@@ -128,18 +145,18 @@ function CanvasV2Inner() {
     if (!dev) return;
     if (milestones.loading || tasks.loading) return;
     // eslint-disable-next-line no-console
-    console.groupCollapsed(`%c[canvas-v2:debug] project=${projectId.slice(0, 8)}…`, "color:#22c55e");
+    console.groupCollapsed(`%c[canvas-v2] project=${projectId.slice(0, 8)}…`, "color:#22c55e");
     // eslint-disable-next-line no-console
-    console.log("milestones recebidos:", milestones.data?.length ?? 0,
+    console.log("milestones:", milestones.data?.length ?? 0,
       milestones.data?.map((m) => ({ id: m.id.slice(0, 8), title: m.title, t: `${m.tasksDoneCount}/${m.tasksCount}` })));
     // eslint-disable-next-line no-console
-    console.log("activeMilestoneId:", activeMilestoneId.slice(0, 8) || "(nenhum)");
+    console.log("active milestone:", activeMilestoneId.slice(0, 8) || "(nenhum)");
     // eslint-disable-next-line no-console
-    console.log("tasks recebidas:", tasks.data?.length ?? 0);
+    console.log("tasks:", tasks.data?.length ?? 0);
     const sem = (tasks.data ?? []).filter((t) => !t.milestoneId);
     if (sem.length > 0) {
       // eslint-disable-next-line no-console
-      console.warn("tasks sem milestoneId:", sem.length, sem.map((t) => t.id.slice(0, 8)));
+      console.warn("tasks sem milestoneId:", sem.length);
     }
     // eslint-disable-next-line no-console
     console.groupEnd();
@@ -150,15 +167,21 @@ function CanvasV2Inner() {
     [milestones.data, activeMilestoneId],
   );
 
-  const layout = useMemo(
-    () => buildLayout(tasks.data ?? []),
-    [tasks.data],
-  );
+  const handleOpenDetail = useCallback((id: string) => setSelectedTaskId(id), []);
+
+  const layout = useMemo(() => {
+    const built = buildLayout(tasks.data ?? []);
+    // inject onOpenDetail into node data
+    const nodes = built.nodes.map((n) => ({
+      ...n,
+      data: { ...(n.data as object), onOpenDetail: handleOpenDetail },
+    }));
+    return { nodes, edges: built.edges };
+  }, [tasks.data, handleOpenDetail]);
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>(layout.nodes);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>(layout.edges);
 
-  // Re-seed canvas when underlying tasks change
   useEffect(() => {
     setRfNodes(layout.nodes);
     setRfEdges(layout.edges);
@@ -167,7 +190,18 @@ function CanvasV2Inner() {
 
   const onNodeClick: NodeMouseHandler = useCallback((_e, node) => {
     setSelectedTaskId(node.id);
-  }, []);
+    if (!panelOpen) setPanelOpen(true);
+  }, [panelOpen]);
+
+  // Free local connections (não persiste)
+  const onConnect = useCallback((connection: Connection) => {
+    setRfEdges((eds) => addEdge({
+      ...connection,
+      type: "smoothstep",
+      style: { stroke: "hsl(145 100% 50% / 0.6)", strokeWidth: 2 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: "hsl(145 100% 50% / 0.7)", width: 16, height: 16 },
+    }, eds));
+  }, [setRfEdges]);
 
   const selectedTask = useMemo(
     () => tasks.data?.find((t) => t.id === selectedTaskId) ?? null,
@@ -175,79 +209,95 @@ function CanvasV2Inner() {
   );
 
   const reloadAll = () => {
-    project.reload();
-    milestones.reload();
-    tasks.reload();
+    project.reload(); milestones.reload(); tasks.reload(); briefings.reload();
   };
 
   const portalUrl = `https://portal.aceleriq.com.br/projects/${projectId}`;
+  const counts = useMemo(() => {
+    const c = new Map<PortalTaskStatus, number>();
+    (tasks.data ?? []).forEach((t) => c.set(t.status, (c.get(t.status) ?? 0) + 1));
+    return c;
+  }, [tasks.data]);
 
   return (
-    <>
-      <HeaderV2
-        title="Canvas"
-        subtitle={
-          project.data
-            ? `${project.data.clientName} · ${project.data.name}`
-            : `Projeto ${projectId}`
-        }
-        actions={
-          <>
-            <button
-              onClick={reloadAll}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted"
-            >
-              <RefreshCw className="h-3.5 w-3.5" /> Recarregar
-            </button>
-            <a
-              href={portalUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted"
-            >
-              <ExternalLink className="h-3.5 w-3.5" /> Abrir no Portal
-            </a>
-          </>
-        }
-      />
+    <div
+      className={
+        fullscreen
+          ? "fixed inset-0 z-50 bg-background flex flex-col"
+          : "fixed top-[80px] left-0 right-0 bottom-0 flex flex-col bg-background"
+      }
+    >
+      {/* Compact header bar */}
+      <div className="flex items-center gap-3 px-4 h-12 border-b border-border bg-card/40 backdrop-blur-sm shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <Layers className="h-4 w-4 text-primary shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium leading-none">Canvas</p>
+            <p className="text-xs text-foreground font-medium truncate leading-tight mt-0.5">
+              {project.data ? `${project.data.clientName} · ${project.data.name}` : "Carregando…"}
+            </p>
+          </div>
+        </div>
 
-      {/* Milestone selector */}
-      <div className="border-b border-border bg-card/30 px-2 py-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground font-medium px-2">
-            <Layers className="h-3.5 w-3.5" /> Milestone
-          </span>
+        {/* Milestone dropdown */}
+        <div className="flex-1 min-w-0 flex justify-center">
           {milestones.loading ? (
-            <><Skeleton className="h-7 w-40" /><Skeleton className="h-7 w-40" /></>
-          ) : milestones.error ? (
-            <span className="text-xs text-destructive">{milestones.error.message}</span>
+            <Skeleton className="h-7 w-56" />
           ) : milestones.data && milestones.data.length > 0 ? (
-            milestones.data.map((m) => {
-              const active = m.id === activeMilestoneId;
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => setMilestoneId(m.id)}
-                  className={`rounded-md border px-2.5 py-1 text-xs transition-colors ${
-                    active
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"
-                  }`}
-                >
-                  <span className="font-medium">{m.title}</span>
-                  <span className="ml-2 text-[10px] opacity-70">{m.tasksDoneCount}/{m.tasksCount}</span>
-                </button>
-              );
-            })
+            <MilestoneSelector
+              milestones={milestones.data}
+              activeId={activeMilestoneId}
+              onSelect={setMilestoneId}
+            />
           ) : (
-            <span className="text-xs text-muted-foreground">Nenhum milestone disponível.</span>
+            <span className="text-xs text-muted-foreground">Sem milestones</span>
           )}
+        </div>
+
+        {/* Right actions */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={() => setAddDialogOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 h-7 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/30"
+          >
+            <Plus className="h-3.5 w-3.5" /> Adicionar
+          </button>
+          <button
+            onClick={reloadAll}
+            className="h-7 w-7 grid place-items-center rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:border-foreground/30"
+            title="Recarregar"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </button>
+          <a
+            href={portalUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="h-7 w-7 grid place-items-center rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:border-foreground/30"
+            title="Abrir no Portal"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+          <button
+            onClick={() => setFullscreen((v) => !v)}
+            className="h-7 w-7 grid place-items-center rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:border-foreground/30"
+            title={fullscreen ? "Sair do fullscreen" : "Fullscreen"}
+          >
+            {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          </button>
+          <button
+            onClick={() => setPanelOpen((v) => !v)}
+            className="h-7 w-7 grid place-items-center rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:border-foreground/30"
+            title={panelOpen ? "Recolher painel" : "Abrir painel"}
+          >
+            {panelOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}
+          </button>
         </div>
       </div>
 
-      {/* Canvas surface + inspector */}
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-0 h-[calc(100vh-220px)] min-h-[520px]">
-        <div className="relative bg-background border-r border-border overflow-hidden">
+      {/* Canvas area */}
+      <div className="flex-1 flex min-h-0">
+        <div className="relative flex-1 min-w-0 overflow-hidden">
           {!activeMilestoneId ? (
             <CanvasOverlay icon={Layers} title="Selecione um milestone" text="O Canvas mostra as tarefas reais do milestone selecionado." />
           ) : tasks.loading ? (
@@ -258,7 +308,7 @@ function CanvasV2Inner() {
               </div>
             </div>
           ) : tasks.error ? (
-            <div className="absolute inset-0 grid place-items-center p-6">
+            <div className="absolute inset-0 grid place-items-center p-6 z-20">
               <QueryError error={tasks.error} onRetry={tasks.reload} />
             </div>
           ) : (tasks.data?.length ?? 0) === 0 ? (
@@ -272,12 +322,14 @@ function CanvasV2Inner() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onNodeClick={onNodeClick}
+            onConnect={onConnect}
             fitView
-            fitViewOptions={{ padding: 0.3 }}
-            minZoom={0.2}
-            maxZoom={2}
+            fitViewOptions={{ padding: 0.25 }}
+            minZoom={0.15}
+            maxZoom={2.5}
             nodesDraggable
-            nodesConnectable={false}
+            nodesConnectable
+            edgesReconnectable
             elementsSelectable
             zoomOnScroll
             zoomOnPinch
@@ -286,66 +338,139 @@ function CanvasV2Inner() {
             proOptions={{ hideAttribution: true }}
             className="bg-background"
             deleteKeyCode={null}
+            defaultEdgeOptions={{
+              type: "smoothstep",
+              style: { stroke: "hsl(145 100% 50% / 0.5)", strokeWidth: 1.75 },
+              markerEnd: { type: MarkerType.ArrowClosed, color: "hsl(145 100% 50% / 0.6)", width: 16, height: 16 },
+            }}
           >
-            <Background variant={BackgroundVariant.Dots} gap={32} size={1} color="hsl(var(--foreground) / 0.08)" />
+            <Background variant={BackgroundVariant.Dots} gap={36} size={1} color="hsl(var(--foreground) / 0.06)" />
             <Controls
               showInteractive={false}
-              className="!bg-card !border !border-border !rounded-md overflow-hidden"
+              className="!bg-card !border !border-border !rounded-lg overflow-hidden !shadow-xl"
             />
             <MiniMap
               pannable
               zoomable
               maskColor="hsl(var(--background) / 0.85)"
-              className="!bg-card !border !border-border !rounded-md"
+              className="!bg-card !border !border-border !rounded-lg !shadow-xl"
               nodeColor={(n) => {
                 const t = (n.data as { task?: PortalTask } | undefined)?.task;
                 if (!t) return "hsl(var(--muted))";
-                if (t.status === "done") return "hsl(145 70% 45%)";
-                if (t.status === "in_progress") return "hsl(var(--primary))";
-                if (t.status === "blocked") return "hsl(var(--destructive))";
-                return "hsl(var(--muted-foreground) / 0.5)";
+                return LANE_COLOR[t.status];
               }}
             />
           </ReactFlow>
 
-          {/* Lane labels */}
+          {/* Lane legend */}
           {(tasks.data?.length ?? 0) > 0 && (
-            <LaneLegend tasks={tasks.data ?? []} />
+            <div className="absolute top-3 left-3 z-10 flex gap-1.5 pointer-events-none flex-wrap max-w-[60%]">
+              {STATUS_LANES.filter((s) => counts.has(s)).map((s) => (
+                <span
+                  key={s}
+                  className="rounded-full border border-border bg-card/80 backdrop-blur px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1.5"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: LANE_COLOR[s] }} />
+                  {LANE_LABEL[s]} · <span className="tabular-nums text-foreground/80">{counts.get(s)}</span>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Connection hint */}
+          {(tasks.data?.length ?? 0) > 0 && (
+            <div className="absolute bottom-3 left-3 z-10 pointer-events-none">
+              <span className="rounded-full border border-border bg-card/80 backdrop-blur px-2.5 py-1 text-[10px] text-muted-foreground/80">
+                Arraste das laterais dos nodes para conectar · conexões locais, não persistem
+              </span>
+            </div>
           )}
         </div>
 
-        {/* Inspector */}
-        <aside className="bg-card/30 border-t xl:border-t-0 border-border overflow-y-auto">
-          <Inspector
-            project={project.data}
-            milestone={selectedMilestone}
-            task={selectedTask}
-            taskCount={tasks.data?.length ?? 0}
-          />
-        </aside>
+        {/* Side panel */}
+        {panelOpen && (
+          <aside className="w-[340px] shrink-0 border-l border-border bg-card/40 backdrop-blur-sm overflow-y-auto">
+            <SidePanel
+              project={project.data}
+              milestone={selectedMilestone}
+              task={selectedTask}
+              taskCount={tasks.data?.length ?? 0}
+              briefing={briefing}
+              briefingsLoading={briefings.loading}
+              opsClientId={briefing?.opsClientId ?? project.data?.clientId ?? ""}
+            />
+          </aside>
+        )}
       </div>
-    </>
+
+      {addDialogOpen && (
+        <AddTaskNotice onClose={() => setAddDialogOpen(false)} portalUrl={portalUrl} />
+      )}
+    </div>
   );
 }
 
-function LaneLegend({ tasks }: { tasks: PortalTask[] }) {
-  const counts = useMemo(() => {
-    const c = new Map<PortalTaskStatus, number>();
-    tasks.forEach((t) => c.set(t.status, (c.get(t.status) ?? 0) + 1));
-    return c;
-  }, [tasks]);
-  const lanes = STATUS_LANES.filter((s) => counts.has(s));
-  if (lanes.length === 0) return null;
+function MilestoneSelector({
+  milestones, activeId, onSelect,
+}: {
+  milestones: PortalMilestone[];
+  activeId: string;
+  onSelect: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const active = milestones.find((m) => m.id === activeId) ?? milestones[0];
+  if (!active) return null;
   return (
-    <div className="absolute top-3 left-3 z-10 flex gap-2 pointer-events-none">
-      {lanes.map((s) => (
-        <span
-          key={s}
-          className="rounded-full border border-border bg-card/80 backdrop-blur px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground"
-        >
-          {LANE_LABEL[s]} · {counts.get(s)}
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-2 rounded-md border border-border bg-background h-7 px-2.5 text-xs hover:border-foreground/30"
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+        <span className="font-medium text-foreground truncate max-w-[280px]">{active.title}</span>
+        <span className="text-[10px] text-muted-foreground tabular-nums font-mono">
+          {active.tasksDoneCount}/{active.tasksCount}
         </span>
-      ))}
+        <ChevronDown className="h-3 w-3 text-muted-foreground" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute top-9 left-1/2 -translate-x-1/2 z-50 w-[360px] rounded-lg border border-border bg-card shadow-2xl overflow-hidden">
+            <div className="px-3 py-2 border-b border-border">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Milestones do projeto</p>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto py-1">
+              {milestones.map((m) => {
+                const isActive = m.id === activeId;
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => { onSelect(m.id); setOpen(false); }}
+                    className={`w-full text-left px-3 py-2 hover:bg-muted/50 flex items-center gap-2 ${
+                      isActive ? "bg-primary/5" : ""
+                    }`}
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+                        m.status === "in_progress" ? "bg-primary" :
+                        m.status === "done" ? "bg-emerald-400" :
+                        m.status === "paused" ? "bg-amber-400" : "bg-muted-foreground/50"
+                      }`}
+                    />
+                    <span className={`flex-1 text-xs truncate ${isActive ? "text-primary font-medium" : "text-foreground"}`}>
+                      {m.title}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground tabular-nums font-mono shrink-0">
+                      {m.tasksDoneCount}/{m.tasksCount}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -354,7 +479,7 @@ function CanvasOverlay({
   icon: Icon, title, text,
 }: { icon: typeof Layers; title: string; text: string }) {
   return (
-    <div className="absolute inset-0 z-10 grid place-items-center bg-background/80 backdrop-blur-sm">
+    <div className="absolute inset-0 z-10 grid place-items-center bg-background/60 backdrop-blur-sm pointer-events-none">
       <div className="flex flex-col items-center gap-2 text-center px-6">
         <div className="rounded-xl border border-border bg-card p-3">
           <Icon className="h-5 w-5 text-muted-foreground" />
@@ -366,61 +491,122 @@ function CanvasOverlay({
   );
 }
 
-function Inspector({
-  project, milestone, task, taskCount,
+function SidePanel({
+  project, milestone, task, taskCount, briefing, briefingsLoading, opsClientId,
 }: {
-  project: { name: string; clientName: string; progress: number } | null;
+  project: { name: string; clientName: string; progress: number; clientId?: string } | null;
   milestone: PortalMilestone | null;
   task: PortalTask | null;
   taskCount: number;
+  briefing: import("@/v2/data/portalClient").BriefingSummary | null;
+  briefingsLoading: boolean;
+  opsClientId: string;
 }) {
   return (
     <div className="p-3 space-y-3">
-      <div className="rounded-xl border border-border bg-card p-3">
+      {/* IA Hub */}
+      <div className="rounded-xl border border-border/80 bg-gradient-to-br from-primary/[0.06] to-transparent p-3">
         <div className="flex items-center gap-2 mb-2">
-          <Sparkles className="h-3.5 w-3.5 text-primary" />
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">IA Hub</p>
+          <div className="h-6 w-6 rounded-md bg-primary/15 grid place-items-center">
+            <Sparkles className="h-3.5 w-3.5 text-primary" />
+          </div>
+          <p className="text-xs font-semibold text-foreground">IA Hub</p>
+          <span className="ml-auto text-[9px] uppercase tracking-wider text-muted-foreground/70 font-medium">read-only</span>
         </div>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          Em breve: sugestões e próximos passos baseados no briefing essencial e no estado real do projeto.
+        <p className="text-[11px] text-muted-foreground leading-relaxed mb-2">
+          Próximos passos sugeridos com base no briefing essencial e no estado real do projeto.
         </p>
+        <div className="space-y-1.5">
+          <SuggestionRow icon={Brain} text="Sugestões em breve" />
+          <SuggestionRow icon={ListChecks} text="Memória do projeto" />
+          <SuggestionRow icon={FileText} text="Decisões registradas" />
+        </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-3 space-y-2">
-        <div className="flex items-center gap-2">
+      {/* Briefing essencial */}
+      <div className="rounded-xl border border-border/80 bg-card p-3">
+        <div className="flex items-center gap-2 mb-2">
+          <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Briefing essencial</p>
+        </div>
+        {briefingsLoading ? (
+          <Skeleton className="h-16 w-full" />
+        ) : briefing ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
+              <span className="text-xs text-foreground font-medium">Preenchido</span>
+              <span className="ml-auto text-[10px] text-muted-foreground tabular-nums font-mono">
+                {briefing.approxFields} campos
+              </span>
+            </div>
+            <Field label="Cliente" value={briefing.clientName} />
+            {briefing.company && <Field label="Empresa" value={briefing.company} />}
+            <Field label="Atualizado" value={briefing.updatedAt ? new Date(briefing.updatedAt).toLocaleDateString("pt-BR") : "—"} />
+            {opsClientId && (
+              <a
+                href={`/clients/${opsClientId}/briefing`}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-primary hover:underline"
+              >
+                <Eye className="h-3 w-3" /> Abrir preview no OPS antigo
+              </a>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">Nenhum briefing essencial disponível para este cliente.</p>
+        )}
+      </div>
+
+      {/* Contexto */}
+      <div className="rounded-xl border border-border/80 bg-card p-3 space-y-1.5">
+        <div className="flex items-center gap-2 mb-1">
           <Info className="h-3.5 w-3.5 text-muted-foreground" />
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Contexto</p>
         </div>
         <Field label="Cliente" value={project?.clientName ?? "—"} />
         <Field label="Projeto" value={project?.name ?? "—"} />
         <Field label="Milestone" value={milestone?.title ?? "—"} />
-        <Field label="Status milestone" value={milestone ? MILESTONE_STATUS_LABEL[milestone.status] : "—"} />
-        <Field label="Tarefas no canvas" value={milestone ? String(taskCount) : "—"} />
+        <Field label="Status" value={milestone ? MILESTONE_STATUS_LABEL[milestone.status] : "—"} />
+        <Field label="Tarefas" value={milestone ? String(taskCount) : "—"} />
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-3">
+      {/* Detalhe da tarefa */}
+      <div className="rounded-xl border border-border/80 bg-card p-3">
         <div className="flex items-center gap-2 mb-2">
           <ListChecks className="h-3.5 w-3.5 text-muted-foreground" />
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Tarefa selecionada</p>
         </div>
         {task ? (
           <div className="space-y-2">
-            <p className="text-sm font-medium text-foreground">{task.title}</p>
+            <p className="text-sm font-semibold text-foreground leading-snug">{task.title}</p>
             {task.description && (
-              <p className="text-[11px] text-muted-foreground whitespace-pre-wrap">{task.description}</p>
+              <p className="text-[11px] text-muted-foreground whitespace-pre-wrap leading-relaxed">{task.description}</p>
             )}
-            <Field label="Status" value={statusLabel(task.status)} />
-            <Field label="Progresso" value={`${Math.round(task.progress * 100)}%`} />
-            <Field label="Responsável" value={task.assigneeName ?? "—"} />
-            <Field label="Prazo" value={task.dueAt ? new Date(task.dueAt).toLocaleDateString("pt-BR") : "—"} />
-            <p className="pt-2 mt-1 border-t border-border text-[10px] text-muted-foreground/70">
-              Read-only. Para editar, use o Portal.
+            <div className="pt-1 space-y-1.5">
+              <Field label="Status" value={statusLabel(task.status)} />
+              <Field label="Progresso" value={`${Math.round(task.progress * 100)}%`} />
+              <Field label="Responsável" value={task.assigneeName ?? "—"} />
+              <Field label="Prazo" value={task.dueAt ? new Date(task.dueAt).toLocaleDateString("pt-BR") : "—"} />
+            </div>
+            <p className="pt-2 mt-1 border-t border-border text-[10px] text-muted-foreground/70 inline-flex items-center gap-1">
+              <Lock className="h-3 w-3" /> Read-only · edite no Portal.
             </p>
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">Clique em um node no canvas para ver detalhes.</p>
+          <p className="text-xs text-muted-foreground">Clique em um node para ver detalhes.</p>
         )}
       </div>
+    </div>
+  );
+}
+
+function SuggestionRow({ icon: Icon, text }: { icon: typeof Brain; text: string }) {
+  return (
+    <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-foreground/[0.02] border border-border/40">
+      <Icon className="h-3 w-3 text-muted-foreground/70" />
+      <span className="text-[11px] text-muted-foreground">{text}</span>
     </div>
   );
 }
@@ -434,8 +620,54 @@ function statusLabel(s: PortalTaskStatus): string {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-2 text-xs">
-      <span className="text-muted-foreground shrink-0">{label}</span>
-      <span className="text-foreground text-right font-medium truncate">{value}</span>
+      <span className="text-muted-foreground/80 shrink-0 text-[11px]">{label}</span>
+      <span className="text-foreground text-right font-medium truncate text-[11px]">{value}</span>
     </div>
+  );
+}
+
+function AddTaskNotice({ onClose, portalUrl }: { onClose: () => void; portalUrl: string }) {
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-background/70 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-[420px] rounded-xl border border-border bg-card shadow-2xl p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <div className="h-8 w-8 rounded-md bg-primary/15 grid place-items-center">
+            <Lock className="h-4 w-4 text-primary" />
+          </div>
+          <p className="text-sm font-semibold text-foreground">Disponível na fase de edição</p>
+        </div>
+        <p className="text-xs text-muted-foreground leading-relaxed mb-4">
+          Adicionar tarefas no Canvas V2 ainda não está disponível. Tarefas são criadas no Portal Aceleriq —
+          quando a fase de edição estiver liberada, este botão criará uma task no Portal automaticamente.
+        </p>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="rounded-md border border-border bg-background px-3 h-8 text-xs text-muted-foreground hover:text-foreground"
+          >
+            Fechar
+          </button>
+          <a
+            href={portalUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 h-8 text-xs text-primary hover:bg-primary/15"
+          >
+            <ExternalLink className="h-3 w-3" /> Abrir Portal
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Eye({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" />
+    </svg>
   );
 }
