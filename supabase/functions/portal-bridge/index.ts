@@ -933,6 +933,129 @@ serve(async (req) => {
       }
       return json(payload);
     }
+    case "inspectPortalPayload": {
+      // Diagnóstico read-only do payload bruto. Mascara dados sensíveis.
+      const RELATION_PATTERNS = [
+        /milestone/i, /folder/i, /parent/i, /stage/i, /phase/i,
+        /column/i, /node/i, /^task/i, /project/i, /group/i, /section/i,
+      ];
+      const mask = (v: unknown): unknown => {
+        if (v == null) return v;
+        if (typeof v === "string") {
+          if (isUuidLike(v)) return v; // ids ajudam diagnóstico
+          return v.length > 80 ? v.slice(0, 80) + "…" : v;
+        }
+        if (typeof v === "number" || typeof v === "boolean") return v;
+        return Array.isArray(v) ? `[array len=${(v as any[]).length}]` : "[object]";
+      };
+      const safeSample = (o: Record<string, any>) => {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(o)) out[k] = mask(v);
+        return out;
+      };
+      const collectRelationFields = (o: Record<string, any>): Record<string, unknown> => {
+        const found: Record<string, unknown> = {};
+        const walk = (obj: any, prefix = "") => {
+          if (!obj || typeof obj !== "object" || Array.isArray(obj)) return;
+          for (const [k, v] of Object.entries(obj)) {
+            const path = prefix ? `${prefix}.${k}` : k;
+            if (RELATION_PATTERNS.some((re) => re.test(k))) {
+              if (v != null && (typeof v === "string" || typeof v === "number")) {
+                found[path] = String(v).slice(0, 80);
+              }
+            }
+            if (v && typeof v === "object" && !Array.isArray(v) && prefix.split(".").length < 2) {
+              walk(v, path);
+            }
+          }
+        };
+        walk(o);
+        return found;
+      };
+
+      const projectSample = projectsRaw[0]
+        ? { keys: Object.keys(projectsRaw[0]), sample: safeSample(projectsRaw[0]) }
+        : null;
+
+      const idFieldsOf = (arr: Record<string, any>[]) => {
+        const ids = new Set<string>();
+        const projIds = new Set<string>();
+        for (const o of arr.slice(0, 50)) {
+          for (const k of Object.keys(o)) {
+            if (/(^|_)id$/i.test(k) || /uuid/i.test(k)) ids.add(k);
+            if (/project/i.test(k) && /id/i.test(k)) projIds.add(k);
+          }
+        }
+        return { possibleIdFields: [...ids], possibleProjectIdFields: [...projIds] };
+      };
+
+      const milestoneInfo = {
+        totalRaw: milestonesRaw.length,
+        keys: milestonesRaw[0] ? Object.keys(milestonesRaw[0]) : [],
+        sample: milestonesRaw.slice(0, 3).map((m) => safeSample(m)),
+        ...idFieldsOf(milestonesRaw),
+      };
+
+      // Tasks unresolved sample
+      const unresolvedPairs = tasksNormPairs.filter(
+        (p) => validProjectIds.has(p.task.projectId) &&
+          (!p.task.milestoneId || !validMilestoneIds.has(p.task.milestoneId)),
+      );
+      const tasksSampleSource = unresolvedPairs.length > 0 ? unresolvedPairs : tasksNormPairs;
+      const taskSamples = tasksSampleSource.slice(0, 5).map((p) => {
+        const raw = p.raw;
+        const meta = (raw.metadata ?? {}) as Record<string, any>;
+        const data = (raw.data ?? {}) as Record<string, any>;
+        const rawInner = (raw.raw ?? {}) as Record<string, any>;
+        return {
+          id: p.task.id,
+          title: (p.task.title || "").slice(0, 40),
+          detectedProjectId: p.task.projectId,
+          containerMilestoneId: (raw as any)._containerMilestoneId ?? null,
+          containerProjectId: (raw as any)._containerProjectId ?? null,
+          jsonPath: (raw as any)._jsonPath ?? null,
+          relationFields: collectRelationFields(raw),
+          structure: (raw as any)._jsonPath
+            ? `nested at ${(raw as any)._jsonPath}`
+            : "flat (top-level array)",
+          metadataKeys: Object.keys(meta),
+          dataKeys: Object.keys(data),
+          rawKeys: Object.keys(rawInner),
+        };
+      });
+
+      const taskInfo = {
+        totalRaw: tasksRaw.length,
+        keys: tasksRaw[0] ? Object.keys(tasksRaw[0]) : [],
+        metadataKeys: tasksRaw[0]?.metadata ? Object.keys(tasksRaw[0].metadata) : [],
+        dataKeys: tasksRaw[0]?.data ? Object.keys(tasksRaw[0].data) : [],
+        rawKeys: tasksRaw[0]?.raw ? Object.keys(tasksRaw[0].raw) : [],
+        nestedDetected: tasksRaw.filter((t) => (t as any)._jsonPath).length,
+        flatDetected: tasksRaw.filter((t) => !(t as any)._jsonPath).length,
+        unresolvedSample: taskSamples,
+      };
+
+      return json({
+        ok: true,
+        deployTag: DEPLOY_TAG,
+        source: full ? "ops-full-export" : "fallback",
+        projects: {
+          totalRaw: projectsRaw.length,
+          keys: projectSample?.keys ?? [],
+          sample: projectSample?.sample ?? null,
+        },
+        milestones: milestoneInfo,
+        tasks: taskInfo,
+        resolution: {
+          tasksWithDetectedContainerMilestone: tasksResolvedByContainer,
+          tasksWithDirectMilestoneField: tasksResolvedByDirectMilestoneId,
+          tasksResolvedByFolderId,
+          tasksResolvedByParentId,
+          tasksWithNoRelation: tasksNormPairs.filter((p) => !p.resolvedBy).length,
+          tasksDroppedBecauseNoMilestone: tasksNorm.length - tasksFiltered.length,
+        },
+      });
+    }
     default:
       return json({ error: "unknown_action", action }, 400);
   }
