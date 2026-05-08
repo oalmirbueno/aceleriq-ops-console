@@ -50,6 +50,8 @@ export interface PortalClient {
   email?: string | null;
   avatarUrl?: string | null;
   activeProjectsCount: number;
+  primaryProjectId?: string | null;
+  primaryProjectName?: string | null;
   included?: boolean;
   problems?: string[];
   source?: string;
