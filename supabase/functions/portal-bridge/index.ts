@@ -1,7 +1,10 @@
 /**
  * portal-bridge — leitura read-only do Portal Aceleriq para o OPS V2.
  *
- * Deploy tag: v2.2.5 — Portal-only global cascade + alias resolution.
+ * Deploy tag: v2.2.6 — Robust task→milestone resolution + audit debug.
+ *  - resolução task→milestone via direct/folder/parent/opsFallback;
+ *  - auditPortalSources com contadores por categoria + debug seguro;
+ *  - listClients devolve primaryProjectId para CTAs clicáveis.
  *  - projects: requerem id + clientId; filtram deleted/archived/trash.
  *  - milestones: só de projects válidos; filtram deleted/archived/placeholders.
  *  - tasks: só de milestones válidos; resolve milestoneId via alias map robusto.
@@ -125,6 +128,82 @@ function milestoneIdOf(t: Record<string, any>) {
     data.portal_milestone_id, data.portalMilestoneId,
     data.folder_id, data.portal_folder_id,
   );
+}
+
+/** Tenta resolver milestoneId de uma task em categorias.
+ *  Retorna o primeiro hit + a categoria que resolveu. */
+function resolveTaskMilestone(
+  t: Record<string, any>,
+  aliasToId: Map<string, string>,
+): { id: string; category: "direct" | "folder" | "parent" | "" } {
+  const meta = (t.metadata ?? {}) as Record<string, any>;
+  const data = (t.data ?? {}) as Record<string, any>;
+  const raw = (t.raw ?? {}) as Record<string, any>;
+  const node = (t.node ?? {}) as Record<string, any>;
+  const task = (t.task ?? {}) as Record<string, any>;
+  const buckets: { cat: "direct" | "folder" | "parent"; vals: unknown[] }[] = [
+    { cat: "direct", vals: [
+      t.milestone_id, t.milestoneId, t.portal_milestone_id, t.portalMilestoneId,
+      t.ops_milestone_id, t.opsMilestoneId,
+      t.parent_milestone_id, t.parentMilestoneId,
+      t.milestone?.id, t.milestone?.uuid,
+      meta.milestone_id, meta.milestoneId, meta.portal_milestone_id, meta.portalMilestoneId,
+      data.milestone_id, data.milestoneId, data.portal_milestone_id, data.portalMilestoneId,
+      raw.milestone_id, raw.portal_milestone_id,
+      node.milestone_id, node.portal_milestone_id,
+      task.milestone_id, task.portal_milestone_id,
+    ]},
+    { cat: "folder", vals: [
+      t.folder_id, t.portal_folder_id, t.folderId, t.portalFolderId,
+      t.folder?.id, t.folder?.uuid,
+      meta.folder_id, meta.portal_folder_id, meta.folderId, meta.portalFolderId,
+      data.folder_id, data.portal_folder_id, data.folderId, data.portalFolderId,
+      raw.folder_id, raw.portal_folder_id,
+      node.folder_id, node.portal_folder_id,
+    ]},
+    { cat: "parent", vals: [
+      t.parent_id, t.parentId, t.parent_node_id, t.parentNodeId,
+      t.stage_id, t.phase_id, t.column_id,
+      meta.parent_id, meta.parentId, meta.parent_node_id, meta.parentNodeId,
+      data.parent_id, data.parentId, data.parent_node_id, data.parentNodeId,
+      raw.parent_id, raw.parent_node_id,
+      node.parent_id, node.parent_node_id,
+    ]},
+  ];
+  for (const b of buckets) {
+    for (const v of b.vals) {
+      const s = typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim();
+      if (!s) continue;
+      const hit = aliasToId.get(s);
+      if (hit) return { id: hit, category: b.cat };
+    }
+  }
+  return { id: "", category: "" };
+}
+
+/** Coleta keys interessantes do payload da task para debug audit. */
+function debugTaskShape(t: Record<string, any>) {
+  const meta = (t.metadata ?? {}) as Record<string, any>;
+  const data = (t.data ?? {}) as Record<string, any>;
+  const interesting = [
+    "milestone_id", "milestoneId", "portal_milestone_id", "portalMilestoneId",
+    "ops_milestone_id", "opsMilestoneId",
+    "folder_id", "folderId", "portal_folder_id", "portalFolderId",
+    "parent_id", "parentId", "parent_node_id", "parentNodeId",
+    "stage_id", "phase_id", "column_id",
+    "node_id", "ops_node_id",
+  ];
+  const found: Record<string, string> = {};
+  for (const k of interesting) {
+    const v = (t as any)[k] ?? meta[k] ?? data[k];
+    if (v != null && v !== "") found[k] = String(v).slice(0, 60);
+  }
+  return {
+    keys: Object.keys(t),
+    metadataKeys: Object.keys(meta),
+    dataKeys: Object.keys(data),
+    candidates: found,
+  };
 }
 
 /** Coleta TODOS os ids/aliases possíveis de um milestone bruto. */
@@ -423,18 +502,27 @@ serve(async (req) => {
   }
 
   // ---------- Build derived indexes ----------
-  let tasksAliasResolved = 0;
-  const tasksNorm = tasksRaw.map((rawT) => {
+  let tasksResolvedByDirectMilestoneId = 0;
+  let tasksResolvedByFolderId = 0;
+  let tasksResolvedByParentId = 0;
+  const tasksNormPairs: { task: ReturnType<typeof normalizeTask>; raw: Record<string, any>; resolvedBy: "direct" | "folder" | "parent" | "" }[] = [];
+  for (const rawT of tasksRaw) {
     const t = normalizeTask(rawT);
-    if (t.milestoneId) {
-      const canonical = milestoneAliasToId.get(t.milestoneId);
-      if (canonical && canonical !== t.milestoneId) {
-        t.milestoneId = canonical;
-        tasksAliasResolved += 1;
-      }
+    if (!t.id || !t.projectId) continue;
+    let resolvedBy: "direct" | "folder" | "parent" | "" = "";
+    if (t.milestoneId && milestoneAliasToId.has(t.milestoneId)) {
+      t.milestoneId = milestoneAliasToId.get(t.milestoneId)!;
+      resolvedBy = "direct";
+    } else {
+      const r = resolveTaskMilestone(rawT, milestoneAliasToId);
+      if (r.id) { t.milestoneId = r.id; resolvedBy = r.category; }
     }
-    return t;
-  }).filter((t) => t.id && t.projectId);
+    if (resolvedBy === "direct") tasksResolvedByDirectMilestoneId++;
+    else if (resolvedBy === "folder") tasksResolvedByFolderId++;
+    else if (resolvedBy === "parent") tasksResolvedByParentId++;
+    tasksNormPairs.push({ task: t, raw: rawT, resolvedBy });
+  }
+  const tasksNorm = tasksNormPairs.map((p) => p.task);
   const tasksByMilestone = new Map<string, typeof tasksNorm>();
   const tasksByProject = new Map<string, typeof tasksNorm>();
   for (const t of tasksNorm) {
@@ -515,17 +603,31 @@ serve(async (req) => {
         company: string;
         email: string;
         activeProjectsCount: number;
+        primaryProjectId: string;
+        primaryProjectName: string;
+        primaryProjectUpdatedAt: string;
       };
       const map = new Map<string, Agg>();
       for (const p of projectsNorm) {
         if (!p.clientId) continue;
         const c = map.get(p.clientId) ?? {
           id: p.clientId, name: "", company: "", email: "", activeProjectsCount: 0,
+          primaryProjectId: "", primaryProjectName: "", primaryProjectUpdatedAt: "",
         };
         if (p.status === "active") c.activeProjectsCount += 1;
         if (!c.name && p.clientName && !isUuidLike(p.clientName)) c.name = p.clientName;
         if (!c.company && (p as any).clientCompany) c.company = (p as any).clientCompany;
         if (!c.email && (p as any).clientEmail) c.email = (p as any).clientEmail;
+        const isActive = p.status === "active";
+        const beats = isActive && (
+          !c.primaryProjectId ||
+          (p.updatedAt && p.updatedAt > c.primaryProjectUpdatedAt)
+        );
+        if (beats) {
+          c.primaryProjectId = p.id;
+          c.primaryProjectName = p.name;
+          c.primaryProjectUpdatedAt = p.updatedAt || "";
+        }
         map.set(p.clientId, c);
       }
       const clients = [...map.values()].map((c) => {
@@ -541,6 +643,8 @@ serve(async (req) => {
           company: c.company || null,
           email: c.email || null,
           activeProjectsCount: c.activeProjectsCount,
+          primaryProjectId: c.primaryProjectId || null,
+          primaryProjectName: c.primaryProjectName || null,
           source: full ? "ops-full-export" : "fallback",
           included,
           problems,
@@ -639,7 +743,11 @@ serve(async (req) => {
           milestonesValid: validMilestoneIds.size,
           tasksRaw: tasksRaw.length,
           tasksValid: tasksFiltered.length,
-          tasksAliasResolved,
+          tasksResolvedByDirectMilestoneId,
+          tasksResolvedByFolderId,
+          tasksResolvedByParentId,
+          tasksStillUnresolved: tasksWithoutValidMilestone.length,
+          tasksFilteredOut: tasksNorm.length - tasksFiltered.length,
           tasksWithoutValidMilestone: tasksWithoutValidMilestone.length,
           placeholderMilestonesRemoved,
           clientsTotal: clientRows.length,
@@ -649,7 +757,9 @@ serve(async (req) => {
           "missing_display_name",
           "client_without_active_project",
           "task_without_valid_milestone",
-          "task_milestone_alias_resolved",
+          "task_resolved_by_direct",
+          "task_resolved_by_folder",
+          "task_resolved_by_parent",
           "project_without_valid_client",
           "placeholder_milestone_removed",
           "non_active_project_filtered",
@@ -660,11 +770,19 @@ serve(async (req) => {
           taskId: t.id,
           projectId: t.projectId,
           milestoneIdRaw: t.milestoneId || null,
-          title: t.title,
+          title: (t.title || "").slice(0, 40),
           problems: ["task_without_valid_milestone"],
         })),
+        tasksUnresolvedDebug: tasksNormPairs
+          .filter((p) => validProjectIds.has(p.task.projectId) && (!p.task.milestoneId || !validMilestoneIds.has(p.task.milestoneId)))
+          .slice(0, 5)
+          .map((p) => ({
+            taskId: p.task.id,
+            titleHash: (p.task.title || "").slice(0, 30),
+            projectId: p.task.projectId,
+            shape: debugTaskShape(p.raw),
+          })),
       });
-    }
     }
     case "getProject": {
       const id = firstString((params as any).projectId);

@@ -50,6 +50,8 @@ export interface PortalClient {
   email?: string | null;
   avatarUrl?: string | null;
   activeProjectsCount: number;
+  primaryProjectId?: string | null;
+  primaryProjectName?: string | null;
   included?: boolean;
   problems?: string[];
   source?: string;
@@ -333,27 +335,51 @@ async function invokeBridge<T>(action: string, params?: Record<string, unknown>)
   return data as T;
 }
 
+// ----- Session cache (ttl) para evitar refetch a cada troca de aba -----
+const TTL_MS = 30_000;
+type Entry = { at: number; value: unknown };
+const cache = new Map<string, Entry>();
+const inflight = new Map<string, Promise<unknown>>();
+function ck(action: string, params?: Record<string, unknown>) {
+  return action + ":" + JSON.stringify(params ?? {});
+}
+async function cachedInvoke<T>(action: string, params?: Record<string, unknown>): Promise<T> {
+  const key = ck(action, params);
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.value as T;
+  const pending = inflight.get(key);
+  if (pending) return pending as Promise<T>;
+  const p = invokeBridge<T>(action, params).then((v) => {
+    cache.set(key, { at: Date.now(), value: v });
+    inflight.delete(key);
+    return v;
+  }).catch((e) => { inflight.delete(key); throw e; });
+  inflight.set(key, p);
+  return p;
+}
+export function clearPortalCache() { cache.clear(); inflight.clear(); }
+
 const bridgeClient: PortalClientApi = {
   async listClients() {
-    const r = await invokeBridge<{ clients: PortalClient[] }>("listClients");
+    const r = await cachedInvoke<{ clients: PortalClient[] }>("listClients");
     return r.clients ?? [];
   },
   async listProjects(opts) {
-    const r = await invokeBridge<{ projects: PortalProject[] }>(
+    const r = await cachedInvoke<{ projects: PortalProject[] }>(
       "listProjects", opts?.clientId ? { clientId: opts.clientId } : undefined,
     );
     return r.projects ?? [];
   },
   async getProject(projectId) {
-    const r = await invokeBridge<{ project: PortalProject | null }>("getProject", { projectId });
+    const r = await cachedInvoke<{ project: PortalProject | null }>("getProject", { projectId });
     return r.project ?? null;
   },
   async listMilestones(projectId) {
-    const r = await invokeBridge<{ milestones: PortalMilestone[] }>("listMilestones", { projectId });
+    const r = await cachedInvoke<{ milestones: PortalMilestone[] }>("listMilestones", { projectId });
     return r.milestones ?? [];
   },
   async listTasks({ projectId, milestoneId }) {
-    const r = await invokeBridge<{ tasks: PortalTask[] }>(
+    const r = await cachedInvoke<{ tasks: PortalTask[] }>(
       "listTasks", milestoneId ? { projectId, milestoneId } : { projectId },
     );
     return r.tasks ?? [];
@@ -362,13 +388,13 @@ const bridgeClient: PortalClientApi = {
   async createTask() { return NOT_IMPLEMENTED("createTask"); },
   async archiveTask() { return NOT_IMPLEMENTED("archiveTask"); },
   async listBriefings(opts) {
-    const r = await invokeBridge<{ briefings: BriefingSummary[] }>(
+    const r = await cachedInvoke<{ briefings: BriefingSummary[] }>(
       "listBriefings", opts ?? {},
     );
     return r.briefings ?? [];
   },
   async getBriefing(opts) {
-    const r = await invokeBridge<{ briefing: BriefingDetail | null }>("getBriefing", opts);
+    const r = await cachedInvoke<{ briefing: BriefingDetail | null }>("getBriefing", opts);
     return r.briefing ?? null;
   },
 };
