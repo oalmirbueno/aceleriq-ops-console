@@ -1,7 +1,7 @@
 /**
  * portal-bridge — leitura read-only do Portal Aceleriq para o OPS V2.
  *
- * Deploy tag: v2.2.1 — corrige leitura de last_portal_briefing_sync (essential_briefing.*).
+ * Deploy tag: v2.2.2 — resolução robusta cliente Portal↔OPS (opsClientId/portalClientId).
  *
  * REGRAS:
  *   - Apenas leitura. Sem insert/update/delete. Sem backfill. Sem materialização.
@@ -389,7 +389,10 @@ function opsSupabase() {
 type BriefingSummary = {
   briefingId: string;
   clientId: string;
+  opsClientId: string;
+  portalClientId: string | null;
   clientName: string;
+  company: string | null;
   source: "essential_briefing" | "context_entries";
   kind: "essential" | "enterprise_structuring" | "ai_automation" | string;
   updatedAt: string | null;
@@ -429,15 +432,21 @@ async function handleOpsContextAction(
   }
 
   if (action === "listBriefings") {
-    const clientId = firstString((params as any).clientId);
+    const clientIdParam = firstString((params as any).clientId);
+    const opsClientIdParam = firstString((params as any).opsClientId);
+    const portalClientIdParam = firstString(
+      (params as any).portalClientId,
+      // back-compat: alguns callers passam clientId já como Portal id.
+    );
     // Fase atual: somente Briefing Essencial em clients.metadata.essential_briefing.
     // Estruturação Empresarial e Automação/IA aparecerão em fase futura.
-    let q = sb.from("clients").select("id,name,metadata").limit(500);
-    if (clientId) q = q.eq("id", clientId);
-    const { data: clients, error: cErr } = await q;
+    const { data: clients, error: cErr } = await sb
+      .from("clients")
+      .select("id,name,metadata,portal_client_id")
+      .limit(500);
     if (cErr) return json({ error: "clients_read_failed", message: cErr.message }, 500);
 
-    const out: BriefingSummary[] = [];
+    const all: BriefingSummary[] = [];
     for (const c of clients ?? []) {
       const meta = (c as any).metadata ?? {};
       const eb = meta?.essential_briefing ?? null;
@@ -446,10 +455,20 @@ async function handleOpsContextAction(
       const fields = hasEb ? countNonEmptyFields(eb) : 0;
       const ebLastSync = hasEb ? (eb.last_portal_briefing_sync ?? null) : null;
       const ebUpdatedAt = hasEb ? (eb.updated_at ?? null) : null;
-      out.push({
+      const portalClientId = firstString(
+        (c as any).portal_client_id,
+        meta?.portal_client_id,
+      ) || null;
+      const company = firstString(
+        meta?.company, meta?.company_name, meta?.companyName,
+      ) || null;
+      all.push({
         briefingId: `essential:${c.id}`,
         clientId: c.id,
+        opsClientId: c.id,
+        portalClientId,
         clientName: (c as any).name ?? "Cliente",
+        company,
         source: "essential_briefing",
         kind: "essential",
         updatedAt: ebUpdatedAt ?? ebLastSync ?? null,
@@ -464,13 +483,28 @@ async function handleOpsContextAction(
       });
     }
 
+    // Filtros opcionais (resolução read-only):
+    let out = all;
+    if (opsClientIdParam) {
+      out = out.filter((b) => b.opsClientId === opsClientIdParam);
+    } else if (portalClientIdParam) {
+      out = out.filter((b) => b.portalClientId === portalClientIdParam);
+    } else if (clientIdParam) {
+      // Aceita id ambíguo: tenta opsClientId, depois portalClientId.
+      out = out.filter(
+        (b) => b.opsClientId === clientIdParam || b.portalClientId === clientIdParam,
+      );
+    }
     out.sort((a, b) => a.clientName.localeCompare(b.clientName));
     return json({ ok: true, briefings: out });
   }
 
   if (action === "getBriefing") {
     const briefingId = firstString((params as any).briefingId);
-    const clientId = firstString((params as any).clientId);
+    const clientIdParam = firstString((params as any).clientId);
+    const opsClientIdParam = firstString((params as any).opsClientId);
+    const portalClientIdParam = firstString((params as any).portalClientId);
+    const clientNameParam = firstString((params as any).clientName);
     const kind = firstString((params as any).kind) || "essential";
 
     // Resolve por id "essential:<clientId>" / "entry:<id>" ou por (clientId, kind).
@@ -478,26 +512,65 @@ async function handleOpsContextAction(
       || (!briefingId && kind === "essential");
 
     if (isEssential) {
-      const cid = briefingId.startsWith("essential:")
+      // Resolução em ordem: briefingId → opsClientId → portalClientId → clientId(ambíguo) → clientName(match único).
+      let resolved: any = null;
+      const opsId = briefingId.startsWith("essential:")
         ? briefingId.slice("essential:".length)
-        : clientId;
-      if (!cid) return json({ error: "missing_clientId" }, 400);
-      const { data, error } = await sb
-        .from("clients")
-        .select("id,name,metadata")
-        .eq("id", cid)
-        .maybeSingle();
-      if (error) return json({ error: "client_read_failed", message: error.message }, 500);
-      if (!data) return json({ ok: true, briefing: null });
+        : (opsClientIdParam || "");
+
+      if (opsId) {
+        const { data, error } = await sb
+          .from("clients")
+          .select("id,name,metadata,portal_client_id")
+          .eq("id", opsId)
+          .maybeSingle();
+        if (error) return json({ error: "client_read_failed", message: error.message }, 500);
+        resolved = data ?? null;
+      }
+
+      if (!resolved && portalClientIdParam) {
+        const { data, error } = await sb
+          .from("clients")
+          .select("id,name,metadata,portal_client_id")
+          .eq("portal_client_id", portalClientIdParam)
+          .limit(2);
+        if (error) return json({ error: "client_read_failed", message: error.message }, 500);
+        if (data && data.length === 1) resolved = data[0];
+      }
+
+      if (!resolved && clientIdParam) {
+        // tenta como ops id depois como portal id
+        const r1 = await sb.from("clients").select("id,name,metadata,portal_client_id").eq("id", clientIdParam).maybeSingle();
+        if (r1.data) resolved = r1.data;
+        if (!resolved) {
+          const r2 = await sb.from("clients").select("id,name,metadata,portal_client_id").eq("portal_client_id", clientIdParam).limit(2);
+          if (r2.data && r2.data.length === 1) resolved = r2.data[0];
+        }
+      }
+
+      if (!resolved && clientNameParam) {
+        const { data } = await sb
+          .from("clients")
+          .select("id,name,metadata,portal_client_id")
+          .ilike("name", clientNameParam)
+          .limit(2);
+        if (data && data.length === 1) resolved = data[0];
+      }
+
+      if (!resolved) return json({ ok: true, briefing: null });
+      const data = resolved;
       const meta = (data as any).metadata ?? {};
       const eb = meta?.essential_briefing ?? null;
       const ebLastSync = eb ? (eb.last_portal_briefing_sync ?? null) : null;
       const ebUpdatedAt = eb ? (eb.updated_at ?? null) : null;
+      const portalClientId = firstString((data as any).portal_client_id, meta?.portal_client_id) || null;
       return json({
         ok: true,
         briefing: eb ? {
           briefingId: `essential:${data.id}`,
           clientId: data.id,
+          opsClientId: data.id,
+          portalClientId,
           clientName: (data as any).name ?? "Cliente",
           source: "essential_briefing",
           kind: "essential",

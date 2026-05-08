@@ -124,7 +124,10 @@ export type BriefingKind = "essential" | "enterprise_structuring" | "ai_automati
 export interface BriefingSummary {
   briefingId: string;
   clientId: string;
+  opsClientId?: string;
+  portalClientId?: string | null;
   clientName: string;
+  company?: string | null;
   source: BriefingSource;
   kind: BriefingKind;
   updatedAt: string | null;
@@ -141,6 +144,8 @@ export interface BriefingSummary {
 export interface BriefingDetail {
   briefingId: string;
   clientId: string;
+  opsClientId?: string;
+  portalClientId?: string | null;
   clientName?: string;
   source: BriefingSource;
   kind: BriefingKind;

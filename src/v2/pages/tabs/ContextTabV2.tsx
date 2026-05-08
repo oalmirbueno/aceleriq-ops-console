@@ -28,14 +28,21 @@ export default function ContextTabV2() {
     () => projectId ? portalClient.getProject(projectId) : Promise.resolve(null),
     [projectId],
   );
-  const clientId = project?.clientId;
+  const projectClientId = project?.clientId;
+  const projectClientName = project?.clientName;
 
   const { data: briefings, error, loading, reload } = usePortalQuery(
-    () => clientId ? portalClient.listBriefings({ clientId }) : Promise.resolve([] as BriefingSummary[]),
-    [clientId],
+    // Lista todos os briefings — a resolução cliente-Portal↔OPS é feita no cliente.
+    () => portalClient.listBriefings(),
+    [],
   );
 
-  const essential = (briefings ?? []).find((b) => b.kind === "essential") ?? null;
+  const essential = resolveEssentialBriefing(
+    briefings ?? [],
+    projectClientId,
+    projectClientName,
+  );
+  const opsClientIdForLink = essential?.opsClientId ?? essential?.clientId ?? projectClientId ?? "";
 
   return (
     <div className="space-y-8">
@@ -43,7 +50,7 @@ export default function ContextTabV2() {
         title="Briefings"
         description="Informações perenes do cliente. Fonte de verdade no Portal Aceleriq."
       >
-        {loading || !clientId ? (
+        {loading || !projectClientId ? (
           <div className="grid gap-3 md:grid-cols-3">
             <Skeleton className="h-40" /><Skeleton className="h-40" /><Skeleton className="h-40" />
           </div>
@@ -52,7 +59,7 @@ export default function ContextTabV2() {
         ) : (
           <div className="grid gap-3 md:grid-cols-3">
             <EssentialBriefingCard
-              clientId={clientId}
+              opsClientId={opsClientIdForLink}
               summary={essential}
               onView={() => essential && setOpenDetail(essential)}
             />
@@ -106,8 +113,8 @@ function Section({
 }
 
 function EssentialBriefingCard({
-  clientId, summary, onView,
-}: { clientId: string; summary: BriefingSummary | null; onView: () => void }) {
+  opsClientId, summary, onView,
+}: { opsClientId: string; summary: BriefingSummary | null; onView: () => void }) {
   const filled = !!summary?.isFilled;
   return (
     <div className="rounded-xl border border-border bg-card p-4 flex flex-col">
@@ -147,7 +154,7 @@ function EssentialBriefingCard({
           <Eye className="h-3.5 w-3.5" /> Ver detalhes
         </button>
         <a
-          href={`/ops/clients/${clientId}`}
+          href={`/ops/clients/${opsClientId}`}
           className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted"
         >
           <ExternalLink className="h-3.5 w-3.5" /> Abrir no OPS antigo
@@ -325,4 +332,44 @@ function renderValue(val: unknown): React.ReactNode {
       {JSON.stringify(val, null, 2)}
     </pre>
   );
+}
+
+/**
+ * Resolve qual briefing essencial corresponde ao projeto.
+ * Ordem (read-only, sem mutation):
+ *   1. portalClientId === project.clientId
+ *   2. clientId === project.clientId
+ *   3. opsClientId === project.clientId
+ *   4. match único por nome (clientName/company), só se não houver ambiguidade.
+ */
+function resolveEssentialBriefing(
+  briefings: BriefingSummary[],
+  projectClientId: string | undefined,
+  projectClientName: string | undefined,
+): BriefingSummary | null {
+  const essentials = briefings.filter((b) => b.kind === "essential");
+  if (essentials.length === 0) return null;
+
+  if (projectClientId) {
+    const byPortal = essentials.find((b) => b.portalClientId && b.portalClientId === projectClientId);
+    if (byPortal) return byPortal;
+    const byClientId = essentials.find((b) => b.clientId === projectClientId);
+    if (byClientId) return byClientId;
+    const byOps = essentials.find((b) => b.opsClientId === projectClientId);
+    if (byOps) return byOps;
+  }
+
+  if (projectClientName) {
+    const target = projectClientName.trim().toLowerCase();
+    if (target && target !== "cliente") {
+      const matches = essentials.filter((b) => {
+        const a = (b.clientName ?? "").trim().toLowerCase();
+        const c = (b.company ?? "").trim().toLowerCase();
+        return a === target || c === target;
+      });
+      if (matches.length === 1) return matches[0];
+    }
+  }
+
+  return null;
 }
