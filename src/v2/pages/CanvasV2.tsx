@@ -562,21 +562,3 @@ function CanvasOverlay({
     </div>
   );
 }
-
-            className="rounded-md border border-border bg-background px-3 h-8 text-xs text-muted-foreground hover:text-foreground"
-          >
-            Fechar
-          </button>
-          <a
-            href={portalUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 h-8 text-xs text-primary hover:bg-primary/15"
-          >
-            <ExternalLink className="h-3 w-3" /> Abrir Portal
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-}
