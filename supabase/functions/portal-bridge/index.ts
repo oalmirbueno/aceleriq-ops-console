@@ -837,7 +837,7 @@ serve(async (req) => {
 
       return json({
         ok: true,
-        deployTag: "v2.2.5",
+        deployTag: DEPLOY_TAG,
         totals: {
           projectsRaw: projectsRaw.length,
           projectsValid: projectsNorm.length,
@@ -845,7 +845,12 @@ serve(async (req) => {
           milestonesValid: validMilestoneIds.size,
           tasksRaw: tasksRaw.length,
           tasksValid: tasksFiltered.length,
+          tasksWithDetectedContainerMilestone: tasksResolvedByContainer,
+          tasksWithDirectMilestoneField: tasksResolvedByDirectMilestoneId,
+          tasksWithNoRelation: tasksNormPairs.filter((p) => !p.resolvedBy).length,
+          tasksDroppedBecauseNoMilestone: tasksNorm.length - tasksFiltered.length,
           tasksResolvedByDirectMilestoneId,
+          tasksResolvedByContainer,
           tasksResolvedByFolderId,
           tasksResolvedByParentId,
           tasksStillUnresolved: tasksWithoutValidMilestone.length,
