@@ -430,6 +430,48 @@ async function fetchTasksFallback(headers: Record<string, string>) {
   } catch { return { tasks: [], milestones: [] }; }
 }
 
+async function fetchClientsList(headers: Record<string, string>): Promise<Record<string, any>[]> {
+  try {
+    const res = await fetch(`${PORTAL_BASE}/ops-clients-list`, {
+      method: "POST", headers, body: JSON.stringify({}),
+    });
+    if (!res.ok) return [];
+    const body = await res.json().catch(() => null) as any;
+    if (!body) return [];
+    if (Array.isArray(body)) return body;
+    if (Array.isArray(body.clients)) return body.clients;
+    if (Array.isArray(body.profiles)) return body.profiles;
+    if (Array.isArray(body.data)) return body.data;
+    return [];
+  } catch { return []; }
+}
+
+/** Extrai displayName/company/email/clientId de um registro bruto do Portal
+ *  (cliente ou profile). Cobre cascata extensa de campos. */
+function extractClientFields(raw: Record<string, any>): { id: string; name: string; company: string; email: string } {
+  const meta = (raw.metadata ?? {}) as Record<string, any>;
+  const rum = (raw.raw_user_meta_data ?? {}) as Record<string, any>;
+  const id = firstString(
+    raw.id, raw.client_id, raw.profile_id, raw.user_id, raw.uuid,
+    meta.client_id, meta.profile_id,
+  );
+  const company = firstString(
+    raw.company, raw.companyName, raw.company_name, raw.business_name, raw.businessName,
+    meta.company, meta.companyName, meta.company_name, meta.business_name,
+    rum.company, rum.companyName, rum.company_name,
+  );
+  const name = firstString(
+    raw.name, raw.full_name, raw.fullName, raw.display_name, raw.displayName,
+    raw.client_name, raw.profile_name,
+    meta.name, meta.full_name, meta.fullName, meta.display_name, meta.displayName, meta.client_name,
+    rum.name, rum.full_name, rum.fullName, rum.display_name,
+  );
+  const email = firstString(
+    raw.email, raw.contact_email, meta.email, rum.email,
+  );
+  return { id, name, company, email };
+}
+
 // ---------- Normalizers ----------
 
 function normalizeTask(t: Record<string, any>) {
