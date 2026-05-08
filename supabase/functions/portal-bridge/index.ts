@@ -1,6 +1,8 @@
 /**
  * portal-bridge — leitura read-only do Portal Aceleriq para o OPS V2.
  *
+ * Deploy tag: v2.1.1 (top-nav layout) — força redeploy no projeto OPS.
+ *
  * REGRAS:
  *   - Apenas leitura. Sem insert/update/delete. Sem backfill. Sem materialização.
  *   - Não usa pull-portal-tasks, sync-to-portal, backfill ou functions legacy.

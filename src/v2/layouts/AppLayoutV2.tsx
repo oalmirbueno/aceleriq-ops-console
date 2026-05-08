@@ -1,14 +1,16 @@
 import { Outlet } from "react-router-dom";
-import SidebarV2 from "@/v2/components/SidebarV2";
+import TopNavV2 from "@/v2/components/TopNavV2";
 import BridgeErrorBanner from "@/v2/components/BridgeErrorBanner";
 
 export default function AppLayoutV2() {
   return (
-    <div className="flex min-h-screen bg-background">
-      <SidebarV2 />
-      <main className="flex-1 min-w-0">
+    <div className="tech-grid-bg min-h-screen flex flex-col">
+      <TopNavV2 />
+      <main className="relative flex-1 pt-[80px]">
         <BridgeErrorBanner />
-        <Outlet />
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 py-6">
+          <Outlet />
+        </div>
       </main>
     </div>
   );
