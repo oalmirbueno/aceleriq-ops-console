@@ -131,6 +131,7 @@ export interface BriefingSummary {
   approxFields: number;
   contentLength: number;
   hasRawPortalResponses: boolean;
+  hasLastPortalBriefingSync?: boolean;
   hasStructuredSignals: boolean;
   publicStatus: string | null;
   reviewStatus: string | null;
