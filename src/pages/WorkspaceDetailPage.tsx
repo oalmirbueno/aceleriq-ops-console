@@ -14,6 +14,11 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import DevOnly from "@/components/DevOnly";
+import { useDevMode } from "@/lib/devMode";
+import MilestonesTab from "@/components/workspace/MilestonesTab";
+import TasksOperationalTab from "@/components/workspace/TasksOperationalTab";
+import { filterOperationalEvents } from "@/lib/operationalEvents";
 import ClientAvatar from "@/components/workspace/ClientAvatar";
 import WorkspaceHeader from "@/components/workspace/WorkspaceHeader";
 import WorkspaceTabResumo from "@/components/workspace/WorkspaceTabResumo";
@@ -130,20 +135,27 @@ async function fetchTimeline(workspaceId: string): Promise<TimelineEvent[]> {
 
 // ─── Tab config ──────────────────────────────────────────────────────────────
 
-const TABS = [
-  { group: "Visão geral",  value: "resumo",       label: "Resumo" },
-  { group: "Visão geral",  value: "dossie",        label: "Dossiê" },
-  { group: "Visão geral",  value: "timeline",      label: "Timeline" },
-  { group: "Execução",     value: "contexto",      label: "Contexto" },
-  { group: "Execução",     value: "tasks",         label: "Tasks" },
-  { group: "Execução",     value: "producao",      label: "Produção" },
-  { group: "Execução",     value: "assets",        label: "Assets" },
-  { group: "Execução",     value: "conteudo",      label: "Conteúdo" },
-  { group: "Execução",     value: "drive",         label: "Drive" },
-  { group: "Resultado",    value: "metricas",      label: "Métricas" },
-  { group: "Resultado",    value: "before-after",  label: "Before / After" },
-  { group: "Resultado",    value: "case",          label: "Case" },
-  { group: "Canvas",       value: "canvas",        label: "Canvas" },
+// Abas Modo Operação (7 fixas — milestone-first).
+const OPS_TABS = [
+  { value: "resumo",      label: "Visão geral" },
+  { value: "milestones",  label: "Milestones" },
+  { value: "tasks-ops",   label: "Tarefas" },
+  { value: "canvas",      label: "Canvas" },
+  { value: "contexto",    label: "Contexto" },
+  { value: "drive",       label: "Arquivos" },
+  { value: "timeline",    label: "Histórico" },
+];
+
+// Abas técnicas/legadas — só Modo Dev.
+const DEV_TABS = [
+  { value: "dossie",       label: "Dossiê" },
+  { value: "tasks",        label: "Tasks (legacy)" },
+  { value: "producao",     label: "Produção" },
+  { value: "assets",       label: "Assets" },
+  { value: "conteudo",     label: "Conteúdo" },
+  { value: "metricas",     label: "Métricas" },
+  { value: "before-after", label: "Before / After" },
+  { value: "case",         label: "Case" },
 ];
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -159,6 +171,7 @@ export default function WorkspaceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [changingStage, setChangingStage] = useState(false);
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") ?? "resumo");
+  const [devMode] = useDevMode();
   const [promptLibraryOpen, setPromptLibraryOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [canvasStatus] = useState<string | null>(searchParams.get("status"));
@@ -249,12 +262,8 @@ export default function WorkspaceDetailPage() {
   const portalProjectId = ws.portal_project_id ?? null;
   const portalClientId  = ws.clients?.portal_client_id ?? null;
 
-  // Group tabs for rendering
-  const groups = TABS.reduce<Record<string, typeof TABS>>((acc, tab) => {
-    if (!acc[tab.group]) acc[tab.group] = [];
-    acc[tab.group].push(tab);
-    return acc;
-  }, {});
+  // Eventos operacionais (esconde sync_*, smoke_*, etc no modo operação)
+  const visibleTimeline = devMode ? timeline : filterOperationalEvents(timeline);
 
   return (
     <div className="min-h-screen">
@@ -520,28 +529,43 @@ export default function WorkspaceDetailPage() {
         <div className="border-b border-border bg-card/30 sticky top-0 z-20">
           <div className="px-4 overflow-x-auto">
             <TabsList className="flex w-max gap-0 h-auto p-0 bg-transparent rounded-none">
-              {Object.entries(groups).map(([groupName, groupTabs], gi) => (
-                <div key={groupName} className={cn("flex items-center", gi > 0 && "border-l border-border/50 ml-2 pl-2")}>
+              {OPS_TABS.map((tab) => (
+                <TabsTrigger
+                  key={tab.value}
+                  value={tab.value}
+                  className={cn(
+                    "relative h-10 px-4 text-xs font-medium rounded-none",
+                    "text-muted-foreground hover:text-foreground",
+                    "border-b-2 border-transparent",
+                    "data-[state=active]:text-primary data-[state=active]:border-primary data-[state=active]:bg-primary/5",
+                    "transition-all duration-150 whitespace-nowrap",
+                  )}
+                >
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+              {devMode && (
+                <div className="flex items-center border-l border-border/50 ml-2 pl-2">
                   <span className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/40 px-2 hidden xl:inline whitespace-nowrap">
-                    {groupName}
+                    Dev
                   </span>
-                  {groupTabs.map((tab) => (
+                  {DEV_TABS.map((tab) => (
                     <TabsTrigger
                       key={tab.value}
                       value={tab.value}
                       className={cn(
-                        "relative h-10 px-3.5 text-xs font-medium rounded-none",
-                        "text-muted-foreground hover:text-foreground",
-                        "border-b-2 border-transparent",
-                        "data-[state=active]:text-primary data-[state=active]:border-primary data-[state=active]:bg-primary/5",
-                        "transition-all duration-150 whitespace-nowrap"
+                        "relative h-10 px-3 text-[11px] font-medium rounded-none",
+                        "text-muted-foreground/70 hover:text-foreground",
+                        "border-b-2 border-transparent border-dashed",
+                        "data-[state=active]:text-primary data-[state=active]:border-primary",
+                        "transition-all duration-150 whitespace-nowrap",
                       )}
                     >
                       {tab.label}
                     </TabsTrigger>
                   ))}
                 </div>
-              ))}
+              )}
             </TabsList>
           </div>
         </div>
@@ -560,42 +584,33 @@ export default function WorkspaceDetailPage() {
               createdAt={ws.created_at}
               focusAreas={(ws.clients?.metadata as any)?.focus_areas ?? null}
               summary={ws.summary ?? null}
-              recentEvents={timeline}
+              recentEvents={visibleTimeline}
               workspaceId={ws.id}
             />
           </TabsContent>
-          <TabsContent value="dossie">
-            <WorkspaceTabDossie workspaceId={ws.id} clientId={ws.client_id} planName={planName} clientMetadata={ws.clients?.metadata as Record<string, unknown> | null} workspaceMetadata={ws.metadata} />
+          <TabsContent value="milestones">
+            <MilestonesTab
+              workspaceId={ws.id}
+              portalProjectId={portalProjectId}
+              onOpenInCanvas={(milestoneId) => {
+                const params = new URLSearchParams(searchParams);
+                params.set("tab", "canvas");
+                params.set("milestone", milestoneId);
+                navigate(`/ops/workspaces/${ws.id}?${params.toString()}`);
+              }}
+            />
+          </TabsContent>
+          <TabsContent value="tasks-ops">
+            <TasksOperationalTab workspaceId={ws.id} portalProjectId={portalProjectId} />
           </TabsContent>
           <TabsContent value="timeline">
-            <WorkspaceTabTimeline events={timeline} />
+            <WorkspaceTabTimeline events={visibleTimeline} />
           </TabsContent>
           <TabsContent value="contexto">
             <WorkspaceTabContexto workspaceId={ws.id} clientId={ws.client_id} clientName={clientName} />
           </TabsContent>
-          <TabsContent value="tasks">
-            <WorkspaceTabTasks workspaceId={ws.id} clientId={ws.client_id} planName={planName} />
-          </TabsContent>
-          <TabsContent value="producao">
-            <WorkspaceTabProducao workspaceId={ws.id} clientId={ws.client_id} planName={planName} />
-          </TabsContent>
-          <TabsContent value="assets">
-            <WorkspaceTabAssets workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={load} />
-          </TabsContent>
-          <TabsContent value="conteudo">
-            <WorkspaceTabConteudo workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={load} />
-          </TabsContent>
           <TabsContent value="drive">
             <ClientDrive workspaceId={ws.id} clientId={ws.client_id} clientName={clientName} />
-          </TabsContent>
-          <TabsContent value="metricas">
-            <WorkspaceTabMetricas workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={load} />
-          </TabsContent>
-          <TabsContent value="before-after">
-            <WorkspaceTabBeforeAfter workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={load} />
-          </TabsContent>
-          <TabsContent value="case">
-            <WorkspaceTabCase workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={load} />
           </TabsContent>
           <TabsContent value="canvas">
             <WorkspaceTabCanvas
@@ -608,6 +623,34 @@ export default function WorkspaceDetailPage() {
               initialStatusFilter={canvasStatus}
             />
           </TabsContent>
+
+          {/* ── Dev-only tabs ─────────────────────────────────────── */}
+          <DevOnly>
+            <TabsContent value="dossie">
+              <WorkspaceTabDossie workspaceId={ws.id} clientId={ws.client_id} planName={planName} clientMetadata={ws.clients?.metadata as Record<string, unknown> | null} workspaceMetadata={ws.metadata} />
+            </TabsContent>
+            <TabsContent value="tasks">
+              <WorkspaceTabTasks workspaceId={ws.id} clientId={ws.client_id} planName={planName} />
+            </TabsContent>
+            <TabsContent value="producao">
+              <WorkspaceTabProducao workspaceId={ws.id} clientId={ws.client_id} planName={planName} />
+            </TabsContent>
+            <TabsContent value="assets">
+              <WorkspaceTabAssets workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={load} />
+            </TabsContent>
+            <TabsContent value="conteudo">
+              <WorkspaceTabConteudo workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={load} />
+            </TabsContent>
+            <TabsContent value="metricas">
+              <WorkspaceTabMetricas workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={load} />
+            </TabsContent>
+            <TabsContent value="before-after">
+              <WorkspaceTabBeforeAfter workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={load} />
+            </TabsContent>
+            <TabsContent value="case">
+              <WorkspaceTabCase workspaceId={ws.id} clientId={ws.client_id} onTimelineRefresh={load} />
+            </TabsContent>
+          </DevOnly>
         </div>
       </Tabs>
 
