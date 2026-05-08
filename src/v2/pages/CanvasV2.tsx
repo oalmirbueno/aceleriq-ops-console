@@ -352,7 +352,8 @@ function CanvasV2Inner() {
             connectionLineStyle={{ stroke: "hsl(145 100% 50%)", strokeWidth: 3, opacity: 1 }}
             connectionRadius={34}
             proOptions={{ hideAttribution: true }}
-            className="bg-background canvas-flow acelera-ops-flow"
+            className="bg-background canvas-flow acelera-ops-flow animate-fade-in"
+            key={activeMilestoneId || "empty"}
             deleteKeyCode={null}
             defaultEdgeOptions={{
               type: "deletable",
