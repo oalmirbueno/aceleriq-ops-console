@@ -1,11 +1,12 @@
 /**
  * portal-bridge — leitura read-only do Portal Aceleriq para o OPS V2.
  *
- * Deploy tag: v2.2.4 — Portal-only global cascade.
+ * Deploy tag: v2.2.5 — Portal-only global cascade + alias resolution.
  *  - projects: requerem id + clientId; filtram deleted/archived/trash.
  *  - milestones: só de projects válidos; filtram deleted/archived/placeholders.
- *  - tasks: só de milestones válidos.
- *  - nova action read-only: auditPortalSources.
+ *  - tasks: só de milestones válidos; resolve milestoneId via alias map robusto.
+ *  - clients: displayName resolvido em cascata (name/full_name/company/email/...).
+ *  - auditPortalSources expandido com problemas globais.
  *
  * REGRAS:
  *   - Apenas leitura. Sem insert/update/delete. Sem backfill. Sem materialização.
@@ -112,15 +113,48 @@ function milestoneIdOf(t: Record<string, any>) {
     t.milestone_id, t.milestoneId,
     t.portal_milestone_id, t.portalMilestoneId,
     t.folder_id, t.portal_folder_id, t.folderId, t.portalFolderId,
+    t.ops_milestone_id, t.opsMilestoneId,
+    t.parent_milestone_id, t.parentMilestoneId,
     t.stage_id, t.phase_id, t.column_id,
     t.milestone?.id, t.milestone?.uuid,
     t.folder?.id,
     meta.milestone_id, meta.milestoneId,
     meta.portal_milestone_id, meta.portalMilestoneId,
+    meta.folder_id, meta.portal_folder_id,
     data.milestone_id, data.milestoneId,
     data.portal_milestone_id, data.portalMilestoneId,
+    data.folder_id, data.portal_folder_id,
   );
 }
+
+/** Coleta TODOS os ids/aliases possíveis de um milestone bruto. */
+function milestoneAliasesOf(m: Record<string, any>): string[] {
+  const meta = (m.metadata ?? {}) as Record<string, any>;
+  const data = (m.data ?? {}) as Record<string, any>;
+  const raw = [
+    m.id, m.milestone_id, m.milestoneId,
+    m.portal_milestone_id, m.portalMilestoneId,
+    m.ops_milestone_id, m.opsMilestoneId,
+    m.folder_id, m.portal_folder_id, m.folderId, m.portalFolderId,
+    m.node_id, m.nodeId, m.uuid,
+    meta.id, meta.milestone_id, meta.milestoneId,
+    meta.portal_milestone_id, meta.portalMilestoneId,
+    meta.folder_id, meta.portal_folder_id,
+    meta.node_id,
+    data.id, data.milestone_id, data.milestoneId,
+    data.portal_milestone_id, data.portalMilestoneId,
+    data.folder_id, data.portal_folder_id,
+    data.node_id,
+  ];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const v of raw) {
+    const s = typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim();
+    if (s && !seen.has(s)) { seen.add(s); out.push(s); }
+  }
+  return out;
+}
+
 function clientIdOf(p: Record<string, any>) {
   return firstString(
     p.client_id, p.profile_id, p.customer_id, p.user_id,
@@ -128,10 +162,48 @@ function clientIdOf(p: Record<string, any>) {
   );
 }
 function clientNameOf(p: Record<string, any>) {
+  const c = (p.client ?? {}) as Record<string, any>;
+  const pr = (p.profile ?? {}) as Record<string, any>;
+  const cMeta = (c.metadata ?? {}) as Record<string, any>;
+  const cRum = (c.raw_user_meta_data ?? {}) as Record<string, any>;
+  const prMeta = (pr.metadata ?? {}) as Record<string, any>;
   return firstString(
-    p.client_name, p.client?.name, p.client?.full_name,
-    p.profile?.name, p.profile?.full_name, p.customer_name,
+    p.client_name, p.customer_name,
+    c.name, c.full_name, c.fullName, c.display_name, c.displayName,
+    c.company, c.company_name, c.companyName, c.business_name,
+    pr.name, pr.full_name, pr.fullName, pr.display_name, pr.displayName,
+    cMeta.name, cMeta.client_name, cMeta.full_name, cMeta.fullName,
+    cMeta.company, cMeta.company_name, cMeta.companyName,
+    cRum.name, cRum.full_name, cRum.fullName,
+    prMeta.name, prMeta.full_name,
   );
+}
+function clientCompanyOf(p: Record<string, any>): string {
+  const c = (p.client ?? {}) as Record<string, any>;
+  const cMeta = (c.metadata ?? {}) as Record<string, any>;
+  return firstString(
+    p.client_company, c.company, c.company_name, c.companyName, c.business_name,
+    cMeta.company, cMeta.company_name, cMeta.companyName, cMeta.business_name,
+  );
+}
+function clientEmailOf(p: Record<string, any>): string {
+  const c = (p.client ?? {}) as Record<string, any>;
+  const pr = (p.profile ?? {}) as Record<string, any>;
+  const cMeta = (c.metadata ?? {}) as Record<string, any>;
+  return firstString(
+    p.client_email, c.email, pr.email, cMeta.email,
+  );
+}
+function isUuidLike(s: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+}
+function resolveClientDisplayName(name: string, company: string, email: string): { displayName: string; missing: boolean } {
+  const candidates = [name, company, email].map((s) => (s || "").trim()).filter(Boolean);
+  for (const cand of candidates) {
+    if (isUuidLike(cand)) continue;
+    return { displayName: cand, missing: false };
+  }
+  return { displayName: "", missing: true };
 }
 
 // ---------- Portal fetch (read-only) ----------
@@ -267,6 +339,8 @@ function normalizeProject(
     id,
     clientId: clientIdOf(p),
     clientName: clientNameOf(p) || "Cliente",
+    clientCompany: clientCompanyOf(p) || "",
+    clientEmail: clientEmailOf(p) || "",
     name: firstString(p.name, p.title, "Projeto"),
     status: (["active", "paused", "done", "archived"].includes(status)
       ? status : "active") as "active" | "paused" | "done" | "archived",
@@ -336,8 +410,31 @@ serve(async (req) => {
     if (milestonesRaw.length === 0) milestonesRaw = fb.milestones;
   }
 
+  // ---------- Build alias map (milestones) ----------
+  // Mapeia qualquer alias conhecido → id canônico do milestone.
+  const milestoneAliasToId = new Map<string, string>();
+  for (const m of milestonesRaw) {
+    const aliases = milestoneAliasesOf(m);
+    const canonical = aliases[0];
+    if (!canonical) continue;
+    for (const a of aliases) {
+      if (!milestoneAliasToId.has(a)) milestoneAliasToId.set(a, canonical);
+    }
+  }
+
   // ---------- Build derived indexes ----------
-  const tasksNorm = tasksRaw.map(normalizeTask).filter((t) => t.id && t.projectId);
+  let tasksAliasResolved = 0;
+  const tasksNorm = tasksRaw.map((rawT) => {
+    const t = normalizeTask(rawT);
+    if (t.milestoneId) {
+      const canonical = milestoneAliasToId.get(t.milestoneId);
+      if (canonical && canonical !== t.milestoneId) {
+        t.milestoneId = canonical;
+        tasksAliasResolved += 1;
+      }
+    }
+    return t;
+  }).filter((t) => t.id && t.projectId);
   const tasksByMilestone = new Map<string, typeof tasksNorm>();
   const tasksByProject = new Map<string, typeof tasksNorm>();
   for (const t of tasksNorm) {
@@ -411,16 +508,47 @@ serve(async (req) => {
   // ---------- Dispatch ----------
   switch (action) {
     case "listClients": {
-      const map = new Map<string, { id: string; name: string; activeProjectsCount: number }>();
+      const includeAll = (params as any).includeAll === true || (params as any).includeAll === "1";
+      type Agg = {
+        id: string;
+        name: string;
+        company: string;
+        email: string;
+        activeProjectsCount: number;
+      };
+      const map = new Map<string, Agg>();
       for (const p of projectsNorm) {
         if (!p.clientId) continue;
-        const c = map.get(p.clientId)
-          ?? { id: p.clientId, name: p.clientName, activeProjectsCount: 0 };
+        const c = map.get(p.clientId) ?? {
+          id: p.clientId, name: "", company: "", email: "", activeProjectsCount: 0,
+        };
         if (p.status === "active") c.activeProjectsCount += 1;
-        if (!c.name && p.clientName) c.name = p.clientName;
+        if (!c.name && p.clientName && !isUuidLike(p.clientName)) c.name = p.clientName;
+        if (!c.company && (p as any).clientCompany) c.company = (p as any).clientCompany;
+        if (!c.email && (p as any).clientEmail) c.email = (p as any).clientEmail;
         map.set(p.clientId, c);
       }
-      return json({ ok: true, clients: [...map.values()].sort((a, b) => a.name.localeCompare(b.name)) });
+      const clients = [...map.values()].map((c) => {
+        const { displayName, missing } = resolveClientDisplayName(c.name, c.company, c.email);
+        const problems: string[] = [];
+        if (missing) problems.push("missing_display_name");
+        if (c.activeProjectsCount === 0) problems.push("client_without_active_project");
+        const included = !missing && (includeAll || c.activeProjectsCount > 0);
+        return {
+          id: c.id,
+          name: displayName || "Cliente sem nome",
+          displayName: displayName || "Cliente sem nome",
+          company: c.company || null,
+          email: c.email || null,
+          activeProjectsCount: c.activeProjectsCount,
+          source: full ? "ops-full-export" : "fallback",
+          included,
+          problems,
+        };
+      });
+      const visible = includeAll ? clients : clients.filter((c) => c.included);
+      visible.sort((a, b) => a.displayName.localeCompare(b.displayName));
+      return json({ ok: true, clients: visible });
     }
     case "listProjects": {
       const clientId = firstString((params as any).clientId);
@@ -433,17 +561,31 @@ serve(async (req) => {
       return json({ ok: true, projects: clean });
     }
     case "auditPortalSources": {
-      const rows = projectsRaw.map((rawP) => {
+      const tasksWithoutValidMilestone = tasksNorm.filter(
+        (t) => validProjectIds.has(t.projectId) && (!t.milestoneId || !validMilestoneIds.has(t.milestoneId)),
+      );
+      const placeholderMilestonesRemoved = milestonesRaw
+        .map((m) => normalizeMilestone(m, tasksByMilestone))
+        .filter((m) => {
+          const t = m.title.trim().toLowerCase();
+          return t === "sem milestone" || t === "no milestone" || t === "milestone";
+        }).length;
+
+      const projectRows = projectsRaw.map((rawP) => {
         const id = firstString(rawP.id, rawP.project_id, rawP.uuid);
         const norm = projectsNorm.find((p) => p.id === id);
         const ms = id ? (milestonesByProject.get(id) ?? []) : [];
         const ts = id ? (tasksByProject.get(id) ?? []) : [];
         const problems: string[] = [];
         if (!id) problems.push("missing_id");
+        const cid = firstString(clientIdOf(rawP));
+        if (!cid) problems.push("project_without_valid_client");
         if (!norm) {
-          if (!firstString(clientIdOf(rawP))) problems.push("missing_clientId");
+          if (!cid) problems.push("missing_clientId");
           if (firstString(rawP.deleted_at, rawP.archived_at)) problems.push("deleted_or_archived");
           if (rawP.archived || rawP.is_archived) problems.push("archived_flag");
+          const rs = firstString(rawP.status, rawP.state).toLowerCase();
+          if (rs && rs !== "active") problems.push("non_active_project_filtered");
         }
         return {
           projectId: id,
@@ -456,9 +598,40 @@ serve(async (req) => {
           problems,
         };
       });
+
+      // Clients (mesma lógica do listClients) para audit.
+      type Agg = { id: string; name: string; company: string; email: string; activeProjectsCount: number };
+      const cmap = new Map<string, Agg>();
+      for (const p of projectsNorm) {
+        if (!p.clientId) continue;
+        const c = cmap.get(p.clientId) ?? {
+          id: p.clientId, name: "", company: "", email: "", activeProjectsCount: 0,
+        };
+        if (p.status === "active") c.activeProjectsCount += 1;
+        if (!c.name && p.clientName && !isUuidLike(p.clientName)) c.name = p.clientName;
+        if (!c.company && (p as any).clientCompany) c.company = (p as any).clientCompany;
+        if (!c.email && (p as any).clientEmail) c.email = (p as any).clientEmail;
+        cmap.set(p.clientId, c);
+      }
+      const clientRows = [...cmap.values()].map((c) => {
+        const { displayName, missing } = resolveClientDisplayName(c.name, c.company, c.email);
+        const problems: string[] = [];
+        if (missing) problems.push("missing_display_name");
+        if (c.activeProjectsCount === 0) problems.push("client_without_active_project");
+        return {
+          clientId: c.id,
+          displayName: displayName || null,
+          company: c.company || null,
+          email: c.email || null,
+          activeProjectsCount: c.activeProjectsCount,
+          included: !missing && c.activeProjectsCount > 0,
+          problems,
+        };
+      });
+
       return json({
         ok: true,
-        deployTag: "v2.2.4",
+        deployTag: "v2.2.5",
         totals: {
           projectsRaw: projectsRaw.length,
           projectsValid: projectsNorm.length,
@@ -466,9 +639,32 @@ serve(async (req) => {
           milestonesValid: validMilestoneIds.size,
           tasksRaw: tasksRaw.length,
           tasksValid: tasksFiltered.length,
+          tasksAliasResolved,
+          tasksWithoutValidMilestone: tasksWithoutValidMilestone.length,
+          placeholderMilestonesRemoved,
+          clientsTotal: clientRows.length,
+          clientsIncluded: clientRows.filter((c) => c.included).length,
         },
-        rows,
+        problemsLegend: [
+          "missing_display_name",
+          "client_without_active_project",
+          "task_without_valid_milestone",
+          "task_milestone_alias_resolved",
+          "project_without_valid_client",
+          "placeholder_milestone_removed",
+          "non_active_project_filtered",
+        ],
+        clients: clientRows,
+        rows: projectRows,
+        tasksWithoutValidMilestone: tasksWithoutValidMilestone.slice(0, 50).map((t) => ({
+          taskId: t.id,
+          projectId: t.projectId,
+          milestoneIdRaw: t.milestoneId || null,
+          title: t.title,
+          problems: ["task_without_valid_milestone"],
+        })),
       });
+    }
     }
     case "getProject": {
       const id = firstString((params as any).projectId);

@@ -45,8 +45,14 @@ export type PortalMilestoneStatus =
 export interface PortalClient {
   id: string;
   name: string;
+  displayName?: string;
+  company?: string | null;
+  email?: string | null;
   avatarUrl?: string | null;
   activeProjectsCount: number;
+  included?: boolean;
+  problems?: string[];
+  source?: string;
 }
 
 export interface PortalProject {
