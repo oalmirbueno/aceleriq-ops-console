@@ -950,6 +950,9 @@ serve(async (req) => {
         totals: {
           projectsRaw: projectsRaw.length,
           projectsValid: projectsNorm.length,
+          clientsRaw: clientsRaw.length,
+          clientsWithDisplayName: clientRows.filter((c) => c.displayName).length,
+          clientsMissingDisplayName: clientRows.filter((c) => !c.displayName).length,
           milestonesRaw: milestonesRaw.length,
           milestonesValid: validMilestoneIds.size,
           tasksRaw: tasksRaw.length,
