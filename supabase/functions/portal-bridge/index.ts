@@ -1,9 +1,11 @@
 /**
  * portal-bridge — leitura read-only do Portal Aceleriq para o OPS V2.
  *
- * Deploy tag: v2.2.3 — normalização robusta de milestoneId em tasks
- * (camelCase, metadata.*, data.*) + filtragem de placeholders "Sem milestone"
- * + dedupe + debug seguro opcional.
+ * Deploy tag: v2.2.4 — Portal-only global cascade.
+ *  - projects: requerem id + clientId; filtram deleted/archived/trash.
+ *  - milestones: só de projects válidos; filtram deleted/archived/placeholders.
+ *  - tasks: só de milestones válidos.
+ *  - nova action read-only: auditPortalSources.
  *
  * REGRAS:
  *   - Apenas leitura. Sem insert/update/delete. Sem backfill. Sem materialização.
@@ -221,6 +223,7 @@ function normalizeMilestone(
   const tasksDoneCount = tasks.filter((t) => t.status === "done").length;
   const explicit = normalizeProgress(m.progress, m.completion, m.percent);
   const derived = tasks.length === 0 ? 0 : tasksDoneCount / tasks.length;
+  const rawStatus = firstString(m.status, m.state).toLowerCase();
   return {
     id,
     projectId: firstString(
@@ -238,8 +241,9 @@ function normalizeMilestone(
     tasksDoneCount,
     order: numberOr(m.position ?? m.order ?? m.sort_order ?? m.sequence, 9999),
     dueAt: firstString(m.due_at, m.deadline, m.due_date) || null,
-    _deletedAt: firstString(m.deleted_at, m.deletedAt) || null,
-    _archived: Boolean(m.archived || m.is_archived),
+    _deletedAt: firstString(m.deleted_at, m.deletedAt, m.archived_at, m.archivedAt) || null,
+    _archived: Boolean(m.archived || m.is_archived || m.isArchived),
+    _rawStatus: rawStatus,
   };
 }
 
@@ -270,6 +274,9 @@ function normalizeProject(
     currentMilestoneId: currentMilestone?.id ?? null,
     updatedAt: firstString(p.updated_at, p.modified_at, p.created_at)
       || new Date().toISOString(),
+    _deletedAt: firstString(p.deleted_at, p.deletedAt, p.archived_at, p.archivedAt) || null,
+    _archived: Boolean(p.archived || p.is_archived || p.isArchived),
+    _rawStatus: status,
   };
 }
 
@@ -348,6 +355,8 @@ serve(async (req) => {
       if (!m.id || !m.projectId) return false;
       if ((m as any)._deletedAt) return false;
       if ((m as any)._archived) return false;
+      const rs = (m as any)._rawStatus as string;
+      if (rs === "deleted" || rs === "archived" || rs === "trash" || rs === "trashed") return false;
       const t = m.title.trim().toLowerCase();
       if (t === "sem milestone" || t === "no milestone" || t === "milestone") return false;
       return true;
@@ -368,7 +377,36 @@ serve(async (req) => {
 
   const projectsNorm = projectsRaw
     .map((p) => normalizeProject(p, milestonesByProject, tasksByProject))
-    .filter((p) => p.id);
+    .filter((p) => {
+      if (!p.id) return false;
+      if (!p.clientId) return false;
+      if ((p as any)._deletedAt) return false;
+      if ((p as any)._archived) return false;
+      const rs = (p as any)._rawStatus as string;
+      if (rs === "deleted" || rs === "trash" || rs === "trashed") return false;
+      return true;
+    });
+
+  // Set de project ids válidos — usado para filtrar milestones/tasks órfãs.
+  const validProjectIds = new Set(projectsNorm.map((p) => p.id));
+  // Reduz milestones a apenas projetos válidos.
+  for (const [pid] of [...milestonesByProject]) {
+    if (!validProjectIds.has(pid)) milestonesByProject.delete(pid);
+  }
+  const validMilestoneIds = new Set<string>();
+  for (const ms of milestonesByProject.values()) for (const m of ms) validMilestoneIds.add(m.id);
+
+  // Filtra tasks: precisam ter milestoneId real (existente). Tasks sem
+  // milestone real NÃO entram no canvas.
+  const tasksFiltered = tasksNorm.filter(
+    (t) => validProjectIds.has(t.projectId) && t.milestoneId && validMilestoneIds.has(t.milestoneId),
+  );
+  // Reconstrói tasksByProject a partir das filtradas (para listTasks).
+  tasksByProject.clear();
+  for (const t of tasksFiltered) {
+    const lp = tasksByProject.get(t.projectId) ?? [];
+    lp.push(t); tasksByProject.set(t.projectId, lp);
+  }
 
   // ---------- Dispatch ----------
   switch (action) {
@@ -386,15 +424,59 @@ serve(async (req) => {
     }
     case "listProjects": {
       const clientId = firstString((params as any).clientId);
-      const list = clientId
+      const includeAll = (params as any).includeAll === true || (params as any).includeAll === "1";
+      let list = clientId
         ? projectsNorm.filter((p) => p.clientId === clientId)
         : projectsNorm;
-      return json({ ok: true, projects: list });
+      if (!includeAll) list = list.filter((p) => p.status === "active");
+      const clean = list.map(({ _deletedAt: _d, _archived: _a, _rawStatus: _r, ...rest }: any) => rest);
+      return json({ ok: true, projects: clean });
+    }
+    case "auditPortalSources": {
+      const rows = projectsRaw.map((rawP) => {
+        const id = firstString(rawP.id, rawP.project_id, rawP.uuid);
+        const norm = projectsNorm.find((p) => p.id === id);
+        const ms = id ? (milestonesByProject.get(id) ?? []) : [];
+        const ts = id ? (tasksByProject.get(id) ?? []) : [];
+        const problems: string[] = [];
+        if (!id) problems.push("missing_id");
+        if (!norm) {
+          if (!firstString(clientIdOf(rawP))) problems.push("missing_clientId");
+          if (firstString(rawP.deleted_at, rawP.archived_at)) problems.push("deleted_or_archived");
+          if (rawP.archived || rawP.is_archived) problems.push("archived_flag");
+        }
+        return {
+          projectId: id,
+          projectName: firstString(rawP.name, rawP.title, "—"),
+          status: firstString(rawP.status, rawP.state, "—"),
+          milestonesCount: ms.length,
+          tasksCount: ts.length,
+          source: full ? "ops-full-export" : "fallback",
+          included: Boolean(norm),
+          problems,
+        };
+      });
+      return json({
+        ok: true,
+        deployTag: "v2.2.4",
+        totals: {
+          projectsRaw: projectsRaw.length,
+          projectsValid: projectsNorm.length,
+          milestonesRaw: milestonesRaw.length,
+          milestonesValid: validMilestoneIds.size,
+          tasksRaw: tasksRaw.length,
+          tasksValid: tasksFiltered.length,
+        },
+        rows,
+      });
     }
     case "getProject": {
       const id = firstString((params as any).projectId);
       if (!id) return json({ error: "missing_projectId" }, 400);
-      const project = projectsNorm.find((p) => p.id === id) ?? null;
+      const found = projectsNorm.find((p) => p.id === id) ?? null;
+      const project = found
+        ? (({ _deletedAt: _d, _archived: _a, _rawStatus: _r, ...rest }: any) => rest)(found)
+        : null;
       return json({ ok: true, project });
     }
     case "listMilestones": {
@@ -402,7 +484,7 @@ serve(async (req) => {
       if (!projectId) return json({ error: "missing_projectId" }, 400);
       const list = (milestonesByProject.get(projectId) ?? [])
         .slice().sort((a, b) => a.order - b.order)
-        .map(({ _deletedAt: _d, _archived: _a, ...rest }: any) => rest);
+        .map(({ _deletedAt: _d, _archived: _a, _rawStatus: _r, ...rest }: any) => rest);
       return json({ ok: true, milestones: list });
     }
     case "listTasks": {

@@ -1,4 +1,4 @@
-import { useParams, NavLink, Outlet, useLocation } from "react-router-dom";
+import { useParams, NavLink, Outlet, useLocation, Link } from "react-router-dom";
 import HeaderV2 from "@/v2/components/HeaderV2";
 import { usePortalQuery } from "@/v2/data/usePortalQuery";
 import { portalClient } from "@/v2/data/portalClient";
@@ -17,10 +17,30 @@ export default function ProjectDetailV2() {
   const { projectId } = useParams();
   const location = useLocation();
   const base = `/ops-v2/projetos/${projectId}`;
-  const { data: project } = usePortalQuery(
+  const { data: project, loading, error } = usePortalQuery(
     () => projectId ? portalClient.getProject(projectId) : Promise.resolve(null),
     [projectId],
   );
+
+  if (!loading && !error && project === null) {
+    return (
+      <>
+        <HeaderV2 title="Projeto não encontrado" subtitle={projectId} />
+        <div className="px-2 py-10 max-w-2xl">
+          <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-5">
+            <p className="text-sm font-medium text-destructive">Projeto inexistente no Portal</p>
+            <p className="text-xs text-destructive/80 mt-1">
+              ID <code className="font-mono">{projectId}</code> não existe entre os projetos ativos do Portal.
+              Pode ter sido arquivado, removido, ou é um ID antigo/mock.
+            </p>
+            <Link to="/ops-v2/projetos" className="mt-4 inline-flex text-xs underline text-destructive">
+              Voltar para Projetos
+            </Link>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
