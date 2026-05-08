@@ -262,12 +262,16 @@ function BriefingDetailBody({ detail }: { detail: BriefingDetail }) {
 
       <ContentBlocks content={content} />
 
-      <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs">
-        <p className="font-medium text-foreground mb-1">Dados brutos do Portal</p>
+      <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs space-y-1">
+        <p className="font-medium text-foreground">Dados técnicos</p>
         <p className="text-muted-foreground">
-          {detail.rawPortalResponses
-            ? "Disponível (não exibido aqui para evitar poluição visual)."
-            : "Não disponível."}
+          Dados brutos do Portal: {detail.rawPortalResponses ? "disponíveis" : "não disponíveis"}
+        </p>
+        <p className="text-muted-foreground">
+          Sinais estruturados: {detail.structuredSignals ? "disponíveis" : "não disponíveis"}
+        </p>
+        <p className="text-[10px] text-muted-foreground/70">
+          Payloads técnicos não são exibidos nesta visualização.
         </p>
       </div>
     </>
@@ -295,7 +299,26 @@ function ContentBlocks({ content }: { content: unknown }) {
     );
   }
   if (typeof content === "object") {
-    const entries = Object.entries(content as Record<string, unknown>);
+    const HIDDEN_KEYS = new Set([
+      "raw_portal_responses",
+      "structured_signals",
+      "last_portal_briefing_sync",
+      "raw_portal_response",
+      "portal_raw",
+    ]);
+    const MAX_VALUE_CHARS = 4000;
+    const entries = Object.entries(content as Record<string, unknown>).filter(
+      ([key, val]) => {
+        if (HIDDEN_KEYS.has(key)) return false;
+        // Hide oversized technical payloads
+        if (val && typeof val === "object") {
+          try {
+            if (JSON.stringify(val).length > MAX_VALUE_CHARS) return false;
+          } catch { return false; }
+        }
+        return true;
+      },
+    );
     if (entries.length === 0) {
       return <p className="text-xs text-muted-foreground">Sem campos.</p>;
     }
