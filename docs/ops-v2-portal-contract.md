@@ -1,12 +1,11 @@
 # OPS V2 — Contrato Portal-native
 
-Documento vivo. Fase V2.0.
+Documento vivo. Fase V2.1 (read-only).
 
 ## Princípio
 
 OPS V2 não duplica entidades. Cliente, projeto, milestone e task vivem
-no Portal. O OPS V2 lê e opera via uma camada única:
-`src/v2/data/portalClient.ts`.
+no Portal. O OPS V2 lê via uma camada única: `src/v2/data/portalClient.ts`.
 
 ## O que NÃO é usado pelo OPS V2
 
@@ -17,71 +16,80 @@ no Portal. O OPS V2 lê e opera via uma camada única:
 - `receive-portal-sync` (legacy, lado servidor)
 - Qualquer caminho que materialize `canvas_nodes` automaticamente
 
-Essas funções continuam vivas para o OPS legacy e Modo Dev. Não entram
-no fluxo operacional V2.
+## Endpoints do Portal usados pelo OPS V2 (read-only)
 
-## Camada esperada
+Já existem no projeto Portal (`gicbrgagstyvbaaumprj`) e são chamados a
+partir da edge `portal-bridge` do OPS, com header `x-webhook-secret`:
 
-Bridge server-side dedicada no projeto OPS (a criar quando o contrato
-for aprovado), provisoriamente nomeada `portal-bridge`, que chama
-endpoints novos no Portal — read por padrão e mutations explícitas. O
-Portal não terá UI alterada por isso.
+| Endpoint              | Uso                                                  |
+|-----------------------|------------------------------------------------------|
+| `ops-full-export`     | Fonte primária. Retorna `{ projects, tasks, milestones }`. |
+| `ops-projects-list`   | Fallback se `ops-full-export` indisponível.         |
+| `ops-tasks-list`      | Fallback se `ops-full-export` indisponível.         |
 
-```
- OPS V2 (browser)
-    |
-    v  fetch
- portal-bridge (edge function OPS)   <- a criar na Fase V2.1
-    |
-    v  HTTPS + secret
- Portal endpoints novos              <- a criar/expor pelo time Portal
-    |
-    v
- Tabelas reais do Portal
-```
+Nenhum endpoint novo no Portal foi necessário. Nenhum endpoint do
+Portal foi alterado.
 
-## Endpoints necessários (a confirmar com Portal)
+## Edge function nova no OPS: `portal-bridge`
 
-Read:
+`supabase/functions/portal-bridge/index.ts`
 
-| Operação            | Método | Path sugerido                | Resposta              |
-|---------------------|--------|------------------------------|-----------------------|
-| Listar clientes     | POST   | `/ops/v1/clients/list`       | `PortalClient[]`      |
-| Listar projetos     | POST   | `/ops/v1/projects/list`      | `PortalProject[]`     |
-| Detalhe de projeto  | POST   | `/ops/v1/projects/get`       | `PortalProject`       |
-| Listar milestones   | POST   | `/ops/v1/milestones/list`    | `PortalMilestone[]`   |
-| Listar tasks        | POST   | `/ops/v1/tasks/list`         | `PortalTask[]`        |
+Aceita POST com `{ action, params }`. Apenas leitura.
 
-Write (Fase V2.3+, sob aprovação):
+| action          | params                              | resposta                  |
+|-----------------|-------------------------------------|---------------------------|
+| `listClients`   | —                                   | `{ ok, clients }`         |
+| `listProjects`  | `{ clientId? }`                     | `{ ok, projects }`        |
+| `getProject`    | `{ projectId }`                     | `{ ok, project }`         |
+| `listMilestones`| `{ projectId }`                     | `{ ok, milestones }`      |
+| `listTasks`     | `{ projectId, milestoneId? }`       | `{ ok, tasks }`           |
 
-| Operação            | Método | Path sugerido                | Body                  |
-|---------------------|--------|------------------------------|-----------------------|
-| Atualizar task      | POST   | `/ops/v1/tasks/update`       | `UpdateTaskInput`     |
-| Criar task          | POST   | `/ops/v1/tasks/create`       | `CreateTaskInput`     |
-| Arquivar task       | POST   | `/ops/v1/tasks/archive`      | `{ taskId }`          |
+A bridge:
 
-Autenticação: header compartilhado `x-ops-bridge-secret`, idêntico ao
-padrão de `portal-proxy`. Identidade do operador via JWT do OPS
-propagado no body (`actorEmail`).
+- normaliza status (`todo|in_progress|blocked|done|archived` para tasks;
+  `planned|in_progress|done|paused` para milestones).
+- normaliza progresso para 0..1 (aceita 0..1 ou 0..100).
+- deriva `tasksCount` / `tasksDoneCount` por milestone.
+- deriva `currentMilestoneId` por projeto (primeiro `in_progress`,
+  depois `planned`).
+- não escreve em nada. Não faz INSERT / UPDATE / DELETE.
+- não chama Supabase do OPS. Apenas `fetch` para o Portal.
 
-## Tipos
+`verify_jwt = true` em `supabase/config.toml` — só usuários
+autenticados do OPS podem chamar.
 
-Ver `src/v2/data/portalClient.ts` — fonte da verdade tipada. Mudanças
-de contrato precisam atualizar essa interface antes das telas.
+## Secrets
 
-## Estado atual
+Já existentes no projeto OPS (sem novos secrets para esta fase):
 
-- `portalClient` exporta implementação **mock** (`PORTAL_CLIENT_IS_MOCK = true`).
-- Telas V2 mostram selo "demo" no header enquanto o mock estiver ativo.
-- Trocar para implementação real só depois que:
-  1. Endpoints do Portal estiverem definidos e aprovados.
-  2. `portal-bridge` estiver implantada no projeto OPS.
-  3. Smoke test passar em ambiente piloto.
+- `PORTAL_WEBHOOK_SECRET` — autenticação compartilhada com o Portal.
+- `PORTAL_ANON_KEY` — anon key do Supabase do Portal.
 
-## Não fazer nesta fase
+## Frontend
 
-- Não criar migrations.
-- Não criar `ops_canvas_layout` nem `ops_context_entries` ainda.
-- Não tocar em edge functions legacy.
-- Não redirecionar `/ops` para `/ops-v2`.
-- Não desligar o OPS antigo.
+- Mock continua **default**.
+- Para ligar a bridge real no piloto:
+  `localStorage.setItem("ops-v2:use-real-bridge", "1")` e recarregar.
+- Header V2 mostra selo `demo` enquanto o mock estiver ativo.
+
+## Fase V2.1 — Read-only
+
+Implementado:
+
+- `listClients`
+- `listProjects`
+- `getProject`
+- `listMilestones`
+- `listTasks`
+
+Explicitamente NÃO implementado nesta fase:
+
+- `updateTask` / `createTask` / `archiveTask`
+- qualquer mutation
+- backfill, sync automático, materialização
+
+## Confirmação
+
+- Zero mudança no frontend / banco / edge functions do Portal.
+- Zero mutation server-side a partir do OPS V2.
+- Zero tabela nova.
