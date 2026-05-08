@@ -1,7 +1,7 @@
 /**
  * portal-bridge — leitura read-only do Portal Aceleriq para o OPS V2.
  *
- * Deploy tag: v2.1.2 (force redeploy) — força redeploy no projeto OPS.
+ * Deploy tag: v2.2.0 — adiciona ops context actions (listBriefings/getBriefing, somente Essential).
  *
  * REGRAS:
  *   - Apenas leitura. Sem insert/update/delete. Sem backfill. Sem materialização.
@@ -396,6 +396,7 @@ type BriefingSummary = {
   approxFields: number;
   contentLength: number;
   hasRawPortalResponses: boolean;
+  hasLastPortalBriefingSync: boolean;
   hasStructuredSignals: boolean;
   publicStatus: string | null;
   reviewStatus: string | null;
@@ -429,9 +430,8 @@ async function handleOpsContextAction(
 
   if (action === "listBriefings") {
     const clientId = firstString((params as any).clientId);
-    // (params.projectId aceito mas ignorado nesta fase — briefings são por cliente)
-
-    // 1) Essential briefings em clients.metadata
+    // Fase atual: somente Briefing Essencial em clients.metadata.essential_briefing.
+    // Estruturação Empresarial e Automação/IA aparecerão em fase futura.
     let q = sb.from("clients").select("id,name,metadata").limit(500);
     if (clientId) q = q.eq("id", clientId);
     const { data: clients, error: cErr } = await q;
@@ -441,89 +441,28 @@ async function handleOpsContextAction(
     for (const c of clients ?? []) {
       const meta = (c as any).metadata ?? {};
       const eb = meta?.essential_briefing ?? null;
-      if (eb && typeof eb === "object") {
-        const length = JSON.stringify(eb).length;
-        const fields = countNonEmptyFields(eb);
-        out.push({
-          briefingId: `essential:${c.id}`,
-          clientId: c.id,
-          clientName: (c as any).name ?? "Cliente",
-          source: "essential_briefing",
-          kind: "essential",
-          updatedAt: eb.updated_at ?? meta?.last_portal_briefing_sync ?? null,
-          approxFields: fields,
-          contentLength: length,
-          hasRawPortalResponses: Boolean(meta?.raw_portal_responses ?? eb.raw_portal_responses),
-          hasStructuredSignals: Boolean(eb.structured_signals ?? meta?.structured_signals),
-          publicStatus: eb.public_briefing_status ?? null,
-          reviewStatus: eb.import_review_status ?? null,
-          isFilled: fields > 0 && length > 50,
-        });
-      } else if (!clientId) {
-        // listagem geral: também incluímos placeholder "pendente" para o cliente
-        out.push({
-          briefingId: `essential:${c.id}`,
-          clientId: c.id,
-          clientName: (c as any).name ?? "Cliente",
-          source: "essential_briefing",
-          kind: "essential",
-          updatedAt: null,
-          approxFields: 0,
-          contentLength: 0,
-          hasRawPortalResponses: false,
-          hasStructuredSignals: false,
-          publicStatus: null,
-          reviewStatus: null,
-          isFilled: false,
-        });
-      }
-    }
-
-    // 2) context_entries com context_type='briefing'
-    let q2 = sb
-      .from("context_entries")
-      .select("id,client_id,workspace_id,context_type,metadata,updated_at,created_at")
-      .eq("context_type", "briefing")
-      .limit(1000);
-    if (clientId) q2 = q2.eq("client_id", clientId);
-    const { data: entries, error: eErr } = await q2;
-    if (eErr) {
-      // Tabela pode não existir / coluna ausente — não fatal para essential.
-      // Apenas registra no payload e segue.
-      return json({
-        ok: true,
-        briefings: out,
-        warning: `context_entries unavailable: ${eErr.message}`,
-      });
-    }
-
-    // index nome do cliente para enriquecer entries
-    const nameById = new Map<string, string>();
-    for (const c of clients ?? []) nameById.set((c as any).id, (c as any).name ?? "Cliente");
-
-    for (const e of entries ?? []) {
-      const meta = (e as any).metadata ?? {};
-      const kind = String(meta?.briefing_kind ?? "essential");
-      const length = JSON.stringify(meta).length;
-      const fields = countNonEmptyFields(meta);
+      const hasEb = eb && typeof eb === "object";
+      const length = hasEb ? JSON.stringify(eb).length : 0;
+      const fields = hasEb ? countNonEmptyFields(eb) : 0;
       out.push({
-        briefingId: `entry:${(e as any).id}`,
-        clientId: (e as any).client_id ?? "",
-        clientName: nameById.get((e as any).client_id) ?? "Cliente",
-        source: "context_entries",
-        kind,
-        updatedAt: (e as any).updated_at ?? (e as any).created_at ?? null,
+        briefingId: `essential:${c.id}`,
+        clientId: c.id,
+        clientName: (c as any).name ?? "Cliente",
+        source: "essential_briefing",
+        kind: "essential",
+        updatedAt: hasEb ? (eb.updated_at ?? meta?.last_portal_briefing_sync ?? null) : null,
         approxFields: fields,
         contentLength: length,
-        hasRawPortalResponses: Boolean(meta?.raw_portal_responses),
-        hasStructuredSignals: Boolean(meta?.structured_signals),
-        publicStatus: meta?.public_briefing_status ?? null,
-        reviewStatus: meta?.import_review_status ?? null,
+        hasRawPortalResponses: Boolean(meta?.raw_portal_responses ?? (hasEb && eb.raw_portal_responses)),
+        hasLastPortalBriefingSync: Boolean(meta?.last_portal_briefing_sync),
+        hasStructuredSignals: Boolean((hasEb && eb.structured_signals) ?? meta?.structured_signals),
+        publicStatus: hasEb ? (eb.public_briefing_status ?? null) : null,
+        reviewStatus: hasEb ? (eb.import_review_status ?? null) : null,
         isFilled: fields > 0 && length > 50,
       });
     }
 
-    out.sort((a, b) => a.clientName.localeCompare(b.clientName) || a.kind.localeCompare(b.kind));
+    out.sort((a, b) => a.clientName.localeCompare(b.clientName));
     return json({ ok: true, briefings: out });
   }
 
@@ -535,7 +474,6 @@ async function handleOpsContextAction(
     // Resolve por id "essential:<clientId>" / "entry:<id>" ou por (clientId, kind).
     const isEssential = briefingId.startsWith("essential:")
       || (!briefingId && kind === "essential");
-    const isEntry = briefingId.startsWith("entry:");
 
     if (isEssential) {
       const cid = briefingId.startsWith("essential:")
@@ -561,40 +499,13 @@ async function handleOpsContextAction(
           kind: "essential",
           updatedAt: eb.updated_at ?? meta?.last_portal_briefing_sync ?? null,
           rawPortalResponses: meta?.raw_portal_responses ?? eb.raw_portal_responses ?? null,
+          hasRawPortalResponses: Boolean(meta?.raw_portal_responses ?? eb.raw_portal_responses),
           lastPortalBriefingSync: meta?.last_portal_briefing_sync ?? null,
           publicBriefingStatus: eb.public_briefing_status ?? null,
           importReviewStatus: eb.import_review_status ?? null,
           structuredSignals: eb.structured_signals ?? null,
           content: eb,
         } : null,
-      });
-    }
-
-    if (isEntry) {
-      const id = briefingId.slice("entry:".length);
-      const { data, error } = await sb
-        .from("context_entries")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
-      if (error) return json({ error: "entry_read_failed", message: error.message }, 500);
-      if (!data) return json({ ok: true, briefing: null });
-      const meta = (data as any).metadata ?? {};
-      return json({
-        ok: true,
-        briefing: {
-          briefingId: `entry:${(data as any).id}`,
-          clientId: (data as any).client_id ?? "",
-          source: "context_entries",
-          kind: meta?.briefing_kind ?? "essential",
-          updatedAt: (data as any).updated_at ?? (data as any).created_at ?? null,
-          rawPortalResponses: meta?.raw_portal_responses ?? null,
-          lastPortalBriefingSync: meta?.last_portal_briefing_sync ?? null,
-          publicBriefingStatus: meta?.public_briefing_status ?? null,
-          importReviewStatus: meta?.import_review_status ?? null,
-          structuredSignals: meta?.structured_signals ?? null,
-          content: data,
-        },
       });
     }
 
