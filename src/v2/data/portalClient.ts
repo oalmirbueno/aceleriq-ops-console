@@ -336,7 +336,7 @@ async function invokeBridge<T>(action: string, params?: Record<string, unknown>)
 }
 
 // ----- Session cache (ttl) para evitar refetch a cada troca de aba -----
-const TTL_MS = 30_000;
+const TTL_MS = 60_000;
 type Entry = { at: number; value: unknown };
 const cache = new Map<string, Entry>();
 const inflight = new Map<string, Promise<unknown>>();
@@ -358,6 +358,12 @@ async function cachedInvoke<T>(action: string, params?: Record<string, unknown>)
   return p;
 }
 export function clearPortalCache() { cache.clear(); inflight.clear(); }
+
+// Prefetch silencioso: dispara a chamada e ignora erros — popula o cache
+// para que a próxima leitura na mesma sessão seja instantânea.
+export function prefetchPortal(action: string, params?: Record<string, unknown>): void {
+  cachedInvoke(action, params).catch(() => { /* swallow */ });
+}
 
 const bridgeClient: PortalClientApi = {
   async listClients() {
