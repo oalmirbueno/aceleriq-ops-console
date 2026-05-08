@@ -21,6 +21,7 @@
  * src/v2/data/portalClient.ts.
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -243,6 +244,20 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
 
+  let body: { action?: string; params?: Record<string, unknown> } = {};
+  try { body = await req.json(); } catch { /* allow empty */ }
+  const action = String(body.action ?? "").trim();
+  const params = (body.params ?? {}) as Record<string, unknown>;
+
+  if (!action) return json({ error: "missing_action" }, 400);
+
+  // ---------- OPS context actions (read-only, lê banco do OPS) ----------
+  // Separadas das portal actions. Não chamam o Portal. Não escrevem.
+  if (action === "listBriefings" || action === "getBriefing") {
+    return await handleOpsContextAction(action, params);
+  }
+
+  // ---------- Portal actions (read-only via Portal endpoints) ----------
   const PORTAL_SECRET = Deno.env.get("PORTAL_WEBHOOK_SECRET") ?? "";
   const PORTAL_ANON = Deno.env.get("PORTAL_ANON_KEY") ?? "";
   if (!PORTAL_SECRET || !PORTAL_ANON) {
@@ -251,13 +266,6 @@ serve(async (req) => {
       hint: "PORTAL_WEBHOOK_SECRET e PORTAL_ANON_KEY precisam estar configurados no projeto OPS.",
     }, 500);
   }
-
-  let body: { action?: string; params?: Record<string, unknown> } = {};
-  try { body = await req.json(); } catch { /* allow empty */ }
-  const action = String(body.action ?? "").trim();
-  const params = (body.params ?? {}) as Record<string, unknown>;
-
-  if (!action) return json({ error: "missing_action" }, 400);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -358,3 +366,240 @@ serve(async (req) => {
       return json({ error: "unknown_action", action }, 400);
   }
 });
+
+// ============================================================
+// OPS context actions — read-only, leem o banco do próprio OPS.
+// Fontes:
+//   - clients.metadata.essential_briefing  (legado, fonte principal hoje)
+//   - context_entries (context_type='briefing')  (formato novo, vazio hoje)
+// Regras:
+//   - Apenas leitura. Sem INSERT/UPDATE/DELETE.
+//   - Sem migração automática entre os dois formatos.
+//   - Preserva raw_portal_responses, last_portal_briefing_sync,
+//     briefing_kind, public_briefing_status, structured_signals.
+// ============================================================
+
+function opsSupabase() {
+  const url = Deno.env.get("SUPABASE_URL") ?? "";
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!url || !serviceKey) return null;
+  return createClient(url, serviceKey, { auth: { persistSession: false } });
+}
+
+type BriefingSummary = {
+  briefingId: string;
+  clientId: string;
+  clientName: string;
+  source: "essential_briefing" | "context_entries";
+  kind: "essential" | "enterprise_structuring" | "ai_automation" | string;
+  updatedAt: string | null;
+  approxFields: number;
+  contentLength: number;
+  hasRawPortalResponses: boolean;
+  hasStructuredSignals: boolean;
+  publicStatus: string | null;
+  reviewStatus: string | null;
+  isFilled: boolean;
+};
+
+function countNonEmptyFields(obj: unknown): number {
+  if (!obj || typeof obj !== "object") return 0;
+  let n = 0;
+  for (const v of Object.values(obj as Record<string, unknown>)) {
+    if (v == null) continue;
+    if (typeof v === "string" && v.trim() === "") continue;
+    if (Array.isArray(v) && v.length === 0) continue;
+    if (typeof v === "object" && !Array.isArray(v) && Object.keys(v as object).length === 0) continue;
+    n += 1;
+  }
+  return n;
+}
+
+async function handleOpsContextAction(
+  action: string,
+  params: Record<string, unknown>,
+): Promise<Response> {
+  const sb = opsSupabase();
+  if (!sb) {
+    return json({
+      error: "missing_ops_supabase_env",
+      hint: "SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são providos automaticamente em edge functions.",
+    }, 500);
+  }
+
+  if (action === "listBriefings") {
+    const clientId = firstString((params as any).clientId);
+    // (params.projectId aceito mas ignorado nesta fase — briefings são por cliente)
+
+    // 1) Essential briefings em clients.metadata
+    let q = sb.from("clients").select("id,name,metadata").limit(500);
+    if (clientId) q = q.eq("id", clientId);
+    const { data: clients, error: cErr } = await q;
+    if (cErr) return json({ error: "clients_read_failed", message: cErr.message }, 500);
+
+    const out: BriefingSummary[] = [];
+    for (const c of clients ?? []) {
+      const meta = (c as any).metadata ?? {};
+      const eb = meta?.essential_briefing ?? null;
+      if (eb && typeof eb === "object") {
+        const length = JSON.stringify(eb).length;
+        const fields = countNonEmptyFields(eb);
+        out.push({
+          briefingId: `essential:${c.id}`,
+          clientId: c.id,
+          clientName: (c as any).name ?? "Cliente",
+          source: "essential_briefing",
+          kind: "essential",
+          updatedAt: eb.updated_at ?? meta?.last_portal_briefing_sync ?? null,
+          approxFields: fields,
+          contentLength: length,
+          hasRawPortalResponses: Boolean(meta?.raw_portal_responses ?? eb.raw_portal_responses),
+          hasStructuredSignals: Boolean(eb.structured_signals ?? meta?.structured_signals),
+          publicStatus: eb.public_briefing_status ?? null,
+          reviewStatus: eb.import_review_status ?? null,
+          isFilled: fields > 0 && length > 50,
+        });
+      } else if (!clientId) {
+        // listagem geral: também incluímos placeholder "pendente" para o cliente
+        out.push({
+          briefingId: `essential:${c.id}`,
+          clientId: c.id,
+          clientName: (c as any).name ?? "Cliente",
+          source: "essential_briefing",
+          kind: "essential",
+          updatedAt: null,
+          approxFields: 0,
+          contentLength: 0,
+          hasRawPortalResponses: false,
+          hasStructuredSignals: false,
+          publicStatus: null,
+          reviewStatus: null,
+          isFilled: false,
+        });
+      }
+    }
+
+    // 2) context_entries com context_type='briefing'
+    let q2 = sb
+      .from("context_entries")
+      .select("id,client_id,workspace_id,context_type,metadata,updated_at,created_at")
+      .eq("context_type", "briefing")
+      .limit(1000);
+    if (clientId) q2 = q2.eq("client_id", clientId);
+    const { data: entries, error: eErr } = await q2;
+    if (eErr) {
+      // Tabela pode não existir / coluna ausente — não fatal para essential.
+      // Apenas registra no payload e segue.
+      return json({
+        ok: true,
+        briefings: out,
+        warning: `context_entries unavailable: ${eErr.message}`,
+      });
+    }
+
+    // index nome do cliente para enriquecer entries
+    const nameById = new Map<string, string>();
+    for (const c of clients ?? []) nameById.set((c as any).id, (c as any).name ?? "Cliente");
+
+    for (const e of entries ?? []) {
+      const meta = (e as any).metadata ?? {};
+      const kind = String(meta?.briefing_kind ?? "essential");
+      const length = JSON.stringify(meta).length;
+      const fields = countNonEmptyFields(meta);
+      out.push({
+        briefingId: `entry:${(e as any).id}`,
+        clientId: (e as any).client_id ?? "",
+        clientName: nameById.get((e as any).client_id) ?? "Cliente",
+        source: "context_entries",
+        kind,
+        updatedAt: (e as any).updated_at ?? (e as any).created_at ?? null,
+        approxFields: fields,
+        contentLength: length,
+        hasRawPortalResponses: Boolean(meta?.raw_portal_responses),
+        hasStructuredSignals: Boolean(meta?.structured_signals),
+        publicStatus: meta?.public_briefing_status ?? null,
+        reviewStatus: meta?.import_review_status ?? null,
+        isFilled: fields > 0 && length > 50,
+      });
+    }
+
+    out.sort((a, b) => a.clientName.localeCompare(b.clientName) || a.kind.localeCompare(b.kind));
+    return json({ ok: true, briefings: out });
+  }
+
+  if (action === "getBriefing") {
+    const briefingId = firstString((params as any).briefingId);
+    const clientId = firstString((params as any).clientId);
+    const kind = firstString((params as any).kind) || "essential";
+
+    // Resolve por id "essential:<clientId>" / "entry:<id>" ou por (clientId, kind).
+    const isEssential = briefingId.startsWith("essential:")
+      || (!briefingId && kind === "essential");
+    const isEntry = briefingId.startsWith("entry:");
+
+    if (isEssential) {
+      const cid = briefingId.startsWith("essential:")
+        ? briefingId.slice("essential:".length)
+        : clientId;
+      if (!cid) return json({ error: "missing_clientId" }, 400);
+      const { data, error } = await sb
+        .from("clients")
+        .select("id,name,metadata")
+        .eq("id", cid)
+        .maybeSingle();
+      if (error) return json({ error: "client_read_failed", message: error.message }, 500);
+      if (!data) return json({ ok: true, briefing: null });
+      const meta = (data as any).metadata ?? {};
+      const eb = meta?.essential_briefing ?? null;
+      return json({
+        ok: true,
+        briefing: eb ? {
+          briefingId: `essential:${data.id}`,
+          clientId: data.id,
+          clientName: (data as any).name ?? "Cliente",
+          source: "essential_briefing",
+          kind: "essential",
+          updatedAt: eb.updated_at ?? meta?.last_portal_briefing_sync ?? null,
+          rawPortalResponses: meta?.raw_portal_responses ?? eb.raw_portal_responses ?? null,
+          lastPortalBriefingSync: meta?.last_portal_briefing_sync ?? null,
+          publicBriefingStatus: eb.public_briefing_status ?? null,
+          importReviewStatus: eb.import_review_status ?? null,
+          structuredSignals: eb.structured_signals ?? null,
+          content: eb,
+        } : null,
+      });
+    }
+
+    if (isEntry) {
+      const id = briefingId.slice("entry:".length);
+      const { data, error } = await sb
+        .from("context_entries")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) return json({ error: "entry_read_failed", message: error.message }, 500);
+      if (!data) return json({ ok: true, briefing: null });
+      const meta = (data as any).metadata ?? {};
+      return json({
+        ok: true,
+        briefing: {
+          briefingId: `entry:${(data as any).id}`,
+          clientId: (data as any).client_id ?? "",
+          source: "context_entries",
+          kind: meta?.briefing_kind ?? "essential",
+          updatedAt: (data as any).updated_at ?? (data as any).created_at ?? null,
+          rawPortalResponses: meta?.raw_portal_responses ?? null,
+          lastPortalBriefingSync: meta?.last_portal_briefing_sync ?? null,
+          publicBriefingStatus: meta?.public_briefing_status ?? null,
+          importReviewStatus: meta?.import_review_status ?? null,
+          structuredSignals: meta?.structured_signals ?? null,
+          content: data,
+        },
+      });
+    }
+
+    return json({ error: "missing_briefingId" }, 400);
+  }
+
+  return json({ error: "unknown_ops_action", action }, 400);
+}
