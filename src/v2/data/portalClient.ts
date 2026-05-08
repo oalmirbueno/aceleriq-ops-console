@@ -7,9 +7,14 @@
  *   - Esta camada é a ÚNICA porta de entrada para dados do Portal no V2.
  *
  * STATUS ATUAL (Fase V2.0):
- *   Implementação em mock até o contrato com o Portal ser aprovado.
- *   Trocar `mockClient` por uma implementação real (`httpClient`) sem
- *   alterar a interface pública.
+ *   Duas implementações disponíveis:
+ *     - mockClient: dataset estático (default).
+ *     - bridgeClient: chama a edge function `portal-bridge` (read-only)
+ *       que reencaminha para os endpoints existentes do Portal
+ *       (ops-full-export / ops-projects-list / ops-tasks-list).
+ *   A escolha é controlada pelo flag local
+ *   `localStorage["ops-v2:use-real-bridge"] === "1"`. Mock continua
+ *   default até validarmos no piloto.
  *
  * NÃO USAR neste cliente:
  *   - pull-portal-tasks
@@ -233,8 +238,81 @@ const mockClient: PortalClientApi = {
   },
 };
 
-// Switch para implementação real assim que a bridge estiver aprovada.
-export const portalClient: PortalClientApi = mockClient;
+// ---------- Bridge implementation (read-only via edge `portal-bridge`) ----------
 
-/** Indicador para a UI mostrar selo "Dados de demonstração" no piloto. */
-export const PORTAL_CLIENT_IS_MOCK = true;
+import { supabase } from "@/integrations/supabase/client";
+
+const NOT_IMPLEMENTED = (op: string) => {
+  throw new Error(
+    `[portalClient.bridge] '${op}' não está implementado nesta fase. ` +
+    `Fase V2.1 é apenas leitura.`,
+  );
+};
+
+async function invokeBridge<T>(action: string, params?: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke("portal-bridge", {
+    body: { action, params: params ?? {} },
+  });
+  if (error) throw new Error(`portal-bridge ${action}: ${error.message}`);
+  if (!data || (data as { ok?: boolean }).ok === false) {
+    const msg = (data as { error?: string })?.error ?? "resposta inválida";
+    throw new Error(`portal-bridge ${action}: ${msg}`);
+  }
+  return data as T;
+}
+
+const bridgeClient: PortalClientApi = {
+  async listClients() {
+    const r = await invokeBridge<{ clients: PortalClient[] }>("listClients");
+    return r.clients ?? [];
+  },
+  async listProjects(opts) {
+    const r = await invokeBridge<{ projects: PortalProject[] }>(
+      "listProjects", opts?.clientId ? { clientId: opts.clientId } : undefined,
+    );
+    return r.projects ?? [];
+  },
+  async getProject(projectId) {
+    const r = await invokeBridge<{ project: PortalProject | null }>("getProject", { projectId });
+    return r.project ?? null;
+  },
+  async listMilestones(projectId) {
+    const r = await invokeBridge<{ milestones: PortalMilestone[] }>("listMilestones", { projectId });
+    return r.milestones ?? [];
+  },
+  async listTasks({ projectId, milestoneId }) {
+    const r = await invokeBridge<{ tasks: PortalTask[] }>(
+      "listTasks", milestoneId ? { projectId, milestoneId } : { projectId },
+    );
+    return r.tasks ?? [];
+  },
+  async updateTask() { return NOT_IMPLEMENTED("updateTask"); },
+  async createTask() { return NOT_IMPLEMENTED("createTask"); },
+  async archiveTask() { return NOT_IMPLEMENTED("archiveTask"); },
+};
+
+// ---------- Selector ----------
+
+const FLAG_KEY = "ops-v2:use-real-bridge";
+
+function isBridgeEnabled(): boolean {
+  if (typeof window === "undefined") return false;
+  try { return window.localStorage.getItem(FLAG_KEY) === "1"; } catch { return false; }
+}
+
+export function setUseRealBridge(on: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    if (on) window.localStorage.setItem(FLAG_KEY, "1");
+    else window.localStorage.removeItem(FLAG_KEY);
+  } catch { /* noop */ }
+}
+
+export const PORTAL_CLIENT_IS_MOCK = !isBridgeEnabled();
+
+/**
+ * Cliente ativo. Default = mock. Para usar a bridge real, rodar no
+ * console do navegador:
+ *   localStorage.setItem("ops-v2:use-real-bridge", "1") && location.reload()
+ */
+export const portalClient: PortalClientApi = isBridgeEnabled() ? bridgeClient : mockClient;
