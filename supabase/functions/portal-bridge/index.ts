@@ -472,7 +472,10 @@ serve(async (req) => {
     case "getProject": {
       const id = firstString((params as any).projectId);
       if (!id) return json({ error: "missing_projectId" }, 400);
-      const project = projectsNorm.find((p) => p.id === id) ?? null;
+      const found = projectsNorm.find((p) => p.id === id) ?? null;
+      const project = found
+        ? (({ _deletedAt: _d, _archived: _a, _rawStatus: _r, ...rest }: any) => rest)(found)
+        : null;
       return json({ ok: true, project });
     }
     case "listMilestones": {
@@ -480,7 +483,7 @@ serve(async (req) => {
       if (!projectId) return json({ error: "missing_projectId" }, 400);
       const list = (milestonesByProject.get(projectId) ?? [])
         .slice().sort((a, b) => a.order - b.order)
-        .map(({ _deletedAt: _d, _archived: _a, ...rest }: any) => rest);
+        .map(({ _deletedAt: _d, _archived: _a, _rawStatus: _r, ...rest }: any) => rest);
       return json({ ok: true, milestones: list });
     }
     case "listTasks": {
