@@ -20,17 +20,30 @@ export default function OverviewTabV2() {
 
   const { project, milestones, tasks } = data;
   const current = milestones.find((m) => m.id === project.currentMilestoneId);
+  const pct = Math.round(project.progress * 100);
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-4 animate-fade-in">
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <Card label="Status" value={project.status} />
-        <Card label="Progresso" value={`${Math.round(project.progress * 100)}%`} />
+        <Card label="Progresso" value={`${pct}%`} />
         <Card label="Milestones" value={milestones.length} />
         <Card label="Tarefas" value={tasks.length} />
       </div>
-      <div className="rounded-lg border border-border bg-card p-4">
-        <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Milestone atual</p>
-        <p className="mt-1 text-sm font-medium text-foreground">{current?.title ?? "—"}</p>
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Milestone atual</p>
+            <p className="mt-1 text-sm font-medium text-foreground truncate">{current?.title ?? "—"}</p>
+          </div>
+          {current && (
+            <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground tabular-nums">
+              {current.tasksDoneCount}/{current.tasksCount}
+            </span>
+          )}
+        </div>
+        <div className="mt-3 h-1.5 rounded-full bg-muted overflow-hidden">
+          <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+        </div>
       </div>
     </div>
   );
@@ -38,9 +51,9 @@ export default function OverviewTabV2() {
 
 function Card({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30">
       <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-foreground">{value}</p>
+      <p className="mt-1 text-lg font-semibold text-foreground tabular-nums">{value}</p>
     </div>
   );
 }
