@@ -1,7 +1,7 @@
 /**
  * portal-bridge — leitura read-only do Portal Aceleriq para o OPS V2.
  *
- * Deploy tag: v2.2.0 — adiciona ops context actions (listBriefings/getBriefing, somente Essential).
+ * Deploy tag: v2.2.1 — corrige leitura de last_portal_briefing_sync (essential_briefing.*).
  *
  * REGRAS:
  *   - Apenas leitura. Sem insert/update/delete. Sem backfill. Sem materialização.
@@ -444,18 +444,20 @@ async function handleOpsContextAction(
       const hasEb = eb && typeof eb === "object";
       const length = hasEb ? JSON.stringify(eb).length : 0;
       const fields = hasEb ? countNonEmptyFields(eb) : 0;
+      const ebLastSync = hasEb ? (eb.last_portal_briefing_sync ?? null) : null;
+      const ebUpdatedAt = hasEb ? (eb.updated_at ?? null) : null;
       out.push({
         briefingId: `essential:${c.id}`,
         clientId: c.id,
         clientName: (c as any).name ?? "Cliente",
         source: "essential_briefing",
         kind: "essential",
-        updatedAt: hasEb ? (eb.updated_at ?? meta?.last_portal_briefing_sync ?? null) : null,
+        updatedAt: ebUpdatedAt ?? ebLastSync ?? null,
         approxFields: fields,
         contentLength: length,
-        hasRawPortalResponses: Boolean(meta?.raw_portal_responses ?? (hasEb && eb.raw_portal_responses)),
-        hasLastPortalBriefingSync: Boolean(meta?.last_portal_briefing_sync),
-        hasStructuredSignals: Boolean((hasEb && eb.structured_signals) ?? meta?.structured_signals),
+        hasRawPortalResponses: Boolean(hasEb && eb.raw_portal_responses),
+        hasLastPortalBriefingSync: Boolean(ebLastSync),
+        hasStructuredSignals: Boolean(hasEb && eb.structured_signals),
         publicStatus: hasEb ? (eb.public_briefing_status ?? null) : null,
         reviewStatus: hasEb ? (eb.import_review_status ?? null) : null,
         isFilled: fields > 0 && length > 50,
@@ -489,6 +491,8 @@ async function handleOpsContextAction(
       if (!data) return json({ ok: true, briefing: null });
       const meta = (data as any).metadata ?? {};
       const eb = meta?.essential_briefing ?? null;
+      const ebLastSync = eb ? (eb.last_portal_briefing_sync ?? null) : null;
+      const ebUpdatedAt = eb ? (eb.updated_at ?? null) : null;
       return json({
         ok: true,
         briefing: eb ? {
@@ -497,10 +501,11 @@ async function handleOpsContextAction(
           clientName: (data as any).name ?? "Cliente",
           source: "essential_briefing",
           kind: "essential",
-          updatedAt: eb.updated_at ?? meta?.last_portal_briefing_sync ?? null,
-          rawPortalResponses: meta?.raw_portal_responses ?? eb.raw_portal_responses ?? null,
-          hasRawPortalResponses: Boolean(meta?.raw_portal_responses ?? eb.raw_portal_responses),
-          lastPortalBriefingSync: meta?.last_portal_briefing_sync ?? null,
+          updatedAt: ebUpdatedAt ?? ebLastSync ?? null,
+          rawPortalResponses: eb.raw_portal_responses ?? null,
+          hasRawPortalResponses: Boolean(eb.raw_portal_responses),
+          lastPortalBriefingSync: ebLastSync,
+          hasLastPortalBriefingSync: Boolean(ebLastSync),
           publicBriefingStatus: eb.public_briefing_status ?? null,
           importReviewStatus: eb.import_review_status ?? null,
           structuredSignals: eb.structured_signals ?? null,
