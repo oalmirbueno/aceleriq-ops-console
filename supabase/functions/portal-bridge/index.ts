@@ -1,11 +1,12 @@
 /**
  * portal-bridge — leitura read-only do Portal Aceleriq para o OPS V2.
  *
- * Deploy tag: v2.2.4 — Portal-only global cascade.
+ * Deploy tag: v2.2.5 — Portal-only global cascade + alias resolution.
  *  - projects: requerem id + clientId; filtram deleted/archived/trash.
  *  - milestones: só de projects válidos; filtram deleted/archived/placeholders.
- *  - tasks: só de milestones válidos.
- *  - nova action read-only: auditPortalSources.
+ *  - tasks: só de milestones válidos; resolve milestoneId via alias map robusto.
+ *  - clients: displayName resolvido em cascata (name/full_name/company/email/...).
+ *  - auditPortalSources expandido com problemas globais.
  *
  * REGRAS:
  *   - Apenas leitura. Sem insert/update/delete. Sem backfill. Sem materialização.
