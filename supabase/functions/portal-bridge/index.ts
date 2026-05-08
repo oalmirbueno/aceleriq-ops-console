@@ -833,6 +833,14 @@ serve(async (req) => {
         }
         map.set(p.clientId, c);
       }
+      // Reforça com global clientsMap.
+      for (const [cid, info] of clientsMap.entries()) {
+        const prev = map.get(cid);
+        if (!prev) continue; // só clientes com projetos válidos entram
+        if (!prev.name) prev.name = info.name;
+        if (!prev.company) prev.company = info.company;
+        if (!prev.email) prev.email = info.email;
+      }
       const clients = [...map.values()].map((c) => {
         const { displayName, missing } = resolveClientDisplayName(c.name, c.company, c.email);
         const problems: string[] = [];
