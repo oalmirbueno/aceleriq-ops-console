@@ -502,18 +502,27 @@ serve(async (req) => {
   }
 
   // ---------- Build derived indexes ----------
-  let tasksAliasResolved = 0;
-  const tasksNorm = tasksRaw.map((rawT) => {
+  let tasksResolvedByDirectMilestoneId = 0;
+  let tasksResolvedByFolderId = 0;
+  let tasksResolvedByParentId = 0;
+  const tasksNormPairs: { task: ReturnType<typeof normalizeTask>; raw: Record<string, any>; resolvedBy: "direct" | "folder" | "parent" | "" }[] = [];
+  for (const rawT of tasksRaw) {
     const t = normalizeTask(rawT);
-    if (t.milestoneId) {
-      const canonical = milestoneAliasToId.get(t.milestoneId);
-      if (canonical && canonical !== t.milestoneId) {
-        t.milestoneId = canonical;
-        tasksAliasResolved += 1;
-      }
+    if (!t.id || !t.projectId) continue;
+    let resolvedBy: "direct" | "folder" | "parent" | "" = "";
+    if (t.milestoneId && milestoneAliasToId.has(t.milestoneId)) {
+      t.milestoneId = milestoneAliasToId.get(t.milestoneId)!;
+      resolvedBy = "direct";
+    } else {
+      const r = resolveTaskMilestone(rawT, milestoneAliasToId);
+      if (r.id) { t.milestoneId = r.id; resolvedBy = r.category; }
     }
-    return t;
-  }).filter((t) => t.id && t.projectId);
+    if (resolvedBy === "direct") tasksResolvedByDirectMilestoneId++;
+    else if (resolvedBy === "folder") tasksResolvedByFolderId++;
+    else if (resolvedBy === "parent") tasksResolvedByParentId++;
+    tasksNormPairs.push({ task: t, raw: rawT, resolvedBy });
+  }
+  const tasksNorm = tasksNormPairs.map((p) => p.task);
   const tasksByMilestone = new Map<string, typeof tasksNorm>();
   const tasksByProject = new Map<string, typeof tasksNorm>();
   for (const t of tasksNorm) {
@@ -728,7 +737,9 @@ serve(async (req) => {
           "missing_display_name",
           "client_without_active_project",
           "task_without_valid_milestone",
-          "task_milestone_alias_resolved",
+          "task_resolved_by_direct",
+          "task_resolved_by_folder",
+          "task_resolved_by_parent",
           "project_without_valid_client",
           "placeholder_milestone_removed",
           "non_active_project_filtered",
@@ -739,11 +750,19 @@ serve(async (req) => {
           taskId: t.id,
           projectId: t.projectId,
           milestoneIdRaw: t.milestoneId || null,
-          title: t.title,
+          title: (t.title || "").slice(0, 40),
           problems: ["task_without_valid_milestone"],
         })),
+        tasksUnresolvedDebug: tasksNormPairs
+          .filter((p) => validProjectIds.has(p.task.projectId) && (!p.task.milestoneId || !validMilestoneIds.has(p.task.milestoneId)))
+          .slice(0, 5)
+          .map((p) => ({
+            taskId: p.task.id,
+            titleHash: (p.task.title || "").slice(0, 30),
+            projectId: p.task.projectId,
+            shape: debugTaskShape(p.raw),
+          })),
       });
-    }
     }
     case "getProject": {
       const id = firstString((params as any).projectId);
