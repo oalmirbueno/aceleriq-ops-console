@@ -308,11 +308,76 @@ export function setUseRealBridge(on: boolean) {
   } catch { /* noop */ }
 }
 
-export const PORTAL_CLIENT_IS_MOCK = !isBridgeEnabled();
+export type PortalMode = "mock" | "bridge";
+
+export const PORTAL_MODE: PortalMode = isBridgeEnabled() ? "bridge" : "mock";
+export const PORTAL_CLIENT_IS_MOCK = PORTAL_MODE === "mock";
+
+// ---------- Bridge error bus ----------
+// Quando estamos em modo bridge e a chamada falha, NUNCA caímos para mock.
+// O erro é propagado (rethrow) e também publicado num bus simples para que
+// a UI consiga exibir um banner global de erro com retry.
+
+export interface BridgeErrorState {
+  message: string;
+  action: string;
+  at: number;
+}
+
+type Listener = (state: BridgeErrorState | null) => void;
+const listeners = new Set<Listener>();
+let currentError: BridgeErrorState | null = null;
+
+export function getBridgeError(): BridgeErrorState | null {
+  return currentError;
+}
+export function subscribeBridgeError(fn: Listener): () => void {
+  listeners.add(fn);
+  fn(currentError);
+  return () => { listeners.delete(fn); };
+}
+function publishBridgeError(next: BridgeErrorState | null) {
+  currentError = next;
+  listeners.forEach((l) => { try { l(next); } catch { /* noop */ } });
+}
+export function clearBridgeError() { publishBridgeError(null); }
+
+// Wrapper que registra erro no bus antes de rethrow (sem fallback p/ mock).
+function withBridgeErrorReporting<T extends PortalClientApi>(client: T): T {
+  const wrap = <Args extends unknown[], R>(name: string, fn: (...a: Args) => Promise<R>) =>
+    async (...args: Args): Promise<R> => {
+      try {
+        const r = await fn(...args);
+        if (currentError && currentError.action === name) clearBridgeError();
+        return r;
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        publishBridgeError({ message, action: name, at: Date.now() });
+        throw e;
+      }
+    };
+  return {
+    listClients: wrap("listClients", client.listClients.bind(client)),
+    listProjects: wrap("listProjects", client.listProjects.bind(client)),
+    getProject: wrap("getProject", client.getProject.bind(client)),
+    listMilestones: wrap("listMilestones", client.listMilestones.bind(client)),
+    listTasks: wrap("listTasks", client.listTasks.bind(client)),
+    updateTask: wrap("updateTask", client.updateTask.bind(client)),
+    createTask: wrap("createTask", client.createTask.bind(client)),
+    archiveTask: wrap("archiveTask", client.archiveTask.bind(client)),
+  } as T;
+}
 
 /**
- * Cliente ativo. Default = mock. Para usar a bridge real, rodar no
- * console do navegador:
- *   localStorage.setItem("ops-v2:use-real-bridge", "1") && location.reload()
+ * Cliente ativo.
+ *   - Default: mockClient.
+ *   - Quando localStorage["ops-v2:use-real-bridge"] === "1": bridgeClient
+ *     ESTRITO. Erros NÃO caem para mock — são propagados e a UI mostra
+ *     banner de erro + retry.
+ *
+ * Para alternar via console:
+ *   localStorage.setItem("ops-v2:use-real-bridge", "1"); location.reload();
+ *   localStorage.removeItem("ops-v2:use-real-bridge"); location.reload();
  */
-export const portalClient: PortalClientApi = isBridgeEnabled() ? bridgeClient : mockClient;
+export const portalClient: PortalClientApi =
+  PORTAL_MODE === "bridge" ? withBridgeErrorReporting(bridgeClient) : mockClient;
