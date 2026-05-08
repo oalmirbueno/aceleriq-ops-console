@@ -3953,9 +3953,25 @@ function CanvasStudioInner({
               <span>Use “Hub” no Engine para montar o fluxo central</span>
             </div>
           )}
-          {loading ? (
+          {lastFetchError ? (
+            <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center">
+              <div className="h-12 w-12 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center">
+                <RefreshCw className="h-6 w-6 text-destructive" />
+              </div>
+              <div>
+                <p className="text-base font-semibold text-foreground mb-1">Não consegui carregar o canvas</p>
+                <p className="text-xs text-muted-foreground max-w-md">{lastFetchError}</p>
+              </div>
+              <Button size="sm" onClick={() => fetchData()}>
+                <RefreshCw className="h-3.5 w-3.5 mr-1" /> Tentar de novo
+              </Button>
+            </div>
+          ) : loading ? (
             <div className="h-full flex items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <Button size="sm" variant="ghost" className="text-xs" onClick={() => fetchData()}>Recarregar</Button>
+              </div>
             </div>
           ) : clientGroups.length === 0 ? (
             clientId && clientName ? (
@@ -3989,24 +4005,21 @@ function CanvasStudioInner({
             </div>
             )
           ) : scopedProjectNodes.length === 0 ? (
-            portalProjectIdProp ? (
+            featureFlags.canvasOperationMode ? (
             <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center relative">
-              <Loader2 className="h-10 w-10 text-muted-foreground animate-spin" />
+              <div className="h-12 w-12 rounded-full bg-muted border border-border flex items-center justify-center">
+                <Sparkles className="h-6 w-6 text-muted-foreground" />
+              </div>
               <div>
-                <p className="text-base font-semibold text-foreground mb-1">Trazendo esteira do Portal…</p>
+                <p className="text-base font-semibold text-foreground mb-1">Nenhuma task real do Portal encontrada neste projeto.</p>
                 <p className="text-xs text-muted-foreground max-w-md">
-                  Buscando milestones, tarefas concluídas e em andamento deste projeto.
+                  O Modo Operação só mostra milestones e tarefas vinculadas ao Portal.
+                  Use “Recarregar” após sincronizar pelo Portal.
                 </p>
               </div>
-              <div className="flex gap-2 mt-2 flex-wrap justify-center">
-                <Button size="sm" variant="outline" onClick={() => syncPortalNow({ pull: true, push: false })} disabled={syncStatus.portalBusy}>
-                  {syncStatus.portalBusy ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
-                  Sincronizar agora
-                </Button>
-              </div>
-              {syncStatus.portalError && (
-                <p className="text-[11px] text-destructive">{syncStatus.portalError}</p>
-              )}
+              <Button size="sm" variant="outline" onClick={() => fetchData()}>
+                <RefreshCw className="h-3.5 w-3.5 mr-1" /> Recarregar
+              </Button>
             </div>
             ) : (
             <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center relative">
