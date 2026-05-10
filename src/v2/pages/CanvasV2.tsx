@@ -219,8 +219,8 @@ function CanvasV2Inner() {
   );
 
   const layout = useMemo(
-    () => buildLayout(tasks.data ?? [], renderer, density, nodeSize),
-    [tasks.data, renderer, density, nodeSize],
+    () => buildLayout(tasks.data ?? [], renderer, nodeSize, density),
+    [tasks.data, renderer, nodeSize, density],
   );
 
   const visibleLayout = useMemo(() => {
