@@ -105,8 +105,8 @@ export default function ContextTabV2() {
       <Section title="Memória" description="Histórico vivo do projeto.">
         <EmptyBlock
           icon={Database}
-          title="Sem memória estruturada"
-          text="Contexto vivo do projeto: observações, aprendizados e registros de sprint. Quando persistidos no Portal, aparecem aqui automaticamente em ordem cronológica."
+          title="Nenhuma memória registrada"
+          text="Marcos, decisões e contexto acumulado do projeto aparecem aqui quando persistidos no Portal. Útil para onboarding de novos membros e retomadas de projeto."
         />
       </Section>
 
