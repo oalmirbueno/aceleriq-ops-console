@@ -14,7 +14,7 @@ import {
   ReactFlow, ReactFlowProvider, Background, BackgroundVariant, Controls, MiniMap,
   useNodesState, useEdgesState, MarkerType, addEdge, ConnectionMode, ConnectionLineType,
   SelectionMode,
-  type Node, type Edge, type NodeMouseHandler, type Connection,
+  type Node, type Edge, type NodeMouseHandler, type Connection, type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
@@ -42,7 +42,7 @@ import { TaskNodeV2 } from "@/v2/components/canvas/TaskNodeV2";
 
 const NODE_TYPES = {
   projectCard: ProjectNodeCard,
-  taskCard: TaskNodeV2,
+  taskCardV2: TaskNodeV2 as React.ComponentType<NodeProps>,
   canvasGroup: CanvasGroupNode,
 };
 const EDGE_TYPES = { deletable: DeletableEdge };
@@ -58,24 +58,33 @@ const LANE_COLOR: Record<PortalTaskStatus, string> = {
 
 /* ───────── Layout ─────────
    Posiciona nodes do Portal em colunas por status (lanes). Tamanho e gaps
-   variam conforme renderer/density/nodeSize escolhidos nas configurações. */
-const RENDERER_NODE_W: Record<"legacy" | "task-v2", number> = { legacy: 280, "task-v2": 320 };
-const DENSITY_ROW_GAP: Record<"comfortable" | "compact", number> = { comfortable: 40, compact: 16 };
-const DENSITY_COL_GAP: Record<"comfortable" | "compact", number> = { comfortable: 120, compact: 70 };
-const SIZE_COL_MULT: Record<"sm" | "md" | "lg", number> = { sm: 0.7, md: 1.0, lg: 1.35 };
-const NODE_H = 220;
-const COL_X_START = 80;
-const ROW_Y_START = 80;
+   variam conforme renderer/nodeSize/density escolhidos nas configurações. */
+const NODE_SIZE_CONFIG: Record<"sm" | "md" | "lg", { w: number; h: number }> = {
+  sm: { w: 240, h: 190 },
+  md: { w: 280, h: 220 },
+  lg: { w: 340, h: 250 },
+};
+const TASK_SIZE_CONFIG: Record<"sm" | "md" | "lg", { w: number; h: number }> = {
+  sm: { w: 280, h: 180 },
+  md: { w: 320, h: 200 },
+  lg: { w: 380, h: 220 },
+};
+const DENSITY_GAP: Record<"comfortable" | "compact", { col: number; row: number }> = {
+  comfortable: { col: 120, row: 40 },
+  compact:     { col: 56,  row: 14 },
+};
 
 function buildLayout(
   tasks: PortalTask[],
   renderer: "legacy" | "task-v2",
-  density: "comfortable" | "compact",
   nodeSize: "sm" | "md" | "lg",
+  density: "comfortable" | "compact",
 ): { nodes: Node[]; edges: Edge[] } {
-  const nodeW = RENDERER_NODE_W[renderer];
-  const rowGap = DENSITY_ROW_GAP[density];
-  const colGap = Math.round(DENSITY_COL_GAP[density] * SIZE_COL_MULT[nodeSize]);
+  const sizeMap = renderer === "task-v2" ? TASK_SIZE_CONFIG : NODE_SIZE_CONFIG;
+  const { w: NODE_W, h: NODE_H } = sizeMap[nodeSize];
+  const { col: COL_GAP, row: ROW_GAP } = DENSITY_GAP[density];
+  const COL_X_START = 80;
+  const ROW_Y_START = 80;
   const grouped = new Map<PortalTaskStatus, PortalTask[]>();
   for (const t of tasks) {
     const arr = grouped.get(t.status) ?? [];
@@ -85,15 +94,15 @@ function buildLayout(
 
   const nodes: Node[] = [];
   activeLanes.forEach((status, colIdx) => {
-    const x = COL_X_START + colIdx * (nodeW + colGap);
+    const x = COL_X_START + colIdx * (NODE_W + COL_GAP);
     const arr = grouped.get(status) ?? [];
     arr.forEach((task, rowIdx) => {
       nodes.push({
         id: task.id,
-        type: renderer === "task-v2" ? "taskCard" : "projectCard",
-        position: { x, y: ROW_Y_START + rowIdx * (NODE_H + rowGap) },
+        type: renderer === "task-v2" ? "taskCardV2" : "projectCard",
+        position: { x, y: ROW_Y_START + rowIdx * (NODE_H + ROW_GAP) },
         data: (renderer === "task-v2"
-          ? { task }
+          ? { task, __nodeSize: nodeSize }
           : portalTaskToNodeData(task)) as unknown as Record<string, unknown>,
         draggable: true,
       });
@@ -135,9 +144,9 @@ function CanvasV2Inner() {
   const [showSidePanel] = useV2Setting(V2_SETTINGS.canvasShowSidePanel);
   const [defaultFullscreen] = useV2Setting(V2_SETTINGS.canvasDefaultFullscreen);
   const [showMinimap] = useV2Setting(V2_SETTINGS.canvasShowMinimap);
-  const [renderer] = useV2Setting(V2_SETTINGS.canvasNodeRenderer);
-  const [density] = useV2Setting(V2_SETTINGS.canvasDensity);
+  const [canvasNodeRenderer] = useV2Setting(V2_SETTINGS.canvasNodeRenderer);
   const [nodeSize] = useV2Setting(V2_SETTINGS.canvasNodeSize);
+  const [density] = useV2Setting(V2_SETTINGS.canvasDensity);
   const [showDock] = useV2Setting(V2_SETTINGS.canvasShowDock);
   const [showIAHub] = useV2Setting(V2_SETTINGS.canvasShowIAHub);
   const [panelOpen, setPanelOpen] = useState(showSidePanel);
@@ -210,8 +219,8 @@ function CanvasV2Inner() {
   );
 
   const layout = useMemo(
-    () => buildLayout(tasks.data ?? [], renderer, density, nodeSize),
-    [tasks.data, renderer, density, nodeSize],
+    () => buildLayout(tasks.data ?? [], canvasNodeRenderer, nodeSize, density),
+    [tasks.data, canvasNodeRenderer, nodeSize, density],
   );
 
   const visibleLayout = useMemo(() => {
@@ -392,7 +401,7 @@ function CanvasV2Inner() {
             connectionRadius={34}
             proOptions={{ hideAttribution: true }}
             className="bg-background canvas-flow acelera-ops-flow animate-fade-in"
-            key={activeMilestoneId || "empty"}
+            key={`${activeMilestoneId || "empty"}-${canvasNodeRenderer}`}
             deleteKeyCode={null}
             defaultEdgeOptions={{
               type: "deletable",

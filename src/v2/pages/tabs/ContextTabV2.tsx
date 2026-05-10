@@ -105,8 +105,8 @@ export default function ContextTabV2() {
       <Section title="Memória" description="Histórico vivo do projeto.">
         <EmptyBlock
           icon={Database}
-          title="Sem memória estruturada"
-          text="Contexto vivo do projeto: observações, aprendizados e registros de sprint. Quando persistidos no Portal, aparecem aqui automaticamente em ordem cronológica."
+          title="Nenhuma memória registrada"
+          text="Marcos, decisões e contexto acumulado do projeto aparecem aqui quando persistidos no Portal. Útil para onboarding de novos membros e retomadas de projeto."
         />
       </Section>
 
@@ -114,7 +114,7 @@ export default function ContextTabV2() {
         <EmptyBlock
           icon={Scale}
           title="Nenhuma decisão registrada"
-          text="Log de decisões formais: tecnologia, escopo, prazos e fornecedores. Aparece aqui quando registrado no Portal, com data e responsável."
+          text="Decisões formais — mudança de escopo, troca de estratégia, escolhas técnicas — aparecem aqui em ordem cronológica quando registradas no Portal."
         />
       </Section>
 
@@ -180,11 +180,14 @@ function EssentialBriefingCard({
         />
       </dl>
 
-      {summary?.isFilled && (summary.clientName || summary.company) && (
-        <p className="mt-3 text-[11px] text-muted-foreground leading-relaxed line-clamp-2 border-t border-border/50 pt-2">
-          {[summary.clientName, summary.company].filter(Boolean).join(" · ")}
-          {summary.approxFields > 0 && ` — ${summary.approxFields} campos preenchidos`}
-        </p>
+      {summary && (summary.company || summary.clientName) && (
+        <div className="mt-3 rounded-md border border-border/50 bg-muted/20 px-3 py-2 space-y-0.5">
+          <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-medium">Preview</p>
+          <p className="text-xs text-foreground font-medium truncate">{summary.clientName}</p>
+          {summary.company && (
+            <p className="text-[11px] text-muted-foreground truncate">{summary.company}</p>
+          )}
+        </div>
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
