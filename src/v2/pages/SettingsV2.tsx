@@ -95,6 +95,7 @@ export default function SettingsV2() {
   const [showDock, setShowDock] = useV2Setting(V2_SETTINGS.canvasShowDock);
   const [showIAHub, setShowIAHub] = useV2Setting(V2_SETTINGS.canvasShowIAHub);
   const [nodeSize, setNodeSize] = useV2Setting(V2_SETTINGS.canvasNodeSize);
+  const [renderer, setRenderer] = useV2Setting(V2_SETTINGS.canvasNodeRenderer);
 
   useEffect(() => subscribeBridgeError(setErr), []);
 
@@ -225,6 +226,16 @@ export default function SettingsV2() {
             label="Abrir em fullscreen por padrão"
             checked={defaultFullscreen}
             onChange={setDefaultFullscreen}
+          />
+          <SelectRow
+            label="Renderer dos nodes"
+            description='Legacy: card clássico da esteira (padrão). Task V2: card nativo do Canvas V2 com barra de progresso e responsável.'
+            value={renderer}
+            onChange={(v) => setRenderer(v as "legacy" | "task-v2")}
+            options={[
+              { value: "legacy", label: "Legacy (padrão)" },
+              { value: "task-v2", label: "Task V2" },
+            ]}
           />
           <SelectRow
             label="Densidade dos nodes"
