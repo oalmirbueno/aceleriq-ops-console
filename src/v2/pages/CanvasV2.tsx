@@ -38,9 +38,11 @@ import CanvasDockV2 from "@/v2/components/canvas/CanvasDockV2";
 import IAHubV2 from "@/v2/components/canvas/IAHubV2";
 import TaskInspectorV2 from "@/v2/components/canvas/TaskInspectorV2";
 import AddTaskBlockedDialog from "@/v2/components/canvas/AddTaskBlockedDialog";
+import { TaskNodeV2 } from "@/v2/components/canvas/TaskNodeV2";
 
 const NODE_TYPES = {
   projectCard: ProjectNodeCard,
+  taskCard: TaskNodeV2,
   canvasGroup: CanvasGroupNode,
 };
 const EDGE_TYPES = { deletable: DeletableEdge };
@@ -55,18 +57,25 @@ const LANE_COLOR: Record<PortalTaskStatus, string> = {
 };
 
 /* ───────── Layout ─────────
-   Posiciona nodes do Portal em colunas por status (lanes), com largura
-   compatível com o ProjectNodeCard (280px) e gaps suficientes para
-   conexões livres. Não reaproveitamos ACELERA_STAGES para evitar inferência
-   sobre dados do Portal. */
-const NODE_W = 280;
+   Posiciona nodes do Portal em colunas por status (lanes). Tamanho e gaps
+   variam conforme renderer/density/nodeSize escolhidos nas configurações. */
+const RENDERER_NODE_W: Record<"legacy" | "task-v2", number> = { legacy: 280, "task-v2": 320 };
+const DENSITY_ROW_GAP: Record<"comfortable" | "compact", number> = { comfortable: 40, compact: 16 };
+const DENSITY_COL_GAP: Record<"comfortable" | "compact", number> = { comfortable: 120, compact: 70 };
+const SIZE_COL_MULT: Record<"sm" | "md" | "lg", number> = { sm: 0.7, md: 1.0, lg: 1.35 };
 const NODE_H = 220;
-const COL_GAP = 120;
-const ROW_GAP = 40;
 const COL_X_START = 80;
 const ROW_Y_START = 80;
 
-function buildLayout(tasks: PortalTask[]): { nodes: Node[]; edges: Edge[] } {
+function buildLayout(
+  tasks: PortalTask[],
+  renderer: "legacy" | "task-v2",
+  density: "comfortable" | "compact",
+  nodeSize: "sm" | "md" | "lg",
+): { nodes: Node[]; edges: Edge[] } {
+  const nodeW = RENDERER_NODE_W[renderer];
+  const rowGap = DENSITY_ROW_GAP[density];
+  const colGap = Math.round(DENSITY_COL_GAP[density] * SIZE_COL_MULT[nodeSize]);
   const grouped = new Map<PortalTaskStatus, PortalTask[]>();
   for (const t of tasks) {
     const arr = grouped.get(t.status) ?? [];
@@ -76,14 +85,16 @@ function buildLayout(tasks: PortalTask[]): { nodes: Node[]; edges: Edge[] } {
 
   const nodes: Node[] = [];
   activeLanes.forEach((status, colIdx) => {
-    const x = COL_X_START + colIdx * (NODE_W + COL_GAP);
+    const x = COL_X_START + colIdx * (nodeW + colGap);
     const arr = grouped.get(status) ?? [];
     arr.forEach((task, rowIdx) => {
       nodes.push({
         id: task.id,
-        type: "projectCard",
-        position: { x, y: ROW_Y_START + rowIdx * (NODE_H + ROW_GAP) },
-        data: portalTaskToNodeData(task) as unknown as Record<string, unknown>,
+        type: renderer === "task-v2" ? "taskCard" : "projectCard",
+        position: { x, y: ROW_Y_START + rowIdx * (NODE_H + rowGap) },
+        data: (renderer === "task-v2"
+          ? { task }
+          : portalTaskToNodeData(task)) as unknown as Record<string, unknown>,
         draggable: true,
       });
     });
@@ -124,6 +135,9 @@ function CanvasV2Inner() {
   const [showSidePanel] = useV2Setting(V2_SETTINGS.canvasShowSidePanel);
   const [defaultFullscreen] = useV2Setting(V2_SETTINGS.canvasDefaultFullscreen);
   const [showMinimap] = useV2Setting(V2_SETTINGS.canvasShowMinimap);
+  const [renderer] = useV2Setting(V2_SETTINGS.canvasNodeRenderer);
+  const [density] = useV2Setting(V2_SETTINGS.canvasDensity);
+  const [nodeSize] = useV2Setting(V2_SETTINGS.canvasNodeSize);
   const [showDock] = useV2Setting(V2_SETTINGS.canvasShowDock);
   const [showIAHub] = useV2Setting(V2_SETTINGS.canvasShowIAHub);
   const [panelOpen, setPanelOpen] = useState(showSidePanel);
@@ -195,7 +209,10 @@ function CanvasV2Inner() {
     [milestones.data, activeMilestoneId],
   );
 
-  const layout = useMemo(() => buildLayout(tasks.data ?? []), [tasks.data]);
+  const layout = useMemo(
+    () => buildLayout(tasks.data ?? [], renderer, density, nodeSize),
+    [tasks.data, renderer, density, nodeSize],
+  );
 
   const visibleLayout = useMemo(() => {
     if (hiddenStatuses.size === 0) return layout;
