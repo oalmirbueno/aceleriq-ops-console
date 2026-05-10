@@ -106,7 +106,7 @@ export default function ContextTabV2() {
         <EmptyBlock
           icon={Database}
           title="Sem memória estruturada"
-          text="Quando registros de memória forem persistidos no Portal, aparecem aqui automaticamente."
+          text="Contexto vivo do projeto: observações, aprendizados e registros de sprint. Quando persistidos no Portal, aparecem aqui automaticamente em ordem cronológica."
         />
       </Section>
 
@@ -114,7 +114,7 @@ export default function ContextTabV2() {
         <EmptyBlock
           icon={Scale}
           title="Nenhuma decisão registrada"
-          text="Decisões formais do projeto serão exibidas aqui em ordem cronológica."
+          text="Log de decisões formais: tecnologia, escopo, prazos e fornecedores. Aparece aqui quando registrado no Portal, com data e responsável."
         />
       </Section>
 
