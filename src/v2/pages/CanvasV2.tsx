@@ -144,9 +144,9 @@ function CanvasV2Inner() {
   const [showSidePanel] = useV2Setting(V2_SETTINGS.canvasShowSidePanel);
   const [defaultFullscreen] = useV2Setting(V2_SETTINGS.canvasDefaultFullscreen);
   const [showMinimap] = useV2Setting(V2_SETTINGS.canvasShowMinimap);
-  const [renderer] = useV2Setting(V2_SETTINGS.canvasNodeRenderer);
-  const [density] = useV2Setting(V2_SETTINGS.canvasDensity);
+  const [canvasNodeRenderer] = useV2Setting(V2_SETTINGS.canvasNodeRenderer);
   const [nodeSize] = useV2Setting(V2_SETTINGS.canvasNodeSize);
+  const [density] = useV2Setting(V2_SETTINGS.canvasDensity);
   const [showDock] = useV2Setting(V2_SETTINGS.canvasShowDock);
   const [showIAHub] = useV2Setting(V2_SETTINGS.canvasShowIAHub);
   const [panelOpen, setPanelOpen] = useState(showSidePanel);
@@ -219,8 +219,8 @@ function CanvasV2Inner() {
   );
 
   const layout = useMemo(
-    () => buildLayout(tasks.data ?? [], renderer, nodeSize, density),
-    [tasks.data, renderer, nodeSize, density],
+    () => buildLayout(tasks.data ?? [], canvasNodeRenderer, nodeSize, density),
+    [tasks.data, canvasNodeRenderer, nodeSize, density],
   );
 
   const visibleLayout = useMemo(() => {
@@ -401,7 +401,7 @@ function CanvasV2Inner() {
             connectionRadius={34}
             proOptions={{ hideAttribution: true }}
             className="bg-background canvas-flow acelera-ops-flow animate-fade-in"
-            key={activeMilestoneId || "empty"}
+            key={`${activeMilestoneId || "empty"}-${canvasNodeRenderer}`}
             deleteKeyCode={null}
             defaultEdgeOptions={{
               type: "deletable",
