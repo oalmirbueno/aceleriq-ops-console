@@ -180,11 +180,14 @@ function EssentialBriefingCard({
         />
       </dl>
 
-      {summary?.isFilled && (summary.clientName || summary.company) && (
-        <p className="mt-3 text-[11px] text-muted-foreground leading-relaxed line-clamp-2 border-t border-border/50 pt-2">
-          {[summary.clientName, summary.company].filter(Boolean).join(" · ")}
-          {summary.approxFields > 0 && ` — ${summary.approxFields} campos preenchidos`}
-        </p>
+      {summary && (summary.company || summary.clientName) && (
+        <div className="mt-3 rounded-md border border-border/50 bg-muted/20 px-3 py-2 space-y-0.5">
+          <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-medium">Preview</p>
+          <p className="text-xs text-foreground font-medium truncate">{summary.clientName}</p>
+          {summary.company && (
+            <p className="text-[11px] text-muted-foreground truncate">{summary.company}</p>
+          )}
+        </div>
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
