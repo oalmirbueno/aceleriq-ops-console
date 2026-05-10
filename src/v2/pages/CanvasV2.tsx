@@ -94,15 +94,15 @@ function buildLayout(
 
   const nodes: Node[] = [];
   activeLanes.forEach((status, colIdx) => {
-    const x = COL_X_START + colIdx * (nodeW + colGap);
+    const x = COL_X_START + colIdx * (NODE_W + COL_GAP);
     const arr = grouped.get(status) ?? [];
     arr.forEach((task, rowIdx) => {
       nodes.push({
         id: task.id,
-        type: renderer === "task-v2" ? "taskCard" : "projectCard",
-        position: { x, y: ROW_Y_START + rowIdx * (NODE_H + rowGap) },
+        type: renderer === "task-v2" ? "taskCardV2" : "projectCard",
+        position: { x, y: ROW_Y_START + rowIdx * (NODE_H + ROW_GAP) },
         data: (renderer === "task-v2"
-          ? { task }
+          ? { task, __nodeSize: nodeSize }
           : portalTaskToNodeData(task)) as unknown as Record<string, unknown>,
         draggable: true,
       });
