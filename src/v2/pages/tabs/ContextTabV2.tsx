@@ -114,7 +114,7 @@ export default function ContextTabV2() {
         <EmptyBlock
           icon={Scale}
           title="Nenhuma decisão registrada"
-          text="Log de decisões formais: tecnologia, escopo, prazos e fornecedores. Aparece aqui quando registrado no Portal, com data e responsável."
+          text="Decisões formais — mudança de escopo, troca de estratégia, escolhas técnicas — aparecem aqui em ordem cronológica quando registradas no Portal."
         />
       </Section>
 
