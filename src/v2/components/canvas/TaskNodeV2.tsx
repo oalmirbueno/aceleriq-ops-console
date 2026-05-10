@@ -23,13 +23,15 @@ export interface TaskNodeData extends Record<string, unknown> {
 
 function TaskNodeV2Comp({ data, selected }: NodeProps) {
   const { task, onOpenDetail } = data as TaskNodeData;
+  const nodeSize = ((data as TaskNodeData & { __nodeSize?: string }).__nodeSize ?? "md") as "sm" | "md" | "lg";
+  const widthCls = nodeSize === "sm" ? "w-[280px]" : nodeSize === "lg" ? "w-[380px]" : "w-[320px]";
   const meta = STATUS_META[task.status];
   const Icon = meta.icon;
   const pct = Math.round(task.progress * 100);
 
   return (
     <div
-      className={`group relative w-[320px] rounded-2xl border bg-card/95 backdrop-blur-md transition-all ${
+      className={`group relative ${widthCls} rounded-2xl border bg-card/95 backdrop-blur-md transition-all ${
         selected
           ? "border-primary/60 shadow-[0_20px_60px_-20px_hsl(145_100%_50%/0.45),0_0_0_1px_hsl(145_100%_50%/0.5)]"
           : "border-border/80 shadow-[0_12px_40px_-16px_rgba(0,0,0,0.7)] hover:border-foreground/30"
