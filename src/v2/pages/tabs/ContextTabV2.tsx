@@ -208,10 +208,16 @@ function EssentialBriefingCard({
             className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted"
             title="Apenas Modo Dev — edição legacy"
           >
-            <ExternalLink className="h-3.5 w-3.5" /> OPS antigo
+            <ExternalLink className="h-3.5 w-3.5" /> Abrir OPS antigo
           </a>
         )}
       </div>
+      {summary?.isFilled && (summary.clientName || summary.company) && (
+        <p className="mt-3 text-[11px] text-muted-foreground leading-relaxed line-clamp-2 border-t border-border/50 pt-2">
+          {[summary.clientName, summary.company].filter(Boolean).join(" · ")}
+          {summary.approxFields > 0 && ` — ${summary.approxFields} campos preenchidos`}
+        </p>
+      )}
     </div>
   );
 }
