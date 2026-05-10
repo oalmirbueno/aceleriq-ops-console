@@ -95,7 +95,7 @@ export default function SettingsV2() {
   const [showDock, setShowDock] = useV2Setting(V2_SETTINGS.canvasShowDock);
   const [showIAHub, setShowIAHub] = useV2Setting(V2_SETTINGS.canvasShowIAHub);
   const [nodeSize, setNodeSize] = useV2Setting(V2_SETTINGS.canvasNodeSize);
-  const [renderer, setRenderer] = useV2Setting(V2_SETTINGS.canvasNodeRenderer);
+  const [canvasNodeRenderer, setCanvasNodeRenderer] = useV2Setting(V2_SETTINGS.canvasNodeRenderer);
 
   useEffect(() => subscribeBridgeError(setErr), []);
 
@@ -228,13 +228,13 @@ export default function SettingsV2() {
             onChange={setDefaultFullscreen}
           />
           <SelectRow
-            label="Renderer dos nodes"
-            description='Legacy: card clássico da esteira (padrão). Task V2: card nativo do Canvas V2 com barra de progresso e responsável.'
-            value={renderer}
-            onChange={(v) => setRenderer(v as "legacy" | "task-v2")}
+            label="Renderizador dos nodes"
+            description='Legacy usa os cards do canvas antigo (padrão estável). Task V2 usa cards minimalistas com tipagem nova.'
+            value={canvasNodeRenderer}
+            onChange={(v) => setCanvasNodeRenderer(v as "legacy" | "task-v2")}
             options={[
               { value: "legacy", label: "Legacy (padrão)" },
-              { value: "task-v2", label: "Task V2" },
+              { value: "task-v2", label: "Task V2 (experimental)" },
             ]}
           />
           <SelectRow
