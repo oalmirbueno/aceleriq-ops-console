@@ -26,7 +26,12 @@ interface Props {
 
 export default function CanvasDockV2({
   onOrganize, onAddBlocked, onToggleIAHub, iaHubOpen, iaHubEnabled,
-  hiddenStatuses, onChangeFilters, portalUrl, renderer, density, nodeSize, tasksCount, milestoneTitle,
+  hiddenStatuses, onChangeFilters, portalUrl,
+  renderer = "legacy",
+  density = "comfortable",
+  nodeSize = "md",
+  tasksCount = 0,
+  milestoneTitle,
 }: Props) {
   const rf = useReactFlow();
 
