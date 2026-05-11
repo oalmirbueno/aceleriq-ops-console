@@ -74,15 +74,52 @@ const DENSITY_GAP: Record<"comfortable" | "compact", { col: number; row: number 
   compact:     { col: 64,  row: 18 },
 };
 
+type CanvasLayoutMode = "status" | "compact" | "wide";
+
+function getLayoutConfig(
+  total: number,
+  density: "comfortable" | "compact",
+  layoutMode: CanvasLayoutMode,
+) {
+  const base = DENSITY_GAP[density];
+  if (layoutMode === "compact") {
+    return { colGap: Math.max(48, base.col - 32), rowGap: Math.max(14, base.row - 18), maxRowsPerColumn: total >= 13 ? 7 : 8 };
+  }
+  if (layoutMode === "wide") {
+    return { colGap: base.col + 72, rowGap: base.row + 18, maxRowsPerColumn: total >= 13 ? 5 : 6 };
+  }
+  return { colGap: base.col, rowGap: base.row, maxRowsPerColumn: total >= 10 ? 6 : Number.POSITIVE_INFINITY };
+}
+
+function getSmartFit(
+  count: number,
+  renderer: "legacy" | "task-v2",
+  layoutMode: CanvasLayoutMode,
+) {
+  const rendererMaxZoom = renderer === "task-v2" ? 0.92 : 0.98;
+  if (count <= 6) return { options: { padding: 0.22, maxZoom: rendererMaxZoom, duration: 260 }, minZoom: 0.22 };
+  if (count <= 12) {
+    return {
+      options: { padding: layoutMode === "wide" ? 0.1 : 0.14, maxZoom: Math.min(rendererMaxZoom, 0.88), duration: 300 },
+      minZoom: 0.38,
+    };
+  }
+  return {
+    options: { padding: layoutMode === "wide" ? 0.06 : 0.1, maxZoom: Math.min(rendererMaxZoom, 0.82), duration: 320 },
+    minZoom: 0.42,
+  };
+}
+
 function buildLayout(
   tasks: PortalTask[],
   renderer: "legacy" | "task-v2",
   nodeSize: "sm" | "md" | "lg",
   density: "comfortable" | "compact",
+  layoutMode: CanvasLayoutMode,
 ): { nodes: Node[]; edges: Edge[] } {
   const sizeMap = renderer === "task-v2" ? TASK_SIZE_CONFIG : NODE_SIZE_CONFIG;
   const { w: NODE_W, h: NODE_H } = sizeMap[nodeSize];
-  const { col: COL_GAP, row: ROW_GAP } = DENSITY_GAP[density];
+  const { colGap: COL_GAP, rowGap: ROW_GAP, maxRowsPerColumn } = getLayoutConfig(tasks.length, density, layoutMode);
   const COL_X_START = 80;
   const ROW_Y_START = 80;
   const grouped = new Map<PortalTaskStatus, PortalTask[]>();
@@ -95,20 +132,25 @@ function buildLayout(
   const activeLanes = STATUS_LANES.filter((s) => s !== "archived" || grouped.has(s));
 
   const nodes: Node[] = [];
-  activeLanes.forEach((status, colIdx) => {
-    const x = COL_X_START + colIdx * (NODE_W + COL_GAP);
+  let laneColIdx = 0;
+  activeLanes.forEach((status) => {
     const arr = grouped.get(status) ?? [];
+    const subCols = Math.max(1, Math.ceil(arr.length / maxRowsPerColumn));
     arr.forEach((task, rowIdx) => {
+      const subCol = Math.floor(rowIdx / maxRowsPerColumn);
+      const localRow = rowIdx % maxRowsPerColumn;
+      const x = COL_X_START + (laneColIdx + subCol) * (NODE_W + COL_GAP);
       nodes.push({
         id: task.id,
         type: renderer === "task-v2" ? "taskCardV2" : "projectCard",
-        position: { x, y: ROW_Y_START + rowIdx * (NODE_H + ROW_GAP) },
+        position: { x, y: ROW_Y_START + localRow * (NODE_H + ROW_GAP) },
         data: (renderer === "task-v2"
           ? { task, __nodeSize: nodeSize, __portalTask: task }
           : { ...portalTaskToNodeData(task), __portalTask: task }) as unknown as Record<string, unknown>,
         draggable: true,
       });
     });
+    laneColIdx += subCols;
   });
 
   // Sugestão visual de fluxo: liga primeira task de cada lane à da próxima.
@@ -152,6 +194,7 @@ function CanvasV2Inner() {
   const [canvasNodeRenderer] = useV2Setting(V2_SETTINGS.canvasNodeRenderer);
   const [nodeSize] = useV2Setting(V2_SETTINGS.canvasNodeSize);
   const [density] = useV2Setting(V2_SETTINGS.canvasDensity);
+  const [canvasLayoutMode] = useV2Setting(V2_SETTINGS.canvasLayoutMode);
   const [showDock] = useV2Setting(V2_SETTINGS.canvasShowDock);
   const [showIAHub] = useV2Setting(V2_SETTINGS.canvasShowIAHub);
   const [panelOpen, setPanelOpen] = useState(showSidePanel);
@@ -225,8 +268,8 @@ function CanvasV2Inner() {
   );
 
   const layout = useMemo(
-    () => buildLayout(tasks.data ?? [], canvasNodeRenderer, nodeSize, density),
-    [tasks.data, canvasNodeRenderer, nodeSize, density],
+    () => buildLayout(tasks.data ?? [], canvasNodeRenderer, nodeSize, density, canvasLayoutMode),
+    [tasks.data, canvasNodeRenderer, nodeSize, density, canvasLayoutMode],
   );
 
   const visibleLayout = useMemo(() => {
@@ -240,6 +283,11 @@ function CanvasV2Inner() {
     const visibleEdges = layout.edges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target));
     return { nodes: visibleNodes, edges: visibleEdges };
   }, [layout, hiddenStatuses, tasks.data]);
+
+  const smartFit = useMemo(
+    () => getSmartFit(visibleLayout.nodes.length || tasks.data?.length || 0, canvasNodeRenderer, canvasLayoutMode),
+    [visibleLayout.nodes.length, tasks.data?.length, canvasNodeRenderer, canvasLayoutMode],
+  );
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>(layout.nodes);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>(layout.edges);
@@ -261,14 +309,14 @@ function CanvasV2Inner() {
       setRfEdges(visibleLayout.edges);
       if (milestoneChanged) setSelectedTaskId(null);
       window.requestAnimationFrame(() => {
-        rf.fitView({ padding: 0.22, maxZoom: canvasNodeRenderer === "task-v2" ? 0.92 : 0.98, duration: 260 });
+        rf.fitView(smartFit.options);
       });
     } else {
       const visibleIds = new Set(visibleLayout.nodes.map((n) => n.id));
       setRfNodes((nodes) => nodes.filter((n) => visibleIds.has(n.id)));
       setRfEdges(visibleLayout.edges);
     }
-  }, [visibleLayout, setRfNodes, setRfEdges, layoutTick, autoOrganize, activeMilestoneId, rf, canvasNodeRenderer]);
+  }, [visibleLayout, setRfNodes, setRfEdges, layoutTick, autoOrganize, activeMilestoneId, rf, smartFit.options]);
 
   const organize = useCallback(() => setLayoutTick((n) => n + 1), []);
 
@@ -414,8 +462,8 @@ function CanvasV2Inner() {
             onNodeClick={onNodeClick}
             onConnect={onConnect}
             fitView
-            fitViewOptions={{ padding: 0.22, maxZoom: canvasNodeRenderer === "task-v2" ? 0.92 : 0.98, duration: 260 }}
-            minZoom={0.22}
+            fitViewOptions={smartFit.options}
+            minZoom={smartFit.minZoom}
             maxZoom={2.5}
             nodesDraggable
             nodesConnectable
@@ -496,6 +544,8 @@ function CanvasV2Inner() {
                 renderer={canvasNodeRenderer}
                 density={density}
                 nodeSize={nodeSize}
+                layoutMode={canvasLayoutMode}
+                fitViewOptions={smartFit.options}
                 tasksCount={tasks.data?.length ?? 0}
                 milestoneTitle={selectedMilestone?.title}
               />

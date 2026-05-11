@@ -20,6 +20,8 @@ interface Props {
   renderer: "legacy" | "task-v2";
   density: "comfortable" | "compact";
   nodeSize: "sm" | "md" | "lg";
+  layoutMode: "status" | "compact" | "wide";
+  fitViewOptions: { padding: number; maxZoom: number; duration: number };
   tasksCount: number;
   milestoneTitle?: string;
 }
@@ -30,6 +32,8 @@ export default function CanvasDockV2({
   renderer = "legacy",
   density = "comfortable",
   nodeSize = "md",
+  layoutMode = "status",
+  fitViewOptions = { padding: 0.22, maxZoom: 0.98, duration: 260 },
   tasksCount = 0,
   milestoneTitle,
 }: Props) {
@@ -41,7 +45,7 @@ export default function CanvasDockV2({
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin">
           <DockGroup label="Navegação">
             <DockBtn label="Selecionar / mover nodes" icon={MousePointer2} active />
-            <DockBtn label="Centralizar sem salvar layout" icon={Maximize} onClick={() => rf.fitView({ padding: 0.22, duration: 320, maxZoom: renderer === "task-v2" ? 0.92 : 0.98 })} />
+            <DockBtn label="Centralizar sem salvar layout" icon={Maximize} onClick={() => rf.fitView({ ...fitViewOptions, duration: 320 })} />
             <DockBtn label="Aproximar" icon={ZoomIn} onClick={() => rf.zoomIn({ duration: 200 })} />
             <DockBtn label="Afastar" icon={ZoomOut} onClick={() => rf.zoomOut({ duration: 200 })} />
           </DockGroup>
@@ -49,9 +53,10 @@ export default function CanvasDockV2({
           <Sep />
 
           <DockGroup label="Visual">
-            <DockBtn label="Reorganizar visualmente (local, não persiste)" icon={LayoutGrid} onClick={onOrganize} />
+            <DockBtn label="Organizar visualmente — local, não persiste" icon={LayoutGrid} onClick={onOrganize} />
             <StatePill icon={Eye} label={renderer === "legacy" ? "Legacy" : "Task V2"} tone={renderer === "legacy" ? "default" : "primary"} />
             <StatePill icon={SlidersHorizontal} label={`${(nodeSize ?? "md").toUpperCase()} · ${density === "compact" ? "compacto" : "confortável"}`} />
+            <StatePill icon={LayoutGrid} label={layoutMode === "wide" ? "amplo" : layoutMode === "compact" ? "compacto" : "status"} />
           </DockGroup>
 
           <Sep />
