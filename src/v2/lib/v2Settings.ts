@@ -34,6 +34,7 @@ export const V2_SETTINGS = {
   canvasShowIAHub: { key: "ops-v2:canvas:ia-hub", ...bool(true) } as Setting<boolean>,
   canvasNodeSize: { key: "ops-v2:canvas:node-size", ...enumStr<"sm" | "md" | "lg">("md", ["sm", "md", "lg"]) } as Setting<"sm" | "md" | "lg">,
   canvasNodeRenderer: { key: "ops-v2:canvas:node-renderer", ...enumStr<"legacy" | "task-v2">("legacy", ["legacy", "task-v2"]) } as Setting<"legacy" | "task-v2">,
+  canvasLayoutMode: { key: "ops-v2:canvas:layout-mode", ...enumStr<"status" | "compact" | "wide">("status", ["status", "compact", "wide"]) } as Setting<"status" | "compact" | "wide">,
 };
 
 const EVENT = "ops-v2:settings:changed";
