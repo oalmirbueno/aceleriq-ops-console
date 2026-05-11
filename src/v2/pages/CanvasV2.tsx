@@ -8,11 +8,11 @@
  * - Drag local + conexões locais permitidos (não persistem).
  * - Sem canvas_nodes, sem auto-sync, sem materialize.
  */
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import {
   ReactFlow, ReactFlowProvider, Background, BackgroundVariant, Controls, MiniMap,
-  useNodesState, useEdgesState, MarkerType, addEdge, ConnectionMode, ConnectionLineType,
+  useNodesState, useEdgesState, useReactFlow, MarkerType, addEdge, ConnectionMode, ConnectionLineType,
   SelectionMode,
   type Node, type Edge, type NodeMouseHandler, type Connection, type NodeProps,
 } from "@xyflow/react";
@@ -65,13 +65,13 @@ const NODE_SIZE_CONFIG: Record<"sm" | "md" | "lg", { w: number; h: number }> = {
   lg: { w: 340, h: 250 },
 };
 const TASK_SIZE_CONFIG: Record<"sm" | "md" | "lg", { w: number; h: number }> = {
-  sm: { w: 280, h: 180 },
-  md: { w: 320, h: 200 },
-  lg: { w: 380, h: 220 },
+  sm: { w: 300, h: 188 },
+  md: { w: 344, h: 218 },
+  lg: { w: 408, h: 258 },
 };
 const DENSITY_GAP: Record<"comfortable" | "compact", { col: number; row: number }> = {
-  comfortable: { col: 120, row: 40 },
-  compact:     { col: 56,  row: 14 },
+  comfortable: { col: 128, row: 52 },
+  compact:     { col: 64,  row: 18 },
 };
 
 function buildLayout(
@@ -90,7 +90,9 @@ function buildLayout(
     const arr = grouped.get(t.status) ?? [];
     arr.push(t); grouped.set(t.status, arr);
   }
-  const activeLanes = STATUS_LANES.filter((s) => grouped.has(s));
+  // Mantém colunas estáveis por status entre milestones: evita nodes "pulando"
+  // quando uma lane intermediária fica vazia. Archived só entra se houver task.
+  const activeLanes = STATUS_LANES.filter((s) => s !== "archived" || grouped.has(s));
 
   const nodes: Node[] = [];
   activeLanes.forEach((status, colIdx) => {
@@ -102,8 +104,8 @@ function buildLayout(
         type: renderer === "task-v2" ? "taskCardV2" : "projectCard",
         position: { x, y: ROW_Y_START + rowIdx * (NODE_H + ROW_GAP) },
         data: (renderer === "task-v2"
-          ? { task, __nodeSize: nodeSize }
-          : portalTaskToNodeData(task)) as unknown as Record<string, unknown>,
+          ? { task, __nodeSize: nodeSize, __portalTask: task }
+          : { ...portalTaskToNodeData(task), __portalTask: task }) as unknown as Record<string, unknown>,
         draggable: true,
       });
     });
@@ -111,16 +113,17 @@ function buildLayout(
 
   // Sugestão visual de fluxo: liga primeira task de cada lane à da próxima.
   const edges: Edge[] = [];
-  for (let i = 0; i < activeLanes.length - 1; i++) {
-    const from = grouped.get(activeLanes[i])?.[0];
-    const to = grouped.get(activeLanes[i + 1])?.[0];
+  const nonEmptyLanes = activeLanes.filter((s) => (grouped.get(s)?.length ?? 0) > 0);
+  for (let i = 0; i < nonEmptyLanes.length - 1; i++) {
+    const from = grouped.get(nonEmptyLanes[i])?.[0];
+    const to = grouped.get(nonEmptyLanes[i + 1])?.[0];
     if (from && to) {
       edges.push({
         id: `lane-${from.id}-${to.id}`,
         source: from.id, target: to.id,
         sourceHandle: "r2", targetHandle: "l2",
         type: "deletable",
-        animated: activeLanes[i + 1] === "in_progress",
+        animated: nonEmptyLanes[i + 1] === "in_progress",
         style: { stroke: "hsl(var(--foreground) / 0.55)", strokeWidth: 2, strokeDasharray: "5 5" },
         markerEnd: { type: MarkerType.ArrowClosed, color: "hsl(var(--foreground) / 0.7)", width: 16, height: 16 },
       });
@@ -139,11 +142,13 @@ export default function CanvasV2() {
 
 function CanvasV2Inner() {
   const { projectId = "" } = useParams();
+  const rf = useReactFlow();
   const [milestoneId, setMilestoneId] = useState<string>("");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showSidePanel] = useV2Setting(V2_SETTINGS.canvasShowSidePanel);
   const [defaultFullscreen] = useV2Setting(V2_SETTINGS.canvasDefaultFullscreen);
   const [showMinimap] = useV2Setting(V2_SETTINGS.canvasShowMinimap);
+  const [autoOrganize] = useV2Setting(V2_SETTINGS.canvasAutoOrganize);
   const [canvasNodeRenderer] = useV2Setting(V2_SETTINGS.canvasNodeRenderer);
   const [nodeSize] = useV2Setting(V2_SETTINGS.canvasNodeSize);
   const [density] = useV2Setting(V2_SETTINGS.canvasDensity);
@@ -154,6 +159,7 @@ function CanvasV2Inner() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [iaHubOpen, setIaHubOpen] = useState(false);
   const [hiddenStatuses, setHiddenStatuses] = useState<Set<PortalTaskStatus>>(new Set());
+  const previousMilestoneRef = useRef<string>("");
 
   const project = usePortalQuery(
     () => projectId ? portalClient.getProject(projectId) : Promise.resolve(null),
@@ -240,10 +246,29 @@ function CanvasV2Inner() {
   const [layoutTick, setLayoutTick] = useState(0);
 
   useEffect(() => {
-    setRfNodes(visibleLayout.nodes);
-    setRfEdges(visibleLayout.edges);
-    setSelectedTaskId(null);
-  }, [visibleLayout, setRfNodes, setRfEdges, layoutTick]);
+    setPanelOpen(showSidePanel);
+  }, [showSidePanel]);
+
+  useEffect(() => {
+    setFullscreen(defaultFullscreen);
+  }, [defaultFullscreen]);
+
+  useEffect(() => {
+    const milestoneChanged = previousMilestoneRef.current !== activeMilestoneId;
+    previousMilestoneRef.current = activeMilestoneId;
+    if (autoOrganize || milestoneChanged || layoutTick > 0) {
+      setRfNodes(visibleLayout.nodes);
+      setRfEdges(visibleLayout.edges);
+      if (milestoneChanged) setSelectedTaskId(null);
+      window.requestAnimationFrame(() => {
+        rf.fitView({ padding: 0.22, maxZoom: canvasNodeRenderer === "task-v2" ? 0.92 : 0.98, duration: 260 });
+      });
+    } else {
+      const visibleIds = new Set(visibleLayout.nodes.map((n) => n.id));
+      setRfNodes((nodes) => nodes.filter((n) => visibleIds.has(n.id)));
+      setRfEdges(visibleLayout.edges);
+    }
+  }, [visibleLayout, setRfNodes, setRfEdges, layoutTick, autoOrganize, activeMilestoneId, rf, canvasNodeRenderer]);
 
   const organize = useCallback(() => setLayoutTick((n) => n + 1), []);
 
@@ -267,7 +292,14 @@ function CanvasV2Inner() {
     [tasks.data, selectedTaskId],
   );
   const upcomingTasks = useMemo(
-    () => (tasks.data ?? []).filter((t) => t.status === "todo" || t.status === "in_progress"),
+    () => (tasks.data ?? [])
+      .filter((t) => t.status === "todo" || t.status === "in_progress" || t.status === "blocked")
+      .sort((a, b) => {
+        const order: Record<PortalTaskStatus, number> = { in_progress: 0, blocked: 1, todo: 2, done: 3, archived: 4 };
+        const dateA = a.dueAt ? new Date(a.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+        const dateB = b.dueAt ? new Date(b.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+        return order[a.status] - order[b.status] || dateA - dateB || a.title.localeCompare(b.title);
+      }),
     [tasks.data],
   );
 
@@ -382,8 +414,8 @@ function CanvasV2Inner() {
             onNodeClick={onNodeClick}
             onConnect={onConnect}
             fitView
-            fitViewOptions={{ padding: 0.32, maxZoom: 1 }}
-            minZoom={0.15}
+            fitViewOptions={{ padding: 0.22, maxZoom: canvasNodeRenderer === "task-v2" ? 0.92 : 0.98, duration: 260 }}
+            minZoom={0.22}
             maxZoom={2.5}
             nodesDraggable
             nodesConnectable
@@ -400,8 +432,7 @@ function CanvasV2Inner() {
             connectionLineStyle={{ stroke: "hsl(145 100% 50%)", strokeWidth: 3, opacity: 1 }}
             connectionRadius={34}
             proOptions={{ hideAttribution: true }}
-            className="bg-background canvas-flow acelera-ops-flow animate-fade-in"
-            key={`${activeMilestoneId || "empty"}-${canvasNodeRenderer}`}
+            className="bg-background canvas-flow acelera-ops-flow"
             deleteKeyCode={null}
             defaultEdgeOptions={{
               type: "deletable",
@@ -462,6 +493,11 @@ function CanvasV2Inner() {
                 hiddenStatuses={hiddenStatuses}
                 onChangeFilters={setHiddenStatuses}
                 portalUrl={portalUrl}
+                renderer={canvasNodeRenderer}
+                density={density}
+                nodeSize={nodeSize}
+                tasksCount={tasks.data?.length ?? 0}
+                milestoneTitle={selectedMilestone?.title}
               />
             </div>
           )}
@@ -477,6 +513,7 @@ function CanvasV2Inner() {
                 milestone={selectedMilestone}
                 selectedTask={selectedTask}
                 upcomingTasks={upcomingTasks}
+                allTasks={tasks.data ?? []}
                 briefing={briefing}
               />
             </div>
