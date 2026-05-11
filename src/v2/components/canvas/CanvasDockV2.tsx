@@ -51,7 +51,7 @@ export default function CanvasDockV2({
           <DockGroup label="Visual">
             <DockBtn label="Reorganizar visualmente (local, não persiste)" icon={LayoutGrid} onClick={onOrganize} />
             <StatePill icon={Eye} label={renderer === "legacy" ? "Legacy" : "Task V2"} tone={renderer === "legacy" ? "default" : "primary"} />
-            <StatePill icon={SlidersHorizontal} label={`${nodeSize.toUpperCase()} · ${density === "compact" ? "compacto" : "confortável"}`} />
+            <StatePill icon={SlidersHorizontal} label={`${(nodeSize ?? "md").toUpperCase()} · ${density === "compact" ? "compacto" : "confortável"}`} />
           </DockGroup>
 
           <Sep />
