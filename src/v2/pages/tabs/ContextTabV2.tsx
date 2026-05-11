@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   FileText, Brain, Scale, ArrowRight, ExternalLink, Eye,
-  CheckCircle2, Clock, Database, Hash, ListChecks, Lock, Loader2, AlertTriangle, Archive,
+  CheckCircle2, Clock, Database, Hash, ListChecks, Lock, Loader2, AlertTriangle, Archive, User, Calendar,
 } from "lucide-react";
 import { usePortalQuery } from "@/v2/data/usePortalQuery";
 import {
@@ -55,19 +55,32 @@ export default function ContextTabV2() {
     () => projectId ? portalClient.listTasks({ projectId }) : Promise.resolve([] as PortalTask[]),
     [projectId],
   );
-  const upcoming = (tasksQuery.data ?? [])
-    .filter((t) => t.status === "todo" || t.status === "in_progress" || t.status === "blocked")
-    .sort((a, b) => {
-      const order: Record<PortalTaskStatus, number> = { in_progress: 0, blocked: 1, todo: 2, done: 3, archived: 4 };
-      return order[a.status] - order[b.status];
-    })
-    .slice(0, 8);
+  const taskContext = useMemo(() => {
+    const all = tasksQuery.data ?? [];
+    const order: Record<PortalTaskStatus, number> = { in_progress: 0, blocked: 1, todo: 2, done: 3, archived: 4 };
+    const upcoming = all
+      .filter((t) => t.status === "todo" || t.status === "in_progress" || t.status === "blocked")
+      .sort((a, b) => {
+        const dateA = a.dueAt ? new Date(a.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+        const dateB = b.dueAt ? new Date(b.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+        return order[a.status] - order[b.status] || dateA - dateB || a.title.localeCompare(b.title);
+      })
+      .slice(0, 10);
+    return {
+      upcoming,
+      total: all.length,
+      open: all.filter((t) => t.status === "todo" || t.status === "in_progress" || t.status === "blocked").length,
+      blocked: all.filter((t) => t.status === "blocked").length,
+      missingOwner: all.filter((t) => t.status !== "done" && t.status !== "archived" && !t.assigneeName).length,
+      missingDue: all.filter((t) => t.status !== "done" && t.status !== "archived" && !t.dueAt).length,
+    };
+  }, [tasksQuery.data]);
 
   return (
     <div className="space-y-8">
       <Section
-        title="Briefings"
-        description="Informações perenes do cliente. Fonte de verdade no Portal Aceleriq."
+        title="Briefing essencial"
+        description="Informações perenes do cliente, resolvidas por clientId/nome e exibidas em modo read-only."
       >
         {loading || !projectClientId ? (
           <div className="grid gap-3 md:grid-cols-3">
@@ -98,15 +111,26 @@ export default function ContextTabV2() {
         )}
       </Section>
 
-      <Section title="Próximos passos" description="Tarefas abertas reais do projeto, vindas do Portal.">
-        <UpcomingBlock loading={tasksQuery.loading} error={tasksQuery.error} tasks={upcoming} />
+      <Section title="Contexto operacional" description="Cliente, projeto e saúde rápida das tasks reais do Portal.">
+        <ProjectContextCard
+          clientName={project?.clientName}
+          projectName={project?.name}
+          projectStatus={project?.status}
+          progress={project?.progress}
+          updatedAt={project?.updatedAt}
+          taskContext={taskContext}
+        />
+      </Section>
+
+      <Section title="Próximos passos" description="Tasks abertas reais do projeto, priorizadas por em curso, bloqueadas, prazo e todo.">
+        <UpcomingBlock loading={tasksQuery.loading} error={tasksQuery.error} tasks={taskContext.upcoming} />
       </Section>
 
       <Section title="Memória" description="Histórico vivo do projeto.">
         <EmptyBlock
           icon={Database}
           title="Nenhuma memória registrada"
-          text="Marcos, decisões e contexto acumulado do projeto aparecem aqui quando persistidos no Portal. Útil para onboarding de novos membros e retomadas de projeto."
+          text="Marcos e contexto acumulado aparecem aqui quando persistidos no Portal/OPS. Até lá, use briefing, tarefas abertas e changelog como fonte de leitura."
         />
       </Section>
 
@@ -114,7 +138,7 @@ export default function ContextTabV2() {
         <EmptyBlock
           icon={Scale}
           title="Nenhuma decisão registrada"
-          text="Decisões formais — mudança de escopo, troca de estratégia, escolhas técnicas — aparecem aqui em ordem cronológica quando registradas no Portal."
+          text="Decisões formais aparecem aqui quando registradas no Portal/OPS. Esta aba não cria decisões automaticamente; ela só exibe contexto validado."
         />
       </Section>
 
@@ -138,6 +162,57 @@ function Section({
       </div>
       {children}
     </section>
+  );
+}
+
+function ProjectContextCard({
+  clientName, projectName, projectStatus, progress, updatedAt, taskContext,
+}: {
+  clientName?: string;
+  projectName?: string;
+  projectStatus?: string;
+  progress?: number;
+  updatedAt?: string;
+  taskContext: { total: number; open: number; blocked: number; missingOwner: number; missingDue: number };
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+      <div className="grid gap-3 md:grid-cols-4">
+        <InfoTile icon={User} label="Cliente" value={clientName ?? "—"} />
+        <InfoTile icon={ListChecks} label="Projeto" value={projectName ?? "—"} />
+        <InfoTile icon={CheckCircle2} label="Status" value={projectStatus ?? "—"} />
+        <InfoTile icon={Clock} label="Atualizado" value={formatDate(updatedAt)} />
+      </div>
+      <div className="grid gap-2 md:grid-cols-5">
+        <MiniMetric label="Progresso" value={progress == null ? "—" : `${Math.round(progress * 100)}%`} />
+        <MiniMetric label="Tasks totais" value={String(taskContext.total)} />
+        <MiniMetric label="Abertas" value={String(taskContext.open)} />
+        <MiniMetric label="Bloqueadas" value={String(taskContext.blocked)} tone={taskContext.blocked ? "warn" : "ok"} />
+        <MiniMetric label="Sem dono/prazo" value={`${taskContext.missingOwner}/${taskContext.missingDue}`} tone={taskContext.missingOwner || taskContext.missingDue ? "warn" : "ok"} />
+      </div>
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        Fonte: Portal Aceleriq via bridge read-only. Esta tela não cria task, não muda status e não salva layout.
+      </p>
+    </div>
+  );
+}
+
+function InfoTile({ icon: Icon, label, value }: { icon: typeof FileText; label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border/60 bg-background/40 px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1.5"><Icon className="h-3 w-3" />{label}</p>
+      <p className="mt-1 text-xs font-medium text-foreground truncate">{value}</p>
+    </div>
+  );
+}
+
+function MiniMetric({ label, value, tone = "default" }: { label: string; value: string; tone?: "default" | "ok" | "warn" }) {
+  const cls = tone === "ok" ? "text-primary" : tone === "warn" ? "text-amber-300" : "text-foreground";
+  return (
+    <div className="rounded-lg border border-border/60 bg-background/40 px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className={`mt-1 text-sm font-semibold tabular-nums ${cls}`}>{value}</p>
+    </div>
   );
 }
 
@@ -323,8 +398,8 @@ function UpcomingBlock({
             <p className="text-xs font-medium text-foreground truncate">{t.title}</p>
             <p className="text-[10px] text-muted-foreground inline-flex items-center gap-1.5">
               <span>{statusLabel(t.status)}</span>
-              {t.assigneeName && <><span>·</span><span>{t.assigneeName}</span></>}
-              {t.dueAt && <><span>·</span><span>vence {formatShort(t.dueAt)}</span></>}
+              <span>·</span><span className="inline-flex items-center gap-1"><User className="h-2.5 w-2.5" />{t.assigneeName ?? "sem responsável"}</span>
+              <span>·</span><span className="inline-flex items-center gap-1"><Calendar className="h-2.5 w-2.5" />{t.dueAt ? `vence ${formatShort(t.dueAt)}` : "sem prazo"}</span>
             </p>
           </div>
           <span className="text-[10px] text-muted-foreground tabular-nums font-mono shrink-0">
