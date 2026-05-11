@@ -32,7 +32,8 @@ const STATUS_TONE: Record<PortalTaskStatus, string> = {
 };
 
 export default function IAHubV2({
-  open, onOpenChange, clientName, projectName, milestone, selectedTask, upcomingTasks, allTasks, briefing,
+  open, onOpenChange, clientName, projectName, milestone, selectedTask,
+  upcomingTasks = [], allTasks = [], briefing,
 }: Props) {
   const insights = useMemo(() => {
     const counts = allTasks.reduce<Record<PortalTaskStatus, number>>((acc, task) => {
