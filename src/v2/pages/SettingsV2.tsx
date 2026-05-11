@@ -96,6 +96,7 @@ export default function SettingsV2() {
   const [showIAHub, setShowIAHub] = useV2Setting(V2_SETTINGS.canvasShowIAHub);
   const [nodeSize, setNodeSize] = useV2Setting(V2_SETTINGS.canvasNodeSize);
   const [canvasNodeRenderer, setCanvasNodeRenderer] = useV2Setting(V2_SETTINGS.canvasNodeRenderer);
+  const [canvasLayoutMode, setCanvasLayoutMode] = useV2Setting(V2_SETTINGS.canvasLayoutMode);
 
   useEffect(() => subscribeBridgeError(setErr), []);
 
@@ -248,6 +249,17 @@ export default function SettingsV2() {
             ]}
           />
           <SelectRow
+            label="Layout do Canvas"
+            description="Por status mantém lanes; compacto reduz gaps; amplo distribui melhor milestones com muitos nodes."
+            value={canvasLayoutMode}
+            onChange={(v) => setCanvasLayoutMode(v as "status" | "compact" | "wide")}
+            options={[
+              { value: "status", label: "Por status" },
+              { value: "compact", label: "Compacto" },
+              { value: "wide", label: "Amplo" },
+            ]}
+          />
+          <SelectRow
             label="Tamanho do node"
             description="Tamanho visual dos cards no Canvas."
             value={nodeSize}
@@ -261,7 +273,7 @@ export default function SettingsV2() {
           <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-background/40 px-3 py-2.5">
             <div className="min-w-0">
               <p className="text-xs font-medium text-foreground">Resetar preferências visuais</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">Volta minimap, dock, IA Hub, densidade e tamanho ao padrão.</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">Volta renderer legacy, densidade confortável, tamanho médio e layout por status.</p>
             </div>
             <button
               onClick={() => resetV2Settings()}
