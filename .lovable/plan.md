@@ -1,119 +1,62 @@
-## Hierarquia oficial do produto
+# Central de Briefings — reset do app
 
-```text
-Cliente
-  └── Projeto / Workspace
-        └── Milestone        ← frente/tema/missão de execução
-              └── Task        ← ação executável (node no canvas)
-```
+Reduzir o app a uma única função: gerenciar briefings (Estruturação Empresarial e Automação/IA) por cliente. Tudo que é canvas, projetos, tarefas, milestones, dashboard ops, IA hub e configurações operacionais sai do caminho do usuário.
 
-Portal é fonte da verdade. OPS espelha e opera. Milestone é a **camada central** de organização — nada de node solto, nada de "Sem milestone", nada de `project_group`/`front` legado, nada de milestone criado automaticamente ao abrir tela.
+## O que fica
 
----
+- **Login** (`/login`) e auth atual.
+- **Página pública do cliente** (`/briefing/:token`) — `ClientBriefingPage`, fluxo de preenchimento, salvar progresso, submeter. Nada muda aqui.
+- **Edge functions de briefing**: `issue-briefing-token`, `public-briefing`, `consolidate-briefing`, `parse-briefing`. Continuam como estão.
+- **Tabelas existentes no Supabase**: `clients`, `workspaces`, `context_entries`. Sem migration.
+- **Blocos/sinais**: `enterpriseStructuringBlocks.ts`, `automationBlocks.ts`, `briefingSignals.ts`, `briefingToken.ts`, `briefingPersistence.ts`, `briefingExport.ts`.
 
-## A) Diagnóstico das telas atuais (revisado com foco em milestone)
+## O que sai do caminho
 
-| Tela | Problema |
-|---|---|
-| Dashboard | Não menciona milestones. Cards focam em workspaces e eventos crus. |
-| Clientes | Não mostra milestone atual nem próxima ação. |
-| Workspace | Não tem aba Milestones. Milestones só existem como abas dentro do canvas. |
-| Canvas | Já filtra server-side, mas pode entrar sem milestone selecionado e tentar renderizar tudo. |
-| Tarefas | Não existe como aba dedicada. Tasks só vivem dentro do canvas. |
-| Histórico/Feed | Sem filtro por milestone, mistura eventos técnicos. |
-| Settings | Modo Dev existe mas não centraliza ferramentas técnicas. |
-| Sidebar | ADMIN sempre visível, polui modo operação. |
+Rotas removidas do `App.tsx` (arquivos podem ficar no repo por ora, sem link):
+- Tudo de `/ops/*` (legacy): clients, workspaces, canvas, settings, ai, sync-logs.
+- Tudo de `/ops-v2/*`: dashboard, clientes, projetos, canvas v2, configurações, tabs.
+- `/ops/canvas/open`, `/ops/projects/:portalProjectId`.
 
----
+`/` passa a redirecionar para `/briefings`.
 
-## B) Arquitetura de navegação (milestone-first)
+## Nova estrutura
 
-```text
-/ops (Modo Operação — padrão)
-├── Dashboard
-│     KPIs: projetos ativos · milestones em andamento ·
-│            tasks abertas · tasks vencidas · progresso por milestone
-├── Clientes
-│     Linha: cliente · projeto ativo · milestone atual · progresso · próxima ação
-│     └── Cliente
-├── Workspaces
-│     └── Workspace (abas fixas)
-│           ├── Visão geral     KPIs do projeto + milestone atual + próximas tasks
-│           ├── Milestones       lista visual (status, progresso, #tasks, abrir Canvas/Portal)
-│           ├── Tarefas          agrupadas por milestone, filtros por status
-│           ├── Canvas           inicia com seleção de milestone obrigatória
-│           ├── Contexto         memória/decisões/observações/próximos passos
-│           ├── Arquivos         drive/assets
-│           └── Histórico        feed útil, filtrável por milestone
-└── Configurações
-      └── [Modo Dev ON revela]
-            ├── IA / Agentes
-            ├── Sync logs
-            ├── Sync manual / Smoke test / Verify realtime
-            ├── Templates / Playbook / Repair legacy
-            └── Toggles "mostrar internos / legados / sem vínculo"
-```
+Rotas novas:
+- `/` → redirect `/briefings`
+- `/briefings` → **Central de Briefings** (lista agrupada por cliente)
+- `/briefings/:clientId` → **Detalhe do cliente** (briefings enviados + ação "novo link")
+- `/briefings/:clientId/:entryId` → **Visualização da resposta** (consolidado + export PDF/MD)
+- `/briefing/:token` → mantida (página pública do cliente)
+- `/login` → mantida
 
-Sidebar: seção ADMIN (IA, Sync logs, Configurações avançadas) só aparece com Modo Dev ON.
+Layout novo e enxuto: header simples com logo + email do usuário + logout. Sem sidebar.
 
----
+## Componentes a criar
 
-## C) Componentes a criar / simplificar
+`src/briefings/`
+- `layout/BriefingsLayout.tsx` — shell com header minimalista.
+- `pages/BriefingsCentralPage.tsx` — lista de clientes com contagem de briefings (enviados/respondidos), busca, "Novo cliente".
+- `pages/BriefingsClientPage.tsx` — cards dos briefings desse cliente, status (rascunho aberto / respondido / nunca enviado), botão "Gerar link" (reusa `GenerateBriefingLinkDialog`), botão "Ver resposta".
+- `pages/BriefingsAnswerPage.tsx` — usa `BriefingConsolidatedView` num wrapper limpo, com export.
+- `data/useBriefings.ts` — react-query hooks: `useClientsWithBriefings`, `useClientBriefings(clientId)`, lendo `clients`, `workspaces`, `context_entries` direto pelo client supabase (já é o padrão atual).
 
-Novos (frontend only):
-- `src/lib/milestoneModel.ts` — derivar projetos/milestones/tasks a partir de `canvas_nodes` Portal-bound (já bound pela query server-side da Etapa 3). Funções: `listMilestones(projectId)`, `listTasksByMilestone(milestoneId)`, `milestoneProgress(milestone, tasks)`.
-- `src/lib/operationalEvents.ts` — predicado para esconder `sync_*`/`e2e_*`/`smoke_*`/`fake_*` no feed.
-- `src/components/workspace/MilestonesTab.tsx` — aba dedicada.
-- `src/components/workspace/TasksTab.tsx` — aba dedicada, agrupada por milestone.
-- `src/components/workspace/ContextTab.tsx` — consolidar leitura/edição de memória/decisões/próximos passos.
-- `src/components/workspace/HistoryTab.tsx` — feed filtrado + filtro por milestone.
-- `src/components/DevOnly.tsx` — wrapper de renderização condicional.
+## Limpeza no `App.tsx`
 
-Simplificar:
-- `DashboardPage` → KPIs milestone-aware (projetos ativos, milestones em andamento, tasks abertas/vencidas, progresso médio por milestone).
-- `WorkspacesPage` → cards com milestone atual + progresso. Toggles dev movem-se para Settings.
-- `ClientsPage` → colunas: cliente · projeto · milestone atual · progresso · próxima ação · CTAs.
-- `WorkspaceDetailPage` → 7 abas fixas (acima); resto (Briefing, Funis, Playbook, Templates) só em Modo Dev.
-- `CanvasStudio` → exigir milestone selecionado. Sem milestone = tela "Escolha um milestone" (cards grandes com progresso). Render carrega apenas tasks do milestone ativo.
-- `AppSidebar` → esconder ADMIN sem Modo Dev.
-- `SettingsPage` → hub Modo Dev com cards para cada ferramenta técnica.
-- `EmptyState` → variantes "sem milestone", "sem tasks neste milestone".
+Remove imports e rotas dos blocos OPS legacy e OPS V2. Mantém `BrowserRouter`, `AuthProvider`, `ProtectedRoute`, toasts, `QueryClientProvider`. Rota `*` continua `NotFound`.
 
----
+## Detalhes técnicos
 
-## D) Plano de implementação — 3 etapas
+- **Workspace por cliente**: o token de briefing exige `workspaceId`. A central garante um workspace "default" por cliente (já existe na base; se faltar, cria via insert simples na hora de gerar o link). Sem migration.
+- **Status dos briefings**: derivado de `context_entries` (kind = `briefing_draft` / `briefing_submitted`) filtrado por `metadata.briefing_type`. Lista mostra o mais recente de cada tipo.
+- **Sem mexer em**: portal-bridge, portalClient, sync legacy, canvas_nodes, edge functions de sync.
+- **Memória**: atualizar `mem://index.md` para refletir o novo escopo (app = central de briefings).
 
-### Etapa 4 — Shell, Modo Dev e gating de Canvas por milestone
-Alvo: experiência de operação consistente sem mudar o conteúdo das telas grandes ainda.
-- `AppSidebar`: ocultar ADMIN quando Modo Dev OFF.
-- `<DevOnly>` wrapper.
-- `SettingsPage`: virar hub Modo Dev (toggle em destaque + cards para IA, Sync logs, Sync manual, Smoke test, Verify realtime, Templates, Playbook, toggles de visibilidade).
-- `CanvasStudio`: gate obrigatório de milestone. Se nenhum milestone selecionado, mostrar tela "Escolha um milestone" (cards: título, status, #tasks, progresso). "Visão geral" só em Modo Dev. Render carrega apenas tasks do milestone selecionado.
-- `AppHeader`: respiro/tipografia.
-- Sem mudanças em dados/edge/sync.
+## Plano de execução
 
-### Etapa 5 — Workspace com abas milestone-first
-Alvo: introduzir Milestones e Tarefas como cidadãos de primeira classe.
-- `milestoneModel.ts` (helpers de derivação).
-- `WorkspaceDetailPage`: reorganizar para 7 abas (Visão geral · Milestones · Tarefas · Canvas · Contexto · Arquivos · Histórico).
-- Aba **Milestones**: lista visual, status, progresso, #tasks, [Abrir no Canvas] [Abrir no Portal].
-- Aba **Tarefas**: agrupadas por milestone, filtro por status, ações rápidas (abrir, marcar concluída via Portal).
-- Aba **Visão geral**: KPIs do projeto + milestone atual + próximas tasks.
-- Aba **Contexto**: leitura/edição consolidada (reuso de `ContextEntryDialog`).
-- Aba **Histórico**: feed filtrado por `isOperationalEvent` + filtro por milestone.
-- Briefing/Funis/Playbook/Templates só em Modo Dev.
+1. Criar `src/briefings/data/useBriefings.ts`.
+2. Criar `BriefingsLayout`, `BriefingsCentralPage`, `BriefingsClientPage`, `BriefingsAnswerPage`.
+3. Reescrever `src/App.tsx` com as 5 rotas finais.
+4. Atualizar `mem://index.md`.
+5. Typecheck.
 
-### Etapa 6 — Dashboard, Clientes e Feed milestone-aware
-Alvo: KPIs e listas espelham milestones.
-- `DashboardPage`: stats reescritos (projetos ativos, milestones em andamento, tasks abertas, tasks vencidas). Feed filtrado.
-- `WorkspacesPage`: cards mostram milestone atual + progresso; toggles dev removidos da toolbar.
-- `ClientsPage`: linha enxuta (cliente · projeto · milestone atual · progresso · próxima ação · CTAs Abrir/Portal).
-- `operationalEvents.ts` em uso global no feed.
-
-Cada etapa entrega: arquivos alterados, typecheck verde, checklist visual. Zero impacto em banco/edge/sync/migrations.
-
----
-
-## E) Próximo passo
-
-Aguardo aprovação da **Etapa 4** para começar. Nada será refatorado antes.
+Arquivos legados ficam no repo mas sem rota; podem ser deletados num passo 2 se você quiser limpeza física.
