@@ -58,18 +58,13 @@ export function useBriefingClients() {
   return useQuery({
     queryKey: ["briefings", "clients"],
     queryFn: async (): Promise<BriefingClient[]> => {
-      const [{ data: clients, error: cErr }, { data: entries, error: eErr }] = await Promise.all([
-        supabase
-          .from("clients")
-          .select("id, name, company_name, logo_url, created_at")
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("context_entries")
-          .select("id, client_id, metadata, created_at, updated_at")
-          .eq("context_type", "briefing"),
-      ]);
-      if (cErr) throw cErr;
-      if (eErr) throw eErr;
+      const { data: res, error } = await supabase.functions.invoke("list-briefings", {
+        body: { mode: "clients" },
+      });
+      if (error) throw error;
+      if (res?.error) throw new Error(res.error as string);
+      const clients = (res?.clients ?? []) as Array<Record<string, unknown>>;
+      const entries = (res?.entries ?? []) as Array<Record<string, unknown>>;
 
       const byClient = new Map<string, { drafts: number; submitted: number; last: string | null }>();
       for (const row of entries ?? []) {
@@ -122,14 +117,12 @@ export function useClientBriefings(clientId: string | undefined) {
     queryKey: ["briefings", "entries", clientId],
     enabled: !!clientId,
     queryFn: async (): Promise<BriefingEntry[]> => {
-      const { data, error } = await supabase
-        .from("context_entries")
-        .select("id, client_id, workspace_id, title, content, metadata, created_at, updated_at")
-        .eq("context_type", "briefing")
-        .eq("client_id", clientId!)
-        .order("created_at", { ascending: false });
+      const { data: res, error } = await supabase.functions.invoke("list-briefings", {
+        body: { mode: "client", clientId },
+      });
       if (error) throw error;
-      return (data ?? []).map(parseEntry);
+      if (res?.error) throw new Error(res.error as string);
+      return ((res?.entries ?? []) as Array<Record<string, unknown>>).map(parseEntry);
     },
   });
 }
@@ -139,13 +132,12 @@ export function useBriefingEntry(entryId: string | undefined) {
     queryKey: ["briefings", "entry", entryId],
     enabled: !!entryId,
     queryFn: async (): Promise<BriefingEntry | null> => {
-      const { data, error } = await supabase
-        .from("context_entries")
-        .select("id, client_id, workspace_id, title, content, metadata, created_at, updated_at")
-        .eq("id", entryId!)
-        .maybeSingle();
+      const { data: res, error } = await supabase.functions.invoke("list-briefings", {
+        body: { mode: "entry", entryId },
+      });
       if (error) throw error;
-      return data ? parseEntry(data) : null;
+      if (res?.error) throw new Error(res.error as string);
+      return res?.entry ? parseEntry(res.entry as Record<string, unknown>) : null;
     },
   });
 }

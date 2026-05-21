@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.portal-bridge]
 verify_jwt = true
+
+[functions.list-briefings]
+verify_jwt = true
