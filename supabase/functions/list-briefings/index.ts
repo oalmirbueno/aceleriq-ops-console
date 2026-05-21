@@ -35,14 +35,13 @@ serve(async (req) => {
   const { data: userRes, error: userErr } = await userClient.auth.getUser();
   if (userErr || !userRes.user) return json({ error: "unauthorized" }, 401);
 
-  // Admin gate via profiles.role
+  // Admin gate via has_role RPC (SECURITY DEFINER)
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("role")
-    .eq("id", userRes.user.id)
-    .maybeSingle();
-  if (!profile || profile.role !== "admin") {
+  const { data: isAdmin, error: roleErr } = await admin.rpc("has_role", {
+    _user_id: userRes.user.id,
+    _role: "admin",
+  });
+  if (roleErr || isAdmin !== true) {
     return json({ error: "forbidden" }, 403);
   }
 
