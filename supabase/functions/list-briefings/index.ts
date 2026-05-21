@@ -1,7 +1,7 @@
 /**
  * list-briefings — admin endpoint to list briefings/clients.
  * Uses service-role to bypass RLS. Validates the caller's JWT and admin role.
- *
+ * v2 — force redeploy.
  * Modes (body):
  *  { mode: "clients" }                            → list all clients + briefing aggregates
  *  { mode: "client", clientId }                   → list briefings for one client
