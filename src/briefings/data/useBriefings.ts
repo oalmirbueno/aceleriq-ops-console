@@ -58,19 +58,27 @@ export function useBriefingClients() {
   return useQuery({
     queryKey: ["briefings", "clients"],
     queryFn: async (): Promise<BriefingClient[]> => {
-      const { data: res, error } = await supabase.functions.invoke("list-briefings", {
-        body: { mode: "clients" },
-      });
-      if (error) throw error;
-      if (res?.error) throw new Error(res.error as string);
-      const clients = (res?.clients ?? []) as Array<Record<string, unknown>>;
-      const entries = (res?.entries ?? []) as Array<Record<string, unknown>>;
+      const [{ data: clients, error: cErr }, { data: entries, error: eErr }, { data: workspaces, error: wErr }] = await Promise.all([
+        supabase.from("clients").select("id, name, company_name, logo_url, created_at").order("created_at", { ascending: false }),
+        supabase.from("context_entries").select("id, client_id, workspace_id, metadata, created_at, updated_at").eq("context_type", "briefing"),
+        supabase.from("workspaces").select("id, client_id"),
+      ]);
+      if (cErr) throw cErr;
+      if (eErr) throw eErr;
+      if (wErr) throw wErr;
+      const wsMap = new Map<string, string>();
+      for (const w of workspaces ?? []) wsMap.set(w.id as string, w.client_id as string);
+      const normalized = (entries ?? []).map((e) => ({
+        ...e,
+        client_id: (e.client_id as string | null) ?? wsMap.get(e.workspace_id as string) ?? null,
+      })) as Array<Record<string, unknown>>;
 
       const byClient = new Map<string, { drafts: number; submitted: number; last: string | null }>();
-      for (const row of entries ?? []) {
+      for (const row of normalized) {
         const meta = (row.metadata as Record<string, unknown> | null) ?? {};
         const status = meta.public_briefing_status === "submitted" ? "submitted" : "draft";
-        const cid = row.client_id as string;
+        const cid = row.client_id as string | null;
+        if (!cid) continue;
         const acc = byClient.get(cid) ?? { drafts: 0, submitted: 0, last: null };
         if (status === "submitted") acc.submitted += 1;
         else acc.drafts += 1;
@@ -117,12 +125,18 @@ export function useClientBriefings(clientId: string | undefined) {
     queryKey: ["briefings", "entries", clientId],
     enabled: !!clientId,
     queryFn: async (): Promise<BriefingEntry[]> => {
-      const { data: res, error } = await supabase.functions.invoke("list-briefings", {
-        body: { mode: "client", clientId },
-      });
+      const { data: ws } = await supabase.from("workspaces").select("id").eq("client_id", clientId!);
+      const wsIds = (ws ?? []).map((w) => w.id as string);
+      const filter = wsIds.length
+        ? `client_id.eq.${clientId},workspace_id.in.(${wsIds.join(",")})`
+        : `client_id.eq.${clientId}`;
+      const { data, error } = await supabase.from("context_entries")
+        .select("id, client_id, workspace_id, title, content, metadata, created_at, updated_at")
+        .eq("context_type", "briefing")
+        .or(filter)
+        .order("created_at", { ascending: false });
       if (error) throw error;
-      if (res?.error) throw new Error(res.error as string);
-      return ((res?.entries ?? []) as Array<Record<string, unknown>>).map(parseEntry);
+      return (data ?? []).map((r) => parseEntry(r as Record<string, unknown>));
     },
   });
 }
@@ -132,12 +146,12 @@ export function useBriefingEntry(entryId: string | undefined) {
     queryKey: ["briefings", "entry", entryId],
     enabled: !!entryId,
     queryFn: async (): Promise<BriefingEntry | null> => {
-      const { data: res, error } = await supabase.functions.invoke("list-briefings", {
-        body: { mode: "entry", entryId },
-      });
+      const { data, error } = await supabase.from("context_entries")
+        .select("id, client_id, workspace_id, title, content, metadata, created_at, updated_at")
+        .eq("id", entryId!)
+        .maybeSingle();
       if (error) throw error;
-      if (res?.error) throw new Error(res.error as string);
-      return res?.entry ? parseEntry(res.entry as Record<string, unknown>) : null;
+      return data ? parseEntry(data as Record<string, unknown>) : null;
     },
   });
 }
