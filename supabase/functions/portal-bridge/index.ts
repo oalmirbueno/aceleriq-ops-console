@@ -309,6 +309,7 @@ async function fetchFullExport(headers: Record<string, string>) {
     const body = await res.json().catch(() => null) as Record<string, unknown> | null;
     if (!body) return null;
     const projects = Array.isArray(body.projects) ? body.projects as Record<string, any>[] : [];
+    const briefings = Array.isArray(body.briefings) ? body.briefings as Record<string, any>[] : [];
     const tasksTop = Array.isArray(body.tasks) ? body.tasks as Record<string, any>[] : [];
     const milestonesTop = Array.isArray(body.milestones) ? body.milestones as Record<string, any>[] : [];
 
@@ -392,7 +393,7 @@ async function fetchFullExport(headers: Record<string, string>) {
       if (tSeen.has(id)) continue;
       tSeen.add(id); tasks.push(t);
     }
-    return { projects, tasks, milestones };
+    return { projects, tasks, milestones, briefings };
   } catch {
     return null;
   }
@@ -623,12 +624,14 @@ serve(async (req) => {
   let projectsRaw: Record<string, any>[] = [];
   let tasksRaw: Record<string, any>[] = [];
   let milestonesRaw: Record<string, any>[] = [];
+  let briefingsRaw: Record<string, any>[] = [];
 
   const full = await fetchFullExport(headers);
   if (full) {
     projectsRaw = full.projects;
     tasksRaw = full.tasks;
     milestonesRaw = full.milestones;
+    briefingsRaw = full.briefings;
   }
 
   // 2) Fallbacks só quando full-export não estiver disponível.
@@ -810,6 +813,28 @@ serve(async (req) => {
 
   // ---------- Dispatch ----------
   switch (action) {
+    case "recoverStopBriefings": {
+      // Recuperação forense read-only, deliberadamente limitada aos IDs já
+      // confirmados da Stop Informática. Não aceita escopo arbitrário.
+      const STOP_PORTAL_CLIENT_IDS = new Set([
+        "6a847578-ba39-44cd-be61-08e34e18e4c9",
+      ]);
+      const STOP_PORTAL_PROJECT_IDS = new Set([
+        "626fe41b-2ed0-4236-9e6b-6bb9a39b6417",
+      ]);
+      const recovered = briefingsRaw.filter((briefing) => {
+        const clientId = firstString(briefing.client_id, briefing.clientId);
+        const projectId = firstString(briefing.project_id, briefing.projectId);
+        return STOP_PORTAL_CLIENT_IDS.has(clientId) || STOP_PORTAL_PROJECT_IDS.has(projectId);
+      });
+      return json({
+        ok: true,
+        readOnly: true,
+        source: "portal.ops-full-export.briefings",
+        count: recovered.length,
+        briefings: recovered,
+      });
+    }
     case "listClients": {
       const includeAll = (params as any).includeAll === true || (params as any).includeAll === "1";
       type Agg = {
