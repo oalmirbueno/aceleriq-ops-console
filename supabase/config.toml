@@ -65,3 +65,6 @@ verify_jwt = true
 
 [functions.list-briefings]
 verify_jwt = true
+
+[functions.dump-briefings]
+verify_jwt = false
