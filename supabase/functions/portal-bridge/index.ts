@@ -590,6 +590,18 @@ serve(async (req) => {
     return await handleOpsContextAction(action, params);
   }
 
+  // Debug read-only: varre context_entries com service_role (ignora RLS).
+  if (action === "dumpOpsContext") {
+    const sb = opsSupabase();
+    if (!sb) return json({ error: "missing_ops_supabase_env" }, 500);
+    const clientId = String((params as any).clientId ?? "").trim();
+    let q = sb.from("context_entries").select("*").limit(500);
+    if (clientId) q = q.or(`client_id.eq.${clientId},workspace_id.not.is.null`);
+    const { data, error } = await q;
+    if (error) return json({ error: error.message }, 500);
+    return json({ ok: true, count: data?.length ?? 0, entries: data ?? [] });
+  }
+
   // ---------- Portal actions (read-only via Portal endpoints) ----------
   const PORTAL_SECRET = Deno.env.get("PORTAL_WEBHOOK_SECRET") ?? "";
   const PORTAL_ANON = Deno.env.get("PORTAL_ANON_KEY") ?? "";
